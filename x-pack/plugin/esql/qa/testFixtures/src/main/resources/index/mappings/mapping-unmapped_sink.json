@@ -1,0 +1,6 @@
+{
+  "properties": {
+    "@timestamp": { "type": "date" },
+    "n": { "type": "nested" }
+  }
+}

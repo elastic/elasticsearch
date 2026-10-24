@@ -1,0 +1,107 @@
+// Fields absorbed into the _unmapped sink of a strict columnar index, loaded under SET unmapped_fields="load". unmapped_sink has synthetic
+// source and unmapped_sink_columnar_stored has columnar_stored source; both hold the same documents and give the same results.
+
+sinkIsNotAColumn
+required_capability: flattened_unmapped_sink_load
+
+FROM unmapped_sink*
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:date
+2025-01-01T00:00:00.000Z
+2025-01-01T00:00:00.000Z
+;
+
+loadTopLevelDottedAndMissingFields
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink* METADATA _index
+| KEEP _index, @timestamp, level, response_code, request.path, cluster
+| SORT _index, @timestamp
+;
+
+_index:keyword               | @timestamp:date          | level:keyword | response_code:keyword | request.path:keyword | cluster:keyword
+unmapped_sink                | 2025-01-01T00:00:00.000Z | info          | 200                   | /api/v1              | prod
+unmapped_sink                | 2025-01-01T00:01:00.000Z | warn          | 404                   | /api/v2              | prod
+unmapped_sink                | 2025-01-01T00:02:00.000Z | info          | 200                   | /api/v1              | null
+unmapped_sink_columnar_stored | 2025-01-01T00:00:00.000Z | info          | 200                   | /api/v1              | prod
+unmapped_sink_columnar_stored | 2025-01-01T00:01:00.000Z | warn          | 404                   | /api/v2              | prod
+unmapped_sink_columnar_stored | 2025-01-01T00:02:00.000Z | info          | 200                   | /api/v1              | null
+;
+
+multiValuesAreSortedAndDeduplicated
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink* METADATA _index
+| KEEP _index, @timestamp, tags
+| SORT _index, @timestamp
+;
+
+_index:keyword               | @timestamp:date          | tags:keyword
+unmapped_sink                | 2025-01-01T00:00:00.000Z | [a, b]
+unmapped_sink                | 2025-01-01T00:01:00.000Z | c
+unmapped_sink                | 2025-01-01T00:02:00.000Z | null
+unmapped_sink_columnar_stored | 2025-01-01T00:00:00.000Z | [a, b]
+unmapped_sink_columnar_stored | 2025-01-01T00:01:00.000Z | c
+unmapped_sink_columnar_stored | 2025-01-01T00:02:00.000Z | null
+;
+
+fieldBelowNestedObjectReadsFromSource
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink* METADATA _index
+| KEEP _index, @timestamp, n.u
+| SORT _index, @timestamp
+;
+
+_index:keyword               | @timestamp:date          | n.u:keyword
+unmapped_sink                | 2025-01-01T00:00:00.000Z | [x, y]
+unmapped_sink                | 2025-01-01T00:01:00.000Z | null
+unmapped_sink                | 2025-01-01T00:02:00.000Z | null
+unmapped_sink_columnar_stored | 2025-01-01T00:00:00.000Z | [x, y]
+unmapped_sink_columnar_stored | 2025-01-01T00:01:00.000Z | null
+unmapped_sink_columnar_stored | 2025-01-01T00:02:00.000Z | null
+;
+
+filterOnAbsorbedField
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink* METADATA _index
+| WHERE level == "warn"
+| KEEP _index, @timestamp, level
+| SORT _index
+;
+
+_index:keyword               | @timestamp:date          | level:keyword
+unmapped_sink                | 2025-01-01T00:01:00.000Z | warn
+unmapped_sink_columnar_stored | 2025-01-01T00:01:00.000Z | warn
+;
+
+// LOAD_ALL reads the whole of _source, so unlike LOAD it keeps the order and duplicates of a field's values.
+loadAll
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_load_all_single_source_column
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_sink* METADATA _index
+| SORT _index, @timestamp
+;
+
+@timestamp:date          | _index:keyword                | _unmapped_fields:_source
+2025-01-01T00:00:00.000Z | unmapped_sink                 | "{""cluster"":""prod"",""level"":""info"",""n.u"":[""x"",""y""],""request.path"":""/api/v1"",""response_code"":""200"",""tags"":[""b"",""a"",""b""]}"
+2025-01-01T00:01:00.000Z | unmapped_sink                 | "{""cluster"":""prod"",""level"":""warn"",""request.path"":""/api/v2"",""response_code"":""404"",""tags"":""c""}"
+2025-01-01T00:02:00.000Z | unmapped_sink                 | "{""level"":""info"",""request.path"":""/api/v1"",""response_code"":""200""}"
+2025-01-01T00:00:00.000Z | unmapped_sink_columnar_stored | "{""cluster"":""prod"",""level"":""info"",""n.u"":[""x"",""y""],""request.path"":""/api/v1"",""response_code"":""200"",""tags"":[""b"",""a"",""b""]}"
+2025-01-01T00:01:00.000Z | unmapped_sink_columnar_stored | "{""cluster"":""prod"",""level"":""warn"",""request.path"":""/api/v2"",""response_code"":""404"",""tags"":""c""}"
+2025-01-01T00:02:00.000Z | unmapped_sink_columnar_stored | "{""level"":""info"",""request.path"":""/api/v1"",""response_code"":""200""}"
+;

@@ -9,13 +9,18 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -24,6 +29,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -36,6 +44,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -460,5 +470,105 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("does not support [flattened]"));
+    }
+
+    /**
+     * An unmapped field may exist exactly where a segment holds the sink's keyed field, whether the source is synthetic or columnar_stored:
+     * neither has an {@code _ignored_source} or {@code _ignored} field for an absorbed field to go by.
+     */
+    public void testSinkFieldMayExist() throws IOException {
+        MapperService mapperService = createMapperService(columnarSettings(randomColumnarSourceMode()), mapping(b -> {
+            b.startObject("mapped").field("type", "long").endObject();
+        }));
+        boolean absorbed = randomBoolean();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("mapped", randomLong());
+            if (absorbed) {
+                b.field(randomAlphaOfLength(5), randomAlphanumericOfLength(5));
+            }
+        }));
+        withSegment(mapperService, doc, (unmappedFields, context) -> assertEquals(absorbed, unmappedFields.mayExist()));
+    }
+
+    /** An absorbed field that no nested object is above is loaded from the sink's doc values, as a key of a mapped flattened field is. */
+    public void testSinkFieldReadsFromDocValues() throws IOException {
+        MapperService mapperService = createMapperService(columnarSettings(randomColumnarSourceMode()), mapping(b -> {}));
+        String name = randomFrom("absorbed", "obj.absorbed");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(name, randomAlphaOfLength(3))));
+        withSegment(
+            mapperService,
+            doc,
+            (unmappedFields, context) -> assertThat(unmappedFields.blockLoader(name), instanceOf(KeyedFlattenedDocValuesBlockLoader.class))
+        );
+    }
+
+    /**
+     * The values of a field below a nested object are in the documents of its elements, not in the root document that ES|QL reads, so
+     * such a field is read from {@code _source}.
+     */
+    public void testSinkFieldBelowNestedReadsFromSource() throws IOException {
+        MapperService mapperService = createMapperService(columnarSettings(randomColumnarSourceMode()), mapping(b -> {
+            b.startObject("n").field("type", "nested").endObject();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("n");
+            b.startObject().field("u", randomAlphaOfLength(4)).endObject();
+            b.endArray();
+        }));
+        withSegment(
+            mapperService,
+            doc,
+            (unmappedFields, context) -> assertThat(unmappedFields.blockLoader("n.u"), hasToString("UnmappedFields.Named[n.u]"))
+        );
+    }
+
+    /**
+     * A columnar_stored root is written from the {@code _source} precomputed at index time, which holds the absorbed fields, so it doesn't
+     * load the sink: with no mapped field, nothing reads doc values. The absorbed fields still come back from the precomputed
+     * {@code _source}.
+     */
+    public void testColumnarStoredRootSkipsSink() throws IOException {
+        MapperService mapperService = createMapperService(columnarSettings("columnar_stored"), mapping(b -> {}));
+        String bare = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("bare", bare)));
+        withSegment(mapperService, doc, (unmappedFields, context) -> {
+            assertNull(mapperService.mappingLookup().getMapping().syntheticFieldLoader(null, true).docValuesLoader(context.reader(), null));
+            SourceLoader sourceLoader = mapperService.mappingLookup()
+                .newSourceLoader(new SourceFilter(new String[] { "bare" }, null), SourceFieldMetrics.NOOP, null);
+            int[] docIds = new int[] { 0 };
+            LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
+                .getLoader(context, docIds);
+            storedFields.advanceTo(0);
+            assertEquals(
+                "{\"bare\":\"" + bare + "\"}",
+                sourceLoader.leaf(context, docIds).source(storedFields, 0).internalSourceRef().utf8ToString()
+            );
+        });
+    }
+
+    private static Settings columnarSettings(String sourceMode) {
+        return Settings.builder().put(columnarSettings()).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode).build();
+    }
+
+    private static String randomColumnarSourceMode() {
+        return randomFrom("synthetic", "columnar_stored");
+    }
+
+    /** Indexes {@code doc} into one segment and runs {@code test} with the unmapped fields of that segment. */
+    private static void withSegment(
+        MapperService mapperService,
+        ParsedDocument doc,
+        CheckedBiConsumer<UnmappedFields, LeafReaderContext, IOException> test
+    ) throws IOException {
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            LeafReaderContext context = getOnlyLeafReader(reader).getContext();
+            FieldInfos fieldInfos = context.reader().getFieldInfos();
+            var unmappedFields = new UnmappedFields(
+                mapperService.getIndexSettings(),
+                mapperService.mappingLookup(),
+                field -> fieldInfos.fieldInfo(field) != null
+            );
+            test.accept(unmappedFields, context);
+        });
     }
 }

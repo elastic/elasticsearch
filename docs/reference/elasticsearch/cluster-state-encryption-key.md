@@ -56,6 +56,13 @@ You don't need to configure an encryption password to upgrade an existing deploy
 * **{{eck}} deployments:** ECK doesn't provision the password automatically during an upgrade. Before a feature first stores a managed secret, configure `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` through [ECK secure settings](docs-content://deploy-manage/security/k8s-secure-settings.md), then call `POST /_nodes/reload_secure_settings`. A restart isn't required.
 * **{{ech}} and {{ece}} deployments:** When an existing deployment is upgraded to 9.5 or later, the control plane provisions the password and reloads the secure settings automatically.
 
+A node can [fault from cluster](docs-content://troubleshoot/elasticsearch/discovery-troubleshooting.md) until encryption is configured. The first log the node can document when encryption is still needed appears like:
+
+```
+cannot wrap PEK for disk:
+[cluster.state.encryption.active_password_id] is not configured
+```
+
 ## Rotate the encryption password [cluster-state-encryption-password-rotation]
 
 You can rotate each node's password independently without restarting {{es}}. The following procedure rotates the password on one node. Repeat it for any other nodes whose passwords you want to rotate. Keep a node's old password available until that node has loaded the new password and rewrapped its on-disk copy of the cluster state encryption key.

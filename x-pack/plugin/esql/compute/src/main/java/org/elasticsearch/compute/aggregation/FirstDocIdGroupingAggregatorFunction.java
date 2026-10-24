@@ -7,6 +7,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.Block;
@@ -62,7 +63,13 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     private final int channel;
     private final DriverContext driverContext;
-    private int maxGroupId = -1;
+    /**
+     * Groups that already have a doc. A high-water mark on the group id used to suffice because, with documents in {@code _tsid}
+     * order, a group's first occurrence always carried the highest group id so far. Under the grouped time series sort (see
+     * {@code IndexSettings#TIME_SERIES_DIMENSION_GROUP_FIELD}) the documents are no longer in tsid order and a group can first
+     * occur with an id lower than one seen before, which left such groups pointing at doc 0.
+     */
+    private final BitArray seen;
     private final BigArrays bigArrays;
     private IntArray docs;
     private final Map<Integer, RefCounted> contextRefs = new HashMap<>();
@@ -74,6 +81,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         boolean success = false;
         try {
             this.docs = bigArrays.newIntArray(1024, false);
+            this.seen = new BitArray(1024, bigArrays);
             success = true;
         } finally {
             if (success == false) {
@@ -145,13 +153,13 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            if (groupId > maxGroupId) {
+            if (seen.getAndSet(groupId) == false) {
                 collectOneDoc(groupId, docVector, positionOffset);
             }
         } else {
             for (int p = 0; p < positionCount; p++) {
                 int groupId = groups.getInt(p);
-                if (groupId > maxGroupId) {
+                if (seen.getAndSet(groupId) == false) {
                     collectOneDoc(groupId, docVector, p + positionOffset);
                 }
             }
@@ -159,7 +167,6 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     private void collectOneDoc(int groupId, DocVector docVector, int valuePosition) {
-        maxGroupId = groupId;
         int shard = docVector.shards().getInt(valuePosition);
         int segment = docVector.segments().getInt(valuePosition);
         int doc = docVector.docs().getInt(valuePosition);
@@ -274,7 +281,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(docs, () -> {
+        Releasables.closeExpectNoException(seen, docs, () -> {
             for (RefCounted ref : contextRefs.values()) {
                 ref.decRef();
             }

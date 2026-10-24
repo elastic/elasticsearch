@@ -66,7 +66,12 @@ abstract class ColumnarTsidAccumulator {
      * @param singleBytePrefixLayout selects the tsid layout
      */
     static ColumnarTsidAccumulator create(int docCount, boolean singleBytePrefixLayout) {
-        return singleBytePrefixLayout ? new SingleBytePrefix(docCount, null) : new MultiBytePrefix(docCount, null);
+        return create(docCount, null, singleBytePrefixLayout ? TsidLayout.Kind.SINGLE_BYTE_PREFIX : TsidLayout.Kind.MULTI_BYTE_PREFIX);
+    }
+
+    /** Creates an accumulator for all rows of a batch, for any {@link TsidLayout.Kind}. */
+    static ColumnarTsidAccumulator create(int docCount, TsidLayout.Kind kind) {
+        return create(docCount, null, kind);
     }
 
     /**
@@ -85,16 +90,30 @@ abstract class ColumnarTsidAccumulator {
      * @param singleBytePrefixLayout selects the tsid layout
      */
     static ColumnarTsidAccumulator create(int docCount, @Nullable int[] rows, boolean singleBytePrefixLayout) {
+        return create(docCount, rows, singleBytePrefixLayout ? TsidLayout.Kind.SINGLE_BYTE_PREFIX : TsidLayout.Kind.MULTI_BYTE_PREFIX);
+    }
+
+    /** Creates an accumulator for a subset of rows (see {@link #create(int, int[], boolean)}), for any {@link TsidLayout.Kind}. */
+    static ColumnarTsidAccumulator create(int docCount, @Nullable int[] rows, TsidLayout.Kind kind) {
+        final int slotCount;
+        final int[] rowToSlot;
         if (rows == null) {
-            return create(docCount, singleBytePrefixLayout);
+            slotCount = docCount;
+            rowToSlot = null;
+        } else {
+            slotCount = rows.length;
+            // Build the inverse map: rowToSlot[batchRow] = slot in result array, or -1 when not in subset.
+            rowToSlot = new int[docCount];
+            Arrays.fill(rowToSlot, -1);
+            for (int k = 0; k < rows.length; k++) {
+                rowToSlot[rows[k]] = k;
+            }
         }
-        // Build the inverse map: rowToSlot[batchRow] = slot in result array, or -1 when not in subset.
-        int[] rowToSlot = new int[docCount];
-        Arrays.fill(rowToSlot, -1);
-        for (int k = 0; k < rows.length; k++) {
-            rowToSlot[rows[k]] = k;
-        }
-        return singleBytePrefixLayout ? new SingleBytePrefix(rows.length, rowToSlot) : new MultiBytePrefix(rows.length, rowToSlot);
+        return switch (kind) {
+            case MULTI_BYTE_PREFIX -> new MultiBytePrefix(slotCount, rowToSlot);
+            case SINGLE_BYTE_PREFIX -> new SingleBytePrefix(slotCount, rowToSlot);
+            case NO_PREFIX -> new NoPrefix(slotCount, rowToSlot);
+        };
     }
 
     private ColumnarTsidAccumulator(int slotCount, @Nullable int[] rowToSlot) {
@@ -209,6 +228,22 @@ abstract class ColumnarTsidAccumulator {
                 scratch
             );
             return TsidBuilder.writeSingleBytePrefixTsid(prefixByte, fullHash);
+        }
+    }
+
+    /** No prefix bytes at all: the tsid is the full hash (see {@link TsidBuilder#writeNoPrefixTsid}). */
+    private static final class NoPrefix extends ColumnarTsidAccumulator {
+
+        NoPrefix(int slotCount, @Nullable int[] rowToSlot) {
+            super(slotCount, rowToSlot);
+        }
+
+        @Override
+        void addPrefixInput(int slot, long valueH1, long valueH2, int pathGroup, int prefixRank) {}
+
+        @Override
+        BytesRef finish(int slot, int count, MurmurHash3.Hash128 fullHash) {
+            return TsidBuilder.writeNoPrefixTsid(fullHash);
         }
     }
 

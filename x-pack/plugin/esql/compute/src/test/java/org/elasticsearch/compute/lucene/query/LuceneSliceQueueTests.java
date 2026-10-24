@@ -28,8 +28,11 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -37,6 +40,7 @@ import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -758,7 +762,9 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
         @Override
         public LeafMetaData getMetaData() {
-            throw new UnsupportedOperationException();
+            // sorted on _tsid first, so the partitioner reads the partitions of the _tsid doc values
+            Sort sort = new Sort(new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING));
+            return new LeafMetaData(Version.LATEST.major, Version.LATEST, sort, false);
         }
 
         @Override

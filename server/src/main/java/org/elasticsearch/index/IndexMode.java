@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -134,7 +135,23 @@ public enum IndexMode {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
 
-            var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
+            // The index.sort.* defaults of a time series index depend on the creation version and on the dimension group field, so
+            // those have to be part of the settings the defaults are computed from, or an index with the grouped sort would be
+            // rejected as having explicitly configured sort settings. An explicitly configured time series sort keeps the grouped
+            // sort off (see IndexSettings#timeSeriesDimensionGroupSortEnabled), so the defaults are then the ones without a group.
+            List<?> sortFields = (List<?>) settings.get(IndexSortConfig.INDEX_SORT_FIELD_SETTING);
+            boolean groupedSort = sortFields.isEmpty() == false && MetricNameHashFieldMapper.NAME.equals(sortFields.getFirst());
+            var settingsWithIndexMode = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), getName())
+                .put(
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                    (IndexVersion) settings.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED)
+                )
+                .put(
+                    IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(),
+                    groupedSort ? (String) settings.get(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD) : ""
+                )
+                .build();
 
             for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
                 if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
@@ -931,7 +948,9 @@ public enum IndexMode {
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.SLICE_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
-                IndexSettings.TIME_SERIES_END_TIME
+                IndexSettings.TIME_SERIES_END_TIME,
+                IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD,
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED
             ),
             TIME_SERIES_UNSUPPORTED.stream()
         ).collect(toSet())

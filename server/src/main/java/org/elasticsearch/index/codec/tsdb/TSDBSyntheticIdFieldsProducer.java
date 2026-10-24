@@ -15,6 +15,7 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -47,12 +48,14 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     private static final Set<String> FIELDS_NAMES = Set.of(SYNTHETIC_ID);
 
     private final DocValuesProducer docValuesProducer;
+    private final SegmentInfo segmentInfo;
     private final FieldInfos fieldInfos;
     private final int maxDocs;
 
     public TSDBSyntheticIdFieldsProducer(SegmentReadState state, DocValuesProducer docValuesProducer) {
         assert assertFieldInfosExist(state.fieldInfos, SYNTHETIC_ID, TIMESTAMP, TS_ID);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
+        this.segmentInfo = state.segmentInfo;
         this.fieldInfos = state.fieldInfos;
         this.maxDocs = state.segmentInfo.maxDoc();
         maybeLogSegmentDetails(state, docValuesProducer);
@@ -89,28 +92,20 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             public BytesRef getMin() throws IOException {
                 // Prefer an explicit min over the default Terms#getMin walk so bloom-filter wrappers that
                 // delegate here (and checkIndex / relocation prewarm) never rely on incomplete seekCeil probes.
-                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
-                for (int doc = 0; doc < maxDocs; doc++) {
-                    if (docValues.hasTsIdDocValue(doc)) {
-                        return docValues.docSyntheticId(doc);
-                    }
-                }
-                return null;
+                var docValues = new TSDBSyntheticIdDocValuesHolder(segmentInfo, fieldInfos, docValuesProducer);
+                int doc = docValues.firstDocInTermOrder();
+                return doc == DocIdSetIterator.NO_MORE_DOCS ? null : docValues.docSyntheticId(doc);
             }
 
             @Override
             public BytesRef getMax() throws IOException {
-                // Documents are sorted by _tsid ascending then @timestamp descending, so the last document
-                // with a _tsid holds the lexicographically largest synthetic _id. Override the default
-                // Terms#getMax binary search: its incomplete probe keys are not valid synthetic ids and
-                // trip extractTimestampFromSyntheticId when seekCeil matches a _tsid.
-                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
-                for (int doc = maxDocs - 1; doc >= 0; doc--) {
-                    if (docValues.hasTsIdDocValue(doc)) {
-                        return docValues.docSyntheticId(doc);
-                    }
-                }
-                return null;
+                // The documents of a _tsid are sorted by @timestamp descending, so the last document of the greatest _tsid
+                // holds the lexicographically largest synthetic _id. Override the default Terms#getMax binary search: its
+                // incomplete probe keys are not valid synthetic ids and trip extractTimestampFromSyntheticId when seekCeil
+                // matches a _tsid.
+                var docValues = new TSDBSyntheticIdDocValuesHolder(segmentInfo, fieldInfos, docValuesProducer);
+                int doc = docValues.lastDocInTermOrder();
+                return doc == DocIdSetIterator.NO_MORE_DOCS ? null : docValues.docSyntheticId(doc);
             }
 
             @Override
@@ -185,7 +180,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private @Nullable Long docTimestamp;
 
         private SyntheticIdTermsEnum() {
-            this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
+            this.docValues = new TSDBSyntheticIdDocValuesHolder(segmentInfo, fieldInfos, docValuesProducer);
             resetDocID(-1);
         }
 
@@ -216,6 +211,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 return null;
             }
 
+            final var runs = docValues.tsIdRuns();
+            if (runs != null) {
+                return nextInRuns(runs);
+            }
             int nextDocID = docID + 1;
             // Skip documents without _tsid (NOOP tombstones)
             while (nextDocID < maxDocs && docValues.hasTsIdDocValue(nextDocID) == false) {
@@ -226,6 +225,39 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 return null;
             }
             resetDocID(nextDocID);
+            return term();
+        }
+
+        /**
+         * The next term when _tsid is not the primary sort field: term order walks the _tsid ordinals, and within one the
+         * documents of its run, which are not followed in document order by the documents of the next ordinal.
+         */
+        private BytesRef nextInRuns(OrdinalRunsDocValues.OrdinalRuns runs) throws IOException {
+            final int tsIdOrd;
+            int nextDocID;
+            if (docID == -1) {
+                tsIdOrd = 0;
+                nextDocID = runs.firstDoc(tsIdOrd);
+            } else {
+                int currentTsIdOrd = docTsIdOrd != null ? docTsIdOrd : docValues.docTsIdOrdinal(docID);
+                nextDocID = docID + 1;
+                // Skip documents without _tsid (NOOP tombstones)
+                final int runEnd = docValues.tsIdRunEnd(currentTsIdOrd);
+                while (nextDocID < runEnd && docValues.hasTsIdDocValue(nextDocID) == false) {
+                    nextDocID++;
+                }
+                if (nextDocID < runEnd) {
+                    tsIdOrd = currentTsIdOrd;
+                } else if (currentTsIdOrd + 1 < docValues.getTsIdValueCount()) {
+                    tsIdOrd = currentTsIdOrd + 1;
+                    nextDocID = runs.firstDoc(tsIdOrd);
+                } else {
+                    resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                    return null;
+                }
+            }
+            resetDocID(nextDocID);
+            docTsIdOrd = tsIdOrd;
             return term();
         }
 
@@ -289,6 +321,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
             assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
             assert firstDocID >= 0 : firstDocID;
+            final var runs = docValues.tsIdRuns();
+            final int tsIdRunEnd = docValues.tsIdRunEnd(tsIdOrd);
+            // Under the grouped sort the documents of the _tsid end with its run and must not be scanned past it: the tombstones
+            // that may follow carry the same _tsid. Otherwise the scan runs until the ordinal changes.
+            final int scanEnd = runs != null ? tsIdRunEnd : maxDocs;
 
             // Extract the timestamp
             final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
@@ -325,10 +362,9 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 skipper.advance(firstDocID);
                 // Within the _tsid, documents are sorted by descending timestamp, so blocks whose minimum timestamp is greater than the
                 // one we're looking for only contain documents that precede the ceiling and can be skipped. Blocks that may contain
-                // documents of the next _tsid must not be skipped: the ceiling might be their first document, whatever its timestamp.
-                final int nextTsIdStartDocID = docValues.findStartDocIDForTsIdOrd(tsIdOrd + 1);
+                // documents of another _tsid must not be skipped: the ceiling might be their first document, whatever its timestamp.
                 while (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS
-                    && skipper.maxDocID(0) < nextTsIdStartDocID
+                    && skipper.maxDocID(0) < tsIdRunEnd
                     && skipper.minValue(0) > timestamp) {
                     skipper.advance(skipper.maxDocID(0) + 1);
                 }
@@ -347,7 +383,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             final var randomAccessTimestamps = docValues.randomAccessTimestamps();
             if (randomAccessTimestamps != null) {
                 int lo = nextDocID;
-                int hi = Math.min(maxDocs, docValues.findStartDocIDForTsIdOrd(tsIdOrd + 1));
+                int hi = tsIdRunEnd;
                 while (lo < hi) {
                     final int mid = (lo + hi) >>> 1;
                     if (randomAccessTimestamps.valueAt(mid) > timestamp) {
@@ -363,17 +399,37 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             long nextDocTimestamp;
 
             // Iterate over documents to find the first one matching the timestamp
-            for (; nextDocID < maxDocs; nextDocID++) {
+            for (; nextDocID < scanEnd; nextDocID++) {
                 // Skip documents without _tsid (NOOP tombstones)
                 if (docValues.hasTsIdDocValue(nextDocID) == false) {
                     continue;
                 }
-                nextDocTimestamp = docValues.docTimestamp(nextDocID);
                 if (firstDocID < nextDocID) {
                     // After the first doc, we need to check again if _tsid matches
                     nextDocTsIdOrd = docValues.docTsIdOrdinal(nextDocID);
                 }
-                if (nextDocTsIdOrd == tsIdOrd && nextDocTimestamp == timestamp) {
+                if (nextDocTsIdOrd != tsIdOrd) {
+                    // Past the documents of the _tsid without a match: the ceiling is the first document of the next _tsid. When
+                    // _tsid is the primary sort field that is this document; otherwise it is the start of the run of the next
+                    // ordinal, if there is one.
+                    if (runs == null) {
+                        assert nextDocTsIdOrd == tsIdOrd + 1 : nextDocTsIdOrd + " != " + (tsIdOrd + 1);
+                        docID = nextDocID;
+                        docTsIdOrd = nextDocTsIdOrd;
+                        docTimestamp = null;
+                        return SeekStatus.NOT_FOUND;
+                    }
+                    if (tsIdOrd + 1 < docValues.getTsIdValueCount()) {
+                        docID = runs.firstDoc(tsIdOrd + 1);
+                        docTsIdOrd = tsIdOrd + 1;
+                        docTimestamp = null;
+                        return SeekStatus.NOT_FOUND;
+                    }
+                    resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                    return SeekStatus.END;
+                }
+                nextDocTimestamp = docValues.docTimestamp(nextDocID);
+                if (nextDocTimestamp == timestamp) {
                     if (Assertions.ENABLED) {
                         // _ts_routing_hash read from doc values
                         var routingHashDVBytes = docValues.docRoutingHash(nextDocID);
@@ -390,13 +446,20 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     docTimestamp = nextDocTimestamp;
                     return SeekStatus.FOUND;
                 }
-                // Remaining docs don't match, position the enum on the last doc seeked
-                if (tsIdOrd < nextDocTsIdOrd || nextDocTimestamp < timestamp) {
+                // Remaining docs of the _tsid have smaller timestamps, position the enum on the last doc seeked
+                if (nextDocTimestamp < timestamp) {
                     docID = nextDocID;
                     docTsIdOrd = nextDocTsIdOrd;
                     docTimestamp = nextDocTimestamp;
                     return SeekStatus.NOT_FOUND;
                 }
+            }
+            if (runs != null && tsIdOrd + 1 < docValues.getTsIdValueCount()) {
+                // The run of the _tsid is exhausted without a match: the ceiling is the first document of the next ordinal's run
+                docID = runs.firstDoc(tsIdOrd + 1);
+                docTsIdOrd = tsIdOrd + 1;
+                docTimestamp = null;
+                return SeekStatus.NOT_FOUND;
             }
             resetDocID(DocIdSetIterator.NO_MORE_DOCS);
             return SeekStatus.END;
@@ -482,7 +545,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         private SyntheticIdPostingsEnum(int docID, int termTsIdOrd, long termTimestamp) {
             assert docID < maxDocs : docID + " >= " + maxDocs;
-            this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
+            this.docValues = new TSDBSyntheticIdDocValuesHolder(segmentInfo, fieldInfos, docValuesProducer);
             this.termTsIdOrd = termTsIdOrd;
             this.termTimestamp = termTimestamp;
             this.startDocId = docID;

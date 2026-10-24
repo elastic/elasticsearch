@@ -73,7 +73,8 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
             assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
             PartitionedDocValues.PrefixPartitions partition = null;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {
-                final SortedDocValues dv = leaf.reader().getSortedDocValues("_tsid");
+                // the primary sort field: _tsid, or _metric_name_hash under the grouped time series sort
+                final SortedDocValues dv = leaf.reader().getSortedDocValues(PartitionedDocValues.partitionedField(leaf.reader()));
                 assertThat(dv, instanceOf(PartitionedDocValues.class));
                 partition = ((PartitionedDocValues) dv).prefixPartitions(partition);
                 assertNotNull(partition);

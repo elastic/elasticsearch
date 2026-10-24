@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -68,6 +69,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -90,10 +92,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     private static int metricHash;
+    private static String dimensionGroupField = "";
 
     @Before
     public void setUpMetricsNameField() throws Exception {
         metricHash = randomIntBetween(1, 255);
+        dimensionGroupField = randomBoolean() ? "hostname" : "";
     }
 
     /**
@@ -641,6 +645,60 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    /**
+     * Under the grouped sort the delete tombstones trail the segment: they carry the _tsid of the deleted document but none of the
+     * sort keys ahead of it. The tombstones of the last time series directly follow its live documents, so the run recorded for
+     * that _tsid ordinal spans both and is not sorted by timestamp as a whole. The seek must not stray into the tombstones, or
+     * Lucene applies the soft delete to a tombstone and the live document survives.
+     */
+    public void testDeletesOfTheLastTimeSeriesUnderGroupedSort() throws IOException {
+        dimensionGroupField = "hostname";
+        runTest((writer, parser) -> {
+            final int routing = randomNonNegativeInt();
+            final long baseTimestamp = Instant.now().toEpochMilli();
+            final int numDocs = randomIntBetween(10, 2_000);
+            final var ids = new ArrayList<BytesRef>();
+            for (int i = 0; i < numDocs; i++) {
+                var doc = new Doc(baseTimestamp + i, "vm-dev-a", "cpu-load", randomInt(), 1, routing);
+                writer.addDocument(parser.parse(doc));
+                ids.add(uidEncodedSyntheticId(doc));
+            }
+            if (randomBoolean()) {
+                // The tombstones then trail their own segment
+                writer.flush();
+            }
+            final var deleted = new HashSet<>(randomSubsetOf(ids));
+            for (var uid : deleted) {
+                writer.softUpdateDocument(new Term(IdFieldMapper.NAME, uid), syntheticIdTombstone(uid), Lucene.newSoftDeletesField());
+            }
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.numDocs(), equalTo(numDocs - deleted.size()));
+                // Every remaining id still resolves to its live document, and no deleted one does
+                final var live = new HashSet<BytesRef>();
+                for (var context : reader.leaves()) {
+                    var leaf = context.reader();
+                    var termsEnum = leaf.terms(IdFieldMapper.NAME).iterator();
+                    var liveDocs = leaf.getLiveDocs();
+                    PostingsEnum postings = null;
+                    for (var uid : ids) {
+                        if (termsEnum.seekExact(uid) == false) {
+                            continue;
+                        }
+                        postings = termsEnum.postings(postings, PostingsEnum.NONE);
+                        for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
+                            if (liveDocs == null || liveDocs.get(doc)) {
+                                live.add(uid);
+                            }
+                        }
+                    }
+                }
+                for (var uid : ids) {
+                    assertThat("live " + uid, live.contains(uid), equalTo(deleted.contains(uid) == false));
+                }
+            }
+        });
+    }
+
     public void testSeekCeilMatchesLinearScanAcrossManySkipperBlocks() throws IOException {
         // We rely on skippers being enabled
         runTest(false, (writer, parser) -> {
@@ -920,6 +978,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         final List<String> dimensions = List.of("hostname", "metric.field", "_metric_names_hash");
         var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            // Either the tsid-first sort, or the grouped sort that puts the metric name hash and the host ahead of the tsid, under
+            // which the documents of a tsid are still contiguous but the tsids are not in order (see OrdinalRunsDocValues)
+            .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), dimensionGroupField)
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions);
         if (disableSkippers) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
@@ -1087,7 +1148,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         return new TsidBuilder().addIntDimension("_metric_names_hash", metricHash)
             .addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid(IndexVersion.current());
+            // the grouped sort drops the prefix byte of the tsid, the tsid-first sort keeps it
+            .buildTsid(new TsidLayout(IndexVersion.current(), dimensionGroupField.isEmpty() == false));
     }
 
     /**

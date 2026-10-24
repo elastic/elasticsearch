@@ -1115,6 +1115,68 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(indexMetadata.useTimeSeriesSyntheticId());
     }
 
+    /**
+     * Synthetic ids stay on by default under the grouped time series sort: the segments then record the runs of documents of each
+     * _tsid (see {@code OrdinalRunsDocValues}), which the synthetic _id lookup uses instead of _tsid being the primary sort field.
+     */
+    public void testSyntheticIdOnWithDimensionGroupSort() {
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT);
+        Settings.Builder settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing");
+        if (randomBoolean()) {
+            settings.put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "some-routing");
+        }
+        if (randomBoolean()) {
+            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        }
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings.build(), version);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesDimensionGroupSort());
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+
+        // disabling the grouped sort leaves the default alone
+        Settings disabled = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "")
+            .build();
+        IndexSettings disabledSettings = new IndexSettings(newIndexMeta("some-index", disabled, version), Settings.EMPTY);
+        assertFalse(disabledSettings.useTimeSeriesDimensionGroupSort());
+        assertTrue(disabledSettings.useTimeSeriesSyntheticId());
+    }
+
+    /**
+     * An explicitly configured time series sort keeps _tsid as the primary sort field, even with a dimension group field: the mode
+     * validation accepts it and the grouped sort stays off, while any other explicit sort is still rejected.
+     */
+    public void testExplicitTimeSeriesSortDisablesDimensionGroupSort() {
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "_tsid", "@timestamp")
+            .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
+            .build();
+        assertThat(IndexSettings.MODE.get(settings), equalTo(IndexMode.TIME_SERIES));
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("some-index", settings, version), Settings.EMPTY);
+        assertFalse(indexSettings.useTimeSeriesDimensionGroupSort());
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings()), equalTo(List.of("_tsid", "@timestamp")));
+
+        Settings timestampSort = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "@timestamp")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(timestampSort));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
+    }
+
     public void testSyntheticIdDefaultValueFalse() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         IndexMode mode = IndexMode.TIME_SERIES;

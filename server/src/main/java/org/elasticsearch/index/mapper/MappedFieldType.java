@@ -199,6 +199,14 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Whether an explicit {@code null} is indexed as a value, through a {@code null_value} parameter. The row and the columnar
+     * parsing paths must agree on whether a {@code null} contributes a value of the field to the document.
+     */
+    public boolean hasNullValue() {
+        return false;
+    }
+
+    /**
      * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
      *
      * @return true if this field contains vector embeddings.

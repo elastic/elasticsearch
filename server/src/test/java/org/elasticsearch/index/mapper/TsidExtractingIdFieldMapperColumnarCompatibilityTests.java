@@ -57,7 +57,8 @@ public class TsidExtractingIdFieldMapperColumnarCompatibilityTests extends Abstr
     }
 
     private static Settings syntheticIdSettings() {
-        return baseSettingsBuilder().build();
+        // explicit: synthetic ids are off by default under the grouped time series sort
+        return baseSettingsBuilder().put(IndexSettings.SYNTHETIC_ID.getKey(), true).build();
     }
 
     private static Settings.Builder baseSettingsBuilder() {

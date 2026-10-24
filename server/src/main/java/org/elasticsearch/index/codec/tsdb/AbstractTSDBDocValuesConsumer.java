@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 
@@ -109,6 +110,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     byte[] termsDictBuffer;
     final boolean enableOptimizedMerge;
     final int primarySortFieldNumber;
+    /** The sorted fields of the index sort other than the primary one; their ordinal runs are recorded, see {@link OrdinalRunsWriter}. */
+    private final Set<Integer> secondarySortFieldNumbers;
     protected final int numericBlockSize;
     final SegmentWriteState state;
 
@@ -160,6 +163,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.primarySortFieldNumber = AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
+        this.secondarySortFieldNumbers = AbstractTSDBDocValuesProducer.secondarySortFieldNumbers(state.segmentInfo, state.fieldInfos);
         this.context = state.context;
         this.numericBlockSize = 1 << formatConfig.numericBlockShift();
         this.metaCodecName = metaCodec;
@@ -782,7 +786,13 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         if (addTypeByte) {
             meta.writeByte((byte) 0); // multiValued (0 = singleValued)
         }
-        final SortedFieldObserver observer = sortedFieldObserverFactory.create(field);
+        SortedFieldObserver observer = sortedFieldObserverFactory.create(field);
+        if (secondarySortFieldNumbers.contains(field.number)) {
+            // A secondary sort field records its ordinal runs (and writes its own flag byte, see OrdinalRunsWriter#flush) so that
+            // readers can locate the documents of an ordinal when the ordinals do not ascend with the document ids.
+            assert observer == SortedFieldObserver.NOOP : "observers are only created for the primary sort field";
+            observer = new OrdinalRunsWriter(maxDoc, formatConfig.directMonotonicBlockShift());
+        }
         final SortedDocValues sorted = valuesProducer.getSorted(field);
         final int maxOrd = sorted.getValueCount();
         addTermsDict(DocValues.singleton(sorted), observer);

@@ -61,7 +61,12 @@ public final class ColumnarTsidCalculator {
      *                                       has no dimension values
      */
     public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, IndexVersion creationVersion) {
-        return computeTsids(batch, isDimension, creationVersion, null);
+        return computeTsids(batch, isDimension, TsidLayout.forVersion(creationVersion), null);
+    }
+
+    /** Variant of {@link #computeTsids(SourceBatch, Predicate, IndexVersion)} for an explicit {@link TsidLayout}. */
+    public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, TsidLayout layout) {
+        return computeTsids(batch, isDimension, layout, null);
     }
 
     /**
@@ -84,6 +89,11 @@ public final class ColumnarTsidCalculator {
         IndexVersion creationVersion,
         @Nullable int[] rows
     ) {
+        return computeTsids(batch, isDimension, TsidLayout.forVersion(creationVersion), rows);
+    }
+
+    /** Variant of {@link #computeTsids(SourceBatch, Predicate, IndexVersion, int[])} for an explicit {@link TsidLayout}. */
+    public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, TsidLayout layout, @Nullable int[] rows) {
         if (batch instanceof EscfBatch == false) {
             throw new UnsupportedOperationException(
                 "ColumnarTsidCalculator requires an EscfBatch; got " + batch.getClass().getSimpleName()
@@ -93,11 +103,7 @@ public final class ColumnarTsidCalculator {
 
         List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension);
         // Hoisted out of the scan: the layout is a property of the index, not of a row.
-        ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
-            batch.docCount(),
-            rows,
-            TsidBuilder.useSingleBytePrefixLayout(creationVersion)
-        );
+        ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(batch.docCount(), rows, layout.kind());
 
         MurmurHash3.Hash128 valueHash = new MurmurHash3.Hash128();
         // Path groups are keyed on path equality, not column index: EscfEncoder does not merge dotted

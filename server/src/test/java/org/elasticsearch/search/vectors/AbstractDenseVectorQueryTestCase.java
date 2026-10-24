@@ -837,6 +837,33 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
         }
     }
 
+    /** The query cache keys its entries on the query of the weight, so a filtered query must not share them with the unfiltered one. */
+    public void testCachedFilteredAndUnfilteredQueries() throws IOException {
+        try (
+            Directory indexStore = getStableIndexStore("field", VectorSimilarityFunction.EUCLIDEAN, randomVector(2), randomVector(2));
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(new LRUQueryCache(1000, 10_000_000, context -> true, Float.POSITIVE_INFINITY));
+            searcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+                @Override
+                public void onUse(Query query) {}
+
+                @Override
+                public boolean shouldCache(Query query) {
+                    return true;
+                }
+            });
+            float[] vector = randomVector(2);
+            Query filtered = getDenseVectorQuery("field", vector, new TermQuery(new Term("id", "id0")));
+            Query unfiltered = getDenseVectorQuery("field", vector);
+            for (int i = 0; i < 2; i++) {
+                assertEquals(1, searcher.count(new BooleanQuery.Builder().add(filtered, BooleanClause.Occur.FILTER).build()));
+                assertEquals(2, searcher.count(new BooleanQuery.Builder().add(unfiltered, BooleanClause.Occur.FILTER).build()));
+            }
+        }
+    }
+
     private void assertNextDocsAndScoresMatchPerDocScores(IndexSearcher searcher, IndexReader reader, Query query, float boost)
         throws IOException {
         Query rewritten = searcher.rewrite(query);

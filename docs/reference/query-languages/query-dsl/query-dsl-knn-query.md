@@ -253,7 +253,18 @@ The `knn` query can be used inside a nested query. The behaviour here is similar
 * kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
 
-To ensure correct results: each individual filter must be either over:
+{applies_to}`stack: ga 9.7+` Filters can use any query type and can mix top-level and `nested` fields. For example, a `bool` filter can combine fields from different levels in its `must`, `should`, and `must_not` clauses, and a `nested` filter can match a different nested object in the same document.
+
+{{es}} evaluates each filter at the nesting level of the fields it reads. A vector passes the filter when its own nested object matches, or when its enclosing object at that level matches.
+
+:::{note}
+The following filters keep the 9.6 and earlier behavior:
+
+- Filters that only read runtime fields, scripts, or fields copied with `include_in_parent` or `include_in_root`. {{es}} can't determine their nesting level.
+- `combined_fields` queries and `cross_fields` `multi_match` queries over fields from several levels. These aren't split by level.
+:::
+
+{applies_to}`stack: ga 9.2-9.6` Each filter must target only one of the following:
 
 - Top-level metadata
 - `nested` metadata {applies_to}`stack: ga 9.2`

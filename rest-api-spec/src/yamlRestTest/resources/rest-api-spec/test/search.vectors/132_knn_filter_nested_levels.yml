@@ -1,0 +1,416 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.knn_filter_nested_levels"
+      reason: "knn filters are evaluated at the nested level of the fields they read"
+  - do:
+      indices.create:
+        index: books
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              genre: { type: keyword }
+              published: { type: date }
+              pages: { type: long, index: false }
+              summary: { type: match_only_text }
+              tags: { type: flattened }
+              vector: { type: dense_vector, dims: 2, similarity: l2_norm, index_options: { type: flat } }
+              authors:
+                type: nested
+                properties:
+                  name: { type: keyword }
+              chapters:
+                type: nested
+                properties:
+                  cid: { type: keyword }
+                  language: { type: keyword }
+                  title: { type: keyword }
+                  body: { type: match_only_text }
+                  meta: { type: flattened }
+                  vector: { type: dense_vector, dims: 2, similarity: l2_norm, index_options: { type: flat } }
+                  paragraphs:
+                    type: nested
+                    properties:
+                      pid: { type: keyword }
+                      text: { type: keyword }
+                      body: { type: text }
+                      kind: { type: keyword, index: false }
+                      score: { type: float }
+                      vector: { type: dense_vector, dims: 2, similarity: l2_norm, index_options: { type: flat } }
+  - do:
+      index:
+        index: books
+        id: "1"
+        body: {"genre": "nature", "published": "2001-01-01", "pages": 100, "summary": "wild animals", "tags": {"color": "green"}, "vector": [1, 0], "authors": [{"name": "ann"}], "chapters": [{"cid": "c1", "language": "fr", "title": "intro", "body": "le debut", "meta": {"level": "easy"}, "vector": [1, 0], "paragraphs": [{"pid": "p1", "text": "alpha", "body": "red green", "kind": "a", "score": 1.0, "vector": [1, 0]}, {"pid": "p2", "text": "beta", "body": "blue sky", "kind": "b", "score": 2.0, "vector": [1, 1]}]}, {"cid": "c2", "language": "en", "title": "middle", "body": "the middle", "meta": {"level": "hard"}, "vector": [2, 0], "paragraphs": [{"pid": "p3", "text": "gamma", "body": "green red", "score": 3.0, "vector": [2, 0]}]}]}
+  - do:
+      index:
+        index: books
+        id: "2"
+        body: {"genre": "novel", "published": "2010-06-01", "pages": 300, "summary": "a long story", "tags": {"color": "red"}, "vector": [2, 0], "authors": [{"name": "bob"}], "chapters": [{"cid": "c3", "language": "fr", "title": "intro", "body": "un roman", "meta": {"level": "easy"}, "vector": [3, 0], "paragraphs": [{"pid": "p4", "text": "alpha", "body": "red green", "kind": "b", "score": 4.0, "vector": [2, 1]}]}, {"cid": "c4", "language": "de", "title": "outro", "body": "the end", "meta": {"level": "hard"}, "vector": [4, 0], "paragraphs": [{"pid": "p5", "text": "beta", "body": "red blue", "kind": "a", "score": 5.0, "vector": [2, 2]}]}]}
+  - do:
+      index:
+        index: books
+        id: "3"
+        body: {"genre": "nature", "published": "2020-03-01", "pages": 50, "summary": "small birds", "tags": {"color": "green"}, "vector": [3, 0], "authors": [{"name": "ann"}, {"name": "bob"}], "chapters": [{"cid": "c5", "language": "en", "title": "intro", "body": "un debut", "meta": {"level": "easy"}, "vector": [5, 0], "paragraphs": [{"pid": "p6", "text": "alpha", "body": "green green", "kind": "a", "score": 6.0, "vector": [3, 0]}]}]}
+  - do:
+      indices.refresh: {}
+
+---
+"Filters on the vector's own level":
+
+  # prefix
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"prefix": {"chapters.paragraphs.text": "al"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.2._id: "3" }
+  - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # match_phrase
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"match_phrase": {"chapters.paragraphs.body": "red green"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+
+  # exists on a doc values only field
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"exists": {"field": "chapters.paragraphs.kind"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+  - match: { hits.hits.2._id: "3" }
+  - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # range on a float
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"range": {"chapters.paragraphs.score": {"gte": 4}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # must_not only
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"bool": {"must_not": {"term": {"chapters.paragraphs.text": "alpha"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p2" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p3" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p5" }
+
+---
+"Filters on ancestor levels":
+
+  # root: term on a doc values only long
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"pages": 100}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 3 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.2._source.pid: "p3" }
+
+  # root: match_phrase on match_only_text
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"match_phrase": {"summary": "long story"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+
+  # root: flattened
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"tags.color": "green"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 3 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.2._source.pid: "p3" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # root: nested query on a sibling object
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # intermediate: flattened
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"chapters.meta.level": "hard"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p3" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p5" }
+
+  # runtime fields have no known level and are evaluated on the root documents
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre_length": 5}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}, "runtime_mappings": {"genre_length": {"type": "long", "script": "emit(doc['genre'].value.length())"}}}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+
+---
+"Filters mixing levels":
+
+  # disjunction
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"bool": {"should": [{"term": {"genre": "novel"}}, {"term": {"chapters.paragraphs.text": "gamma"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p3" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+
+  # negation of an ancestor level
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"bool": {"filter": {"term": {"chapters.language": "en"}}, "must_not": {"match_phrase": {"summary": "wild animals"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # query_string over three levels
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"query_string": {"query": "genre:nature AND chapters.meta.level:easy AND NOT chapters.paragraphs.text:beta"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+  # dis_max
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"dis_max": {"queries": [{"term": {"pages": 300}}, {"term": {"chapters.paragraphs.kind": "a"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.1._source.pid: "p5" }
+  - match: { hits.hits.2._id: "3" }
+  - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
+
+---
+"Nested query on a level below the vector":
+
+  # top level knn: the nested query joins to the book, and inner hits agree with the hits
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "beta"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.cid: "c2" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c3" }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.1._source.cid: "c4" }
+
+---
+"Knn query inside nested queries":
+
+  # query_string over three levels
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"query_string": {"query": "genre:nature AND chapters.meta.level:easy AND NOT chapters.paragraphs.text:beta"}}}}, "inner_hits": {"name": "paragraphs", "size": 10, "_source": true}}}, "inner_hits": {"name": "chapters", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0._source.cid: "c1" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0._source.cid: "c5" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p6" }
+
+  # nested query on a sibling object
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}}}, "inner_hits": {"name": "paragraphs", "size": 10, "_source": true}}}, "inner_hits": {"name": "chapters", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0._source.cid: "c3" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.1._source.cid: "c4" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits.1.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.1.inner_hits.paragraphs.hits.hits.0._source.pid: "p5" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0._source.cid: "c5" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p6" }
+
+  # nested query on a level below the vector, joined to the enclosing chapter
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "beta"}}}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c4" }
+
+---
+"Knn filter on the root vector":
+
+  # knn query inside a nested query
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"knn": {"field": "vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre": "nature"}}}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.cid: "c2" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c5" }
+
+  # top level knn search
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"knn": {"field": "vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre": "nature"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.cid: "c2" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c5" }
+
+---
+"Filters whose level is not resolved":
+
+  # A runtime field has no known level. Inside nested queries it is evaluated on the parent of the enclosing level, the
+  # chapters, where genre has no value. Book 2 would match if it were evaluated on the books.
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre_length": 5}}}}}}}}, "runtime_mappings": {"genre_length": {"type": "long", "script": "if (doc['genre'].size() > 0) { emit(doc['genre'].value.length()) }"}}}
+
+  - match: { hits.total.value: 0 }
+
+  # A cross_fields multi_match over several levels cannot be split per level, and neither can combined_fields. It is
+  # evaluated on the books, where chapters.language has no value. Book 2 would match if it were split.
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"multi_match": {"query": "novel fr", "type": "cross_fields", "operator": "and", "fields": ["genre", "chapters.language"]}}}}
+
+  - match: { hits.total.value: 0 }

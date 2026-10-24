@@ -159,12 +159,11 @@ $endif$
     }
 
 $if(BytesRef)$
-    /**
-     * The bytes this vector's values hold, which the array sums as it is appended to, or {@code -1} if the array
-     * holds values this vector does not and its sum is not this vector's.
-     */
-    long totalValueBytes() {
-        return values.size() == getPositionCount() ? values.totalBytes() : -1;
+    @Override
+    public long estimateTotalValueBytes() {
+        // The array sums its values as they are appended. When it holds more than this vector, scale its average.
+        final long size = values.size();
+        return size == getPositionCount() || size == 0 ? values.totalBytes() : values.totalBytes() * getPositionCount() / size;
     }
 $endif$
 

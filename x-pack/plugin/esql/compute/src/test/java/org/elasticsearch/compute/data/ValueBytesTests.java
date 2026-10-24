@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/** The bytes a block's values spell. It is counted rather than estimated, so these compare it against the values that went in. */
+/** The bytes a block's values spell, compared against the values that went in. Only a dictionary's is estimated. */
 public class ValueBytesTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -77,42 +77,28 @@ public class ValueBytesTests extends ESTestCase {
         }
     }
 
-    public void testAColumnReadAgainstADictionarySpellsTheTermsItsPositionsName() {
+    /** Each value read through a dictionary counts as the dictionary's average term; the ordinals are never read. */
+    public void testAColumnReadAgainstADictionaryCountsItsAverageTerm() {
         final BytesRef[] terms = { new BytesRef("alpha"), new BytesRef("be"), new BytesRef("") };
         final int[] named = { 0, 1, 1, 2, 0 };
         final BytesRefVector dictionary = blockFactory.newBytesRefArrayVector(bytesRefArray(terms), terms.length);
         final IntVector ordinals = blockFactory.newIntArrayVector(named, named.length);
         // The vector takes the two over, so closing the block is what releases them.
         try (BytesRefBlock block = new OrdinalBytesRefVector(ordinals, dictionary).asBlock()) {
-            assertEquals(5 + 2 + 2 + 0 + 5, ValueBytes.of(block));
+            assertEquals((5 + 2 + 0) * named.length / terms.length, ValueBytes.of(block));
+        }
+    }
+
+    public void testAColumnReadIntoOneArrayIsMeasuredByItsOffsets() {
+        final byte[] bytes = "onetwothree".getBytes(StandardCharsets.UTF_8);
+        try (BytesRefBlock block = blockFactory.newDirectBytesRefVector(bytes, new int[] { 0, 3, 6, 11 }, 3).asBlock()) {
+            assertEquals(bytes.length, ValueBytes.of(block));
         }
     }
 
     /**
-     * A dictionary can hold a whole segment's terms while a block names a few of them. The terms the page does not
-     * name are then not read, and the volume comes out the same.
-     */
-    public void testADictionaryOfMoreTermsThanTheBlockNamesIsNotMeasured() {
-        final int terms = 1000;
-        final BytesRef[] dictionaryTerms = new BytesRef[terms];
-        for (int term = 0; term < terms; term++) {
-            dictionaryTerms[term] = new BytesRef("term" + term);
-        }
-        final int[] named = { 7, 7, 999 };
-        final BytesRefVector dictionary = blockFactory.newBytesRefArrayVector(bytesRefArray(dictionaryTerms), terms);
-        final IntVector ordinals = blockFactory.newIntArrayVector(named, named.length);
-        try (BytesRefBlock block = new OrdinalBytesRefVector(ordinals, dictionary).asBlock()) {
-            long expected = 0;
-            for (int ordinal : named) {
-                expected += dictionaryTerms[ordinal].length;
-            }
-            assertEquals(expected, ValueBytes.of(block));
-        }
-    }
-
-    /**
-     * Whatever shape a column arrives in, the volume is what its values spell. A shape that answers for all of its
-     * values at once is taken at its word, so it has to agree with walking them.
+     * Whatever shape a column arrives in, other than one read through a dictionary, the volume is what its values
+     * spell.
      */
     public void testEveryShapeOfAColumnSpellsTheSame() {
         final RandomBlock random = RandomBlock.randomBlock(

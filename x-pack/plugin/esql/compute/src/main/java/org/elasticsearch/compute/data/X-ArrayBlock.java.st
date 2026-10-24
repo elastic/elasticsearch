@@ -103,9 +103,9 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
     }
 
 $if(BytesRef)$
-    /** The bytes this block's values hold, or {@code -1} if the sum cannot be taken without walking them. */
-    long totalValueBytes() {
-        return vector.totalValueBytes();
+    @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
     }
 
     @Override

@@ -96,9 +96,9 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         return vector.valueMaxByteSize();
     }
 
-    /** The bytes this block's values hold, or {@code -1} if the sum cannot be taken without walking them. */
-    long totalValueBytes() {
-        return vector.totalValueBytes();
+    @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
     }
 
     @Override

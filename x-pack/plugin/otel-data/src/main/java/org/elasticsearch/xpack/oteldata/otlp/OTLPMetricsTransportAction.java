@@ -421,7 +421,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
         for (Index index : dataStream.selectTimeSeriesWriteIndices(timestamps, projectMetadata)) {
             IndexMetadata im = projectMetadata.getIndexSafe(index);
-            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.TIME_SERIES_BATCH_INDEXING.get(im.getSettings()) == false) {
+            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.isBatchIndexingEnabled(im.getSettings()) == false) {
                 return false;
             }
         }

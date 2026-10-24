@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
@@ -284,6 +285,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.BATCH_INDEXING);
+        }
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };
 

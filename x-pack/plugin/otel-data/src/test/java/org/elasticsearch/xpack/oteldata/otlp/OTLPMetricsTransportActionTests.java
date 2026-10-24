@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -430,6 +431,20 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertFalse(metricsAction.canUseBatchIndexing(true, projectMetadata, groupsWithExemplars));
     }
 
+    public void testBatchIndexingGateAcceptsDeprecatedTimeSeriesKey() throws Exception {
+        assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(
+            ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
+        );
+        String target = "metrics-generic.otel-default";
+        assertTrue(
+            metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey()), groups)
+        );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        assertTrue(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.BATCH_INDEXING.getKey()), groups));
+        assertFalse(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups));
+    }
+
     public void testAttributeFanoutReturns413() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
@@ -595,19 +610,23 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     private static ProjectMetadata batchIndexingProject(String target) {
+        return batchIndexingProject(target, IndexSettings.BATCH_INDEXING.getKey());
+    }
+
+    /** Builds a TSDB data stream project whose backing index opts in through {@code batchIndexingKey} (null for no opt-in). */
+    private static ProjectMetadata batchIndexingProject(String target, String batchIndexingKey) {
         Index index = new Index(".ds-" + target + "-000001", randomUUID());
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(
-                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.MODE.getKey(), "time_series")
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
-                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension")
-                    .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
-            )
-            .build();
+        Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension");
+        if (batchIndexingKey != null) {
+            indexSettings.put(batchIndexingKey, true);
+        }
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(indexSettings).build();
         DataStream dataStream = DataStream.builder(target, List.of(index)).setIndexMode(IndexMode.TIME_SERIES).build();
         return ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexMetadata, true)

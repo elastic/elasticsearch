@@ -41,6 +41,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.cli.HttpCertificateCommand.FileType;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyStoreFormat;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -249,8 +251,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput("y"); // existing CA
 
-        // randomise between cert+key, key+cert, PKCS12 : the tool is smart enough to handle any of those.
-        switch (randomFrom(FileType.PEM_CERT, FileType.PEM_KEY, FileType.PKCS12)) {
+        // randomise between cert+key, key+cert, PKCS12, BCFKS : the tool is smart enough to handle any of those.
+        switch (randomFrom(FileType.PEM_CERT, FileType.PEM_KEY, FileType.PKCS12, FileType.BCFKS)) {
             case PEM_CERT -> {
                 terminal.addTextInput(caCertPath.toAbsolutePath().toString());
                 terminal.addTextInput(caKeyPath.toAbsolutePath().toString());
@@ -260,6 +262,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
                 terminal.addTextInput(caCertPath.toAbsolutePath().toString());
             }
             case PKCS12 -> terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
+            case BCFKS -> terminal.addTextInput(writeBcfksCA(caCertPath, caKeyPath, caPassword).toAbsolutePath().toString());
         }
         terminal.addSecretInput(caPassword);
 
@@ -291,7 +294,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(outFile.toString());
 
         final Environment env = newEnvironment();
-        final OptionSet options = command.getParser().parse(new String[0]);
+        final KeyStoreFormat keyStoreFormat = randomFrom(KeyStoreFormat.values());
+        final OptionSet options = command.getParser().parse(keyStoreFormatArgs(keyStoreFormat));
         command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (password.length() > 50) {
@@ -304,7 +308,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         assertThat(zipRoot.resolve("elasticsearch"), isDirectory());
 
-        final Path p12Path = zipRoot.resolve("elasticsearch/http.p12");
+        final Path p12Path = zipRoot.resolve("elasticsearch/http" + keyStoreFormat.extension());
 
         final Path readmePath = zipRoot.resolve("elasticsearch/README.txt");
         assertThat(readmePath, isRegularFile());
@@ -453,7 +457,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(outFile.toString());
 
         final Environment env = newEnvironment();
-        final OptionSet options = command.getParser().parse(new String[0]);
+        final KeyStoreFormat keyStoreFormat = randomFrom(KeyStoreFormat.values());
+        final OptionSet options = command.getParser().parse(keyStoreFormatArgs(keyStoreFormat));
         command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (expectLongPasswordWarning) {
@@ -464,9 +469,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         Path zipRoot = getZipRoot(outFile);
 
-        // Should have a CA directory with the generated CA.
+        // Should have a CA directory with the generated CA, in the same container format as the node keystores.
         assertThat(zipRoot.resolve("ca"), isDirectory());
-        final Path caPath = zipRoot.resolve("ca/ca.p12");
+        final Path caPath = zipRoot.resolve("ca/ca" + keyStoreFormat.extension());
         final Tuple<X509Certificate, PrivateKey> caCertKey = readCertificateAndKey(caPath, caPassword.toCharArray());
         verifyCertificate(caCertKey.v1(), caDN.replaceFirst("CN=", ""), caYears, List.of(), List.of());
         assertThat(getRSAKeySize(caCertKey.v1().getPublicKey()), is(caKeySize));
@@ -477,7 +482,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         for (int i = 0; i < numberCerts; i++) {
             assertThat(zipRoot.resolve("elasticsearch/" + certNames[i]), isDirectory());
-            final Path p12Path = zipRoot.resolve("elasticsearch/" + certNames[i] + "/http.p12");
+            final Path p12Path = zipRoot.resolve("elasticsearch/" + certNames[i] + "/http" + keyStoreFormat.extension());
             assertThat(p12Path, isRegularFile());
 
             final Path readmePath = zipRoot.resolve("elasticsearch/" + certNames[i] + "/README.txt");
@@ -607,6 +612,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Path tmpP12 = testRoot.resolve("tmp.p12");
         assertThat(guessFileType(tmpP12, terminal), is(FileType.PKCS12));
+        final Path tmpBcfks = testRoot.resolve("tmp.bcfks");
+        assertThat(guessFileType(tmpBcfks, terminal), is(FileType.BCFKS));
         final Path tmpJks = testRoot.resolve("tmp.jks");
         assertThat(guessFileType(tmpJks, terminal), is(FileType.JKS));
 
@@ -834,10 +841,42 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return rsa.getModulus().bitLength();
     }
 
-    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path pkcs12, char[] password) throws IOException,
+    /**
+     * Command line arguments that select the given container format, mirroring how a user would invoke the tool:
+     * PKCS#12 is the default and needs no flag, BCFKS requires {@code --bcfks}.
+     */
+    private static String[] keyStoreFormatArgs(KeyStoreFormat format) {
+        return switch (format) {
+            case PKCS12 -> new String[0];
+            case BCFKS -> new String[] { "--bcfks" };
+        };
+    }
+
+    /**
+     * Builds a BCFKS keystore holding the test CA, so the "existing CA" flow can be exercised with a BCFKS input without a
+     * checked-in binary fixture.
+     */
+    private Path writeBcfksCA(Path caCertPath, Path caKeyPath, String password) throws IOException, GeneralSecurityException {
+        final X509Certificate caCert = CertParsingUtils.readX509Certificate(caCertPath);
+        final PrivateKey caKey = PemUtils.readPrivateKey(caKeyPath, password::toCharArray);
+        final KeyStore keyStore = KeyStoreFormat.BCFKS.newKeyStore();
+        keyStore.setKeyEntry("ca", caKey, password.toCharArray(), new Certificate[] { caCert });
+        // the tool resolves the entered path through the default filesystem, so this cannot live in jimfs
+        final Path path = createTempDir().resolve("ca.bcfks");
+        try (OutputStream out = Files.newOutputStream(path)) {
+            keyStore.store(out, password.toCharArray());
+        }
+        return path;
+    }
+
+    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path keyStorePath, char[] password) throws IOException,
         GeneralSecurityException {
 
-        final Map<Certificate, Key> entries = CertParsingUtils.readPkcs12KeyPairs(pkcs12, password, alias -> password);
+        final KeyStoreFormat format = KeyStoreFormat.forFileName(keyStorePath.getFileName().toString());
+        final Map<Certificate, Key> entries = CertParsingUtils.readKeyPairsFromKeystore(
+            format.readKeyStore(keyStorePath, password),
+            alias -> password
+        );
         assertThat(entries.entrySet(), Matchers.hasSize(1));
 
         Certificate cert = entries.keySet().iterator().next();

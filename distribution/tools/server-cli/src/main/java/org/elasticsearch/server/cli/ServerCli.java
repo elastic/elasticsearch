@@ -35,6 +35,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -237,10 +238,24 @@ class ServerCli extends EnvironmentAwareCommand {
     // protected to allow tests to override
     protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
         var tempDir = ServerProcessUtils.setupTempDir(processInfo);
-        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
+        // FIPS 140 mode: the provider ships dormant in lib/fips and joins the server JVM only when the node setting asks for it. This
+        // JVM got the same options from bin/elasticsearch through CLI_JAVA_OPTS; the server's are decided here, from the settings.
+        var fipsProperties = FipsOptions.systemProperties(args.nodeSettings(), processInfo.workingDir());
+        if (fipsProperties.isEmpty() == false && Security.getProvider("BCFIPS") == null) {
+            terminal.errorPrintln(
+                "warning: "
+                    + FipsOptions.FIPS_MODE_SETTING
+                    + " is true but the server CLI is not running on the FIPS provider; the server will be, but secure settings and"
+                    + " security auto-configuration were handled by the JDK's own providers (start with bin/elasticsearch)"
+            );
+        }
+        var jvmOptions = FipsOptions.withSystemProperties(
+            JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap()),
+            fipsProperties
+        );
 
         String command = getJavaCommand(processInfo);
-        List<String> jvmArgs = getJvmArgs(processInfo);
+        List<String> jvmArgs = getJvmArgs(processInfo, fipsProperties.isEmpty() == false);
         Map<String, String> environment = getEnvironment(processInfo, tempDir);
         byte[] serverArgsBytes = serializeServerArgs(args);
 
@@ -270,11 +285,19 @@ class ServerCli extends EnvironmentAwareCommand {
         return javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
     }
 
-    protected static List<String> getJvmArgs(ProcessInfo processInfo) {
+    /**
+     * @param fipsLib whether to put the shipped FIPS provider on the module path; a subdirectory of {@code lib} is not scanned by the
+     *                module finder, so without this the provider in {@code lib/fips} is never resolved
+     */
+    protected static List<String> getJvmArgs(ProcessInfo processInfo, boolean fipsLib) {
         Path esHome = processInfo.workingDir();
+        String modulePath = esHome.resolve("lib").toString();
+        if (fipsLib) {
+            modulePath += System.getProperty("path.separator") + FipsOptions.fipsLib(esHome);
+        }
         return List.of(
             "--module-path",
-            esHome.resolve("lib").toString(),
+            modulePath,
             "--add-modules=jdk.net",
             "--add-modules=jdk.management.agent",
             "--add-modules=ALL-MODULE-PATH",

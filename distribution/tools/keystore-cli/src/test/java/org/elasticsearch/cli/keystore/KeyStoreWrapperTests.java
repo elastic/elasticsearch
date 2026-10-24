@@ -108,7 +108,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final char[] realPassword = getPossibleKeystorePassword();
         final char[] invalidPassword;
         if (realPassword.length < 1) {
-            invalidPassword = new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' };
+            // long enough that a FIPS provider does not reject it before it is compared
+            invalidPassword = "invalid-but-long-enough".toCharArray();
         } else {
             invalidPassword = Arrays.copyOf(realPassword, realPassword.length + 1);
             invalidPassword[realPassword.length] = '#';
@@ -202,7 +203,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testFailWhenCannotConsumeSecretStream() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
@@ -233,7 +234,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testFailWhenCannotConsumeEncryptedBytesStream() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
@@ -265,7 +266,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testFailWhenSecretStreamNotConsumed() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
@@ -295,7 +296,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testFailWhenEncryptedBytesStreamIsNotConsumed() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
@@ -435,7 +436,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testLegacyV3() throws GeneralSecurityException, IOException {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         final Path configDir = createTempDir();
         copyKeyStoreFromResourceToConfigDir(configDir, "/format-v3-elasticsearch.keystore");
 
@@ -471,6 +472,72 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(wrapper.getFormatVersion(), equalTo(6));
         assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
         assertThat(wrapper.getString("string"), equalTo("value"));
+    }
+
+    public void testLegacyV7() throws GeneralSecurityException, IOException {
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v7-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        assertFalse(wrapper.hasPassword());
+        wrapper.decrypt(new char[0]);
+        assertThat(wrapper.getFormatVersion(), equalTo(7));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
+        assertThat(wrapper.getString("string"), equalTo("value"));
+    }
+
+    /**
+     * Before v8 an unprotected keystore used the empty password as the KDF input, which a FIPS provider rejects, so such a
+     * keystore cannot be read on a FIPS JVM. It has to be upgraded, or given a password, by a JVM that is not in FIPS mode.
+     */
+    public void testLegacyUnprotectedKeystoreFailsInFips() throws IOException {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v7-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        assertFalse(wrapper.hasPassword());
+        final GeneralSecurityException exception = expectThrows(GeneralSecurityException.class, () -> wrapper.decrypt(new char[0]));
+        assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
+    }
+
+    /** An unprotected keystore round trips in the current format on any JVM, including one in FIPS 140 mode. */
+    public void testUnprotectedKeystoreRoundTrip() throws Exception {
+        final KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.setString("string_setting", "string_value".toCharArray());
+        keystore.save(env.configDir(), new char[0]);
+
+        final KeyStoreWrapper loaded = KeyStoreWrapper.load(env.configDir());
+        assertNotNull(loaded);
+        assertFalse(loaded.hasPassword());
+        assertThat(loaded.getFormatVersion(), equalTo(KeyStoreWrapper.UNPROTECTED_KDF_INPUT_VERSION));
+        loaded.decrypt(new char[0]);
+        assertThat(loaded.getSettingNames(), equalTo(Set.of("keystore.seed", "string_setting")));
+        assertThat(loaded.getString("string_setting"), equalTo("string_value"));
+    }
+
+    public void testUpgradeV7ToV8() throws Exception {
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v7-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt(new char[0]);
+        final String seed = wrapper.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString();
+        KeyStoreWrapper.upgrade(wrapper, configDir, new char[0]);
+
+        final KeyStoreWrapper upgraded = KeyStoreWrapper.load(configDir);
+        assertNotNull(upgraded);
+        assertFalse(upgraded.hasPassword());
+        assertThat(upgraded.getFormatVersion(), equalTo(KeyStoreWrapper.UNPROTECTED_KDF_INPUT_VERSION));
+        upgraded.decrypt(new char[0]);
+        assertThat(upgraded.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
+        assertThat(upgraded.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString(), equalTo(seed));
+        assertThat(upgraded.getString("string"), equalTo("value"));
     }
 
     private void copyKeyStoreFromResourceToConfigDir(Path configDir, String name) throws IOException {
@@ -541,10 +608,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public static char[] getPossibleKeystorePassword() {
-        if (inFipsJvm()) {
-            // FIPS Mode JVMs require a password of at least 112 bits for the ES keystore
-            return randomAlphaOfLengthBetween(14, 24).toCharArray();
+        if (randomBoolean()) {
+            return new char[0];
         }
-        return randomBoolean() ? new char[0] : randomAlphaOfLengthBetween(4, 24).toCharArray();
+        // FIPS Mode JVMs require a non-empty password to be at least 112 bits for the ES keystore
+        return randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 4, 24).toCharArray();
     }
 }

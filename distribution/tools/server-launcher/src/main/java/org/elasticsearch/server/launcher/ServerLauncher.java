@@ -186,6 +186,13 @@ public class ServerLauncher<D extends LaunchDescriptor> {
             + "cli-launcher"
             + File.separator
             + "*";
+        // FIPS 140 mode: bin/elasticsearch puts the options for the provider shipped in lib/fips into CLI_JAVA_OPTS when the node
+        // setting asks for it; the jars have to be reachable then, and are inert on the class path of a JVM whose java.security does
+        // not name their providers, so the directory joins the class path whenever this distribution ships it
+        Path fipsLib = Path.of(esHome, "lib", "fips");
+        if (Files.isDirectory(fipsLib)) {
+            classpath += File.pathSeparator + fipsLib + File.separator + "*";
+        }
 
         List<String> command = new ArrayList<>();
         command.add(java);

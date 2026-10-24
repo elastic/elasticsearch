@@ -60,6 +60,10 @@ public class ArchiveTests extends PackagingTestCase {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
         setFileSuperuser("test_superuser", "test_superuser_password");
+        if (distribution.isFipsActivated()) {
+            // FIPS mode replaces the JDK's java.security and auto-configuration writes BCFKS, so the PKCS#12 MAC tweak does not apply
+            return;
+        }
         // See https://bugs.openjdk.java.net/browse/JDK-8267701. In short, when generating PKCS#12 keystores in JDK 12 and later
         // the MAC algorithm used for integrity protection is incompatible with any previous JDK version. This affects us as we generate
         // PKCS12 keystores on startup ( with the bundled JDK ) but we also need to run certain tests with a JDK other than the bundled
@@ -228,16 +232,12 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
-        Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.86.jar")
-        );
+        // the certificate generation code (and its shaded Bouncy Castle) lives in the security-cli-bc jar
+        final String bcJar = "elasticsearch-security-cli-bc-" + distribution.version + ".jar";
+        Files.move(installation.lib.resolve("tools").resolve("security-cli").resolve(bcJar), tempDir.resolve(bcJar));
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
-        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
-        Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.86.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar")
-        );
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/elasticsearch/xpack/security/cli/bc/", null);
+        Files.move(tempDir.resolve(bcJar), installation.lib.resolve("tools").resolve("security-cli").resolve(bcJar));
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
     }
@@ -257,7 +257,12 @@ public class ArchiveTests extends PackagingTestCase {
             sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
         });
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
-        assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
+        // a wrong password fails the keystore's AES-GCM tag check; the BC FIPS provider reports that failure with a different
+        // exception than the JDK's provider, which the keystore reports as corruption (same allowance as KeyStoreWrapperTests)
+        List<String> expectedMessages = distribution.isFipsActivated()
+            ? List.of("Provided keystore password was incorrect", "Keystore has been corrupted or tampered with")
+            : List.of("Provided keystore password was incorrect");
+        assertElasticsearchFailure(result, expectedMessages, null);
         verifySecurityNotAutoConfigured(installation);
         if (RandomizedTest.randomBoolean()) {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");

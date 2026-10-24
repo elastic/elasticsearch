@@ -11,7 +11,6 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
@@ -95,17 +94,23 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         expectThrows(
-            RemoteException.class,
-            equalTo("Remote [cluster-a] encountered an error"), // fails when present index is non-empty
+            VerificationException.class,
+            equalTo("Unknown index [cluster-a:nonexisting-1]"), // fails when present index is non-empty
             () -> run(
                 withRandomAllowPartialResult(
                     syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1")
                 )
             )
         );
-        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-2," + REMOTE_CLUSTER_1 + ":nonexisting-1"))) {
-            assertOk(response); // passes when the present index has no fields and no documents
-        }
+        expectThrows(
+            VerificationException.class,
+            equalTo("Unknown index [cluster-a:nonexisting-1]"), // fails when the present index has no fields and no documents
+            () -> run(
+                withRandomAllowPartialResult(
+                    syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-2," + REMOTE_CLUSTER_1 + ":nonexisting-1")
+                )
+            )
+        );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         try (
@@ -119,11 +124,12 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-1,nonexisting-1", Status.SKIPPED));
         }
         try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-2," + REMOTE_CLUSTER_1 + ":nonexisting-1"))) {
-            assertOk(response); // passes when the present index has no fields and no documents
+            assertPartial(response); // passes when the present index has no fields and no documents
+            assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-2,nonexisting-1", Status.SKIPPED));
         }
     }
 
-    private static EsqlQueryRequest withRandomAllowPartialResult(EsqlQueryRequest request) {
+    public static EsqlQueryRequest withRandomAllowPartialResult(EsqlQueryRequest request) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> request; // default
             case 1 -> request.allowPartialResults(true);

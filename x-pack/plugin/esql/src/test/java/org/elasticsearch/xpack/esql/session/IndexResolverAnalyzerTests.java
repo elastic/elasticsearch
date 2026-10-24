@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField.UnknownAnalyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -122,7 +123,17 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, needsAnalyzerGroups, false),
+            new IndexResolver.FieldsInfo(
+                caps,
+                new ArrayList<>(),
+                TransportVersion.current(),
+                false,
+                false,
+                false,
+                false,
+                needsAnalyzerGroups,
+                false
+            ),
             false,
             IndexResolver.DO_NOT_GROUP
         );

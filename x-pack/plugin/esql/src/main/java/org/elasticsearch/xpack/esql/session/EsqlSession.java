@@ -2410,12 +2410,12 @@ public class EsqlSession {
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, ElasticsearchException error) {
-        // If we can, skip the cluster and mark it as such
-        if (executionInfo.shouldSkipOnFailure(clusterAlias)) {
-            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
-        } else {
-            throw error;
-        }
+        EsqlCCSUtils.markClusterWithFinalStateAndNoShardsOrThrow(
+            executionInfo,
+            clusterAlias,
+            EsqlExecutionInfo.Cluster.Status.SKIPPED,
+            error
+        );
     }
 
     /**

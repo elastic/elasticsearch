@@ -692,6 +692,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return IndexOptions.NONE;
     }
 
+    /**
+     * For field types whose doc values are disabled by default, an explicit {@code "doc_values": false} must be equivalent to omitting
+     * it: the mapping serializes without {@code doc_values} (as older versions do) and the two forms can be merged in either direction.
+     */
+    protected final void assertExplicitDocValuesFalseMatchesDisabledDefault() throws IOException {
+        XContentBuilder omitted = fieldMapping(this::minimalMapping);
+        XContentBuilder explicit = fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        });
+
+        MapperService mapperService = createMapperService(omitted);
+        merge(mapperService, explicit);
+        assertEquals(Strings.toString(omitted), mapperService.documentMapper().mappingSource().toString());
+
+        mapperService = createMapperService(explicit);
+        merge(mapperService, explicit);
+        merge(mapperService, omitted);
+        assertEquals(Strings.toString(omitted), mapperService.documentMapper().mappingSource().toString());
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {

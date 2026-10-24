@@ -125,11 +125,28 @@ public interface PostFilterableKnnQuery {
      * @param excludedDocs     all docs returned across previous rounds, flat and sorted (skip from results)
      * @param seedDocsPerLeaf  per-leaf seed doc IDs (global doc IDs, sorted ascending within each leaf),
      *                         indexed by leaf ordinal, used as starting points for the knn search
+     * @param retryLeaves      leaves to search, indexed by leaf ordinal; {@code null} searches every leaf. The
+     *                         orchestrator only re-enters leaves that may still hold a missing result, so a
+     *                         retry must not spend work on the others. Build the filter with
+     *                         {@link #retryFilter} and both this and {@code excludedDocs} are honoured.
      * @param remainingK       how many candidates this round should collect: the shortfall in <em>surviving</em>
      *                         docs, already inflated for filter attrition by the orchestrator. Use it as the
      *                         retry's {@code k} as-is; do not scale it again.
      */
-    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK);
+    Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK);
+
+    /**
+     * The filter a retry round runs under: every doc of the retried leaves except those already seen, and
+     * nothing at all in the other leaves. {@code null} when there is nothing to restrict, so the retry can
+     * run filter-less like round 0.
+     */
+    static Query retryFilter(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves) {
+        boolean hasExcluded = excludedDocs != null && excludedDocs.length > 0;
+        if (hasExcluded == false && retryLeaves == null) {
+            return null;
+        }
+        return new ExcludeDocsQuery(hasExcluded ? excludedDocs : new int[0], retryLeaves, reader);
+    }
 
     /**
      * @return true if {@code seedDocsPerLeaf} contains at least one seed doc in any leaf, i.e. there is

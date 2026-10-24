@@ -18,13 +18,16 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  * LONG/DOUBLE:   values[docCount * 8]
  * BOOL:          value_bitset
  * STRING/BINARY: offsets[(docCount+1) * 4] | bytes
- * ARRAY:         offsets[(docCount+1) * 4] (per-row element ranges) | child_kind(1) | child_values
+ * ARRAY:         offsets[(docCount+1) * 4] (per-row element ranges) | child_kind(1) | [child_validity]
+ *                | [child_offsets] | child_values
  * UNION:         type_vec[docCount] | offsets[(docCount+1) * 4] | dense_values
  * </pre>
- * A validity bitset (LE longs, bit set = present/valid) is prepended to any kind only
- * when at least one document is absent. ARRAY uses a columnar list layout: the {@code offsets}
- * delimit each row's element range within a single dense primitive {@code child} sub-column
- * (never inline arrays).
+ * A validity bitset (LE longs, bit set = present/valid) is prepended to any kind only when at least
+ * one document is absent. ARRAY uses a columnar list layout: the outer {@code offsets} delimit each
+ * row's element range within a single primitive {@code child} sub-column (never inline arrays). The
+ * optional {@code child_validity} bitset, flagged in the column index, marks explicit JSON {@code null}
+ * elements with a clear bit, as in Arrow's list layout. Row validity marks absent documents instead:
+ * every element of a present array exists, so a clear child bit always means JSON {@code null}.
  */
 public final class EscfColumnKind {
 
@@ -45,7 +48,8 @@ public final class EscfColumnKind {
 
     /**
      * All values are arrays of a single fixed primitive element kind, stored in a columnar list layout:
-     * a per-row element-range offset vector over a dense primitive child sub-column.
+     * a per-row element-range offset vector over a primitive child sub-column whose validity bitset,
+     * when present, marks explicit JSON {@code null} elements.
      */
     public static final byte ARRAY = 0x06;
 

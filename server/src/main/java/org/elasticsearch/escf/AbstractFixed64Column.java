@@ -39,11 +39,14 @@ abstract class AbstractFixed64Column extends EscfColumn {
 
     /**
      * Returns a new dense {@link DenseLongValuesCursor} positioned before the first row of this
-     * column's window. The column must be fully present ({@link #validity} {@code == null}); call
-     * this only on dense columns (e.g. array children).
+     * column's window. Throws {@link IllegalStateException} when the column has a {@link #validity}
+     * bitset, because the cursor reads every slot, including the placeholders of absent rows and null
+     * array elements.
      */
     DenseLongValuesCursor longValuesCursor() {
-        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
+        if (validity != null) {
+            throw new IllegalStateException("longValuesCursor() requires a dense column");
+        }
         return new DenseLongValuesCursor(docCount, this);
     }
 

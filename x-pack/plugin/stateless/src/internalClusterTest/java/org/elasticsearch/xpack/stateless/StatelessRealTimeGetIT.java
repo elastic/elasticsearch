@@ -81,6 +81,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.uid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -302,12 +303,25 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        final boolean forceUnsafe = randomBoolean();
-        if (forceUnsafe) {
-            // Make sure the map is marked as unsafe
+        if (randomBoolean()) {
+            // Make the map unsafe: auto-generated ids are not recorded in the map.
             indexDocs(indexName, randomIntBetween(1, 10));
             assertTrue(isUnsafeForGets(map));
+            client().prepareIndex(indexName).setId("0").setSource("k0", "v0").get();
+            // A realtime get while the map is unsafe for gets flushes, and the archive stays unsafe until the search shard acks that
+            // commit. An unsafe archive may hold stale versions, so the index node may not serve the get from it. It then tells the
+            // search shard to wait for the commit it just flushed, which contains "0".
+            final long generationBeforeGet = indexEngine.getCurrentGeneration();
+            final var unsafeGet = getFromTranslog(indexShard, "0");
+            if (unsafeGet.getResult() == null) {
+                assertThat(unsafeGet.segmentGeneration(), greaterThan(generationBeforeGet));
+            } else {
+                assertTrue(unsafeGet.getResult().isExists());
+            }
+            // The search shard acks the flushed commit, and the archive is safe again.
+            assertBusy(() -> assertFalse(isUnsafeForGets(map)));
         }
+        // From here on the archive is safe.
         // Enforce safe access mode
         client().prepareIndex(indexName).setId(randomIdentifier()).setSource("field1", randomUnicodeOfLength(10)).get();
         assertTrue(isSafeAccessRequired(map));
@@ -318,16 +332,13 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertNoFailures(bulkResponse);
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
-        if (forceUnsafe) {
-            // The map was unsafe, so the get above forced a flush and the archive stays unsafe until the search shard acks that
-            // commit. A second get before the ack forces another flush, whose ack can prune "1" from the archive before the
-            // engine looks it up, making the get legitimately return null. Wait for the ack so the next get is deterministic.
-            assertBusy(() -> assertFalse(isUnsafeForGets(map)));
-        }
         // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
         assertNotNull(get(map, "1"));
-        assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        // "1" is now only in the archive. The archive is safe, so the index node still serves the get from it.
+        assertFalse(isUnsafeForGets(map));
+        assertNotNull("1 should be in the archive", getArchive(map).get(uid("1")));
+        assertTrue("a safe archive should serve the get on the index node", getFromTranslog(indexShard, "1").getResult().isExists());
         final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
         // Create a new commit explicitly where once ack'ed by the unpromotables we are sure the docs that were
         // in the archive are visible on the unpromotable shards.

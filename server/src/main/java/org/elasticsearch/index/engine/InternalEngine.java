@@ -918,8 +918,15 @@ public class InternalEngine extends Engine {
     @Override
     public boolean isDocumentInLiveVersionMap(BytesRef uid) {
         try (Releasable ignore = versionMap.acquireLock(uid)) {
-            final var versionValue = getVersionForRead(uid);
-            return versionValue != null;
+            if (versionMap.isUnsafeForGets()) {
+                // A write may have been skipped and recorded nowhere, so we cannot tell whether the doc is on the search shards
+                // yet. Answer true so that the caller refreshes them. Enforce safe access, as realtime gets do, so that later
+                // writes are recorded and the map can turn safe again.
+                versionMap.enforceSafeAccess();
+                return true;
+            }
+            // The map is safe for gets, so every recent write is recorded.
+            return versionMap.getUnderLock(uid) != null;
         }
     }
 
@@ -1183,24 +1190,12 @@ public class InternalEngine extends Engine {
     }
 
     private VersionValue getVersionForRead(BytesRef id) {
+        boolean flushed = false;
         if (versionMap.isUnsafeForGets()) {
-            synchronized (versionMap) {
-                if (versionMap.isUnsafeForGets()) {
-                    refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
-                    // After the refresh, the doc that triggered it must now be part of the last commit.
-                    // In rare cases, there could be other flush cycles completed in between the above line
-                    // and the line below which push the last commit generation further. But that's OK.
-                    // The invariant here is that doc is available within the generations of commits upto
-                    // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
-                    // which means the search shard needs to wait for extra generations and these generations
-                    // are guaranteed to happen since they are all committed.
-                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
-                }
-                versionMap.enforceSafeAccess();
-            }
+            flushed = recoverForGets(false);
             // Below details are stateless specific.
             // The versionMap can still be unsafe (intentionally) for gets at this point due to the archive being unsafe.
-            // There is a gap between a flush and `enforceSafeAccess()` above.
+            // There is a gap between the flush and `enforceSafeAccess()` in `recoverForGets`.
             // Writes that land between these two points will not be in the versionMap since it doesn't enforce safe access yet.
             // But they happened after the flush so they are not in the commit captured by `lastUnsafeSegmentGenerationForGets` either!
             // If there are internal refreshes happening for any reason, they can clear the versionMap
@@ -1212,8 +1207,56 @@ public class InternalEngine extends Engine {
             // is aware of the appropriate generation (and as such it's found in the map).
             // But in this case since the version map was unsafe and there is nothing to be stored in the archive.
         }
+        // In stateless, the archive retains entries from previous refreshes until the search shards have them. If the map
+        // became unsafe and a put was skipped (due to the race between beforeRefresh() and enforceSafeAccess()), the archive
+        // may still hold a stale version, which getUnderLock() would return. So we don't trust the archive when unsafe.
+        VersionValue v = versionMap.getUnderLockOrUnsafe(id);
+        if (v == LiveVersionMap.VERSION_MAP_UNSAFE) {
+            // We do not trust the archive, so resolve the version from Lucene / the search tier by returning null. The search tier
+            // then waits for lastUnsafeSegmentGenerationForGets, which must point at a commit that contains the doc.
+            if (flushed) {
+                // This call flushed after taking the doc's lock. That commit contains the doc's latest write, and the lock
+                // keeps the doc from changing until we return.
+                return null;
+            } else {
+                // The doc is not in current or old, so a refresh moved it out. That refresh may have been local only, so the doc
+                // may not be in any commit yet. Its archive entry may well be correct: the archive is unsafe for all docs when
+                // any doc's write was not recorded. Flush so that the doc is committed, and advance the generation.
+                // Force the flush rather than re-check whether the map is still unsafe. It may have turned safe since the lookup,
+                // e.g. the search shards acked the generation that makes the archive safe, while the doc, archived under a later
+                // generation, is still in no commit. Skipping the flush then would send the search tier to a commit without it.
+                recoverForGets(true);
+                return null;
+            }
+        }
+        return v;
+    }
 
-        return versionMap.getUnderLock(id);
+    /**
+     * Flush (in stateless, a {@link #REAL_TIME_GET_REFRESH_SOURCE} refresh is a flush) and point realtime gets at the resulting
+     * commit, then switch later indexing back to recording versions.
+     *
+     * @param force flush even if the map is no longer unsafe for gets. Otherwise this flushes only if it still is, since
+     *              another thread may have already recovered.
+     * @return whether this call flushed
+     */
+    private boolean recoverForGets(boolean force) {
+        synchronized (versionMap) {
+            final boolean flush = force || versionMap.isUnsafeForGets();
+            if (flush) {
+                refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
+                // After the refresh, the doc that triggered it must now be part of the last commit.
+                // In rare cases, there could be other flush cycles completed in between the above line
+                // and the line below which push the last commit generation further. But that's OK.
+                // The invariant here is that doc is available within the generations of commits upto
+                // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
+                // which means the search shard needs to wait for extra generations and these generations
+                // are guaranteed to happen since they are all committed.
+                lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
+            }
+            versionMap.enforceSafeAccess();
+            return flush;
+        }
     }
 
     private VersionValue getVersionForWrite(BytesRef id) {
@@ -1228,8 +1271,13 @@ public class InternalEngine extends Engine {
                 versionMap.enforceSafeAccess();
             }
         }
-
-        return versionMap.getUnderLock(id);
+        VersionValue v = versionMap.getUnderLockOrUnsafe(id);
+        if (v == LiveVersionMap.VERSION_MAP_UNSAFE) {
+            // The archive may hold a stale version (see getVersionForRead). The doc is not in current or old, so a refresh
+            // already moved it into the internal searcher. Resolve the version from Lucene without another refresh.
+            return null;
+        }
+        return v;
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -4409,6 +4457,8 @@ public class InternalEngine extends Engine {
                     uid = Uid.encodeId(id);
                 }
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
+                    // Runs before the engine is open: no other writes, the archive is empty, and these puts are always recorded, so the map
+                    // cannot be unsafe and getUnderLock cannot return a stale archived version.
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
                         if (isTombstone) {

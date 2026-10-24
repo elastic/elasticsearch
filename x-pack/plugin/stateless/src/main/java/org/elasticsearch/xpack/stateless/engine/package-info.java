@@ -18,7 +18,7 @@
  * {@link org.elasticsearch.index.engine.InternalEngine#getLastUnsafeSegmentGenerationForGets()} which is the last known generation
  * during which the LiveVersionMap was in unsafe mode. When in unsafe mode, the LiveVersionMap on the indexing node does not record
  * any docs, and therefore, the indexing node is not able to handle any GetFromTranslog requests correctly. To address this, the indexing
- * node forces a flush and records the segment generation (see {@link org.elasticsearch.index.engine.InternalEngine}#getVersionFromMap),
+ * node forces a flush and records the segment generation (see {@link org.elasticsearch.index.engine.InternalEngine}#getVersionForRead),
  * and returns the segment generation that the search node should wait for, before handling the GET request locally.
  * <p>
  *

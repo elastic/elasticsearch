@@ -1,0 +1,19 @@
+name: Changelog PR comments
+on:
+  workflow_run:
+    # Must match the `name:` field of workflows in this repo that upload a
+    # changelog-decision artifact. Edit this list if you rename a workflow.
+    workflows: ["release-notes"]
+    types: [completed]
+permissions:
+  pull-requests: write
+  actions: read
+# The PR number is stable; do not cancel — two upstreams can complete close
+# together and cancelling mid-upsert risks leaving the wrong comment body.
+concurrency:
+  group: changelog-comments-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled'
+    uses: elastic/docs-actions/.github/workflows/release-notes-comments.yml@v1

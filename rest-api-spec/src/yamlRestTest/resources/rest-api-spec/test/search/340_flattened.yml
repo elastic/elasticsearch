@@ -766,3 +766,157 @@ setup:
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "query_shard_exception" }
   - match: { error.root_cause.0.reason: "failed to create query: [fuzzy] queries are not currently supported on keyed [flattened] fields." }
+
+---
+"Case-insensitive queries on keyed flattened fields match the key exactly":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ keyed_flattened_exact_key_queries ]
+      reason: "before this capability, case-insensitive queries on a key also matched the keys that differ from it in case only,
+        and prefix queries on a key without terms were rejected"
+  - do:
+      indices.create:
+        index: keyed_case
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+              doc_values_only:
+                type: flattened
+                index: false
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "keyed_case", "_id": "1" } }
+          - { "flattened": { "key": "Foo" }, "doc_values_only": { "key": "Foo" } }
+          - { "index": { "_index": "keyed_case", "_id": "2" } }
+          - { "flattened": { "KEY": "foo" }, "doc_values_only": { "KEY": "foo" } }
+
+  - do:
+      search:
+        index: keyed_case
+        body:
+          query:
+            term:
+              flattened.key:
+                value: "FOO"
+                case_insensitive: true
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: keyed_case
+        body:
+          query:
+            prefix:
+              flattened.key:
+                value: "fO"
+                case_insensitive: true
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: keyed_case
+        body:
+          query:
+            term:
+              doc_values_only.key:
+                value: "FOO"
+                case_insensitive: true
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: keyed_case
+        body:
+          query:
+            prefix:
+              doc_values_only.key: "Fo"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: keyed_case
+        body:
+          query:
+            prefix:
+              doc_values_only.key:
+                value: "fO"
+                case_insensitive: true
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Prefix and case-insensitive queries on keyed flattened fields in columnar":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ keyed_flattened_exact_key_queries ]
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "prefix queries on keys of columnar flattened fields, and case-insensitive queries that match the key exactly"
+  - do:
+      indices.create:
+        index: keyed_case_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "keyed_case_columnar", "_id": "1" } }
+          - { "flattened": { "key": "Foo" } }
+          - { "index": { "_index": "keyed_case_columnar", "_id": "2" } }
+          - { "flattened": { "KEY": "foo" } }
+
+  - do:
+      search:
+        index: keyed_case_columnar
+        body:
+          query:
+            prefix:
+              flattened.key: "Fo"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: keyed_case_columnar
+        body:
+          query:
+            prefix:
+              flattened.key:
+                value: "fO"
+                case_insensitive: true
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: keyed_case_columnar
+        body:
+          query:
+            term:
+              flattened.key:
+                value: "FOO"
+                case_insensitive: true
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

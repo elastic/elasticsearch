@@ -12,15 +12,20 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * The query settings a view definition sets for its own body with {@code SET} statements.
@@ -34,18 +39,32 @@ import static java.util.stream.Collectors.joining;
  * A setting a definition does not {@code SET} stays at its registry default inside the body, whatever the caller's
  * request or the cluster default says — a cluster-level default reaching into bodies would change view contents the
  * way a materialized view could not change.
+ * <p>
+ * {@code supplied} holds the names of the settings the definition {@code SET}s explicitly, kept apart from the values
+ * so telemetry can count what view authors set the same way it counts what callers set.
  */
-public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildcardsMatchViews, boolean wildcardsMatchDatasets) {
+public record ViewQuerySettings(
+    UnmappedResolution unmappedFields,
+    boolean wildcardsMatchViews,
+    boolean wildcardsMatchDatasets,
+    Set<String> supplied
+) {
 
     /** The settings of a view whose definition has no {@code SET} statements: everything at its registry default. */
-    public static final ViewQuerySettings DEFAULTS = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, false);
+    public static final ViewQuerySettings DEFAULTS = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, false, Set.of());
 
-    /** The setting names a view definition may {@code SET} — the ones scoped at view boundaries for callers. */
-    private static final Set<String> ALLOWED = Set.of(
-        QuerySettings.UNMAPPED_FIELDS.name(),
-        QuerySettings.WILDCARDS_MATCH_VIEWS.name(),
-        QuerySettings.WILDCARDS_MATCH_DATASETS.name()
+    /** The settings a view definition may {@code SET} — the ones scoped at view boundaries for callers. */
+    public static final List<QuerySettingDef<?>> SETTINGS = List.of(
+        QuerySettings.UNMAPPED_FIELDS,
+        QuerySettings.WILDCARDS_MATCH_VIEWS,
+        QuerySettings.WILDCARDS_MATCH_DATASETS
     );
+
+    private static final Set<String> ALLOWED = SETTINGS.stream().map(QuerySettingDef::name).collect(toUnmodifiableSet());
+
+    public ViewQuerySettings {
+        supplied = Set.copyOf(supplied);
+    }
 
     /**
      * Settings for a view branch. A view branch has a name; a definition that did not {@code SET} a mode contributes
@@ -62,11 +81,47 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
      * statement carries only allowed settings.
      */
     public static ViewQuerySettings from(EsqlStatement statement) {
+        Set<String> supplied = statement.settings() == null
+            ? Set.of()
+            : statement.settings().stream().map(QuerySetting::name).collect(toUnmodifiableSet());
         return new ViewQuerySettings(
             statement.setting(QuerySettings.UNMAPPED_FIELDS),
             statement.setting(QuerySettings.WILDCARDS_MATCH_VIEWS),
-            statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS)
+            statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS),
+            supplied
         );
+    }
+
+    /**
+     * These values as {@link ResolvedSettings}, so telemetry and logging can read each of {@link #SETTINGS} through its
+     * {@link QuerySettingDef} the same way they read the caller's. Every setting outside {@link #SETTINGS} reads as its
+     * registry default, which is what a view body runs with.
+     */
+    public ResolvedSettings asResolvedSettings() {
+        return ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, unmappedFields)
+            .withOverride(QuerySettings.WILDCARDS_MATCH_VIEWS, wildcardsMatchViews)
+            .withOverride(QuerySettings.WILDCARDS_MATCH_DATASETS, wildcardsMatchDatasets);
+    }
+
+    /** The value of each of {@link #SETTINGS}, by setting name, in the string form the query log records. */
+    public Map<String, String> logValues() {
+        ResolvedSettings resolved = asResolvedSettings();
+        Map<String, String> values = new LinkedHashMap<>();
+        for (QuerySettingDef<?> def : SETTINGS) {
+            values.put(def.name(), String.valueOf(def.get(resolved)));
+        }
+        return values;
+    }
+
+    /**
+     * The {@link #logValues()} of every view in {@code viewSettings}, by view name in sorted order; empty if the query
+     * resolved no view. The query log records this as one field, so that the user-chosen view names sit inside its value
+     * rather than in field names.
+     */
+    public static Map<String, Map<String, String>> logValues(Map<String, ViewQuerySettings> viewSettings) {
+        Map<String, Map<String, String>> values = new TreeMap<>();
+        viewSettings.forEach((viewName, settings) -> values.put(viewName, settings.logValues()));
+        return values;
     }
 
     /**

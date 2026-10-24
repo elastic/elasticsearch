@@ -16,14 +16,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.FixedBitSetCollector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
@@ -64,7 +60,7 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
             try (Directory dir = newDirectory()) {
                 indexColumnar(dir, values);
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     for (int q = 0; q < 6; q++) {
                         final long lo;
                         final long hi;
@@ -95,7 +91,7 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
                         }
 
                         final Query query = new ColumnarNumericRangeQuery(FIELD, lo, hi);
-                        final FixedBitSet actual = collect(searcher, query, reader.maxDoc());
+                        final FixedBitSet actual = searcher.search(query, FixedBitSetCollector.createManager(reader.maxDoc()));
                         final String msg = "numDocs=" + numDocs + " [" + lo + "," + hi + "]";
                         assertEquals(msg, expected, actual);
                         assertEquals(msg + " count", expected.cardinality(), searcher.count(query));
@@ -175,30 +171,5 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
             }
             writer.forceMerge(1);
         }
-    }
-
-    private static FixedBitSet collect(IndexSearcher searcher, Query query, int maxDoc) throws IOException {
-        final FixedBitSet matches = new FixedBitSet(maxDoc);
-        searcher.search(query, new Collector() {
-            @Override
-            public ScoreMode scoreMode() {
-                return ScoreMode.COMPLETE_NO_SCORES;
-            }
-
-            @Override
-            public LeafCollector getLeafCollector(LeafReaderContext context) {
-                final int base = context.docBase;
-                return new LeafCollector() {
-                    @Override
-                    public void setScorer(Scorable scorer) {}
-
-                    @Override
-                    public void collect(int doc) {
-                        matches.set(base + doc);
-                    }
-                };
-            }
-        });
-        return matches;
     }
 }

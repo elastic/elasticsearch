@@ -72,7 +72,7 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
                         cacheBlobReaderForNonUploaded,
                         locationPrimaryTermAndGeneration
                     );
-                    logger.debug(() -> message, ex);
+                    logger.info(() -> message, ex);
 
                     // Update the tracker so that next attempts will not try to read from the VBCC, but from the uploaded BCC.
                     tracker.updateLatestUploadedBcc(locationPrimaryTermAndGeneration);

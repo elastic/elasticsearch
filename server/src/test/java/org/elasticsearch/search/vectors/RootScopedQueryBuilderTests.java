@@ -7,24 +7,29 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.InnerHitsRewriteContext;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -96,7 +101,7 @@ public class RootScopedQueryBuilderTests extends MapperServiceTestCase {
     }
 
     public void testRewrite() throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        QueryRewriteContext context = new InnerHitsRewriteContext(parserConfig(), System::currentTimeMillis);
 
         RootScopedQueryBuilder unchanged = new RootScopedQueryBuilder(new TermQueryBuilder("foo", "bar"));
         assertSame(unchanged, unchanged.rewrite(context));
@@ -105,38 +110,13 @@ public class RootScopedQueryBuilderTests extends MapperServiceTestCase {
         assertThat(changed, instanceOf(RootScopedQueryBuilder.class));
         assertThat(((RootScopedQueryBuilder) changed).query(), instanceOf(MatchAllQueryBuilder.class));
 
-        QueryBuilder matchNone = new RootScopedQueryBuilder(new TermQueryBuilder("missing", "x")).rewrite(context);
-        assertThat(matchNone, instanceOf(MatchNoneQueryBuilder.class));
+        assertThat(new RootScopedQueryBuilder(new MatchNoneQueryBuilder()).rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
     }
 
-    public void testDelegation() {
-        TermQueryBuilder inner = new TermQueryBuilder("foo", "bar");
-        RootScopedQueryBuilder rootScoped = new RootScopedQueryBuilder(inner);
-
-        assertSame(rootScoped, rootScoped.boost(2f));
-        assertEquals(2f, inner.boost(), 0f);
-        assertEquals(2f, rootScoped.boost(), 0f);
-        assertSame(rootScoped, rootScoped.queryName("q"));
-        assertEquals("q", inner.queryName());
-        assertEquals("q", rootScoped.queryName());
-
-        assertEquals(inner.getName(), rootScoped.getName());
-        assertEquals(inner.getWriteableName(), rootScoped.getWriteableName());
-        assertEquals(inner.getMinimalSupportedVersion(), rootScoped.getMinimalSupportedVersion());
-
-        RootScopedQueryBuilder same = new RootScopedQueryBuilder(new TermQueryBuilder("foo", "bar").boost(2f).queryName("q"));
-        assertEquals(rootScoped, same);
-        assertEquals(rootScoped.hashCode(), same.hashCode());
-        assertNotEquals(rootScoped, new RootScopedQueryBuilder(new TermQueryBuilder("foo", "baz")));
-    }
-
-    public void testSerializationUnwraps() throws IOException {
-        TermQueryBuilder inner = new TermQueryBuilder("foo", "bar");
-        RootScopedQueryBuilder rootScoped = new RootScopedQueryBuilder(inner);
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
-
-        assertEquals(inner, copyNamedWriteable(rootScoped, registry, QueryBuilder.class));
-        assertEquals(Strings.toString(inner), Strings.toString(rootScoped));
+    public void testTransient() {
+        RootScopedQueryBuilder rootScoped = new RootScopedQueryBuilder(new TermQueryBuilder("foo", "bar"));
+        expectThrows(IllegalStateException.class, () -> rootScoped.writeTo(new BytesStreamOutput()));
+        expectThrows(AssertionError.class, () -> rootScoped.rewrite(createSearchExecutionContext(mapperService)));
     }
 
     private static NestedObjectMapper pushNestedScope(SearchExecutionContext context, String path) {

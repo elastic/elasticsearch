@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
@@ -497,7 +496,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
                 for (QueryBuilder filter : this.filterQueries) {
-                    boolQuery.filter(new ToChildBlockJoinQueryBuilder(filter));
+                    boolQuery.filter(new NestedLevelJoinQueryBuilder(filter, fieldName));
                 }
                 return boolQuery;
             }

@@ -16,6 +16,7 @@ setup:
               pages: { type: long, index: false }
               summary: { type: match_only_text }
               tags: { type: flattened }
+              vector: { type: dense_vector, dims: 2, similarity: l2_norm, index_options: { type: flat } }
               authors:
                 type: nested
                 properties:
@@ -42,17 +43,17 @@ setup:
       index:
         index: books
         id: "1"
-        body: {"genre": "nature", "published": "2001-01-01", "pages": 100, "summary": "wild animals", "tags": {"color": "green"}, "authors": [{"name": "ann"}], "chapters": [{"cid": "c1", "language": "fr", "title": "intro", "body": "le debut", "meta": {"level": "easy"}, "vector": [1, 0], "paragraphs": [{"pid": "p1", "text": "alpha", "body": "red green", "kind": "a", "score": 1.0, "vector": [1, 0]}, {"pid": "p2", "text": "beta", "body": "blue sky", "kind": "b", "score": 2.0, "vector": [1, 1]}]}, {"cid": "c2", "language": "en", "title": "middle", "body": "the middle", "meta": {"level": "hard"}, "vector": [2, 0], "paragraphs": [{"pid": "p3", "text": "gamma", "body": "green red", "score": 3.0, "vector": [2, 0]}]}]}
+        body: {"genre": "nature", "published": "2001-01-01", "pages": 100, "summary": "wild animals", "tags": {"color": "green"}, "vector": [1, 0], "authors": [{"name": "ann"}], "chapters": [{"cid": "c1", "language": "fr", "title": "intro", "body": "le debut", "meta": {"level": "easy"}, "vector": [1, 0], "paragraphs": [{"pid": "p1", "text": "alpha", "body": "red green", "kind": "a", "score": 1.0, "vector": [1, 0]}, {"pid": "p2", "text": "beta", "body": "blue sky", "kind": "b", "score": 2.0, "vector": [1, 1]}]}, {"cid": "c2", "language": "en", "title": "middle", "body": "the middle", "meta": {"level": "hard"}, "vector": [2, 0], "paragraphs": [{"pid": "p3", "text": "gamma", "body": "green red", "score": 3.0, "vector": [2, 0]}]}]}
   - do:
       index:
         index: books
         id: "2"
-        body: {"genre": "novel", "published": "2010-06-01", "pages": 300, "summary": "a long story", "tags": {"color": "red"}, "authors": [{"name": "bob"}], "chapters": [{"cid": "c3", "language": "fr", "title": "intro", "body": "un roman", "meta": {"level": "easy"}, "vector": [3, 0], "paragraphs": [{"pid": "p4", "text": "alpha", "body": "red green", "kind": "b", "score": 4.0, "vector": [2, 1]}]}, {"cid": "c4", "language": "de", "title": "outro", "body": "the end", "meta": {"level": "hard"}, "vector": [4, 0], "paragraphs": [{"pid": "p5", "text": "beta", "body": "red blue", "kind": "a", "score": 5.0, "vector": [2, 2]}]}]}
+        body: {"genre": "novel", "published": "2010-06-01", "pages": 300, "summary": "a long story", "tags": {"color": "red"}, "vector": [2, 0], "authors": [{"name": "bob"}], "chapters": [{"cid": "c3", "language": "fr", "title": "intro", "body": "un roman", "meta": {"level": "easy"}, "vector": [3, 0], "paragraphs": [{"pid": "p4", "text": "alpha", "body": "red green", "kind": "b", "score": 4.0, "vector": [2, 1]}]}, {"cid": "c4", "language": "de", "title": "outro", "body": "the end", "meta": {"level": "hard"}, "vector": [4, 0], "paragraphs": [{"pid": "p5", "text": "beta", "body": "red blue", "kind": "a", "score": 5.0, "vector": [2, 2]}]}]}
   - do:
       index:
         index: books
         id: "3"
-        body: {"genre": "nature", "published": "2020-03-01", "pages": 50, "summary": "small birds", "tags": {"color": "green"}, "authors": [{"name": "ann"}, {"name": "bob"}], "chapters": [{"cid": "c5", "language": "en", "title": "intro", "body": "un debut", "meta": {"level": "easy"}, "vector": [5, 0], "paragraphs": [{"pid": "p6", "text": "alpha", "body": "green green", "kind": "a", "score": 6.0, "vector": [3, 0]}]}]}
+        body: {"genre": "nature", "published": "2020-03-01", "pages": 50, "summary": "small birds", "tags": {"color": "green"}, "vector": [3, 0], "authors": [{"name": "ann"}, {"name": "bob"}], "chapters": [{"cid": "c5", "language": "en", "title": "intro", "body": "un debut", "meta": {"level": "easy"}, "vector": [5, 0], "paragraphs": [{"pid": "p6", "text": "alpha", "body": "green green", "kind": "a", "score": 6.0, "vector": [3, 0]}]}]}
   - do:
       indices.refresh: {}
 
@@ -359,6 +360,39 @@ setup:
   - match: { hits.hits.1._id: "2" }
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c4" }
+
+---
+"Knn filter on the root vector":
+
+  # knn query inside a nested query
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"knn": {"field": "vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre": "nature"}}}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.cid: "c2" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c5" }
+
+  # top level knn search
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"knn": {"field": "vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre": "nature"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.cid: "c2" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c5" }
 
 ---
 "Filters whose level is not resolved":

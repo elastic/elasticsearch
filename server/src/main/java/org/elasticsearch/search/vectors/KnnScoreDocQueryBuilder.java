@@ -20,9 +20,7 @@ import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.RootScopedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -192,7 +190,7 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
                 boolQuery.must(exactKnnQuery);
                 for (QueryBuilder filter : this.filterQueries) {
                     // built at the root like the knn search filters, not in the nested scope of the inner hits
-                    boolQuery.filter(new ToChildBlockJoinQueryBuilder(new RootScopedQueryBuilder(filter)));
+                    boolQuery.filter(new NestedLevelJoinQueryBuilder(new RootScopedQueryBuilder(filter), fieldName));
                 }
                 return boolQuery;
             }

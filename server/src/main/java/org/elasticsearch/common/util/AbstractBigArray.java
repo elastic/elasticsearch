@@ -114,10 +114,13 @@ abstract class AbstractBigArray extends AbstractArray {
 
     @Override
     protected final void doClose() {
+        clearPages();
         if (recycler != null) {
             Releasables.close(cache);
             cache = null;
         }
     }
+
+    protected abstract void clearPages();
 
 }

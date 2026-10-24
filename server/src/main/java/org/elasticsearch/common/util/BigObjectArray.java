@@ -99,4 +99,9 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
             return new Object[PageCacheRecycler.OBJECT_PAGE_SIZE];
         }
     }
+
+    @Override
+    protected void clearPages() {
+        pages = null;
+    }
 }

@@ -9,22 +9,24 @@ package org.elasticsearch.xpack.security.cli;
 
 import com.unboundid.util.ssl.cert.KeyUsageExtension;
 
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.asn1.x509.KeyUsage;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyPurpose;
+import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 import org.junit.BeforeClass;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.security.spec.ECGenParameterSpec;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -39,9 +41,9 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_MAPPINGS;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.isValidKeyUsage;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.KEY_USAGE_MAPPINGS;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.isValidKeyUsage;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,25 +108,26 @@ public class CertGenUtilsTests extends ESTestCase {
         final boolean resolveName = randomBoolean();
         InetAddress address = InetAddresses.forString("127.0.0.1");
 
-        GeneralNames generalNames = CertGenUtils.getSubjectAlternativeNames(resolveName, Collections.singleton(address));
+        SubjectAlternativeNames generalNames = CertGenUtils.getSubjectAlternativeNames(resolveName, Collections.singleton(address));
         assertThat(generalNames, notNullValue());
-        GeneralName[] generalNameArray = generalNames.getNames();
-        assertThat(generalNameArray, notNullValue());
+        // the subject alternative names are opaque, so inspect them through a certificate that carries them
+        final KeyPair keyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate certificate = CertGenUtils.generateSignedCertificate(
+            new X500Principal("CN=test"),
+            generalNames,
+            keyPair,
+            null,
+            null,
+            30
+        );
+        // each subject alternative name is a list of the GeneralName tag number followed by the name itself
+        final List<Integer> generalNameTags = certificate.getSubjectAlternativeNames().stream().map(name -> (Integer) name.get(0)).toList();
 
         logger.info("resolve name [{}], address [{}], subject alt names [{}]", resolveName, NetworkAddress.format(address), generalNames);
         if (resolveName && isResolvable(address)) {
-            assertThat(generalNameArray.length, is(2));
-            int firstType = generalNameArray[0].getTagNo();
-            if (firstType == GeneralName.iPAddress) {
-                assertThat(generalNameArray[1].getTagNo(), is(GeneralName.dNSName));
-            } else if (firstType == GeneralName.dNSName) {
-                assertThat(generalNameArray[1].getTagNo(), is(GeneralName.iPAddress));
-            } else {
-                fail("unknown tag value: " + firstType);
-            }
+            assertThat(generalNameTags, containsInAnyOrder(GeneralName.iPAddress, GeneralName.dNSName));
         } else {
-            assertThat(generalNameArray.length, is(1));
-            assertThat(generalNameArray[0].getTagNo(), is(GeneralName.iPAddress));
+            assertThat(generalNameTags, contains(GeneralName.iPAddress));
         }
     }
 
@@ -152,7 +155,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            buildKeyUsage(rootCaKeyUsages),
+            rootCaKeyUsages,
             Set.of()
         );
 
@@ -170,7 +173,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            buildKeyUsage(subCaKeyUsage),
+            subCaKeyUsage,
             Set.of()
         );
 
@@ -188,8 +191,8 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            buildKeyUsage(endEntityKeyUsage),
-            Set.of(new ExtendedKeyUsage(KeyPurposeId.anyExtendedKeyUsage))
+            endEntityKeyUsage,
+            Set.of(KeyPurpose.ANY)
         );
 
         final X509Certificate[] certChain = new X509Certificate[] { endEntityCert, subCaCert, rootCaCert };
@@ -222,54 +225,104 @@ public class CertGenUtilsTests extends ESTestCase {
 
     }
 
-    public void testBuildKeyUsage() {
+    /**
+     * The signature algorithm is chosen from the CA key type, and the signer comes from the JVM's configured providers rather than from
+     * the Bouncy Castle provider shaded into the bc module, so each supported key type is checked against the JDK providers.
+     */
+    public void testSignedCertificateForEachCaKeyType() throws Exception {
+        final KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA");
+        rsa.initialize(2048);
+        final KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
+        ec.initialize(new ECGenParameterSpec("secp256r1"));
+        final KeyPairGenerator dsa = KeyPairGenerator.getInstance("DSA");
+        dsa.initialize(2048);
+        final Map<String, KeyPair> caKeyPairs = Map.of(
+            "SHA256withRSA",
+            rsa.generateKeyPair(),
+            "SHA256withECDSA",
+            ec.generateKeyPair(),
+            "SHA256withDSA",
+            dsa.generateKeyPair()
+        );
+        final KeyPair keyPair = CertGenUtils.generateKeyPair(2048);
+        for (Map.Entry<String, KeyPair> entry : caKeyPairs.entrySet()) {
+            final String expectedSignatureAlgorithm = entry.getKey();
+            final KeyPair caKeyPair = entry.getValue();
+            final X509Certificate caCert = CertGenUtils.generateSignedCertificate(
+                new X500Principal("CN=" + caKeyPair.getPrivate().getAlgorithm() + " CA"),
+                null,
+                caKeyPair,
+                null,
+                null,
+                true,
+                30,
+                null,
+                List.of("keyCertSign"),
+                Set.of()
+            );
+            final X509Certificate cert = CertGenUtils.generateSignedCertificate(
+                new X500Principal("CN=node"),
+                null,
+                keyPair,
+                caCert,
+                caKeyPair.getPrivate(),
+                30
+            );
+            assertThat(caCert.getSigAlgName(), equalTo(expectedSignatureAlgorithm));
+            assertThat(cert.getSigAlgName(), equalTo(expectedSignatureAlgorithm));
+            caCert.verify(caCert.getPublicKey());
+            cert.verify(caCert.getPublicKey());
+            assertThat(cert.getIssuerX500Principal(), equalTo(caCert.getSubjectX500Principal()));
+        }
+    }
+
+    public void testBuildKeyUsage() throws Exception {
         // sanity check that lookup maps are containing the same keyUsage entries
         assertThat(KEY_USAGE_BITS.keySet(), containsInAnyOrder(KEY_USAGE_MAPPINGS.keySet().toArray()));
 
-        // passing null or empty list of keyUsage names should return null
-        assertThat(buildKeyUsage(null), is(nullValue()));
-        assertThat(buildKeyUsage(List.of()), is(nullValue()));
+        // the key usage extension is built from the names that are passed to generateSignedCertificate, so inspect it through a certificate
+        final KeyPair keyPair = CertGenUtils.generateKeyPair(2048);
+
+        // passing null or empty list of keyUsage names should not add a key usage extension
+        assertThat(generateCertificateWithKeyUsage(keyPair, null).getKeyUsage(), is(nullValue()));
+        assertThat(generateCertificateWithKeyUsage(keyPair, List.of()).getKeyUsage(), is(nullValue()));
 
         // invalid names should throw IAE
-        var e = expectThrows(IllegalArgumentException.class, () -> buildKeyUsage(List.of(randomAlphanumericOfLength(5))));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> generateCertificateWithKeyUsage(keyPair, List.of(randomAlphanumericOfLength(5)))
+        );
         assertThat(e.getMessage(), containsString("Unknown keyUsage"));
 
         {
             final List<String> keyUsages = randomNonEmptySubsetOf(KEY_USAGE_MAPPINGS.keySet());
-            final KeyUsage keyUsage = buildKeyUsage(keyUsages);
-            for (String usageName : keyUsages) {
-                final Integer usage = KEY_USAGE_MAPPINGS.get(usageName);
-                assertThat(" mapping for keyUsage [" + usageName + "] is missing", usage, is(notNullValue()));
-                assertThat("expected keyUsage [" + usageName + "] to be set in [" + keyUsage + "]", keyUsage.hasUsages(usage), is(true));
-            }
-
-            final Set<String> keyUsagesNotSet = KEY_USAGE_MAPPINGS.keySet()
-                .stream()
-                .filter(u -> keyUsages.contains(u) == false)
-                .collect(Collectors.toSet());
-
-            for (String usageName : keyUsagesNotSet) {
-                final Integer usage = KEY_USAGE_MAPPINGS.get(usageName);
-                assertThat(" mapping for keyUsage [" + usageName + "] is missing", usage, is(notNullValue()));
-                assertThat(
-                    "expected keyUsage [" + usageName + "] not to be set in [" + keyUsage + "]",
-                    keyUsage.hasUsages(usage),
-                    is(false)
-                );
-            }
-
+            // asserts that the bits of the given key usages are set, and that the bits of all the other key usages are not set
+            assertExpectedKeyUsage(generateCertificateWithKeyUsage(keyPair, keyUsages), keyUsages);
         }
 
         {
             // test that duplicates and whitespaces are ignored
-            KeyUsage keyUsage = buildKeyUsage(
+            final X509Certificate certificate = generateCertificateWithKeyUsage(
+                keyPair,
                 List.of("digitalSignature   ", "    nonRepudiation", "\tkeyEncipherment", "keyEncipherment\n")
             );
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("digitalSignature")), is(true));
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("nonRepudiation")), is(true));
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("digitalSignature")), is(true));
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("keyEncipherment")), is(true));
+            assertExpectedKeyUsage(certificate, List.of("digitalSignature", "nonRepudiation", "keyEncipherment"));
         }
+    }
+
+    private static X509Certificate generateCertificateWithKeyUsage(KeyPair keyPair, List<String> keyUsage) throws Exception {
+        return CertGenUtils.generateSignedCertificate(
+            new X500Principal("CN=test"),
+            null,
+            keyPair,
+            null,
+            null,
+            true,
+            30,
+            null,
+            keyUsage,
+            Set.of()
+        );
     }
 
     public void testIsValidKeyUsage() {

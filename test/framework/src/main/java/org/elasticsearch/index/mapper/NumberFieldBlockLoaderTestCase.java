@@ -64,7 +64,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         if (source == ValueSource.DOC_VALUES) {
             // Columnar index modes preserve arrival order via offsets; standard mode returns doc values sorted.
-            boolean preserveOrder = params.indexMode().isColumnar();
+            boolean preserveOrder = params.indexMode().isStrictColumnar();
             var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue, fieldMapping, source)).filter(Objects::nonNull);
             var resultList = preserveOrder ? stream.toList() : stream.sorted().toList();
             return maybeFoldList(resultList);
@@ -235,7 +235,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(Map.of("field", value));
+        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();
@@ -261,7 +261,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(Map.of("field", value));
+        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();

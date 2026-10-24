@@ -68,6 +68,15 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return exactValuesFromSource(values, nullValue, false);
         }
 
+        // Once the mapping has the index.mapping.synthetic_source_keep to "arrays" and the field ancestor is an array
+        // we have to mime what DocumentParser does, which means grab the original value from _ignored_source.
+        // Multi fields are not affected since they are indexed in their own doc values.
+        if (indexKeepsArray(getSettingsForParams().build())
+            && testContext.isMultifield() == false
+            && hasArrayAncestor(runner.mapDoc(), runner.fieldName())) {
+            return exactValuesFromSource(values, nullValue, false);
+        }
+
         // synthetic source and doc_values are present
         if (hasDocValues(fieldMapping, true)) {
             return bytesRefWkbValues(values, nullValue, false);
@@ -112,6 +121,25 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             .map(p -> toWKB(normalize(p)))
             .toList();
         return maybeFoldList(resultList);
+    }
+
+    /**
+     * Whether any object on the path to the field (excluding the field itself) is an array in the document.
+     */
+    private static boolean hasArrayAncestor(Map<?, ?> doc, String fieldName) {
+        Object node = doc;
+        String[] path = fieldName.split("\\.");
+        for (int i = 0; i < path.length - 1; i++) {
+            if (node instanceof Map<?, ?> map) {
+                node = map.get(path[i]);
+                if (node instanceof List<?>) {
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

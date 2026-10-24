@@ -240,7 +240,8 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                         new SecureString(encodedApiKey.toCharArray())
                     )
                 )
-            )
+            ),
+            Map.of()
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -395,7 +396,8 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                                 new SecureString(encodedApiKey.toCharArray())
                             )
                         ))
-            )
+            ),
+            Map.of()
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -468,7 +470,8 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                         new SecureString(encodedApiKey.toCharArray())
                     )
                 )
-            )
+            ),
+            Map.of()
         );
 
         final TransportInterceptor.AsyncSender sender = interceptor.interceptSender(new TransportInterceptor.AsyncSender() {
@@ -541,7 +544,8 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                 crossClusterApiKeySignatureManager,
                 unsupportedLicenseState,
                 mockRemoteClusterCredentialsResolver(remoteClusterAlias)
-            )
+            ),
+            Map.of()
         );
 
         final TransportInterceptor.AsyncSender sender = interceptor.interceptSender(
@@ -860,7 +864,8 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                 mock(CrossClusterAccessAuthenticationService.class),
                 crossClusterApiKeySignatureManager,
                 mockLicenseState
-            )
+            ),
+            Map.of()
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
@@ -923,7 +928,8 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                 mock(CrossClusterAccessAuthenticationService.class),
                 crossClusterApiKeySignatureManager,
                 mockLicenseState
-            )
+            ),
+            Map.of()
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();

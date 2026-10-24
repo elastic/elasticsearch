@@ -21,6 +21,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -730,7 +731,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
             try {
-                return currentMerge.getMergeInfo() != null ? currentMerge.getMergeInfo().sizeInBytes() : currentMerge.estimatedMergeBytes;
+                return currentMerge.getMergeInfo() != null
+                    ? Lucene.bestEffortSizeInBytes(currentMerge.getMergeInfo())
+                    : currentMerge.estimatedMergeBytes;
             } catch (IOException e) {
                 // For stateless only: It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to
                 // reaching this point. Once the IW creates the new segment, it could be exposed to be included in a new merge. That

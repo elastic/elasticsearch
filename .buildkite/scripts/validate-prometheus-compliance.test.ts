@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
 const CORPUS = "grafanalabs-top100";
 const JQ = execFileSync("sh", ["-c", "command -v jq"], { encoding: "utf8" }).trim();
-const VERSION = "0.9.7+prometheus-3.13.1";
+const VERSION = "0.11.0+prometheus-3.13.1";
 
 type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
 type Case = [id: string, status: Status, expr: string];
@@ -122,12 +122,12 @@ esac
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   /** Runs the script with the given control and test logs, returning what CI would see. */
-  function run(control: Case[], tested: Case[], opts: { controlRc?: number; testRc?: number; controlLog?: string; testLog?: string; env?: Record<string, string> } = {}) {
+  function run(control: Case[], tested: Case[], opts: { controlRc?: number; testRc?: number; controlLog?: string; testLog?: string; env?: Record<string, string>; args?: string[] } = {}) {
     writeFileSync(join(dir, "control.log"), opts.controlLog ?? promcheckLog(control));
     writeFileSync(join(dir, "test.log"), opts.testLog ?? promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
     if (opts.testRc !== undefined) writeFileSync(join(dir, "test.rc"), String(opts.testRc));
-    const result = spawnSync("bash", [SCRIPT], {
+    const result = spawnSync("bash", [SCRIPT, ...(opts.args ?? [])], {
       cwd: repo,
       env: {
         ...process.env,
@@ -136,6 +136,7 @@ esac
         GH_TOKEN: "token",
         PROMCHECK_VER: VERSION,
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
+        GRADLEW: GRADLEW,
         GITHUB_PR_TARGET_BRANCH: "main",
         BUILDKITE_BUILD_URL: "",
         BUILDKITE_JOB_ID: "",
@@ -160,6 +161,10 @@ esac
       args: read(join(dir, "args.log")),
     };
   }
+
+  // The pre-command hook's GRADLEW, whose options the script reuses.
+  const GRADLEW =
+    "./gradlew --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/";
 
   const STABLE: Case[] = [
     ["001", "match", "up"],
@@ -227,15 +232,23 @@ esac
     expect(r.output).toContain('"flaky":1');
   });
 
-  test("the binary gets the checkout, the timeout in seconds, and JSONL output", () => {
+  test("the binary gets the checkout, the timeout, JSONL output, the remote build cache, and a node sized for the agent", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
+    const cpus = execFileSync("getconf", ["_NPROCESSORS_ONLN"]).toString().trim();
     const lines = r.args.trim().split("\n");
     expect(lines).toHaveLength(2);
     for (const args of lines) {
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
       expect(args).toContain("--output json");
+      expect(args).toContain(`--concurrency ${cpus} --`);
+      expect(args).toMatch(
+        / -- --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ --configuration-cache -I \S+\/\.ci\/init\.gradle /,
+      );
+      expect(args).toContain(` -Dtests.es.node.processors=${cpus} `);
+      expect(args).toMatch(/ -Dtests\.heap\.size=[1-9]\d*m /);
+      expect(args).toMatch(/ -Drun\.license_type=trial -Dtests\.es\.xpack\.ml\.enabled=false$/);
     }
   });
 
@@ -542,11 +555,51 @@ exec "${JQ}" "$@"
     expect(r.stdout).not.toContain("Failed to");
   });
 
+  test("notify posts only the running note and asks the build bot to comment early", () => {
+    const r = run(STABLE, STABLE, {
+      args: ["notify"],
+      env: {
+        GH_TOKEN: "",
+        GRADLEW: "",
+        GITHUB_PR_TARGET_BRANCH: "",
+        BUILDKITE_BUILD_URL: "https://buildkite.example/builds/7",
+        BUILDKITE_JOB_ID: "notify-job",
+      },
+    });
+    expect(r.status).toBe(0);
+    expect(r.args).toBe("");
+    expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
+    expect(r.agent).toContain("<!-- promcheck-pr-report -->\n## Promcheck\n\n**Promcheck running**");
+    // The note links the build, not the short-lived notify job.
+    expect(r.agent).toContain("[Buildkite run](https://buildkite.example/builds/7) | ");
+    expect(r.agent).not.toContain("#notify-job");
+    expect(r.agent).toContain("== meta-data set pr_comment:early_comment_job_id notify-job");
+    expect(r.agent.indexOf("pr_comment:early_comment_job_id")).toBeGreaterThan(
+      r.agent.indexOf("pr_comment:validate-prometheus-compliance:body"),
+    );
+  });
+
   test("a misconfigured pipeline fails the job", () => {
     const r = run(STABLE, STABLE, { env: { PROMCHECK_TEST_INSTANCE_TIMEOUT: "soon" } });
     expect(r.status).toBe(1);
     expect(r.output).toContain("PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: soon");
     expect(r.agent).toBe("");
+    const noGradlew = run(STABLE, STABLE, { env: { GRADLEW: "" } });
+    expect(noGradlew.status).toBe(1);
+    expect(noGradlew.output).toContain("GRADLEW must be set");
+    const badConcurrency = run(STABLE, STABLE, { env: { PROMCHECK_CONCURRENCY: "lots" } });
+    expect(badConcurrency.status).toBe(1);
+    expect(badConcurrency.output).toContain("PROMCHECK_CONCURRENCY must be a positive integer: lots");
+  });
+
+  test("PROMCHECK_CONCURRENCY overrides the CPU count for promcheck but not for the node", () => {
+    const cpus = execFileSync("getconf", ["_NPROCESSORS_ONLN"]).toString().trim();
+    const r = run(STABLE, STABLE, { env: { PROMCHECK_CONCURRENCY: "3" } });
+    expect(r.status).toBe(0);
+    for (const args of r.args.trim().split("\n")) {
+      expect(args).toContain("--concurrency 3 --");
+      expect(args).toContain(` -Dtests.es.node.processors=${cpus} `);
+    }
   });
 
   test("stderr is streamed to the console and saved separately from JSONL", () => {

@@ -84,6 +84,11 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature PROFILE_RESCORE = new NodeFeature("search.profile.rescore");
     /**
+     * Test-only gate for REST tests asserting {@code recent_search_waiting} in search stats; it depends on
+     * {@code TransportVersion} {@code search_query_waiting}, so nodes that do not have it report no value.
+     */
+    public static final NodeFeature RECENT_SEARCH_WAITING = new NodeFeature("search.stats.recent_search_waiting");
+    /**
      * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
      * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
      */
@@ -174,7 +179,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
-                PROFILE_RESCORE
+                PROFILE_RESCORE,
+                RECENT_SEARCH_WAITING
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

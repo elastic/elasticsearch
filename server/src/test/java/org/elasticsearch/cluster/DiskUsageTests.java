@@ -251,6 +251,7 @@ public class DiskUsageTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomDoubleBetween(0d, 10d, true),
                 randomDoubleBetween(0d, 10d, true)
             ),
             randomNonNegativeLong(),

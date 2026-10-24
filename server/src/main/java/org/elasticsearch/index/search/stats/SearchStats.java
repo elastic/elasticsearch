@@ -31,6 +31,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
     public static class Stats implements Writeable, ToXContentFragment {
 
         private static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = TransportVersion.fromName("search_load_per_index_stats");
+        private static final TransportVersion SEARCH_QUERY_WAITING = TransportVersion.fromName("search_query_waiting");
 
         private long queryCount;
         private long queryTimeInMillis;
@@ -55,6 +56,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
         // values by assigning them greater significance than older values.
         private double recentSearchLoad;
 
+        // Like recentSearchLoad, for the time queries waited with work for the shard and nothing running on the node.
+        private double recentSearchWaiting;
+
         private Stats() {
             // for internal use, initializes all counts to 0
         }
@@ -76,6 +80,44 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestCurrent,
             double recentSearchLoad
         ) {
+            this(
+                queryCount,
+                queryTimeInMillis,
+                queryCurrent,
+                queryFailure,
+                fetchCount,
+                fetchTimeInMillis,
+                fetchCurrent,
+                fetchFailure,
+                scrollCount,
+                scrollTimeInMillis,
+                scrollCurrent,
+                suggestCount,
+                suggestTimeInMillis,
+                suggestCurrent,
+                recentSearchLoad,
+                0
+            );
+        }
+
+        public Stats(
+            long queryCount,
+            long queryTimeInMillis,
+            long queryCurrent,
+            long queryFailure,
+            long fetchCount,
+            long fetchTimeInMillis,
+            long fetchCurrent,
+            long fetchFailure,
+            long scrollCount,
+            long scrollTimeInMillis,
+            long scrollCurrent,
+            long suggestCount,
+            long suggestTimeInMillis,
+            long suggestCurrent,
+            double recentSearchLoad,
+            double recentSearchWaiting
+        ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
@@ -95,7 +137,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.suggestCurrent = suggestCurrent;
 
             this.recentSearchLoad = recentSearchLoad;
-
+            this.recentSearchWaiting = recentSearchWaiting;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -120,6 +162,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             if (in.getTransportVersion().supports(SEARCH_LOAD_PER_INDEX_STATS)) {
                 recentSearchLoad = in.readDouble();
+            }
+            if (in.getTransportVersion().supports(SEARCH_QUERY_WAITING)) {
+                recentSearchWaiting = in.readDouble();
             }
         }
 
@@ -147,6 +192,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().supports(SEARCH_LOAD_PER_INDEX_STATS)) {
                 out.writeDouble(recentSearchLoad);
             }
+            if (out.getTransportVersion().supports(SEARCH_QUERY_WAITING)) {
+                out.writeDouble(recentSearchWaiting);
+            }
         }
 
         public void add(Stats stats) {
@@ -169,6 +217,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCurrent += stats.suggestCurrent;
 
             recentSearchLoad += stats.recentSearchLoad;
+            recentSearchWaiting += stats.recentSearchWaiting;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -189,6 +238,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestTimeInMillis += stats.suggestTimeInMillis;
 
             recentSearchLoad += stats.recentSearchLoad;
+            recentSearchWaiting += stats.recentSearchWaiting;
         }
 
         public long getQueryCount() {
@@ -267,6 +317,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return recentSearchLoad;
         }
 
+        public double getSearchWaitingRate() {
+            return recentSearchWaiting;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -292,6 +346,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
             builder.field(Fields.RECENT_SEARCH_LOAD, recentSearchLoad);
+            builder.field(Fields.RECENT_SEARCH_WAITING, recentSearchWaiting);
 
             return builder;
         }
@@ -315,7 +370,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 && suggestCount == that.suggestCount
                 && suggestTimeInMillis == that.suggestTimeInMillis
                 && suggestCurrent == that.suggestCurrent
-                && recentSearchLoad == that.recentSearchLoad;
+                && recentSearchLoad == that.recentSearchLoad
+                && recentSearchWaiting == that.recentSearchWaiting;
         }
 
         @Override
@@ -335,7 +391,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 suggestCount,
                 suggestTimeInMillis,
                 suggestCurrent,
-                recentSearchLoad
+                recentSearchLoad,
+                recentSearchWaiting
             );
         }
     }
@@ -454,6 +511,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
         static final String RECENT_SEARCH_LOAD = "recent_search_load";
+        static final String RECENT_SEARCH_WAITING = "recent_search_waiting";
     }
 
     @Override

@@ -215,6 +215,7 @@ public class RemoteClusterSecurityEsqlExternalSourceIT extends AbstractRemoteClu
             // authentication before the dataset name is even looked at.
             DataNodeRequest dataNodeRequest = new DataNodeRequest(
                 "external-data-" + randomAlphaOfLength(8),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
                 configuration,
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 List.of(),

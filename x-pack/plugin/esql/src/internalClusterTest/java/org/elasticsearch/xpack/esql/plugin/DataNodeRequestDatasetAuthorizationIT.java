@@ -435,6 +435,7 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     private static DataNodeRequest externalRequest(ExternalSourceExec exec) {
         return new DataNodeRequest(
             "authz-external-" + randomAlphaOfLength(8),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             TEST_CFG,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             List.of(),
@@ -452,6 +453,7 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     private static DataNodeRequest shardRequest(ExchangeSinkExec plan) {
         return new DataNodeRequest(
             "authz-shard-" + randomAlphaOfLength(8),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             TEST_CFG,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             List.of(new DataNodeRequest.Shard(new ShardId(resolveIndex(INDEX), 0), SplitShardCountSummary.UNSET)),

@@ -593,4 +593,33 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
     }
+
+    public void testReadBoostProfilesPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/boost/profile/get");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/boost/rule/get");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/boost/explain");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:admin/boost/profile/put");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:admin/boost/profile/delete");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/something/else");
+    }
+
+    public void testReadBoostRulesPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/rule/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/explain");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/profile/get");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/profile/put");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/create");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/update");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/delete");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/something/else");
+    }
+
+    public void testMonitorCoversBoostReadActions() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MONITOR,
+            "cluster:monitor/boost/profile/get",
+            "cluster:monitor/boost/rule/get",
+            "cluster:monitor/boost/explain"
+        );
+    }
 }

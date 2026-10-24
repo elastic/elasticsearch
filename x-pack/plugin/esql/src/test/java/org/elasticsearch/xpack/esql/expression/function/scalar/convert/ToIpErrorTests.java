@@ -33,7 +33,7 @@ public class ToIpErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "ip or string"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "integer or ip or long or string or unsigned_long"));
     }
 
     @Override

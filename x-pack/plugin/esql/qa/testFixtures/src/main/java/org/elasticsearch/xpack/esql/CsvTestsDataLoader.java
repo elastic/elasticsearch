@@ -290,6 +290,7 @@ public class CsvTestsDataLoader {
         new TestDataset("missing_ip_sample_data"),
         new TestDataset("clientips"),
         new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("ip_numeric"),
         new TestDataset("message_types"),
         new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
         new TestDataset("hash_algorithms"),

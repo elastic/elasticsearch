@@ -234,6 +234,8 @@ class BulkPrimaryExecutionContext {
     public void markAsRequiringMappingUpdate() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         currentItemState = ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
+        // an update is translated again once the mapping update lands, so release its expansion now (#158246)
+        pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
         requestToExecute = null;
         hasMappingUpdate = true;
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);

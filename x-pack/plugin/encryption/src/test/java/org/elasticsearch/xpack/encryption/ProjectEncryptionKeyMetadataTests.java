@@ -264,8 +264,8 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
     public void testFindRetireableKeyIdsExcludesActive() {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
-            Map.of("k1", entry(50L), "k2", entry(100L)),
-            "k2",
+            Map.of("k1", entry(50L), "k2", entry(75L), "k3", entry(100L)),
+            "k3",
             PASSWORD_ID,
             Map.of(),
             NO_OP_ENCRYPTION
@@ -273,10 +273,21 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertEquals(Set.of("k1"), metadata.findRetireableKeyIds(Long.MAX_VALUE));
     }
 
+    public void testFindRetireableKeyIdsKeepsMostRecentlyDeactivatedKey() {
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L), "k2", entry(100L)),
+            "k2",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        assertTrue(metadata.findRetireableKeyIds(Long.MAX_VALUE).isEmpty());
+    }
+
     public void testFindRetireableKeyIdsUsesDeactivationTimeNotGenerationTime() {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
-            Map.of("k1", entry(100L), "k2", entry(400L), "k3", entry(500L)),
-            "k3",
+            Map.of("k1", entry(100L), "k2", entry(400L), "k3", entry(500L), "k4", entry(600L)),
+            "k4",
             PASSWORD_ID,
             Map.of(),
             NO_OP_ENCRYPTION
@@ -539,8 +550,8 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
     public void testFindRetireableKeyIdsKeyDeactivatedAtRotation() {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
-            Map.of("k1", entry(0L), "k2", entry(1_000_000L)),
-            "k2",
+            Map.of("k1", entry(0L), "k2", entry(1_000_000L), "k3", entry(3_000_000L)),
+            "k3",
             PASSWORD_ID,
             Map.of(),
             NO_OP_ENCRYPTION

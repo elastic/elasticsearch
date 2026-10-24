@@ -317,7 +317,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     /**
      * Returns non-active key IDs whose deactivation time (the {@code generatedAt} of the key that replaced them) is strictly less than
-     * {@code cutoffDeactivationMillis} and that are not still referenced by {@link #getHandlerKeyIds()}.
+     * {@code cutoffDeactivationMillis} and that are not still referenced by {@link #getHandlerKeyIds()}. The most recently deactivated
+     * key is kept until the next rotation, so that rotation's re-encryption also moves any late write still under it.
      */
     Set<String> findRetireableKeyIds(long cutoffDeactivationMillis) {
         List<Map.Entry<String, KeyEntry>> sorted = keys.entrySet()
@@ -326,7 +327,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             .toList();
         Set<String> stillReferenced = Set.copyOf(handlerKeyIds.values());
         Set<String> retireable = new HashSet<>();
-        for (int i = 0; i < sorted.size() - 1; i++) {
+        for (int i = 0; i < sorted.size() - 2; i++) {
             String id = sorted.get(i).getKey();
             if (id.equals(activeKeyId) || stillReferenced.contains(id)) {
                 continue;

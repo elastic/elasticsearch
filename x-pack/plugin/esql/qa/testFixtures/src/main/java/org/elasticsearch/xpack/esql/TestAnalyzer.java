@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -759,6 +760,13 @@ public class TestAnalyzer {
         if (resolved.size() == 1 && keepViewIdentity == false) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
+                if (Fork.containsFork(n.child())) {
+                    LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
+                    subplans.put(n.name(), n);
+                    LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
+                    identities.put(n.name(), BranchIdentity.view(n.name()));
+                    return new BranchPlan(ur.source(), subplans, identities, List.of());
+                }
                 return keepViewWrapper ? n : n.child();
             }
             return subplan;

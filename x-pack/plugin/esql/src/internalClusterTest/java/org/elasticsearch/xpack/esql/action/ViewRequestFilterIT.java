@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -793,31 +792,43 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testForkAfterForkViewWithAndWithoutRequestFilter() {
+        assumeTrue(
+            "FORK after a single FORK view must not be rejected as consecutive FORKs",
+            EsqlCapabilities.Cap.FORK_AFTER_SINGLE_FORK_SUBQUERY_OR_VIEW.isEnabled()
+        );
         String view = "vrf_fork_then_fork";
         createView(view, "FROM " + INDEX + " | FORK (WHERE id > 0) (WHERE id < 2)");
         String query = "FROM " + view + " | FORK (WHERE id > 0) (WHERE id < 5) | KEEP _fork, id | SORT _fork, id";
 
-        VerificationException withoutFilter = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query)).close());
-        assertThat(withoutFilter.getMessage(), containsString("Only a single FORK command is supported"));
+        List<List<Object>> withoutFilter;
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query))) {
+            withoutFilter = getValuesList(resp);
+        }
+        assertForkAfterForkViewRows(withoutFilter);
 
-        List<List<Object>> rows = rows(query, QueryBuilders.rangeQuery("id").gte(0));
-        assertThat(rows, hasSize(12));
-        assertForkId(rows.get(0), "fork1", 1);
-        assertForkId(rows.get(1), "fork1", 1);
-        assertForkId(rows.get(2), "fork1", 2);
-        assertForkId(rows.get(3), "fork1", 3);
-        assertForkId(rows.get(4), "fork1", 4);
-        assertForkId(rows.get(5), "fork1", 5);
-        assertForkId(rows.get(6), "fork2", 0);
-        assertForkId(rows.get(7), "fork2", 1);
-        assertForkId(rows.get(8), "fork2", 1);
-        assertForkId(rows.get(9), "fork2", 2);
-        assertForkId(rows.get(10), "fork2", 3);
-        assertForkId(rows.get(11), "fork2", 4);
+        List<List<Object>> withFilter = rows(query, QueryBuilders.rangeQuery("id").gte(0));
+        assertForkAfterForkViewRows(withFilter);
     }
 
-    private static void assertForkId(List<Object> row, String fork, int id) {
-        assertThat(row.get(0).toString(), equalTo(fork));
-        assertThat(row.get(1), equalTo(id));
+    private static void assertForkAfterForkViewRows(List<List<Object>> rows) {
+        assertThat(
+            rows,
+            equalTo(
+                List.of(
+                    List.of("fork1", 1),
+                    List.of("fork1", 1),
+                    List.of("fork1", 2),
+                    List.of("fork1", 3),
+                    List.of("fork1", 4),
+                    List.of("fork1", 5),
+                    List.of("fork2", 0),
+                    List.of("fork2", 1),
+                    List.of("fork2", 1),
+                    List.of("fork2", 2),
+                    List.of("fork2", 3),
+                    List.of("fork2", 4)
+                )
+            )
+        );
     }
 }

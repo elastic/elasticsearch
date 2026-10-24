@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -173,13 +174,26 @@ public final class LetResolver {
                         nonBindingPatterns.clear();
                         addedNodes++;
                     }
+                    LogicalPlan replacement;
                     if (result.size() > 1) {
                         addedNodes++;
+                        replacement = new UnionAll(ur.source(), result, List.of());
+                    } else {
+                        LogicalPlan single = result.get(0);
+                        // A single FROM a name is otherwise spliced in place. If the binding body already contains a FORK, keep a
+                        // one-child UnionAll so checkForUnseparatedFork treats the LET scope as a merge boundary rather than consecutive
+                        // FORKs on one pipeline.
+                        if (Fork.containsFork(single)) {
+                            addedNodes++;
+                            replacement = new UnionAll(ur.source(), List.of(single), List.of());
+                        } else {
+                            replacement = single;
+                        }
                     }
                     // The replaced relation is already part of the count.
                     planSize.add(addedNodes - 1);
                     skipBranch.set(true);
-                    return result.size() == 1 ? result.get(0) : new UnionAll(ur.source(), result, List.of());
+                    return replacement;
                 }
                 return ur;
             }

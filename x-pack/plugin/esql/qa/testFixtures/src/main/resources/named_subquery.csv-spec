@@ -326,3 +326,24 @@ language_code:integer | language_name:keyword
 2                     | French
 ;
 
+// -------------------------------------------------------------------
+// FORK after a LET whose body already contains a FORK
+// -------------------------------------------------------------------
+
+forkAfterLetBindingWithFork
+required_capability: named_subquery_let
+required_capability: fork_v9
+required_capability: fork_after_single_fork_subquery_or_view
+
+LET a = (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092))\;
+FROM a
+| FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10092
+fork2         | 10091
+;
+

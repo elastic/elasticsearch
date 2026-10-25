@@ -21,6 +21,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -155,7 +156,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
                                 anyMoved = true;
                                 it.remove();
                             }
-                        } catch (IndexNotFoundException e) {
+                        } catch (IndexNotFoundException | ShardNotFoundException e) {
                             logger.trace(() -> Strings.format("Exception handling commit [%s] to delete of relocating primary", commit), e);
                             pendingCommitsToDelete.add(commit);
                             anyMoved = true;
@@ -250,7 +251,13 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
             return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
         }
 
-        var primaryShard = indexRoutingTable.shard(shardId.getId()).primaryShard();
+        final var shardRoutingTable = indexRoutingTable.shard(shardId.getId());
+        if (shardRoutingTable == null) {
+            // A restore removed this shard ID. StaleIndicesGCService cleans its files after a consistent state read. Do not
+            // treat it as a deleted index here, since a later restore or reshard may reuse the shard ID under the same UUID.
+            return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
+        }
+        var primaryShard = shardRoutingTable.primaryShard();
         var localNode = state.nodes().getLocalNode();
         var currentPrimaryTerm = projectMetadata.index(index).primaryTerm(shardId.getId());
 

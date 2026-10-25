@@ -815,7 +815,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator));
             bucketCollector.preCollection();
-            context.searcher().search(Queries.ALL_DOCS_INSTANCE, bucketCollector.asCollector());
+            context.searcher().search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(bucketCollector.asCollector()));
             bucketCollector.postCollection();
 
             Max max = (Max) maxAggregator.buildAggregation(0L);
@@ -873,7 +873,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
                 BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator, termsAggregator));
                 bucketCollector.preCollection();
-                context.searcher().search(Queries.ALL_DOCS_INSTANCE, bucketCollector.asCollector());
+                context.searcher().search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(bucketCollector.asCollector()));
                 bucketCollector.postCollection();
 
                 Max max = (Max) maxAggregator.buildTopLevel();

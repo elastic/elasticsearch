@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation.Replica
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -33,8 +35,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -54,6 +59,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -65,7 +71,11 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.ShardRestoringException;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -93,6 +103,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -452,6 +463,166 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests.size(), equalTo(1));
         assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
         assertIndexShardCounter(0);
+    }
+
+    /**
+     * A request whose primary is being restored from a snapshot by a restore that reports shard restoring fails straight away with a
+     * {@link ShardRestoringException}, without waiting for the request timeout.
+     */
+    public void testPrimaryBeingRestoredFailsFastWhenRestoreReportsShardRestoring() {
+        final String index = "test";
+        final String restoreUuid = randomUUID();
+        setState(clusterService, stateWithPrimaryBeingRestored(index, restoreUuid, true));
+        ReplicationTask task = maybeTask();
+
+        // a long timeout shows that the request does not wait for the primary
+        Request request = new Request(new ShardId(index, "_na_", 0)).timeout(TimeValue.timeValueMinutes(1));
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        action.new ReroutePhase(task, request, listener).run();
+
+        assertTrue("a restoring primary should fail the request immediately", listener.isDone());
+        final ShardRestoringException e = assertListenerThrows(
+            "restoring primary didn't fail fast",
+            listener,
+            ShardRestoringException.class
+        );
+        assertThat(e.recoveryId(), equalTo(restoreUuid));
+        assertThat(e.getMetadata("es.index"), equalTo(List.of(index)));
+        assertPhase(task, "failed");
+        assertFalse("a failed fast request is not retried", request.isRetrySet.get());
+    }
+
+    /**
+     * A restore that did not ask for shard restoring to be reported keeps the request waiting for the primary, as before the exception
+     * existed.
+     */
+    public void testPrimaryBeingRestoredWaitsWhenRestoreDoesNotReportShardRestoring() {
+        final String index = "test";
+        setState(clusterService, stateWithPrimaryBeingRestored(index, randomUUID(), false));
+        ReplicationTask task = maybeTask();
+
+        Request request = new Request(new ShardId(index, "_na_", 0)).timeout(TimeValue.timeValueMinutes(1));
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        action.new ReroutePhase(task, request, listener).run();
+
+        assertFalse("a primary that is restored without reporting should keep the request waiting", listener.isDone());
+        assertPhase(task, "waiting_for_retry");
+        assertTrue(request.isRetrySet.get());
+    }
+
+    /**
+     * A coordinating node that has not applied the restore yet still sees an active primary and sends the request. The node holding the
+     * shard answers that it is not in primary mode, and the coordinator retries. Once it applies the restore, the retry fails straight
+     * away with {@link ShardRestoringException}.
+     */
+    public void testCoordinatorThatLearnsOfRestoreAfterPrimaryRejectsRequestFailsWithShardRestoringException() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final String restoreUuid = randomUUID();
+        setState(clusterService, stateWithActivePrimary(index, true, 0));
+        ReplicationTask task = maybeTask();
+
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMinutes(1));
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        action.new ReroutePhase(task, request, listener).run();
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        transport.handleRemoteError(capturedRequests[0].requestId(), shardNotInPrimaryMode(shardId));
+        assertFalse("the coordinator should wait for a newer cluster state", listener.isDone());
+        assertPhase(task, "waiting_for_retry");
+
+        setState(clusterService, stateWithPrimaryBeingRestored(index, restoreUuid, true));
+
+        assertListenerThrows("the retry should fail with ShardRestoringException", listener, ShardRestoringException.class);
+        assertPhase(task, "failed");
+        assertThat(transport.getCapturedRequestsAndClear(), arrayWithSize(0));
+    }
+
+    /**
+     * A coordinating node that never applies the restore keeps seeing an active primary, so when its request times out it fails with the
+     * error the node holding the shard returned, not with {@link ShardRestoringException}.
+     */
+    public void testCoordinatorThatNeverLearnsOfRestoreFailsWithPrimaryError() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, 0));
+        ReplicationTask task = maybeTask();
+
+        Request request = new Request(shardId).timeout(TimeValue.ZERO);
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        action.new ReroutePhase(task, request, listener).run();
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+
+        // the request has already timed out, so the retry is the last attempt and runs against the same stale state
+        transport.handleRemoteError(capturedRequests[0].requestId(), shardNotInPrimaryMode(shardId));
+        capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertFalse(listener.isDone());
+
+        transport.handleRemoteError(capturedRequests[0].requestId(), shardNotInPrimaryMode(shardId));
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ExceptionsHelper.unwrap(e, ReplicationOperation.RetryOnPrimaryException.class), notNullValue());
+        assertThat(ExceptionsHelper.unwrap(e, ShardRestoringException.class), nullValue());
+        assertPhase(task, "failed");
+    }
+
+    private static ReplicationOperation.RetryOnPrimaryException shardNotInPrimaryMode(ShardId shardId) {
+        return new ReplicationOperation.RetryOnPrimaryException(
+            shardId,
+            "shard is not in primary mode",
+            new ShardNotInPrimaryModeException(shardId, IndexShardState.RECOVERING),
+            false
+        );
+    }
+
+    /**
+     * A cluster state in which the only shard's primary is initializing from a snapshot, with a matching started restore.
+     */
+    private static ClusterState stateWithPrimaryBeingRestored(String index, String restoreUuid, boolean reportShardRestoring) {
+        final ClusterState state = state(index, true, ShardRoutingState.INITIALIZING);
+        final ShardRouting initializing = state.routingTable().index(index).shard(0).primaryShard();
+        final ShardId shardId = initializing.shardId();
+        final Snapshot snapshot = new Snapshot(
+            Metadata.DEFAULT_PROJECT_ID,
+            randomIdentifier(),
+            new SnapshotId(randomIdentifier(), randomUUID())
+        );
+        final ShardRouting restoring = TestShardRouting.shardRoutingBuilder(
+            shardId,
+            initializing.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        )
+            .withRecoverySource(
+                new RecoverySource.SnapshotRecoverySource(
+                    restoreUuid,
+                    snapshot,
+                    IndexVersion.current(),
+                    new IndexId(index, shardId.getIndex().getUUID())
+                )
+            )
+            .build();
+        final RestoreInProgress restoreInProgress = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                restoreUuid,
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(index),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(initializing.currentNodeId())),
+                reportShardRestoring
+            )
+        ).build();
+        return ClusterState.builder(state)
+            .putRoutingTable(
+                Metadata.DEFAULT_PROJECT_ID,
+                RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(restoring)).build()
+            )
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
     }
 
     public void testShardNotInPrimaryMode() {

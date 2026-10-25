@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * A query over an external Parquet object that trips the parent circuit breaker while reading must come back to the
  * client as a {@code 429 circuit_breaking_exception} whose body is small enough to render safely, even with
- * {@code error_trace=true}. See elastic/esql-planning#2135, where a failure graph that looped through suppressed
+ * {@code error_trace=true}. where a failure graph that looped through suppressed
  * exceptions made the error body grow until the node ran out of heap.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)

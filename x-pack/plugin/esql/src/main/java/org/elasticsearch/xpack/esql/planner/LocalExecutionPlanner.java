@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
@@ -163,6 +164,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -213,7 +215,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
@@ -235,9 +236,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -255,7 +253,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -304,8 +301,12 @@ public class LocalExecutionPlanner {
     private final ProjectMetadata projectMetadata;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
-    @Nullable
-    private final RemoteFetchService remoteFetchService;
+    /**
+     * Whether an external source with no registered dataset behind it may be planned (the snapshot-only inline
+     * {@code EXTERNAL} command). Injected, like {@link DatasetConfigResolver}'s, so tests that plan bare execs are not
+     * tied to the build they run under.
+     */
+    private final boolean snapshotBuild;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -332,7 +333,7 @@ public class LocalExecutionPlanner {
         ProjectMetadata projectMetadata,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        @Nullable RemoteFetchService remoteFetchService,
+        boolean snapshotBuild,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
@@ -357,7 +358,7 @@ public class LocalExecutionPlanner {
         this.projectMetadata = projectMetadata;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
-        this.remoteFetchService = remoteFetchService;
+        this.snapshotBuild = snapshotBuild;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -438,8 +439,6 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
-        } else if (node instanceof RemoteFetchExec remoteFetch) {
-            return planRemoteFetch(remoteFetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -901,41 +900,6 @@ public class LocalExecutionPlanner {
         return source.with(factory, newLayout);
     }
 
-    private PhysicalOperation planRemoteFetch(RemoteFetchExec exec, LocalExecutionPlannerContext context) {
-        if (remoteFetchService == null) {
-            throw new IllegalStateException("RemoteFetchExec requires RemoteFetchService");
-        }
-        PhysicalOperation source = plan(exec.child(), context);
-        Layout.ChannelAndType handle = source.layout.get(exec.handleAttribute().id());
-        if (handle == null) {
-            throw new IllegalStateException(
-                "remote fetch handle attribute [" + exec.handleAttribute() + "] is not present in input layout"
-            );
-        }
-        List<RemoteFetchService.FetchField> requestFields = exec.attributesToFetch()
-            .stream()
-            .map(attr -> new RemoteFetchService.FetchField(fieldName(attr), attr.dataType()))
-            .toList();
-        PhysicalPlan pushdownPlan = exec.pushdownPlan();
-        Layout layout = source.layout.builder().append(exec.fetchedOutputAttributes()).build();
-        return source.with(
-            new RemoteFetchOperator.Factory(
-                handle.channel(),
-                requestFields,
-                exec.fetchedOutputAttributes(),
-                pushdownPlan,
-                configuration,
-                Math.max(1, context.queryPragmas().exchangeBufferSize()),
-                () -> remoteFetchService.newReleasingBatchExchangeClient(parentTask)
-            ),
-            layout
-        );
-    }
-
-    private static String fieldName(Attribute attr) {
-        return attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
-    }
-
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();
@@ -1040,15 +1004,7 @@ public class LocalExecutionPlanner {
             if (numericFactory != null) {
                 return source.with(numericFactory, source.layout);
             }
-            var common = topNCommon(
-                rowSize,
-                topNExec.order(),
-                topNExec.limit(),
-                topNExec.docValuesAttributes(),
-                topNExec.child().output(),
-                source,
-                context
-            );
+            var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
             TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
             if (parallelWorkerExecutor != null) {
                 int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
@@ -1423,15 +1379,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
-        var common = topNCommon(
-            rowSize,
-            topNByExec.order(),
-            topNByExec.limitPerGroup(),
-            topNByExec.docValuesAttributes(),
-            topNByExec.child().output(),
-            source,
-            context
-        );
+        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
         List<Integer> groupKeys = topNByExec.groupings()
             .stream()
             .map(grouping -> getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"))
@@ -1461,7 +1409,6 @@ public class LocalExecutionPlanner {
         List<Order> order,
         Expression limitExpr,
         Set<Attribute> docValuesAttributes,
-        List<Attribute> inputAttributes,
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     ) {
@@ -1469,20 +1416,11 @@ public class LocalExecutionPlanner {
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
-        Set<NameId> remoteFetchHandleIds = inputAttributes.stream()
-            .filter(RemoteFetchHandle::isRemoteFetchHandleCarrier)
-            .map(Attribute::id)
-            .collect(Collectors.toSet());
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
-            Layout.ChannelSet channelSet = inverse.get(channel);
-            var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, channelSet.nameIds());
-            elementTypes[channel] = PlannerUtils.toElementType(channelSet.type(), fieldExtractPreference);
-            boolean remoteFetchHandleChannel = channelSet.nameIds().stream().anyMatch(remoteFetchHandleIds::contains);
-            // Handles use a keyword-shaped block to cross generic exchanges, but their contents are binary StreamOutput payloads.
-            encoders[channel] = remoteFetchHandleChannel
-                ? TopNEncoder.DEFAULT_UNSORTABLE
-                : TopNExec.encoder(channelSet.type(), context.shardContexts);
+            var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
+            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
+            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
             int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
@@ -2307,6 +2245,14 @@ public class LocalExecutionPlanner {
         // bypasses that gate and is stopped only here, after its planning-time source resolution and split discovery
         // have run.
         Federation.ensureEnabled(settings);
+        // Credential backstop. Every path that brings an external source to this point has already rebound the exec
+        // to this node's registered dataset (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
+        // .runCompute), which refuses a source with no dataset behind it on a release build. Repeat that one check
+        // here: it catches a future path that builds the operator from an unbound exec, though not one that skips the
+        // rebind for a named exec, which only the rebind itself can guard.
+        if (externalSource.datasetName() == null && snapshotBuild == false) {
+            throw DatasetConfigResolver.notRegistered(null);
+        }
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
@@ -2318,6 +2264,16 @@ public class LocalExecutionPlanner {
 
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        }
+        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
+        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+            throw new IllegalArgumentException(
+                "external dataset ["
+                    + externalSource.datasetName()
+                    + "] cannot be read through non-file source type ["
+                    + externalSource.sourceType()
+                    + "]"
+            );
         }
 
         StoragePath path = StoragePath.of(externalSource.sourcePath());
@@ -2458,51 +2414,102 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
-        // TODO: should this be extracted into a separate eval block?
-        PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(
-                EvalMapper.toEvaluator(
-                    context.foldCtx(),
-                    filter.condition(),
-                    source.layout,
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) == false
+            || (context.shardContexts.isEmpty() && scoresWithoutShards(filter.condition()) == false)) {
+            return planFilterCondition(source, filter.condition(), context);
+        }
+        Attribute scoreAttribute = null;
+
+        for (Attribute attribute : filter.output()) {
+            if (MetadataAttribute.isScoreAttribute(attribute)) {
+                scoreAttribute = attribute;
+            }
+        }
+        assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
+
+        // A filter adds its searches' scores only once it has filtered. So that a predicate on _score sees the scores of the
+        // searches outside its own conjunct, as it sees the score of a search Lucene runs at the source, plan in stages: the
+        // conjuncts that don't read _score, then those that read it alongside a search, then those that only read it.
+        boolean holdsSearch = FullTextFunction.containsScoringSearch(filter.condition());
+        List<Expression> searchConditions = new ArrayList<>();
+        List<Expression> searchConditionsReadingScore = new ArrayList<>();
+        List<Expression> scorePredicates = new ArrayList<>();
+        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+            if (holdsSearch == false || conjunct.anyMatch(MetadataAttribute::isScoreAttribute) == false) {
+                searchConditions.add(conjunct);
+            } else if (FullTextFunction.containsScoringSearch(conjunct)) {
+                searchConditionsReadingScore.add(conjunct);
+            } else {
+                scorePredicates.add(conjunct);
+            }
+        }
+        if (searchConditionsReadingScore.isEmpty() && scorePredicates.isEmpty()) {
+            return planScoredFilter(source, filter.condition(), scoreAttribute, context);
+        }
+        PhysicalOperation filterOperation = source;
+        if (searchConditions.isEmpty() == false) {
+            Expression condition = Predicates.combineAnd(searchConditions);
+            filterOperation = FullTextFunction.containsScoringSearch(condition)
+                ? planScoredFilter(filterOperation, condition, scoreAttribute, context)
+                : planFilterCondition(filterOperation, condition, context);
+        }
+        if (searchConditionsReadingScore.isEmpty() == false) {
+            filterOperation = planScoredFilter(
+                filterOperation,
+                Predicates.combineAnd(searchConditionsReadingScore),
+                scoreAttribute,
+                context
+            );
+        }
+        if (scorePredicates.isEmpty() == false) {
+            filterOperation = planFilterCondition(filterOperation, Predicates.combineAnd(scorePredicates), context);
+        }
+        return filterOperation;
+    }
+
+    /**
+     * Filters on {@code condition}, then adds the scores of its searches to {@code _score} for the rows that pass.
+     */
+    private static PhysicalOperation planScoredFilter(
+        PhysicalOperation source,
+        Expression condition,
+        Attribute scoreAttribute,
+        LocalExecutionPlannerContext context
+    ) {
+        PhysicalOperation filterOperation = planFilterCondition(source, condition, context);
+        int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
+        return filterOperation.with(
+            new ScoreOperator.ScoreOperatorFactory(
+                ScoreMapper.toScorer(
+                    condition,
                     context.shardContexts,
-                    context.analysisRegistry()
-                )
+                    EvalMapper.toEvaluatorContext(
+                        context.foldCtx(),
+                        filterOperation.layout,
+                        context.shardContexts,
+                        context.analysisRegistry()
+                    )
+                ),
+                scoreBlock
+            ),
+            filterOperation.layout
+        );
+    }
+
+    private static PhysicalOperation planFilterCondition(
+        PhysicalOperation source,
+        Expression condition,
+        LocalExecutionPlannerContext context
+    ) {
+        // TODO: should this be extracted into a separate eval block?
+        return source.with(
+            new FilterOperatorFactory(
+                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
             ),
             source.layout
         );
-        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
-        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
-        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
-            // Add scorer operator to add the filter expression scores to the overall scores
-            Attribute scoreAttribute = null;
-
-            for (Attribute attribute : filter.output()) {
-                if (MetadataAttribute.isScoreAttribute(attribute)) {
-                    scoreAttribute = attribute;
-                }
-            }
-            assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
-
-            int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
-            filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(
-                    ScoreMapper.toScorer(
-                        filter.condition(),
-                        context.shardContexts,
-                        EvalMapper.toEvaluatorContext(
-                            context.foldCtx(),
-                            filterOperation.layout,
-                            context.shardContexts,
-                            context.analysisRegistry()
-                        )
-                    ),
-                    scoreBlock
-                ),
-                filterOperation.layout
-            );
-        }
-        return filterOperation;
     }
 
     /**

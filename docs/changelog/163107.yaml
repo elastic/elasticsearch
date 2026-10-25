@@ -1,0 +1,6 @@
+area: Suggesters
+issues:
+ - 162301
+pr: 163107
+summary: Fix `_search` error when the `suggest_field` URL parameter is set without `suggest_mode`
+type: bug

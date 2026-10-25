@@ -488,3 +488,18 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSlowConsumerUnderNetworkDelay
   issue: https://github.com/elastic/elasticsearch/issues/163264
+- class: org.elasticsearch.xpack.logsdb.OversizedArrayOffsetsRollingUpgradeIT
+  tasks:
+  - :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.0.8#bwcTest
+  method: testOversizedArraysAcrossUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/163295
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStressWithoutFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148310
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  tasks:
+  - :x-pack:qa:rolling-upgrade-multi-cluster:v9.6.0#bwcTest
+  method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=2 followerNodesUpgraded=3}
+  issue: https://github.com/elastic/elasticsearch/issues/163301

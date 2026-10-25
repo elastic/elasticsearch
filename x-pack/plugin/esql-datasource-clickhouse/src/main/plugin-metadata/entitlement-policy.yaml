@@ -1,0 +1,3 @@
+ALL-UNNAMED:
+  # The connector sends schema and read queries to the configured ClickHouse HTTP endpoint.
+  - outbound_network

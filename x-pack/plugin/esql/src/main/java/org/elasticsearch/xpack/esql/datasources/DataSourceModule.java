@@ -780,24 +780,28 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
+            return resolveDelegate().resolveMetadata(location, decryptedStorageConfig(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+            resolveDelegate().validateConfig(location, decryptedStorageConfig(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
             // Forward the sink rather than inheriting the interface default, which would drop it and
             // fall back to the two-argument form -- losing the resolver's buffered warning routing.
-            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
+            resolveDelegate().validateConfig(location, decryptedStorageConfig(config), warningSink);
         }
 
         @Override
         public Connector open(Map<String, Object> config) {
-            return resolveDelegate().open(credentials.decryptInPlace(config));
+            return resolveDelegate().open(decryptedStorageConfig(config));
+        }
+
+        private Map<String, Object> decryptedStorageConfig(Map<String, Object> config) {
+            return credentials.decryptInPlace(ExternalSourceResolver.storageConfig(config));
         }
 
         @Override

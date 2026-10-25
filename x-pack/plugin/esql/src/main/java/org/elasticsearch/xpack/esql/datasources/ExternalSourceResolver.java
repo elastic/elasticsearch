@@ -1336,6 +1336,22 @@ public class ExternalSourceResolver {
         // expansion, cache listing, or any footer read.
         throwIfCancelled();
 
+        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
+            if (factory instanceof ConnectorFactory && factory.canHandle(path, config)) {
+                // Query connectors own their schema and do not expose storage objects or file listings.
+                SourceMetadata metadata = resolveSingleSource(path, config);
+                pendingMetadataWarnings.addAll(metadata.warnings());
+                listener.onResponse(
+                    new ExternalSourceResolution.ResolvedSource(
+                        wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping)),
+                        FileList.UNRESOLVED,
+                        Map.of()
+                    )
+                );
+                return;
+            }
+        }
+
         if (GlobExpander.isMultiFile(path)) {
             resolveMultiFileSource(path, config, hints, folderRange, declaredMapping, demand, schemaInterner, listener);
         } else {

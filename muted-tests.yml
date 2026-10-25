@@ -166,6 +166,10 @@ tests:
   - :server:internalClusterTest
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/163292
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  issue: https://github.com/elastic/elasticsearch/issues/163299
 
 # Examples:
 #

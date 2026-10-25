@@ -33,10 +33,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -564,6 +566,72 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
     }
 
+    public void testEsqlSourceParsing() throws IOException {
+        ReindexRequest request = parseRequestWithSource(Map.of("esql", "FROM logs | WHERE level == \"error\""));
+        assertEquals("FROM logs | WHERE level == \"error\"", request.getEsqlQuery());
+        assertEquals("dest", request.getDestination().index());
+        assertNull(request.validate());
+        assertEquals("reindex from esql [FROM logs | WHERE level == \"error\"] to [dest]", request.getDescription());
+    }
+
+    public void testEsqlSourceRejectsOtherSourceOptions() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseRequestWithSource(Map.of("esql", "FROM logs", "index", "logs"))
+        );
+        assertThat(e.getCause().getMessage(), containsString("[esql] can't be combined with other source options but found [index]"));
+    }
+
+    public void testEsqlSourceMustBeString() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseRequestWithSource(Map.of("esql", 1)));
+        assertThat(e.getCause().getMessage(), containsString("[esql] must be a string but was [1]"));
+    }
+
+    public void testEsqlSourceValidation() {
+        ReindexRequest request = new ReindexRequest().setEsqlQuery("FROM logs").setDestIndex("dest");
+        request.setScript(new Script("ctx._source.x = 1"));
+        request.setSlices(2);
+        request.setMaxDocs(10);
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertEquals(
+            List.of(
+                "reindex from an [esql] source doesn't support [script]",
+                "reindex from an [esql] source doesn't support slices > 1 but was [2]",
+                "reindex from an [esql] source doesn't support [max_docs]; use LIMIT in the query instead"
+            ),
+            e.validationErrors()
+        );
+    }
+
+    public void testEsqlSourceToXContentRoundTrip() throws IOException {
+        ReindexRequest request = new ReindexRequest().setEsqlQuery("FROM logs").setDestIndex("dest");
+        BytesReference bytes = toShuffledXContent(request, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            ReindexRequest parsed = ReindexRequest.fromXContent(parser, Predicates.never());
+            assertEquals("FROM logs", parsed.getEsqlQuery());
+            assertEquals("dest", parsed.getDestination().index());
+        }
+    }
+
+    public void testEsqlSourceSerialization() throws IOException {
+        ReindexRequest request = new ReindexRequest().setEsqlQuery("FROM logs").setDestIndex("dest");
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        request.writeTo(out);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        in.setTransportVersion(TransportVersion.current());
+        assertEquals("FROM logs", new ReindexRequest(in).getEsqlQuery());
+    }
+
+    public void testEsqlSourceSerializationRejectsOldTransportVersion() {
+        ReindexRequest request = new ReindexRequest().setEsqlQuery("FROM logs").setDestIndex("dest");
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersionUtils.getPreviousVersion(ReindexRequest.REINDEX_ESQL_SOURCE));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+        assertEquals("reindex from an [esql] source is not supported by all nodes in the cluster", e.getMessage());
+    }
+
     /** Verifies that empty source indices are allowed when using PIT (point-in-time) search. */
     public void testEmptyIndicesAllowedWhenUsingPit() {
         ReindexRequest request = new ReindexRequest();
@@ -1020,6 +1088,26 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                     b.field("index", sourceIndices);
                 }
                 b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p, Predicates.never());
+        }
+    }
+
+    private ReindexRequest parseRequestWithSource(Map<String, Object> source) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.field("source", source);
                 b.startObject("dest");
                 {
                     b.field("index", "dest");

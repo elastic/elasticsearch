@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -62,12 +63,19 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
     implements
         CompositeIndicesRequest,
         ToXContentObject {
+    public static final TransportVersion REINDEX_ESQL_SOURCE = TransportVersion.fromName("reindex_esql_source");
+
     /**
      * Prototype for index requests.
      */
     private final IndexRequest destination;
 
     private RemoteInfo remoteInfo;
+
+    /**
+     * ES|QL query whose rows are indexed into the destination. Executed by the ES|QL plugin instead of a search.
+     */
+    private String esqlQuery;
 
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
@@ -86,6 +94,9 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             destination.setRoutingFromSlice(in.readBoolean());
         }
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+        if (in.getTransportVersion().supports(REINDEX_ESQL_SOURCE)) {
+            esqlQuery = in.readOptionalString();
+        }
     }
 
     @Override
@@ -103,7 +114,17 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         ActionRequestValidationException e = super.validate();
         // When using PIT, indices are intentionally empty; the PIT defines the index context
         boolean usingPit = getSearchRequest().source() != null && getSearchRequest().source().pointInTimeBuilder() != null;
-        if ((getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) && usingPit == false) {
+        if (esqlQuery != null) {
+            if (getScript() != null) {
+                e = addValidationError("reindex from an [esql] source doesn't support [script]", e);
+            }
+            if (getSlices() != 1) {
+                e = addValidationError("reindex from an [esql] source doesn't support slices > 1 but was [" + getSlices() + "]", e);
+            }
+            if (getMaxDocs() != -1) {
+                e = addValidationError("reindex from an [esql] source doesn't support [max_docs]; use LIMIT in the query instead", e);
+            }
+        } else if ((getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) && usingPit == false) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
         if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
@@ -322,6 +343,21 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         return remoteInfo;
     }
 
+    /**
+     * Set an ES|QL query to use as the source instead of searching indices.
+     */
+    public ReindexRequest setEsqlQuery(String esqlQuery) {
+        this.esqlQuery = esqlQuery;
+        return this;
+    }
+
+    /**
+     * Get the ES|QL source query, or {@code null} if the source is a search.
+     */
+    public String getEsqlQuery() {
+        return esqlQuery;
+    }
+
     @Override
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices, activeSlices);
@@ -339,6 +375,11 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             out.writeBoolean(destination.isRoutingFromSlice());
         }
         out.writeOptionalWriteable(remoteInfo);
+        if (out.getTransportVersion().supports(REINDEX_ESQL_SOURCE)) {
+            out.writeOptionalString(esqlQuery);
+        } else if (esqlQuery != null) {
+            throw new IllegalArgumentException("reindex from an [esql] source is not supported by all nodes in the cluster");
+        }
     }
 
     @Override
@@ -348,7 +389,11 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         if (remoteInfo != null) {
             b.append('[').append(remoteInfo).append(']');
         }
-        searchToString(b);
+        if (esqlQuery != null) {
+            b.append("esql [").append(esqlQuery).append(']');
+        } else {
+            searchToString(b);
+        }
         b.append(" to [").append(destination.index()).append(']');
         return b.toString();
     }
@@ -359,16 +404,20 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         {
             // build source
             builder.startObject("source");
-            if (remoteInfo != null) {
-                builder.field("remote", remoteInfo);
-                builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.type());
+            if (esqlQuery != null) {
+                builder.field("esql", esqlQuery);
+            } else {
+                if (remoteInfo != null) {
+                    builder.field("remote", remoteInfo);
+                    builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.type());
+                }
+                builder.array("index", getSearchRequest().indices());
+                if (getSearchRequest().isRoutingFromSlice()) {
+                    assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+                    builder.field(SliceIndexing.FIELD_NAME, getSearchRequest().searchSlice());
+                }
+                getSearchRequest().source().innerToXContent(builder, params);
             }
-            builder.array("index", getSearchRequest().indices());
-            if (getSearchRequest().isRoutingFromSlice()) {
-                assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
-                builder.field(SliceIndexing.FIELD_NAME, getSearchRequest().searchSlice());
-            }
-            getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
         }
         {
@@ -408,6 +457,17 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         ObjectParser.Parser<ReindexRequest, Predicate<NodeFeature>> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
+            Object esql = source.remove("esql");
+            if (esql != null) {
+                if (esql instanceof String == false) {
+                    throw new IllegalArgumentException("[esql] must be a string but was [" + esql + "]");
+                }
+                if (source.isEmpty() == false) {
+                    throw new IllegalArgumentException("[esql] can't be combined with other source options but found " + source.keySet());
+                }
+                request.setEsqlQuery((String) esql);
+                return;
+            }
             String[] indices = extractStringArray(source, "index");
             if (indices != null) {
                 request.getSearchRequest().indices(indices);

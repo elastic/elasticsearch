@@ -147,6 +147,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
+        if (request.getEsqlQuery() != null) {
+            // The ES|QL plugin handles [esql] sources with an action filter before the request reaches this action.
+            listener.onFailure(new IllegalArgumentException("reindex from an [esql] source requires the ES|QL plugin"));
+            return;
+        }
         validate(request);
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(

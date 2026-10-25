@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -82,6 +84,7 @@ import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlReindexActionFilter;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
@@ -372,6 +375,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+    private final SetOnce<Client> client = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -386,6 +390,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        client.set(services.client());
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -787,6 +792,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
         );
+    }
+
+    @Override
+    public Collection<MappedActionFilter> getMappedActionFilters() {
+        return List.of(new EsqlReindexActionFilter(client::get));
     }
 
     @Override

@@ -79,6 +79,22 @@ FROM clickhouse_logs
 | SORT service
 ```
 
+## Copy a table to an index
+
+`_reindex` accepts an ES|QL query as its source:
+
+```http
+POST _reindex
+{
+  "source": { "esql": "FROM clickhouse_logs" },
+  "dest": { "index": "clickhouse_logs_copy" }
+}
+```
+
+The ES|QL plugin streams the query result and writes it with bulk requests. It ignores the result size limits.
+`script`, `max_docs`, and `slices` are rejected; use `LIMIT` in the query. `refresh`, `requests_per_second`, and
+`timeout` are ignored. The task status does not report progress. Elasticsearch assigns new document IDs.
+
 ## Type support
 
 | ClickHouse type | ES|QL type |

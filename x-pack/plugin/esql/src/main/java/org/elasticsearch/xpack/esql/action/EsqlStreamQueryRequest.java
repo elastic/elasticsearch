@@ -33,6 +33,7 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
     private final boolean dropNullColumns;
     private final int batchSize;
     private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer;
+    private boolean unboundedResults;
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
@@ -71,6 +72,18 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     public int batchSize() {
         return batchSize;
+    }
+
+    /**
+     * Whether the query skips the default and maximum result truncation limits. Used by internal
+     * consumers, such as reindex, that must read every row rather than a capped preview.
+     */
+    public boolean unboundedResults() {
+        return unboundedResults;
+    }
+
+    void unboundedResults(boolean unboundedResults) {
+        this.unboundedResults = unboundedResults;
     }
 
     @Override

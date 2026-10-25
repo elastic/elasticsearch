@@ -147,6 +147,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * The number of composite buckets to return. Defaults to {@code 10}.
      */
     public CompositeAggregationBuilder size(int size) {
+        if (size <= 0) {
+            throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
+        }
         this.size = size;
         return this;
     }

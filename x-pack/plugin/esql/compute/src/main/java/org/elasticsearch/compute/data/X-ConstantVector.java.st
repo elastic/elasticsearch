@@ -78,6 +78,11 @@ $if(BytesRef)$
     public OrdinalBytesRefVector asOrdinals() {
         return null;
     }
+
+    @Override
+    public long estimateTotalValueBytes() {
+        return (long) getPositionCount() * value.length;
+    }
 $endif$
 
     @Override

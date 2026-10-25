@@ -17,10 +17,13 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -87,13 +90,53 @@ public class HybridDirectoryVectorMergeTests extends ESTestCase {
         assertVectorsSurviveADirectIOMerge(new ES93FlatVectorFormat(ElementType.BFLOAT16));
     }
 
+    /** Rescores use direct I/O with on_disk_rescore, merges with on_disk_merge, and brute-force reads never. */
+    public void testOnlyRescoresAndMergesUseDirectIO() throws IOException {
+        assumeTrue("direct I/O", directIOSupported);
+        assumeTrue("the vectors are opened again only when their mapping is advised", MMapDirectory.supportsMadvise());
+        boolean onDiskRescore = randomBoolean();
+        boolean onDiskMerge = randomBoolean();
+        try (
+            DirectIORecordingDirectory dir = new DirectIORecordingDirectory(
+                new FsDirectoryFactory.HybridDirectory(
+                    NativeFSLockFactory.INSTANCE,
+                    shardMmap(createTempDir("directIO")),
+                    64,
+                    () -> FsDirectoryFactoryTests.vectorField(onDiskRescore, onDiskMerge)
+                )
+            );
+            IndexWriter writer = new IndexWriter(
+                dir,
+                newConfig(
+                    new FieldKnnVectorsFormat(
+                        FIELD,
+                        new ES950DiskBBQVectorsFormat(64, ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER)
+                    )
+                )
+            )
+        ) {
+            addSegment(writer, 64);
+            addSegment(writer, 64);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertEquals("searches rescore with direct I/O: " + dir.directOpens, onDiskRescore, hasVecFile(dir.directOpens));
+                dir.directOpens.clear();
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertNotNull(leaf.reader().getFloatVectorValues(FIELD, DataAccessHint.SEQUENTIAL));
+                }
+                assertFalse("brute-force reads do not use direct I/O: " + dir.directOpens, hasVecFile(dir.directOpens));
+                writer.forceMerge(1);
+                assertEquals("merges read with direct I/O: " + dir.directOpens, onDiskMerge, hasVecFile(dir.directOpens));
+            }
+        }
+    }
+
     private void assertVectorsSurviveADirectIOMerge(KnnVectorsFormat format) throws IOException {
         int dims = 64;
         try (
             DirectIORecordingDirectory dir = new DirectIORecordingDirectory(
                 new FsDirectoryFactory.HybridDirectory(
                     NativeFSLockFactory.INSTANCE,
-                    new MMapDirectory(createTempDir("directIOMerge")),
+                    shardMmap(createTempDir("directIOMerge")),
                     64,
                     () -> FsDirectoryFactoryTests.vectorField(false, true)
                 )
@@ -128,6 +171,13 @@ public class HybridDirectoryVectorMergeTests extends ESTestCase {
                 assertEquals("indexed vectors missing from the merged segment", 0, unmatched.size());
             }
         }
+    }
+
+    /** Mapped with the advice of a shard. */
+    static MMapDirectory shardMmap(Path path) throws IOException {
+        MMapDirectory mmap = new MMapDirectory(path);
+        mmap.setReadAdvice(FsDirectoryFactory.getReadAdviceFunc());
+        return mmap;
     }
 
     private static boolean hasVecFile(Set<String> names) {
@@ -181,7 +231,7 @@ public class HybridDirectoryVectorMergeTests extends ESTestCase {
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             IndexInput in = super.openInput(name, context);
-            if (in.getClass().getSimpleName().contains("DirectIOIndexInput")) {
+            if (FilterIndexInput.unwrap(in).getClass().getSimpleName().contains("DirectIOIndexInput")) {
                 directOpens.add(name);
             }
             return in;

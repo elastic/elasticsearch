@@ -29,6 +29,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -153,6 +154,15 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             FloatVectorValues vectorValues = in.getFloatVectorValues(field);
+            if (vectorValues == null) {
+                return null;
+            }
+            return wrapIfNeeded(vectorValues, queryCancellation);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            FloatVectorValues vectorValues = in.getFloatVectorValues(field, access);
             if (vectorValues == null) {
                 return null;
             }

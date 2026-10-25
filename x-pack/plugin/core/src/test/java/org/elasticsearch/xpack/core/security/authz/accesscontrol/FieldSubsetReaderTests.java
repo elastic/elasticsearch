@@ -52,6 +52,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -233,6 +234,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // Check that fieldA behaves as normal
         FloatVectorValues vectorValues = leafReader.getFloatVectorValues("fieldA");
+        assertNotNull(leafReader.getFloatVectorValues("fieldA", DataAccessHint.SEQUENTIAL));
         assertEquals(3, vectorValues.dimension());
         assertEquals(1, vectorValues.size());
         KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
@@ -251,6 +253,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getFloatVectorValues("fieldB"));
+        assertNull(leafReader.getFloatVectorValues("fieldB", DataAccessHint.SEQUENTIAL));
         topDocs = leafReader.searchNearestVectors(
             "fieldB",
             new float[] { 1.0f, 1.0f, 1.0f },

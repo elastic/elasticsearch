@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -649,7 +650,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     assertEquals(
                         "a merge-hinted raw vector open takes the merge delegate, not the prefetching rescore one",
                         "DirectIOIndexInput",
-                        ctrl.getClass().getSimpleName()
+                        FilterIndexInput.unwrap(ctrl).getClass().getSimpleName()
                     );
                     assertEquals(7, ctrl.readInt());
                 }

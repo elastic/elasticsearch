@@ -35,6 +35,11 @@ public final class VectorReadHints {
         return forSearches(state, hints(state, DataAccessHint.RANDOM));
     }
 
+    /** Vectors searches scan: reused, with no access pattern of their own. */
+    public static SegmentReadState scannedBySearches(SegmentReadState state) {
+        return forSearches(state, hints(state));
+    }
+
     /** Raw vectors kept only to rescore: read at random and not reused. */
     public static SegmentReadState readToRescore(SegmentReadState state) {
         return forSearches(state, hints(state, DataAccessHint.RANDOM, NoReuseHint.INSTANCE));

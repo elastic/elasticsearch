@@ -37,6 +37,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
@@ -1310,6 +1311,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     @Override
                     public FloatVectorValues getFloatVectorValues(String fieldName) throws IOException {
                         FloatVectorValues values = in.getFloatVectorValues(fieldName);
+                        if (values == null) {
+                            return null;
+                        }
+                        return new DenormalizedCosineFloatVectorValues(
+                            values,
+                            in.getNumericDocValues(fieldName + COSINE_MAGNITUDE_FIELD_SUFFIX)
+                        );
+                    }
+
+                    @Override
+                    public FloatVectorValues getFloatVectorValues(String fieldName, DataAccessHint access) throws IOException {
+                        FloatVectorValues values = in.getFloatVectorValues(fieldName, access);
                         if (values == null) {
                             return null;
                         }

@@ -27,6 +27,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NoReuseHint;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.Constants;
@@ -75,10 +76,7 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         }
     }
 
-    /**
-     * A merge maps the source raw vectors again to read them sequentially, not reused only when the format says so; the raw
-     * vectors written and the files read back say the same.
-     */
+    /** A merge opens the source raw vectors again only when searches read them at random without reuse. */
     public void testAMergeSaysHowItReadsAndWritesEachFile() throws IOException {
         assumeTrue("nothing reads the raw vectors at random", each.walkedByGraph() || each.rescoresFromRaw());
         List<String> failures = new ArrayList<>();
@@ -121,7 +119,8 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         List<Open> creates = new CopyOnWriteArrayList<>();
         List<Open> flushCreates = new ArrayList<>();
         Set<String> sourceFiles = new HashSet<>();
-        try (Directory dir = new RecordingDirectory(newDirectory(), opens, creates)) {
+        assumeTrue("a merge opens the raw vectors again only when their mapping is advised", MMapDirectory.supportsMadvise());
+        try (Directory dir = new RecordingDirectory(HybridDirectoryVectorMergeTests.shardMmap(createTempDir()), opens, creates)) {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(each.codec(this)).setUseCompoundFile(false);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 indexTwoSegments(writer);
@@ -150,10 +149,7 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         check.check(sourceFiles, opens, creates, flushCreates);
     }
 
-    /**
-     * Searches scan the raw vectors of a flat field, so they are reused, but a merge streams them: it opens the sources for
-     * itself and writes the merged file saying so, with the field, for the directory to read and write them with direct I/O.
-     */
+    /** Searches scan the raw vectors of a flat field, so a merge reads them through their mapping, and writes them streamed. */
     public void testAFlatMergeStreamsItsRawVectors() throws IOException {
         assertAFlatMergeStreamsItsRawVectors(true);
     }
@@ -168,8 +164,8 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
             List<String> sourceRaw = sourceFiles.stream().filter(name -> name.endsWith(".vec")).sorted().toList();
             assertThat(sourceRaw.size(), equalTo(2));
             for (String raw : sourceRaw) {
-                assertTrue(
-                    "the merge streams " + raw + " through an open of its own: " + opens,
+                assertFalse(
+                    "the merge reads " + raw + " through its mapping: " + opens,
                     opens.stream().anyMatch(o -> o.name().equals(raw) && streamsTheField(o.context()))
                 );
             }
@@ -205,8 +201,8 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
                 .filter(o -> o.name().equals(raw) && o.context().context() == IOContext.Context.MERGE)
                 .filter(o -> o.context().hints().contains(DataAccessHint.SEQUENTIAL))
                 .toList();
-            if (streams.isEmpty()) {
-                failures.add(each + ": the merge never mapped " + raw + " to read it front to back");
+            if (streams.isEmpty() == noReuse) {
+                failures.add(each + (noReuse ? ": the merge never mapped " : ": the merge mapped ") + raw + " again: " + streams);
             }
             for (Open stream : streams) {
                 if (stream.context().hints().contains(NoReuseHint.INSTANCE) != noReuse) {

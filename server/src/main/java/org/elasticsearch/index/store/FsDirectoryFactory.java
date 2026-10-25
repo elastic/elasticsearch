@@ -287,14 +287,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             Throwable directIOException = null;
-            // the buffer follows the access: a merge streams, a rescore reads at random
-            DirectIODirectory dio = context.hints().contains(DataAccessHint.SEQUENTIAL) ? mergeDirectIODelegate : directIODelegate;
-            if (dio != null && useDirectIO(name, context)) {
+            DirectIODirectory dio = directIOFor(name, context);
+            if (dio != null) {
                 ensureOpen();
                 ensureCanRead(name);
                 try {
                     Log.debug("Opening {} with direct IO", name);
-                    return dio.openInput(name, context);
+                    return servedAs(name, context, dio.openInput(name, context));
                 } catch (FileSystemException | UnsupportedOperationException e) {
                     Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
                     directIOException = e;
@@ -311,7 +310,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     // we might run into trouble with files that are pendingDelete in one directory but still
                     // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
                     // and intersect for perf reasons.
-                    return delegate.openInput(name, context);
+                    return servedAs(name, context, delegate.openInput(name, context));
                 } else {
                     return super.openInput(name, context);
                 }
@@ -479,6 +478,27 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         static final Set<String> NO_MMAP_FILE_SUFFIXES = Set.of("fdt", "disi", "address-data", "block-addresses", "block-doc-ranges");
+
+        /** The direct I/O delegate this directory reads {@code name} with, or null if neither. */
+        private DirectIODirectory directIOFor(String name, IOContext context) {
+            // the buffer follows the access: a merge streams, a rescore reads at random
+            DirectIODirectory dio = context.hints().contains(DataAccessHint.SEQUENTIAL) ? mergeDirectIODelegate : directIODelegate;
+            return dio != null && useDirectIO(name, context) ? dio : null;
+        }
+
+        /** Wraps {@code in} so that it is efficient only for the contexts this directory serves the same way. */
+        private IndexInput servedAs(String name, IOContext context, IndexInput in) {
+            if ((directIODelegate == null && mergeDirectIODelegate == null) || isRawVectorFile(name) == false) {
+                return in;
+            }
+            var field = context.hints(VectorFieldHint.class).findFirst().orElse(null);
+            DenseVectorIndexOptions options = field == null ? null : vectorIndexOptions(field.field());
+            if (options == null || (options.isOnDiskMerge() == false && options.isOnDiskRescore() == false)) {
+                return in;
+            }
+            DirectIODirectory served = directIOFor(name, context);
+            return ServedIndexInput.wrap(in, other -> directIOFor(name, other) == served);
+        }
 
         /**
          * Whether to read or write this file with direct I/O: only raw vectors of a field whose mapping asks for it. A merge

@@ -29,8 +29,11 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NoReuseHint;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -44,103 +47,81 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-/** A merge of bfloat16 vectors that searches read at random reads them through a mapping of its own. */
+/** bfloat16 vectors that searches read at random without reuse are opened again once for merges and sequential reads. */
 public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
 
-    private static final int DIMS = 16;
-    private static final int DOCS = 32;
+    // larger than a page, which mmap can advise
+    private static final int DIMS = 256;
+    private static final int DOCS = 256;
 
-    public void testAMergeReadsAMappingOfItsOwn() throws IOException {
-        try (Directory base = newDirectory()) {
+    @Before
+    public void assumeAdvice() {
+        assumeTrue("the vectors are opened again only when their mapping is advised", MMapDirectory.supportsMadvise());
+    }
+
+    public void testMergesAndSequentialReadsOpenTheVectorsOnce() throws IOException {
+        boolean mergeFirst = randomBoolean();
+        try (Directory base = shardMmap()) {
             TrackingDirectory dir = new TrackingDirectory(base);
             float[][] vectors = writeSegment(base);
-            boolean noReuse = randomBoolean();
-            IOContext searchContext = noReuse
-                ? randomAccess().union(CallerHint.INSTANCE, NoReuseHint.INSTANCE)
-                : randomAccess().union(CallerHint.INSTANCE);
-            try (FlatVectorsReader reader = openReader(dir, searchContext)) {
-                FlatVectorsReader merge = reader.getMergeInstance();
-                assertThat(merge, not(sameInstance(reader)));
-                assertThat(dir.mergeOpens, hasSize(1));
-                IOContext mergeContext = dir.mergeOpens.get(0);
-                assertThat(mergeContext.context(), equalTo(IOContext.Context.MERGE));
-                assertThat(mergeContext.hints(), hasItem(DataAccessHint.SEQUENTIAL));
-                assertThat(mergeContext.hints(), not(hasItem(DataAccessHint.RANDOM)));
-                assertThat("keeps what the caller said about the file", mergeContext.hints(), hasItem(CallerHint.INSTANCE));
-                assertThat(
-                    "keeps what the caller said about reuse",
-                    mergeContext.hints(),
-                    noReuse ? hasItem(NoReuseHint.INSTANCE) : not(hasItem(NoReuseHint.INSTANCE))
-                );
-                assertVectors(vectors, merge);
-                merge.finishMerge();
-                assertThat("closed when the merge finishes", dir.mergeCloses.get(), equalTo(1));
-                assertVectors(vectors, reader);
-
-                FlatVectorsReader nextMerge = reader.getMergeInstance();
-                try {
-                    assertThat("the next merge maps the file again", dir.mergeOpens, hasSize(2));
-                    assertVectors(vectors, nextMerge);
-                } finally {
-                    nextMerge.finishMerge();
+            try (FlatVectorsReader reader = openReader(dir, randomAccess().union(CallerHint.INSTANCE, NoReuseHint.INSTANCE))) {
+                dir.tracking = true;
+                FlatVectorsReader merge = mergeFirst ? reader.getMergeInstance() : null;
+                assertVectors(vectors, reader.getFloatVectorValues("field", DataAccessHint.SEQUENTIAL));
+                if (merge == null) {
+                    merge = reader.getMergeInstance();
                 }
-                assertThat(dir.mergeCloses.get(), equalTo(2));
+                assertThat(merge, not(sameInstance(reader)));
+                assertVectors(vectors, merge.getFloatVectorValues("field"));
+                reader.getMergeInstance();
+
+                assertThat(dir.opens, hasSize(1));
+                IOContext context = dir.opens.get(0);
+                assertThat(context.context(), equalTo(mergeFirst ? IOContext.Context.MERGE : IOContext.Context.DEFAULT));
+                assertThat(context.hints(), hasItem(DataAccessHint.SEQUENTIAL));
+                assertThat(context.hints(), not(hasItem(DataAccessHint.RANDOM)));
+                assertThat(context.hints(), hasItem(NoReuseHint.INSTANCE));
+                assertThat(context.hints(), hasItem(CallerHint.INSTANCE));
             }
+            assertThat("closed with the reader", dir.closes.get(), equalTo(1));
         }
     }
 
-    /** A merge takes a merge instance per field, so fields sharing a reader each open the file and close their own. */
-    public void testMergeInstancesOfOneMergeEachOpenTheirOwn() throws IOException {
-        try (Directory base = newDirectory()) {
-            TrackingDirectory dir = new TrackingDirectory(base);
-            float[][] vectors = writeSegment(base);
-            try (FlatVectorsReader reader = openReader(dir, randomAccess())) {
-                FlatVectorsReader first = reader.getMergeInstance();
-                FlatVectorsReader second = reader.getMergeInstance();
-                assertThat(dir.mergeOpens, hasSize(2));
-                first.finishMerge();
-                assertThat(dir.mergeCloses.get(), equalTo(1));
-                assertVectors(vectors, second);
-                second.finishMerge();
-                assertThat(dir.mergeCloses.get(), equalTo(2));
-            }
-        }
-    }
-
-    public void testNoMappingOfTheirOwnUnlessSearchesReadAtRandom() throws IOException {
-        try (Directory base = newDirectory()) {
+    public void testNothingOpenedWhenTheSearchInputServes() throws IOException {
+        try (Directory base = shardMmap()) {
             TrackingDirectory dir = new TrackingDirectory(base);
             writeSegment(base);
-            for (IOContext context : List.of(
-                IOContext.DEFAULT,
-                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL),
-                IOContext.merge().withHints(DataAccessHint.RANDOM)
-            )) {
+            for (IOContext context : List.of(IOContext.DEFAULT, randomAccess(), IOContext.merge().withHints(DataAccessHint.SEQUENTIAL))) {
+                dir.tracking = false;
                 try (FlatVectorsReader reader = openReader(dir, context)) {
-                    int opened = dir.mergeOpens.size();
-                    FlatVectorsReader mergeInstance = reader.getMergeInstance();
-                    assertThat(context.toString(), mergeInstance, sameInstance(reader));
-                    mergeInstance.finishMerge();
-                    assertThat(context.toString(), dir.mergeOpens, hasSize(opened));
+                    dir.tracking = true;
+                    assertThat(context.toString(), reader.getMergeInstance(), sameInstance(reader));
+                    reader.getFloatVectorValues("field", DataAccessHint.SEQUENTIAL);
+                    assertThat(context.toString(), dir.opens, hasSize(0));
                 }
             }
         }
     }
 
-    public void testFallsBackToTheSearchMappingWhenTheFileIsGone() throws IOException {
-        try (Directory base = newDirectory()) {
+    public void testFallsBackToTheSearchInputWhenTheFileIsGone() throws IOException {
+        try (Directory base = shardMmap()) {
             TrackingDirectory dir = new TrackingDirectory(base);
             float[][] vectors = writeSegment(base);
-            try (FlatVectorsReader reader = openReader(dir, randomAccess())) {
+            try (FlatVectorsReader reader = openReader(dir, randomAccess().union(NoReuseHint.INSTANCE))) {
+                dir.tracking = true;
                 dir.fileGone = true;
-                FlatVectorsReader mergeInstance = reader.getMergeInstance();
-                assertVectors(vectors, mergeInstance);
-                mergeInstance.finishMerge();
-                assertThat(dir.mergeCloses.get(), equalTo(0));
-                // the search mapping is still open
-                assertVectors(vectors, reader);
+                assertVectors(vectors, reader.getMergeInstance().getFloatVectorValues("field"));
+                assertVectors(vectors, reader.getFloatVectorValues("field", DataAccessHint.SEQUENTIAL));
+                assertVectors(vectors, reader.getFloatVectorValues("field"));
             }
+            assertThat(dir.closes.get(), equalTo(0));
         }
+    }
+
+    private static Directory shardMmap() throws IOException {
+        MMapDirectory mmap = new MMapDirectory(createTempDir());
+        mmap.setReadAdvice(FsDirectoryFactory.getReadAdviceFunc());
+        return mmap;
     }
 
     private static IOContext randomAccess() {
@@ -175,8 +156,7 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
         );
     }
 
-    private static void assertVectors(float[][] expected, FlatVectorsReader reader) throws IOException {
-        FloatVectorValues values = reader.getFloatVectorValues("field");
+    private static void assertVectors(float[][] expected, FloatVectorValues values) throws IOException {
         assertThat(values.size(), equalTo(expected.length));
         for (int ord = 0; ord < expected.length; ord++) {
             assertArrayEquals(expected[values.ordToDoc(ord)], values.vectorValue(ord), 0f);
@@ -200,10 +180,11 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
         }
     }
 
-    /** Records merge opens of the vectors and counts their closes; can pretend the file is gone. */
+    /** Once tracking, records the opens of the vectors and counts their closes; can pretend the file is gone. */
     private static class TrackingDirectory extends FilterDirectory {
-        final List<IOContext> mergeOpens = new ArrayList<>();
-        final AtomicInteger mergeCloses = new AtomicInteger();
+        final List<IOContext> opens = new ArrayList<>();
+        final AtomicInteger closes = new AtomicInteger();
+        volatile boolean tracking;
         volatile boolean fileGone;
 
         TrackingDirectory(Directory in) {
@@ -212,19 +193,17 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            boolean mergeVectors = name.endsWith("." + ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION)
-                && context.context() == IOContext.Context.MERGE;
-            if (mergeVectors == false) {
+            if (tracking == false || name.endsWith("." + ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION) == false) {
                 return super.openInput(name, context);
             }
             if (fileGone) {
                 throw new NoSuchFileException(name);
             }
-            mergeOpens.add(context);
+            opens.add(context);
             return new FilterIndexInput(name, super.openInput(name, context)) {
                 @Override
                 public void close() throws IOException {
-                    mergeCloses.incrementAndGet();
+                    closes.incrementAndGet();
                     super.close();
                 }
 

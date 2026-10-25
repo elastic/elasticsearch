@@ -2189,19 +2189,20 @@ public class MasterServiceTests extends ESTestCase {
             }
             deterministicTaskQueue.runAllTasks();
 
-            meterRegistry.getRecorder().resetCalls();
             meterRegistry.getRecorder().collect();
+            final var measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, "es.cluster.state_update.published.total");
+            assertThat(measurements.size(), equalTo(2));
+
             final var countsByResult = new HashMap<Object, Long>();
-            for (final var measurement : meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, "es.cluster.state_update.published.total")) {
+            for (final var measurement : measurements) {
                 countsByResult.put(measurement.attributes().get("es_cluster_state_publication_outcome"), measurement.getLong());
             }
-            assertEquals(expectedSuccesses.get(), (long) countsByResult.getOrDefault("success", 0L));
-            assertEquals(expectedFailures.get(), (long) countsByResult.getOrDefault("failure", 0L));
+            assertThat(countsByResult, equalTo(Map.of("success", expectedSuccesses.get(), "failure", expectedFailures.get())));
 
             final var stats = masterService.getClusterStateUpdateStats();
-            assertEquals(stats.getPublicationSuccessCount(), expectedSuccesses.get());
-            assertEquals(stats.getPublicationFailureCount(), expectedFailures.get());
+            assertThat(stats.getPublicationSuccessCount(), equalTo(expectedSuccesses.get()));
+            assertThat(stats.getPublicationFailureCount(), equalTo(expectedFailures.get()));
         }
     }
 

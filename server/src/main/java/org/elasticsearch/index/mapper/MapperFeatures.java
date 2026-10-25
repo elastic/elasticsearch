@@ -195,6 +195,13 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature BBQ_DISK_UPDATABLE_AUTO_CALIBRATE = new NodeFeature(
         "mapper.dense_vector.bbq_disk.updatable_auto_calibrate"
     );
+    /**
+     * Arrays whose encoded offsets exceed the sorted doc values limit are stored in {@code _ignored_source} instead of failing
+     * the document.
+     */
+    public static final NodeFeature OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK = new NodeFeature(
+        "mapper.oversized_array_offsets_ignored_source_fallback"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -314,7 +321,8 @@ public class MapperFeatures implements FeatureSpecification {
             MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
             RANGE_DOCVALUE_FIELDS_FIX,
             TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
-            NUMERIC_FETCH_EMPTY_STRING_AS_NULL
+            NUMERIC_FETCH_EMPTY_STRING_AS_NULL,
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
         );
     }
 }

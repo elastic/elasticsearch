@@ -566,3 +566,8 @@ tests:
   tasks:
   - :qa:mixed-cluster:v9.2.8#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  tasks:
+  - :x-pack:plugin:downsample:test
+  method: testDownsampleResumesAfterPersistentTaskRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/162858

@@ -8,10 +8,14 @@
 // Every case that sets `partition_detection`/`partition_path`, or that asserts the shadow warning text, requires
 // `partition_detection_on_read_path` as well: a coordinator that predates it ignores both settings and prescribes
 // the old `hive_partitioning: false` in the warning, so the case would fail rather than skip on the BWC legs.
-// Add the capability to any new case here that is not purely about Hive-by-default detection.
+// A concrete (non-glob) Hive key is also new on that rail — old coordinators skip detection there —
+// including 9.5 nodes that already report `partition_detection_on_read_path` — so those cases need
+// `partition_detection_on_a_concrete_file` even when they are Hive-by-default. Add the settings
+// capability to any new case here that is not a glob Hive-by-default detect.
 //
 // Fixtures:
 //   {{employees_hive}}         hive-partitioned/lang=*/              partition key `lang`, payload column `languages`
+//   {{employees_hive_file}}    hive-partitioned/lang=1/employees.parquet  one concrete key
 //   {{employees_hive_shadow}}  hive-partitioned-shadow/languages=*/  partition key COLLIDES with payload `languages`
 
 hiveDetectionOnByDefault
@@ -29,6 +33,24 @@ count:long | lang:integer
 18         | 4
 21         | 5
 10         | null
+;
+
+// ---------------------------------------------------------------------------------------------------------
+// A concrete key used to skip detection. Pin path-derived `lang` through InsertExternalFieldExtraction and
+// VirtualColumnIterator, not just resolver schema. Old coordinators still skip this rail.
+// ---------------------------------------------------------------------------------------------------------
+
+hiveDetectionOnAConcreteKey
+required_capability: dataset_in_from_command
+required_capability: partition_detection_on_a_concrete_file
+dataset: employees_hive_file: "{{employees_hive_file}}"
+
+FROM employees_hive_file
+| STATS count = COUNT(*) BY lang
+| SORT lang;
+
+count:long | lang:integer
+15         | 1
 ;
 
 // ---------------------------------------------------------------------------------------------------------

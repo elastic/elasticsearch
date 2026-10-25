@@ -7,12 +7,18 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -58,11 +64,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -72,6 +80,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -151,6 +160,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         "$$Positions$$",
         DataType.INTEGER
     );
+
+    private static final Logger logger = LogManager.getLogger(AbstractLookupService.class);
+
+    /**
+     * How long a lookup whose shard copies all moved or became unreachable waits for a newer cluster state
+     * before failing.
+     */
+    private static final TimeValue WAIT_FOR_NEWER_ROUTING_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private final String actionName;
     protected final ClusterService clusterService;
@@ -276,12 +293,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * (after calling listener.onFailure).
      */
     @Nullable
-    private ShardIterator getShardIterator(R request, ActionListener<LookupResponse> listener) {
-        var projectState = projectResolver.getProjectState(clusterService.state());
+    private ShardIterator getShardIterator(String index, ClusterState state, ActionListener<LookupResponse> listener) {
+        var projectState = projectResolver.getProjectState(state);
         List<SearchShardRouting> shardIterators = clusterService.operationRouting()
-            .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
+            .searchShards(projectState, new String[] { index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
-            listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
+            listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
             return null;
         }
         return shardIterators.get(0);
@@ -290,22 +307,89 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Perform the actual lookup, returning the full {@link LookupResponse}.
      * Callers can access pages via {@link LookupResponse#takePages()} and must call {@link LookupResponse#decRef()} when done.
-     * This method determines the target node internally via shard routing.
+     * This method determines the target node internally via shard routing. If the chosen copy no longer
+     * holds the shard or its node is unreachable (for example, the shard was relocated away before this node
+     * applied the new cluster state), the lookup moves on to the next copy. Once every copy has failed that way,
+     * the copies are resolved once more from a newer cluster state.
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<LookupResponse> outListener) {
-        ShardIterator shardIt = getShardIterator(request, outListener);
+        ClusterState state = clusterService.state();
+        ShardIterator shardIt = getShardIterator(request.index, state, outListener);
         if (shardIt == null) {
             return;
         }
+        T transportRequest = transportRequest(request, shardIt.shardId());
+        lookupOnNextShardCopy(request.index, parentTask, state, shardIt, transportRequest, null, false, outListener);
+    }
+
+    private void lookupOnNextShardCopy(
+        String index,
+        CancellableTask parentTask,
+        ClusterState state,
+        ShardIterator shardIt,
+        T transportRequest,
+        @Nullable Exception lastFailure,
+        boolean resolvedAgain,
+        ActionListener<LookupResponse> outListener
+    ) {
         ShardRouting shardRouting = shardIt.nextOrNull();
         if (shardRouting == null) {
-            outListener.onFailure(new UnavailableShardsException(shardIt.shardId(), "target index is not available"));
+            if (lastFailure == null) {
+                outListener.onFailure(new UnavailableShardsException(shardIt.shardId(), "target index is not available"));
+            } else if (resolvedAgain) {
+                outListener.onFailure(lastFailure);
+            } else {
+                lookupOnNewerShardCopies(index, parentTask, state, transportRequest, lastFailure, outListener);
+            }
             return;
         }
-        DiscoveryNode targetNode = clusterService.state().nodes().get(shardRouting.currentNodeId());
-        // TODO: handle retry and avoid forking for the local lookup
-        T transportRequest = transportRequest(request, shardIt.shardId());
-        sendChildRequest(parentTask, outListener, targetNode, transportRequest);
+        DiscoveryNode targetNode = state.nodes().get(shardRouting.currentNodeId());
+        // TODO: avoid forking for the local lookup
+        sendChildRequest(parentTask, outListener.delegateResponse((l, e) -> {
+            if (isShardCopyUnavailable(e) && parentTask.isCancelled() == false) {
+                lookupOnNextShardCopy(index, parentTask, state, shardIt, transportRequest, e, resolvedAgain, l);
+            } else {
+                l.onFailure(e);
+            }
+        }), targetNode, transportRequest);
+    }
+
+    private void lookupOnNewerShardCopies(
+        String index,
+        CancellableTask parentTask,
+        ClusterState routedState,
+        T transportRequest,
+        Exception lastFailure,
+        ActionListener<LookupResponse> outListener
+    ) {
+        var observer = new ClusterStateObserver(routedState, clusterService, WAIT_FOR_NEWER_ROUTING_TIMEOUT, logger, getThreadContext());
+        observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                // Exceptions thrown from here never reach the listener, so pass failures such as a deleted index to it explicitly.
+                ActionListener.run(outListener, l -> {
+                    ShardIterator shardIt = getShardIterator(index, state, l);
+                    if (shardIt != null) {
+                        lookupOnNextShardCopy(index, parentTask, state, shardIt, transportRequest, lastFailure, true, l);
+                    }
+                });
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                outListener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                outListener.onFailure(lastFailure);
+            }
+        });
+    }
+
+    static boolean isShardCopyUnavailable(Exception e) {
+        return TransportActions.isShardNotAvailableException(e)
+            || ExceptionsHelper.unwrap(e, ConnectTransportException.class, NodeClosedException.class) != null;
     }
 
     /**
@@ -319,7 +403,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         CancellableTask parentTask,
         ActionListener<LookupResponse> outListener
     ) {
-        ShardIterator shardIt = getShardIterator(request, outListener);
+        ShardIterator shardIt = getShardIterator(request.index, clusterService.state(), outListener);
         if (shardIt == null) {
             return;
         }
@@ -701,7 +785,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
     }
 
-    abstract static class TransportRequest extends AbstractTransportRequest implements IndicesRequest {
+    /**
+     * Executes against {@link #shardId}, whose index can differ from {@link #indexPattern} (e.g. when the lookup index is an alias).
+     * Implementing {@link IndicesRequest.RemoteClusterShardRequest} lets security verify for cross-cluster requests that the targeted
+     * shard belongs to an index authorized through {@link #indices()}, rather than only authorizing the stated pattern.
+     */
+    abstract static class TransportRequest extends AbstractTransportRequest implements IndicesRequest.RemoteClusterShardRequest {
         final String sessionId;
         final ShardId shardId;
         final String indexPattern;
@@ -737,6 +826,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         @Override
         public final String[] indices() {
             return new String[] { indexPattern };
+        }
+
+        @Override
+        public final Collection<ShardId> shards() {
+            return List.of(shardId);
         }
 
         @Override

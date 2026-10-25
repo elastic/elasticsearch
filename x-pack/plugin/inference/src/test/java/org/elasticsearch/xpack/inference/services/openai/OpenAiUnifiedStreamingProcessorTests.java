@@ -19,12 +19,15 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.common.DelegatingProcessorTests.onNext;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
@@ -616,5 +619,56 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         assertThat(chunks.size(), is(2));
         assertThat(chunks.get(0).id(), is("1"));
         assertThat(chunks.get(1).id(), is("2"));
+    }
+
+    public void testParsesDeltaWithExplicitNullRoleAndVendorFields() {
+        var events = new ArrayDeque<ServerSentEvent>();
+        events.add(new ServerSentEvent(deltaChunkJson("{\"role\":\"assistant\"}")));
+        events.add(new ServerSentEvent(deltaChunkJson("""
+            {"content":"Hello","function_call":null,"refusal":null,"role":null,"tool_calls":null,"obfuscation":"wf04z"}
+            """)));
+        var chunks = onNext(new OpenAiUnifiedStreamingProcessor((data, exception) -> exception), events).chunks();
+        assertThat(chunks.size(), is(2));
+        var message = chunks.getLast().choices().get(0).message();
+        assertThat(message.content(), is("Hello"));
+        assertNull(message.role());
+    }
+
+    public void testOptionalNullFieldsMatchOmission() throws IOException {
+        for (boolean streaming : new boolean[] { true, false }) {
+            var choices = "\"choices\":[{\"index\":0,\"" + (streaming ? "delta" : "message") + "\":%s}]}";
+            for (var message : List.of(
+                List.of("{}", "{\"role\":null,\"reasoning\":null}"),
+                List.of("{\"tool_calls\":[{\"index\":0}]}", "{\"tool_calls\":[{\"index\":0,\"id\":null,\"type\":null,\"function\":null}]}"),
+                List.of(
+                    "{\"tool_calls\":[{\"index\":0,\"function\":{}}]}",
+                    "{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":null}}]}"
+                )
+            )) {
+                assertEquals(
+                    parseChunk(Strings.format("{\"id\":\"c\"," + choices, message.get(0)), streaming),
+                    parseChunk(Strings.format("{\"id\":\"c\",\"model\":null,\"object\":null," + choices, message.get(1)), streaming)
+                );
+            }
+        }
+    }
+
+    public void testStreamingToolCallIndexRejectsNull() {
+        expectThrows(IllegalArgumentException.class, () -> parseChunk(deltaChunkJson("{\"tool_calls\":[{\"index\":null}]}"), true));
+    }
+
+    private static String deltaChunkJson(String deltaJson) {
+        return Strings.format("{\"id\":\"c\",\"choices\":[{\"index\":0,\"delta\":%s}]}", deltaJson);
+    }
+
+    private static ChatCompletionChunkResponse parseChunk(String json, boolean streaming) throws IOException {
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
+            return streaming
+                ? OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser)
+                : OpenAiUnifiedChatCompletionParser.parseNonStreamingResponse(parser);
+        }
     }
 }

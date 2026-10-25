@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160987
+pr: 161002
+summary: Fix cumulative histogram difference min/max computation
+type: bug

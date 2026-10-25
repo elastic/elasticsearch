@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -34,6 +36,10 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
  * three modes produce identical results for every query; divergence flags a split
  * assignment, exchange, or aggregation bug.
  */
+// Monolithic subclass: reads two csv-spec files and multiplies them by storage backend and distribution mode
+// (~1000 parameterized cases), so it needs a longer budget than the 20-minute single-file default it inherits
+// from EsqlSpecTestCase. Matches the 60-minute budget of the other heavy external-source spec suites.
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ThreadLeakFilters(
     filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class, ExternalDistributedSpecIT.AzureSdkThreadFilter.class }
 )

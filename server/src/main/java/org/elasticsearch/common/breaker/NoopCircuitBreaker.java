@@ -16,6 +16,8 @@ package org.elasticsearch.common.breaker;
 public class NoopCircuitBreaker implements CircuitBreaker {
     public static final int LIMIT = -1;
 
+    public static final NoopCircuitBreaker INSTANCE = new NoopCircuitBreaker("noop-breaker");
+
     private final String name;
 
     public NoopCircuitBreaker(String name) {

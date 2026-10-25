@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
@@ -303,8 +304,26 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             BytesRef max = decodeHostNameValueAt(reader, maxValueDoc, true, binaryFormat);
             return min != null && min.equals(max);
         }
+        if (sortField instanceof BinarySortField) {
+            // A plain BinarySortField sorts a single-valued host.name (multi_value: false), whose blob is the value itself.
+            BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+            if (bdv == null) {
+                return true;
+            }
+            int maxDoc = reader.maxDoc();
+            BytesRef first = rawHostNameValueAt(reader, 0);
+            BytesRef last = rawHostNameValueAt(reader, maxDoc - 1);
+            return first != null && first.equals(last);
+        }
         // host.name has no doc values at all in this segment (e.g. the field is absent).
         return true;
+    }
+
+    /** The single-valued {@code host.name} stored at {@code doc}, or {@code null} if {@code doc} has none. */
+    @Nullable
+    private static BytesRef rawHostNameValueAt(LeafReader reader, int doc) throws IOException {
+        BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+        return bdv.advanceExact(doc) ? BytesRef.deepCopyOf(bdv.binaryValue()) : null;
     }
 
     /**

@@ -133,6 +133,7 @@ public class MappingParsingBenchmark {
             BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
             MapperService mapperService = new MapperService(
                 TransportVersion::current,
+                f -> true,
                 indexSettings,
                 IndexAnalyzers.of(Map.of()),
                 XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))

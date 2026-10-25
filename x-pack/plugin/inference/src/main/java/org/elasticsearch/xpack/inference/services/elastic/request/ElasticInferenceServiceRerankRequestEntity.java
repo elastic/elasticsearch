@@ -20,13 +20,15 @@ public record ElasticInferenceServiceRerankRequestEntity(
     InferenceString query,
     List<InferenceString> documents,
     String modelId,
-    @Nullable Integer topNDocumentsOnly
+    @Nullable Integer topNDocumentsOnly,
+    @Nullable Boolean returnDocuments
 ) implements ToXContentObject {
 
     private static final String QUERY_FIELD = "query";
     private static final String MODEL_FIELD = "model";
     private static final String TOP_N_DOCUMENTS_ONLY_FIELD = "top_n";
     private static final String DOCUMENTS_FIELD = "documents";
+    private static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
     public ElasticInferenceServiceRerankRequestEntity {
         Objects.requireNonNull(query);
@@ -44,6 +46,10 @@ public record ElasticInferenceServiceRerankRequestEntity(
 
         if (Objects.nonNull(topNDocumentsOnly)) {
             builder.field(TOP_N_DOCUMENTS_ONLY_FIELD, topNDocumentsOnly);
+        }
+
+        if (Objects.nonNull(returnDocuments)) {
+            builder.field(RETURN_DOCUMENTS_FIELD, returnDocuments);
         }
 
         builder.startArray(DOCUMENTS_FIELD);

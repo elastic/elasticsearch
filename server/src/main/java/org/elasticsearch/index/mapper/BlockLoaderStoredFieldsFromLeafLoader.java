@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +25,8 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
     private int docId = -1;
     private int loaderDocId = -1;
     private int sourceDocId = -1;
+    private final Map<Object, Object> shared = new IdentityHashMap<>();
+    private int sharedDocId = -1;
 
     public BlockLoaderStoredFieldsFromLeafLoader(LeafStoredFieldLoader loader, SourceLoader.Leaf sourceLoader) {
         this.loader = loader;
@@ -77,6 +81,21 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
         return loaderDocId == docId;
     }
 
+    @Override
+    public <T> T shared(Object key, IOFunction<BlockLoader.StoredFields, T> compute) throws IOException {
+        if (sharedDocId != docId) {
+            shared.clear();
+            sharedDocId = docId;
+        }
+        @SuppressWarnings("unchecked") // each key is only ever used with one type
+        T value = (T) shared.get(key);
+        if (value == null) {
+            value = compute.apply(this);
+            shared.put(key, value);
+        }
+        return value;
+    }
+
     /**
      * Returns the raw byte size of the last loaded _source. This is useful for estimating
      * the untracked memory overhead from source parsing (parsed Java Strings occupy
@@ -90,10 +109,13 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
      * Releases the cached parsed source to allow immediate garbage collection of
      * large String objects created during source parsing. For a 5MB text field,
      * the parsed Java String is ~10MB (UTF-16). Releasing it eagerly prevents
-     * accumulation of untracked memory that can cause OOM.
+     * accumulation of untracked memory that can cause OOM. What the loaders of the document
+     * share through {@link #shared} is released with it.
      */
     public void releaseParsedSource() {
         source = null;
         sourceDocId = -1;
+        shared.clear();
+        sharedDocId = -1;
     }
 }

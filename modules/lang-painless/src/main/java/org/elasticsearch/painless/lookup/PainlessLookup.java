@@ -68,6 +68,21 @@ public final class PainlessLookup {
         return methodKeys != null && methodKeys.contains(buildPainlessMethodKey(methodName, methodArity));
     }
 
+    /** Like {@link #hasAnnotationAwareMethod(Class, String, int)} for any arity, for a reference whose arity is not known yet. */
+    public boolean hasAnnotationAwareMethod(Class<?> annotationType, String methodName) {
+        Set<String> methodKeys = annotationsToMethodKeys.get(annotationType);
+        if (methodKeys == null) {
+            return false;
+        }
+        String prefix = methodName + "/";
+        for (String methodKey : methodKeys) {
+            if (methodKey.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public Class<?> javaClassNameToClass(String javaClassName) {
         return javaClassNamesToClasses.get(javaClassName);
     }

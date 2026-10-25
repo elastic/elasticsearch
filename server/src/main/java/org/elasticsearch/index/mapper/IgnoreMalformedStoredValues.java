@@ -69,6 +69,21 @@ public abstract class IgnoreMalformedStoredValues {
     }
 
     /**
+     * Stores a malformed value that was already encoded with {@link XContentDataHelper#encodeToken(XContentParser)}, in binary doc
+     * values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     * Use {@link FallbackPostMapper#captureMalformed} from outside this package.
+     */
+    static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            // Stored as encoded bytes rather than with a native stored field type; the loader decodes both (see Stored#write).
+            context.doc().add(new StoredField(name(fieldPath), encoded));
+        }
+    }
+
+    /**
      * Encodes an XContentBuilder's content, normalizing to JSON regardless of the builder's original content type.
      *
      * Malformed values are sorted by their encoded {@link BytesRef}. The encoding prefix byte is content-type-specific ('j' for

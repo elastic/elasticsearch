@@ -260,6 +260,24 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 // end::subquery_with_metadata_outer-result[]
 ;
 
+subqueryClassAndNameOuter
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+
+// tag::subquery_with_class_and_name[]
+FROM employees, (FROM sample_data) METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+// end::subquery_with_class_and_name[]
+| SORT _class
+;
+
+// tag::subquery_with_class_and_name-result[]
+count:long | _class:keyword | _name:keyword
+100        | index          | employees
+7          | subquery       | null
+// end::subquery_with_class_and_name-result[]
+;
+
 subqueryInFromWithWhereInSubquery
 required_capability: subquery_in_from_command
 
@@ -1661,6 +1679,7 @@ subqueryInFromWithSameConversionResolvedOnLaterPassLoad
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
 required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_fork_subqueries_and_views
 
 SET unmapped_fields="load"\;
 FROM (FROM sample_data), (FROM sample_data)
@@ -1994,4 +2013,145 @@ FROM (FROM employees), (FROM employees)
 
 c:long
 2
+;
+
+subqueryInFromImplicitDateNanosCastMax
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastMaxKeep
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+| KEEP m
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastBucket
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1h)
+| SORT m
+;
+
+c:long | m:date_nanos
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastBucketKeep
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1h)
+| KEEP c, m
+| SORT m
+;
+
+c:long | m:date_nanos
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;
+
+subqueryInFromForkNullFillsImplicitDateNanosCastFirstBranch
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| WHERE event_duration == 1232382
+| FORK (KEEP message) (KEEP @timestamp, message)
+| KEEP @timestamp, message, _fork
+| SORT _fork, @timestamp
+;
+
+@timestamp:date_nanos          | message:keyword | _fork:keyword
+null                           | Disconnected    | fork1
+null                           | Disconnected    | fork1
+2023-10-23T13:33:34.937Z       | Disconnected    | fork2
+2023-10-23T13:33:34.937123456Z | Disconnected    | fork2
+;
+
+subqueryInFromForkNullFillsImplicitDateNanosCastSecondBranch
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| WHERE event_duration == 1232382
+| FORK (KEEP @timestamp, message) (KEEP message)
+| KEEP @timestamp, message, _fork
+| SORT _fork, @timestamp
+;
+
+@timestamp:date_nanos          | message:keyword | _fork:keyword
+2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+;
+
+subqueryInFromForkNullFillsImplicitDateNanosCastWithEval
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| WHERE event_duration == 1232382
+| FORK (EVAL x = @timestamp) (WHERE true)
+| KEEP x, _fork
+| SORT _fork, x
+;
+
+x:date_nanos                   | _fork:keyword
+2023-10-23T13:33:34.937Z       | fork1
+2023-10-23T13:33:34.937123456Z | fork1
+null                           | fork2
+null                           | fork2
+;
+
+subqueryInFromForkNullFillsImplicitDateNanosCastWithStats
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| WHERE event_duration == 1232382
+| FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
+| KEEP m, @timestamp, _fork
+| SORT _fork, @timestamp NULLS FIRST
+;
+
+m:date_nanos                   | @timestamp:date_nanos          | _fork:keyword
+2023-10-23T13:33:34.937123456Z | null                           | fork1
+null                           | 2023-10-23T13:33:34.937Z       | fork2
+null                           | 2023-10-23T13:33:34.937123456Z | fork2
 ;

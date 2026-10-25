@@ -68,6 +68,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     private final Decision disabledDecision;
     private final Decision notApplicableToNodeDecision;
     private final Decision canRemainDisabledDecision;
+    private final Decision emptyLabelledNoDecision;
 
     private final Set<DiscoveryNodeRole> applicableRoles;
 
@@ -90,6 +91,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         this.deciderDescription = deciderDescription;
         this.applicableRoles = applicableRoles;
         this.disabledDecision = Decision.single(Decision.Type.YES, name, deciderDescription + " allocation decider is disabled");
+        this.emptyLabelledNoDecision = Decision.single(Decision.Type.NO, name, null);
         final String roleNames = applicableRoles.stream()
             .map(DiscoveryNodeRole::roleName)
             .sorted(Comparator.naturalOrder())
@@ -170,7 +172,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 }
                 return allocation.decision(Decision.NO, name, message);
             } else {
-                return Decision.NO;
+                return emptyLabelledNoDecision;
             }
         }
 
@@ -211,7 +213,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 }
                 return allocation.decision(Decision.NO, name, message);
             } else {
-                return Decision.NO;
+                return emptyLabelledNoDecision;
             }
         }
 
@@ -265,7 +267,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 }
                 return allocation.decision(Decision.NO, name, message);
             } else {
-                return Decision.NO;
+                return emptyLabelledNoDecision;
             }
         }
 

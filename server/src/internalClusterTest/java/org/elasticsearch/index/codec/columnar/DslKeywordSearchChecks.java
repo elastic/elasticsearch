@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.index.codec.columnar.DslRequests.assertQueryDocIds;
+import static org.elasticsearch.index.codec.columnar.DslRequests.docIds;
+import static org.elasticsearch.index.codec.columnar.DslRequests.sorted;
 import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertEquals;
 import static org.elasticsearch.test.codec.columnar.DuelAssertions.assertSameElements;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -37,10 +40,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
  */
 public final class DslKeywordSearchChecks {
 
-    private static final int MAX_HITS = 10_000;
     private static final int MAX_TERMS_PROBED = 5;
 
     private DslKeywordSearchChecks() {}
+
+    /**
+     * @return the checks that read a field's doc values: exists and sort.
+     */
+    public static List<BehaviorCheck> docValueChecks() {
+        return List.of(new ExistsQueryCheck(), new KeywordSortCheck());
+    }
 
     public static List<BehaviorCheck> all() {
         return List.of(
@@ -67,7 +76,7 @@ public final class DslKeywordSearchChecks {
             final List<String> terms = new ArrayList<>(ctx.presentTerms(MAX_TERMS_PROBED));
             terms.add(ctx.absentTerm());
             for (final String term : terms) {
-                final QueryBuilder query = QueryBuilders.termQuery(ctx.keywordField(), term);
+                final QueryBuilder query = QueryBuilders.termQuery(ctx.field(), term);
                 final List<Long> expected = sorted(ctx.docIdsContaining(term));
                 final List<Long> baseline = sorted(docIds(ctx.client(), ctx.baselineIndex(), query, ctx.docIdField()));
                 final List<Long> contender = sorted(docIds(ctx.client(), ctx.contenderIndex(), query, ctx.docIdField()));
@@ -92,7 +101,7 @@ public final class DslKeywordSearchChecks {
             }
             final List<String> terms = new ArrayList<>(present);
             terms.add(ctx.absentTerm());
-            final QueryBuilder query = QueryBuilders.termsQuery(ctx.keywordField(), terms);
+            final QueryBuilder query = QueryBuilders.termsQuery(ctx.field(), terms);
             final Set<Long> expectedSet = new TreeSet<>();
             for (final String term : present) {
                 expectedSet.addAll(ctx.docIdsContaining(term));
@@ -118,7 +127,7 @@ public final class DslKeywordSearchChecks {
             assertQueryDocIds(
                 ctx,
                 name(),
-                QueryBuilders.prefixQuery(ctx.keywordField(), prefix),
+                QueryBuilders.prefixQuery(ctx.field(), prefix),
                 ctx.docIdsWithValueMatching(value -> value.startsWith(prefix))
             );
         }
@@ -136,7 +145,7 @@ public final class DslKeywordSearchChecks {
             assertQueryDocIds(
                 ctx,
                 name(),
-                QueryBuilders.wildcardQuery(ctx.keywordField(), prefix + "*"),
+                QueryBuilders.wildcardQuery(ctx.field(), prefix + "*"),
                 ctx.docIdsWithValueMatching(value -> value.startsWith(prefix))
             );
         }
@@ -154,7 +163,7 @@ public final class DslKeywordSearchChecks {
             assertQueryDocIds(
                 ctx,
                 name(),
-                QueryBuilders.regexpQuery(ctx.keywordField(), prefix + ".*"),
+                QueryBuilders.regexpQuery(ctx.field(), prefix + ".*"),
                 ctx.docIdsWithValueMatching(value -> value.startsWith(prefix))
             );
         }
@@ -178,7 +187,7 @@ public final class DslKeywordSearchChecks {
             assertQueryDocIds(
                 ctx,
                 name(),
-                QueryBuilders.rangeQuery(ctx.keywordField()).gte(lower).lt(upper),
+                QueryBuilders.rangeQuery(ctx.field()).gte(lower).lt(upper),
                 ctx.docIdsWithValueMatching(value -> lower.compareTo(value) <= 0 && value.compareTo(upper) < 0)
             );
         }
@@ -193,12 +202,7 @@ public final class DslKeywordSearchChecks {
         @Override
         public void check(final DuelContext ctx) {
             final String term = ctx.literalTerm();
-            assertQueryDocIds(
-                ctx,
-                name(),
-                QueryBuilders.simpleQueryStringQuery(term).field(ctx.keywordField()),
-                ctx.docIdsContaining(term)
-            );
+            assertQueryDocIds(ctx, name(), QueryBuilders.simpleQueryStringQuery(term).field(ctx.field()), ctx.docIdsContaining(term));
         }
     }
 
@@ -210,7 +214,7 @@ public final class DslKeywordSearchChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final QueryBuilder query = QueryBuilders.existsQuery(ctx.keywordField());
+            final QueryBuilder query = QueryBuilders.existsQuery(ctx.field());
             final List<Long> expected = sorted(ctx.docIdsWithAnyValue());
             final List<Long> baseline = sorted(docIds(ctx.client(), ctx.baselineIndex(), query, ctx.docIdField()));
             final List<Long> contender = sorted(docIds(ctx.client(), ctx.contenderIndex(), query, ctx.docIdField()));
@@ -228,21 +232,33 @@ public final class DslKeywordSearchChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            assertSort(ctx, SortOrder.ASC, SortMode.MIN);
-            assertSort(ctx, SortOrder.DESC, SortMode.MAX);
+            // Missing documents sort to either end, which the binary sort field decides on its own.
+            for (String missing : List.of("_last", "_first")) {
+                assertSort(ctx, SortOrder.ASC, SortMode.MIN, missing);
+                assertSort(ctx, SortOrder.DESC, SortMode.MAX, missing);
+            }
         }
 
-        private void assertSort(final DuelContext ctx, final SortOrder order, final SortMode mode) {
-            final List<String> baseline = sortedHits(ctx.client(), ctx.baselineIndex(), ctx.keywordField(), ctx.docIdField(), order, mode);
+        private void assertSort(final DuelContext ctx, final SortOrder order, final SortMode mode, final String missing) {
+            final List<String> baseline = sortedHits(
+                ctx.client(),
+                ctx.baselineIndex(),
+                ctx.field(),
+                ctx.docIdField(),
+                order,
+                mode,
+                missing
+            );
             final List<String> contender = sortedHits(
                 ctx.client(),
                 ctx.contenderIndex(),
-                ctx.keywordField(),
+                ctx.field(),
                 ctx.docIdField(),
                 order,
-                mode
+                mode,
+                missing
             );
-            final String context = ctx.failureContext(name() + "[" + order + "," + mode + "]");
+            final String context = ctx.failureContext(name() + "[" + order + "," + mode + ",missing=" + missing + "]");
             if (baseline.size() != ctx.docs().size()) {
                 throw new AssertionError(
                     context + " stage=[baseline-completeness] expected " + ctx.docs().size() + " hits but got " + baseline.size()
@@ -252,47 +268,21 @@ public final class DslKeywordSearchChecks {
         }
     }
 
-    private static void assertQueryDocIds(
-        final DuelContext ctx,
-        final String checkName,
-        final QueryBuilder query,
-        final Set<Long> expected
-    ) {
-        final List<Long> expectedIds = sorted(expected);
-        final List<Long> baseline = sorted(docIds(ctx.client(), ctx.baselineIndex(), query, ctx.docIdField()));
-        final List<Long> contender = sorted(docIds(ctx.client(), ctx.contenderIndex(), query, ctx.docIdField()));
-        final String context = ctx.failureContext(checkName);
-        assertSameElements(context + " stage=[baseline-oracle]", expectedIds, baseline);
-        assertSameElements(context + " stage=[contender-vs-baseline]", baseline, contender);
-    }
-
-    private static Set<Long> docIds(final Client client, final String index, final QueryBuilder query, final String docIdField) {
-        final Set<Long> ids = new TreeSet<>();
-        assertResponse(
-            client.prepareSearch(index).setQuery(query).setSize(MAX_HITS).setTrackTotalHits(true).addDocValueField(docIdField),
-            response -> {
-                for (final SearchHit hit : response.getHits().getHits()) {
-                    ids.add(((Number) hit.field(docIdField).getValue()).longValue());
-                }
-            }
-        );
-        return ids;
-    }
-
     private static List<String> sortedHits(
         final Client client,
         final String index,
-        final String keywordField,
+        final String field,
         final String docIdField,
         final SortOrder order,
-        final SortMode mode
+        final SortMode mode,
+        final String missing
     ) {
         final List<String> ordered = new ArrayList<>();
         assertResponse(
             client.prepareSearch(index)
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(MAX_HITS)
-                .addSort(SortBuilders.fieldSort(keywordField).order(order).sortMode(mode))
+                .setSize(DslRequests.MAX_HITS)
+                .addSort(SortBuilders.fieldSort(field).order(order).sortMode(mode).missing(missing))
                 .addSort(SortBuilders.fieldSort(docIdField).order(SortOrder.ASC)),
             response -> {
                 for (final SearchHit hit : response.getHits().getHits()) {
@@ -302,9 +292,5 @@ public final class DslKeywordSearchChecks {
             }
         );
         return ordered;
-    }
-
-    private static List<Long> sorted(final Set<Long> ids) {
-        return List.copyOf(new TreeSet<>(ids));
     }
 }

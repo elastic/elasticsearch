@@ -93,7 +93,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
             Converts an input string or number to an IP value.
             A number is read as an IPv4 address with the first octet in the most significant byte,
             so `3232235777` becomes `192.168.1.1`. Negative `integer` and `long` values are read
-            as a signed 32-bit integer, so `-1` becomes `255.255.255.255`. A number outside
+            as a signed 32-bit integer, so `-1` becomes `255.255.255.255`. A number outside the range
             `-2147483648` to `4294967295` returns `null` with a warning.""",
         examples = {
             @Example(file = "ip", tag = "to_ip", explanation = """
@@ -113,7 +113,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
                 Parse v4 addresses with leading zeros as decimal. Java's `InetAddress.getByName`.
                 """),
             @Example(file = "ip", tag = "to_ip_from_numeric", explanation = """
-                Convert v4 addresses stored as numbers. The `integer` holds the same address as the `long`,
+                Convert IPv4 addresses stored as numbers. The `integer` holds the same address as the `long`,
                 stored as a signed 32-bit value.
                 """) }
     )
@@ -131,7 +131,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
                     name = "leading_zeros",
                     type = "keyword",
                     valueHint = { "reject", "octal", "decimal" },
-                    description = "What to do with leading 0s in IPv4 addresses. Only applies to string inputs; ignored for numeric inputs."
+                    description = "What to do with leading 0s in IPv4 addresses. Applies only to string input. Ignored for numeric input."
                 ) },
             description = "(Optional) Additional options.",
             optional = true

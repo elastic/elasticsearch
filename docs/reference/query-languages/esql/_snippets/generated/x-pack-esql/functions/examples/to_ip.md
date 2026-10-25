@@ -55,7 +55,7 @@ ROW i = -1062731519, l = 3232235777
 | -1062731519 | 3232235777 | 192.168.1.1 | 192.168.1.1 |
 
 
-Convert v4 addresses stored as numbers. The `integer` holds the same address as the `long`,
+Convert IPv4 addresses stored as numbers. The `integer` holds the same address as the `long`,
 stored as a signed 32-bit value.
 
 

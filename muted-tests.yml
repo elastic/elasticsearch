@@ -488,3 +488,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSlowConsumerUnderNetworkDelay
   issue: https://github.com/elastic/elasticsearch/issues/163264
+- class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
+  tasks:
+  - :test:test-clusters:test
+  method: testNeverLosesOrDuplicatesLinesDuringRepeatedRollovers
+  issue: https://github.com/elastic/elasticsearch/issues/163277

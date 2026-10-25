@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 163038
+pr: 163307
+summary: Reject non-positive size in composite aggregation
+type: bug

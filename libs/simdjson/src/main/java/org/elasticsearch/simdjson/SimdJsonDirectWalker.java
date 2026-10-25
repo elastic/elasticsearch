@@ -61,6 +61,13 @@ public final class SimdJsonDirectWalker {
 
     private final FieldNameLookup nameCache;
     private final StringParser stringParser = new StringParser();
+    /**
+     * Once the explicit exponent has this many or more accumulated, further digits are ignored: any exponent of
+     * this magnitude overflows or underflows binary64 whatever the mantissa is, and stopping here keeps the
+     * accumulator from wrapping {@code long}, which would turn {@code 1e18446744073709551617} into {@code 10.0}.
+     */
+    private static final long MAX_EXPONENT_ACCUMULATOR = 1_000_000_000_000_000L;
+
     private final DoubleParser doubleParser = new DoubleParser();
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
@@ -149,7 +156,10 @@ public final class SimdJsonDirectWalker {
 
     private void freezeAfterFirstDoc() {
         if (docCount++ == 0) {
-            nameCache.freeze();
+            // release() already freezes an unfrozen-and-dirty cache, and additionally falls back
+            // to adopting an already-published parent table when the first document taught us
+            // nothing (e.g. {}); calling it here instead of freeze() directly gets both for free.
+            nameCache.release();
         }
     }
 
@@ -168,12 +178,11 @@ public final class SimdJsonDirectWalker {
 
         try {
             while (true) {
+                // This is the start of a member: the first one, or the one after a ','. The caller
+                // already handled the empty object "{}", so the token must be a field name.
                 int keyIdx = bi.getAndAdvance();
-                if (buffer[keyIdx] == '}') {
-                    return;
-                }
                 if (buffer[keyIdx] != '"') {
-                    throw new JsonParsingException("Expected field name or '}' but got '" + (char) buffer[keyIdx] + "'");
+                    throw new JsonParsingException("Expected field name but got '" + (char) buffer[keyIdx] + "'");
                 }
 
                 String fieldName = resolveFieldName(buffer, keyIdx);
@@ -245,11 +254,15 @@ public final class SimdJsonDirectWalker {
     }
 
     private void walkArray(byte[] buffer, BitIndexes bi, JsonDocumentHandler handler) {
+        if (buffer[bi.peek()] == ']') {
+            bi.advance();
+            return;
+        }
         while (true) {
+            // The empty array was handled above, so a ']' here follows a comma and is a trailing
+            // comma, which is not valid JSON. It falls through to the default branch.
             int idx = bi.getAndAdvance();
             byte b = buffer[idx];
-
-            if (b == ']') return;
 
             switch (b) {
                 case '"' -> {
@@ -309,8 +322,8 @@ public final class SimdJsonDirectWalker {
      */
     private void walkObjectInArray(byte[] buffer, BitIndexes bi, JsonDocumentHandler handler) {
         while (true) {
+            // As in walkObject: the empty object was handled by the caller, so '}' here is a trailing comma.
             int keyIdx = bi.getAndAdvance();
-            if (buffer[keyIdx] == '}') return;
             if (buffer[keyIdx] != '"') {
                 throw new JsonParsingException("Expected field name in nested object");
             }
@@ -424,7 +437,7 @@ public final class SimdJsonDirectWalker {
         // path above adds no extra cost for them.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
-        long mask = t & 0xF0F0F0F0F0F0F0F0L;
+        long mask = nonDigitBytes(t);
 
         if ((mask & 0xFFL) == 0) { // byte 0 (c0) is a digit, as it must be for a valid number
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
@@ -463,7 +476,7 @@ public final class SimdJsonDirectWalker {
             while (pos <= loopBound) {
                 long word2 = (long) LONG_LE.get(buffer, pos);
                 long t2 = word2 - 0x3030303030303030L;
-                if ((t2 & 0xF0F0F0F0F0F0F0F0L) != 0) {
+                if (nonDigitBytes(t2) != 0) {
                     break;
                 }
                 digits = digits * 100_000_000L + parse8Digits(t2);
@@ -585,7 +598,7 @@ public final class SimdJsonDirectWalker {
         while (pos <= loopBound) {
             long word = (long) LONG_LE.get(buffer, pos);
             long t = word - 0x3030303030303030L;
-            if ((t & 0xF0F0F0F0F0F0F0F0L) != 0) {
+            if (nonDigitBytes(t) != 0) {
                 // Not all 8 bytes are digits — parse the leading digits from this word scalar
                 break;
             }
@@ -647,6 +660,14 @@ public final class SimdJsonDirectWalker {
         long val = negative ? -digits : digits;
         boolean fitsInt = val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE;
         handler.longField(fieldName, val, fitsInt, buffer, idx, len);
+    }
+
+    /**
+     * Sets the high bit of each byte of {@code t} (8 input bytes minus {@code 0x30}) that is not a digit.
+     * Only the lowest set byte is reliable. Unlike {@code t & 0xF0F0...}, this rejects {@code ':'}..{@code '?'}.
+     */
+    private static long nonDigitBytes(long t) {
+        return ((t + 0x7676767676767676L) | t) & 0x8080808080808080L;
     }
 
     /**
@@ -713,7 +734,9 @@ public final class SimdJsonDirectWalker {
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
-                exp = exp * 10 + (ch - '0');
+                if (exp < MAX_EXPONENT_ACCUMULATOR) {
+                    exp = exp * 10 + (ch - '0');
+                }
                 ch = buffer[++pos];
             }
             if (pos == expStart) {
@@ -746,7 +769,7 @@ public final class SimdJsonDirectWalker {
         // load; see the comment there.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
-        long mask = t & 0xF0F0F0F0F0F0F0F0L;
+        long mask = nonDigitBytes(t);
 
         if ((mask & 0xFFL) == 0) { // byte 0 (c0) is a digit, as it must be for a valid number
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
@@ -784,7 +807,7 @@ public final class SimdJsonDirectWalker {
             while (pos <= loopBound) {
                 long word2 = (long) LONG_LE.get(buffer, pos);
                 long t2 = word2 - 0x3030303030303030L;
-                if ((t2 & 0xF0F0F0F0F0F0F0F0L) != 0) {
+                if (nonDigitBytes(t2) != 0) {
                     break;
                 }
                 digits = digits * 100_000_000L + parse8Digits(t2);
@@ -825,7 +848,7 @@ public final class SimdJsonDirectWalker {
         while (pos <= loopBound) {
             long word = (long) LONG_LE.get(buffer, pos);
             long t = word - 0x3030303030303030L;
-            if ((t & 0xF0F0F0F0F0F0F0F0L) != 0) {
+            if (nonDigitBytes(t) != 0) {
                 break;
             }
             digits = digits * 100_000_000L + parse8Digits(t);
@@ -898,7 +921,9 @@ public final class SimdJsonDirectWalker {
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
-                exp = exp * 10 + (ch - '0');
+                if (exp < MAX_EXPONENT_ACCUMULATOR) {
+                    exp = exp * 10 + (ch - '0');
+                }
                 ch = buffer[++pos];
             }
             if (pos == expStart) {

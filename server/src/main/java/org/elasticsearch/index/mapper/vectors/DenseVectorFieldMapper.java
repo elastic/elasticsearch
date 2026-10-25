@@ -228,14 +228,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * single retry round runs if the candidate pool is not filled (HNSW seeds that retry from its
      * round-0 matches; IVF just excludes the docs it already saw). Below this threshold the query stays
      * on the pre-filter path. Applies to both HNSW and {@code bbq_disk} (IVF) fields. The default
-     * is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
+     * is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}; {@code 1.0} turns post-filtering off.
      */
     public static final Setting<Float> POST_FILTER_SELECTIVITY_THRESHOLD = new Setting<>(
         "index.dense_vector.post_filter_selectivity_threshold",
         Float.toString(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD),
         s -> {
             float value = Float.parseFloat(s);
-            if (value < 0.0f || value > 1.0f) {
+            if ((value >= 0.0f && value <= 1.0f) == false) {
                 throw new IllegalArgumentException(
                     "Failed to parse value ["
                         + s
@@ -245,7 +245,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return value;
         },
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
     );
 
     private static boolean hasRescoreIndexVersion(IndexVersion version) {
@@ -313,7 +314,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
         private final boolean indexDisabledByDefault;
-        private final float postFilterSelectivityThreshold;
 
         public Builder(
             String name,
@@ -324,34 +324,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             List<VectorsFormatProvider> vectorsFormatProviders,
             boolean indexDisabledByDefault
         ) {
-            this(
-                name,
-                indexVersionCreated,
-                indexMode,
-                isExcludeSourceVectors,
-                experimentalFeaturesEnabled,
-                vectorsFormatProviders,
-                indexDisabledByDefault,
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
-            );
-        }
-
-        public Builder(
-            String name,
-            IndexVersion indexVersionCreated,
-            IndexMode indexMode,
-            boolean isExcludeSourceVectors,
-            boolean experimentalFeaturesEnabled,
-            List<VectorsFormatProvider> vectorsFormatProviders,
-            boolean indexDisabledByDefault,
-            float postFilterSelectivityThreshold
-        ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             this.indexMode = indexMode == null ? IndexMode.STANDARD : indexMode;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
-            this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
             final ElementType defaultElementType = this.indexMode.isVectorDb() ? ElementType.BFLOAT16 : ElementType.FLOAT;
             this.elementType = new Parameter<>("element_type", false, () -> defaultElementType, (n, c, o) -> {
                 ElementType elementType = namesToElementType.get((String) o);
@@ -618,8 +595,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.getValue(),
                     indexOptions.getValue(),
                     meta.getValue(),
-                    context.isSourceSynthetic(),
-                    postFilterSelectivityThreshold
+                    context.isSourceSynthetic()
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
@@ -3408,8 +3384,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
             c.getVectorsFormatProviders(),
-            c.getIndexSettings().isIndexDisabledByDefault(),
-            c.getIndexSettings().getPostFilterSelectivityThreshold()
+            c.getIndexSettings().isIndexDisabledByDefault()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -3422,10 +3397,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final IndexVersion indexVersionCreated;
         private final DenseVectorIndexOptions indexOptions;
         private final boolean isSyntheticSource;
-        // The post-filter selectivity threshold is an index-scoped setting, so it is captured here at mapping
-        // time rather than threaded in per query. If it is ever promoted to a Search API parameter it should
-        // instead be passed through createKnnQuery so it can vary per request.
-        private final float postFilterSelectivityThreshold;
 
         public DenseVectorFieldType(
             String name,
@@ -3438,32 +3409,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isSyntheticSource
         ) {
-            this(
-                name,
-                indexVersionCreated,
-                elementType,
-                dims,
-                indexed,
-                similarity,
-                indexOptions,
-                meta,
-                isSyntheticSource,
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
-            );
-        }
-
-        public DenseVectorFieldType(
-            String name,
-            IndexVersion indexVersionCreated,
-            ElementType elementType,
-            Integer dims,
-            boolean indexed,
-            VectorSimilarity similarity,
-            DenseVectorIndexOptions indexOptions,
-            Map<String, String> meta,
-            boolean isSyntheticSource,
-            float postFilterSelectivityThreshold
-        ) {
             super(name, indexed ? IndexType.vectors() : IndexType.docValuesOnly(), false, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
@@ -3472,7 +3417,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
             this.isSyntheticSource = isSyntheticSource;
-            this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
         }
 
         public VectorSimilarity similarity() {
@@ -3703,6 +3647,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 parentFilter,
                 heuristic,
                 hnswEarlyTermination,
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
                 null
             );
         }
@@ -3712,6 +3657,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * slices the request reads: through the vector format when it partitions the vectors by slice, through {@code filter}
          * otherwise. It fails when the request selects no slice.
          *
+         * @param postFilterSelectivityThreshold the filter selectivity at or above which the filter is applied after the vector
+         *                                       search rather than during it, read per request because the setting is dynamic
          * @param context the search execution context of the request, or {@code null} when the query is built outside a request
          */
         public Query createKnnQuery(
@@ -3725,6 +3672,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             FilterHeuristic heuristic,
             boolean hnswEarlyTermination,
+            float postFilterSelectivityThreshold,
             @Nullable SearchExecutionContext context
         ) {
             if (indexType.hasVectors() == false) {
@@ -3744,9 +3692,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BytesRef[] sliceIds = null;
             if (context != null && context.getIndexSettings().isSliceEnabled()) {
                 final SliceSelection slices = context.sliceSelection();
-                if (slices.isSpecified() == false) {
+                if (slices.isRestricted() == false) {
                     throw new IllegalArgumentException(
-                        "to perform knn search on field [" + name() + "], the slices to search must be selected: its index is slice-enabled"
+                        "to perform knn search on field ["
+                            + name()
+                            + "], the slices to search must be selected by name: its index is slice-enabled"
                     );
                 }
                 if (indexOptions instanceof BBQIVFIndexOptions && resolved instanceof ResolvedVector.Bits == false) {
@@ -3767,7 +3717,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    sliceIds
+                    sliceIds,
+                    postFilterSelectivityThreshold
                 );
                 case ResolvedVector.Bits(byte[] vector) -> createKnnBitQuery(
                     vector,
@@ -3777,7 +3728,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination
+                    hnswEarlyTermination,
+                    postFilterSelectivityThreshold
                 );
                 case ResolvedVector.Bytes(byte[] vector) -> createKnnByteQuery(
                     vector,
@@ -3790,12 +3742,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    sliceIds
+                    sliceIds,
+                    postFilterSelectivityThreshold
                 );
             };
         }
 
-        private boolean canPostFilter(Query filter) {
+        private static boolean canPostFilter(Query filter, float postFilterSelectivityThreshold) {
             return filter != null && postFilterSelectivityThreshold < 1.0f;
         }
 
@@ -3822,7 +3775,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
-            boolean hnswEarlyTermination
+            boolean hnswEarlyTermination,
+            float postFilterSelectivityThreshold
         ) {
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
@@ -3844,7 +3798,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter, postFilterSelectivityThreshold) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3868,7 +3822,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination,
-            @Nullable BytesRef[] sliceIds
+            @Nullable BytesRef[] sliceIds,
+            float postFilterSelectivityThreshold
         ) {
             int adjustedKForRescoring = k;
             int adjustedNumCandsForRescoring = numCands;
@@ -3967,7 +3922,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter, postFilterSelectivityThreshold) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
@@ -3994,7 +3949,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy knnSearchStrategy,
             boolean hnswEarlyTermination,
-            @Nullable BytesRef[] sliceIds
+            @Nullable BytesRef[] sliceIds,
+            float postFilterSelectivityThreshold
         ) {
             int adjustedKForRescoring = k;
             int adjustedNumCandsForRescoring = numCands;
@@ -4091,7 +4047,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter, postFilterSelectivityThreshold) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
@@ -4108,7 +4064,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
-         * The slices a slice-partitioned vector format searches. An empty array searches every slice.
+         * The slices a slice-partitioned vector format searches.
          */
         private static BytesRef[] toSliceIds(SliceSelection slices) {
             return slices.names().stream().map(BytesRef::new).toArray(BytesRef[]::new);
@@ -4116,13 +4072,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         /**
          * Adds the slice filter to the filter of a query whose vector format does not partition the vectors by slice.
-         * Either may be {@code null}: without a slice filter every slice is searched, without a filter only the slices restrict
-         * the search.
          */
-        private static Query filterBySlice(@Nullable Query filter, @Nullable Query sliceFilter) {
-            if (sliceFilter == null) {
-                return filter;
-            }
+        private static Query filterBySlice(@Nullable Query filter, Query sliceFilter) {
             if (filter == null) {
                 return sliceFilter;
             }
@@ -4380,8 +4331,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             excludeSourceVectorsSetting,
             experimentalFeaturesEnabled,
             extraVectorsFormatProviders,
-            indexDisabledByDefault,
-            fieldType().postFilterSelectivityThreshold
+            indexDisabledByDefault
         ).init(this);
     }
 

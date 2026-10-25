@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -33,13 +36,9 @@ import static org.hamcrest.Matchers.lessThan;
  * Integration tests for kNN search with post-filtering across different
  * element types (float, byte), index types (HNSW), and field structures (flat, nested).
  *
- * <p>Post-filtering is dormant by default (the {@code index.dense_vector.post_filter_selectivity_threshold}
- * setting defaults to {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD} == 1.0, so only no-op
- * filters would ever qualify). Each index here lowers the threshold to {@code 0.7} at creation time so the
- * ~0.8-selectivity filters used below take the post-filter path. The setting carries
- * {@link org.elasticsearch.common.settings.Setting.Property#PrivateIndex}, so it cannot be set
- * explicitly through the index-creation API unless {@link #forbidPrivateIndexSettings()} is
- * overridden to {@code false}, which this suite does.
+ * <p>Each index here pins the {@code index.dense_vector.post_filter_selectivity_threshold} setting to
+ * {@code 0.7} at creation time so the ~0.8-selectivity filters used below take the post-filter path regardless
+ * of {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
  */
 public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
 
@@ -60,13 +59,6 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), POST_FILTER_THRESHOLD)
             .build();
-    }
-
-    @Override
-    protected boolean forbidPrivateIndexSettings() {
-        // The post-filter selectivity threshold is a PrivateIndex setting; allow it to be set
-        // explicitly at index-creation time so these tests can lower it from the dormant default.
-        return false;
     }
 
     public void testHnswFloat() throws IOException {
@@ -125,6 +117,76 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             assertNotEquals(0, response.getHits().getHits().length);
             assertProfileReportsVectorOps(response);
         });
+    }
+
+    /**
+     * The threshold is a dynamic setting read on every search, so updating it on an open index changes the path the next
+     * filtered search takes, with no reopen. The kNN profile tells the two paths apart: a regular filtered search first
+     * materializes the filter into a bitset ({@code into_bit_set_count > 0}), while a post-filtered search never does and only
+     * checks the filter against its candidates.
+     */
+    public void testDynamicThresholdUpdateTakesEffect() throws IOException {
+        String indexName = "dynamic_threshold_test";
+        createHnswIndex(indexName, "float");
+        indexFlatDocs(indexName);
+        float[] queryVector = { 1, 1, 1, 20 };
+        String key = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey();
+
+        // Created with POST_FILTER_THRESHOLD, which the ~0.8-selectivity "common" filter reaches.
+        assertFilteredKnnPath(indexName, queryVector, true);
+
+        updateIndexSettings(Settings.builder().put(key, 1.0f), indexName);
+        assertFilteredKnnPath(indexName, queryVector, false);
+
+        // Resetting the setting restores the default, which the ~0.8-selectivity filter also reaches.
+        updateIndexSettings(Settings.builder().putNull(key), indexName);
+        assertFilteredKnnPath(indexName, queryVector, true);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(key, 1.5f))
+        );
+        assertThat(e.getMessage(), containsString(key));
+        assertFilteredKnnPath(indexName, queryVector, true);
+    }
+
+    /**
+     * Runs a k=5 filtered search for "common" docs and asserts both that it returns k matching hits and which path served it.
+     */
+    private void assertFilteredKnnPath(String indexName, float[] queryVector, boolean expectPostFiltered) {
+        int k = 5;
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 20, null, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "common")
+        );
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
+            assertEquals(k, response.getHits().getHits().length);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
+            }
+            // Filtering during the search first turns the filter into a bitset; post-filtering only checks it per candidate.
+            if (expectPostFiltered) {
+                assertFalse("post-filtering should not build a bitset of the filter", builtBitSet(knnProfile(response)));
+            } else {
+                assertTrue("filtering during the search should build a bitset of the filter", builtBitSet(knnProfile(response)));
+            }
+        });
+    }
+
+    /** The profiled queries of the kNN search, on the single shard these tests use. */
+    private static List<ProfileResult> knnProfile(SearchResponse response) {
+        assertEquals(1, response.getSearchProfileShardResults().size());
+        SearchProfileShardResult shard = response.getSearchProfileShardResults().values().iterator().next();
+        return shard.getSearchProfileDfsPhaseResult().getQueryProfileShardResult().getFirst().getQueryResults();
+    }
+
+    /** Whether any of these queries, or the queries nested in them, turned its matches into a bitset. */
+    private static boolean builtBitSet(List<ProfileResult> queries) {
+        for (ProfileResult query : queries) {
+            if (query.getTimeBreakdown().getOrDefault("into_bit_set_count", 0L) > 0 || builtBitSet(query.getProfiledChildren())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

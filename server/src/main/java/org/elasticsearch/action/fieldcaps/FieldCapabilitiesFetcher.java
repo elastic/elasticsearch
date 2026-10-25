@@ -156,7 +156,9 @@ class FieldCapabilitiesFetcher {
             final String shardUuid = indexService.getShard(shardId.getId()).getShardUuid();
             indexMappingHash = mapping == null ? shardUuid : shardUuid + mapping.getSha256();
         }
-        FieldPredicate fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
+        FieldPredicate fieldPredicate = indicesService.getFieldFilter()
+            .apply(shardId.getIndexName())
+            .withFlattenedFields(searchExecutionContext.getMappingLookup().flattenedFields());
         if (indexMappingHash != null) {
             indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);

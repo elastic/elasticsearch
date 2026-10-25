@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -52,6 +53,16 @@ public interface FieldPredicate extends Accountable, Predicate<String> {
     boolean test(String field);
 
     /**
+     * The predicate to use for an index whose flattened fields have the full paths {@code flattenedFields}. A flattened field holds all its
+     * keys under one name, so for the field itself and for a mapped sub-field below it the returned predicate may answer differently than
+     * this one does for a plain field of that name. For every other path it answers the same. Callers derive it once per index and pass the
+     * index's whole set, since an implementation may do costly work over the whole set on every call.
+     */
+    default FieldPredicate withFlattenedFields(Set<String> flattenedFields) {
+        return this;
+    }
+
+    /**
      * Modify the {@link MappingMetadata#getSha256} to track any filtering this predicate
      * has performed on the list of fields.
      */
@@ -71,6 +82,11 @@ public interface FieldPredicate extends Accountable, Predicate<String> {
         @Override
         public boolean test(String field) {
             return first.test(field) && second.test(field);
+        }
+
+        @Override
+        public FieldPredicate withFlattenedFields(Set<String> flattenedFields) {
+            return new And(first.withFlattenedFields(flattenedFields), second.withFlattenedFields(flattenedFields));
         }
 
         @Override

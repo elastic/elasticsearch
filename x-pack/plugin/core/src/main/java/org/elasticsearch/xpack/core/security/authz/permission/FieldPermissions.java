@@ -111,7 +111,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
         this.fieldPredicate = permittedFieldsAutomatonIsTotal
             ? FieldPredicate.ACCEPT_ALL
-            : new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton);
+            : new AutomatonFieldPredicate(this.fieldPermissionsDefinitions, this.originalAutomaton, this.permittedFieldsAutomaton);
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
         ramBytesUsed += this.fieldPermissionsDefinitions.stream()
@@ -159,6 +159,26 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
      */
     public static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+        Automaton grantedFieldsAutomaton = grantedFieldsAutomaton(grantedFields);
+        Automaton deniedFieldsAutomaton = deniedFieldsAutomaton(deniedFields);
+
+        if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
+            throw new ElasticsearchSecurityException(
+                "Exceptions for field permissions must be a subset of the "
+                    + "granted fields but "
+                    + Strings.arrayToCommaDelimitedString(deniedFields)
+                    + " is not a subset of "
+                    + Strings.arrayToCommaDelimitedString(grantedFields)
+                    + ". To except a path under a granted field, also grant the paths below it, e.g. grant: [labels, labels.*], "
+                    + "except: [labels.secret]"
+            );
+        }
+
+        grantedFieldsAutomaton = Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
+        return grantedFieldsAutomaton;
+    }
+
+    static Automaton grantedFieldsAutomaton(String[] grantedFields) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
@@ -168,29 +188,14 @@ public final class FieldPermissions implements Accountable, CacheKey {
             Automaton metaFieldsAutomaton = Operations.concatenate(List.of(Automata.makeChar('_'), Automata.makeAnyString()));
             grantedFieldsAutomaton = Operations.union(List.of(Automatons.patterns(grantedFields), metaFieldsAutomaton));
         }
+        return MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
 
-        Automaton deniedFieldsAutomaton;
-        if (deniedFields == null || deniedFields.length == 0) {
-            deniedFieldsAutomaton = Automatons.EMPTY;
-        } else {
-            deniedFieldsAutomaton = Automatons.patterns(deniedFields);
-        }
-
-        grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-
-        if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            throw new ElasticsearchSecurityException(
-                "Exceptions for field permissions must be a subset of the "
-                    + "granted fields but "
-                    + Strings.arrayToCommaDelimitedString(deniedFields)
-                    + " is not a subset of "
-                    + Strings.arrayToCommaDelimitedString(grantedFields)
-            );
-        }
-
-        grantedFieldsAutomaton = Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
-        return grantedFieldsAutomaton;
+    static Automaton deniedFieldsAutomaton(String[] deniedFields) {
+        Automaton deniedFieldsAutomaton = deniedFields == null || deniedFields.length == 0
+            ? Automatons.EMPTY
+            : Automatons.patterns(deniedFields);
+        return MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**
@@ -245,18 +250,24 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return permittedFieldsAutomatonIsTotal == false;
     }
 
-    /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader, IndexSettings indexSettings, Function<String, Boolean> isMapped)
-        throws IOException {
+    /**
+     * Return a wrapped reader that only exposes allowed fields.
+     *
+     * @param flattenedFields the full paths of the index's flattened fields, which are filtered through {@link FlattenedAutomaton}
+     */
+    public DirectoryReader filter(
+        DirectoryReader reader,
+        IndexSettings indexSettings,
+        Function<String, Boolean> isMapped,
+        Set<String> flattenedFields
+    ) throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
-        return FieldSubsetReader.wrap(
-            reader,
-            permittedFieldsAutomaton,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
-            isMapped
-        );
+        CharacterRunAutomaton automaton = flattenedFields.isEmpty()
+            ? permittedFieldsAutomaton
+            : new CharacterRunAutomaton(FlattenedAutomaton.forIndex(fieldPermissionsDefinitions, flattenedFields));
+        return FieldSubsetReader.wrap(reader, automaton, IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings), isMapped);
     }
 
     Automaton getIncludeAutomaton() {

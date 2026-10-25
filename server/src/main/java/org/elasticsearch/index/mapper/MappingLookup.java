@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -60,6 +61,7 @@ public final class MappingLookup {
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
     private final Set<String> vectorEmbeddingFields;
+    private final Set<String> flattenedFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
     private final int runtimeFieldMappersCount;
@@ -244,6 +246,7 @@ public final class MappingLookup {
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         Set<String> syntheticVectorFields = new LinkedHashSet<>();
         Set<String> vectorEmbeddingFields = new LinkedHashSet<>();
+        Set<String> flattenedFields = new HashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -254,10 +257,14 @@ public final class MappingLookup {
             if (mapper.fieldType().isVectorEmbedding()) {
                 vectorEmbeddingFields.add(mapper.fullPath());
             }
+            if (mapper instanceof FlattenedFieldMapper) {
+                flattenedFields.add(mapper.fullPath());
+            }
         }
         this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
         this.syntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
         this.vectorEmbeddingFields = Collections.unmodifiableSet(vectorEmbeddingFields);
+        this.flattenedFields = Collections.unmodifiableSet(flattenedFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -358,6 +365,14 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * Returns the full paths of all flattened fields. A flattened field stores every key under its own name, so callers that reason about
+     * a path's visibility (field-level security) need to know which paths belong to one.
+     */
+    public Set<String> flattenedFields() {
+        return flattenedFields;
     }
 
     /**

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -92,6 +93,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         var searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
+        when(searchExecutionContext.getMappingLookup()).thenReturn(MappingLookup.EMPTY);
 
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
             id -> searchExecutionContext,
@@ -151,6 +153,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         var searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
+        when(searchExecutionContext.getMappingLookup()).thenReturn(MappingLookup.EMPTY);
 
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
             id -> searchExecutionContext,

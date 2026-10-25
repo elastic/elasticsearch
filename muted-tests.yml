@@ -161,6 +161,11 @@ tests:
   tasks:
   - :x-pack:plugin:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/120816
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSourceThrottling
+  issue: https://github.com/elastic/elasticsearch/issues/163292
 
 # Examples:
 #

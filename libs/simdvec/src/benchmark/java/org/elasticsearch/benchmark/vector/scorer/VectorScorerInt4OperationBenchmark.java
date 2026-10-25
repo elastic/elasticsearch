@@ -100,12 +100,12 @@ public class VectorScorerInt4OperationBenchmark {
 
     @Benchmark
     public int nativeWithNativeSeg() {
-        return VEC_LIBRARY.dotProductI4(unpackedNativeSeg, packedNativeSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(packedNativeSeg, unpackedNativeSeg, packedLen);
     }
 
     @Benchmark
     public int nativeWithHeapQuery() {
-        return VEC_LIBRARY.dotProductI4(unpackedHeapSeg, packedNativeSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(packedNativeSeg, unpackedHeapSeg, packedLen);
     }
 
     static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();

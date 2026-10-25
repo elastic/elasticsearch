@@ -96,6 +96,13 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        // Each value counts as the dictionary's average term, so the ordinals are never read.
+        final int terms = bytes.getPositionCount();
+        return terms == 0 ? 0 : bytes.estimateTotalValueBytes() * ordinals.getTotalValueCount() / terms;
+    }
+
+    @Override
     public BytesRefBlock slice(int beginInclusive, int endExclusive) {
         if (beginInclusive == 0 && endExclusive == getPositionCount()) {
             incRef();

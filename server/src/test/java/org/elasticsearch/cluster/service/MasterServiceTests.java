@@ -2139,6 +2139,72 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Runs a random mix of state-changing and no-op tasks, with each publication randomly succeeding or failing to commit, and
+     * verifies that the publication counter reports the number of publications for each result, and does not count no-op tasks.
+     */
+    public void testClusterStatePublicationCounter() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        try (
+            var masterService = createMasterService(
+                true,
+                null,
+                threadPool,
+                new StoppableExecutorServiceWrapper(threadPool.generic()),
+                meterRegistry
+            )
+        ) {
+            final var expectedSuccesses = new AtomicLong();
+            final var expectedFailures = new AtomicLong();
+            final var publishedState = new AtomicReference<>(masterService.state());
+            masterService.setClusterStateSupplier(publishedState::get);
+            masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
+                if (randomBoolean()) {
+                    publishedState.set(clusterStatePublicationEvent.getNewState());
+                    expectedSuccesses.incrementAndGet();
+                    publishListener.onResponse(null);
+                } else {
+                    expectedFailures.incrementAndGet();
+                    publishListener.onFailure(new FailedToCommitClusterStateException("simulated publish failure"));
+                }
+            });
+
+            final int taskCount = between(1, 20);
+            for (int i = 0; i < taskCount; i++) {
+                final boolean changesState = frequently();
+                masterService.submitUnbatchedStateUpdateTask("task-" + i, new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return changesState ? ClusterState.builder(currentState).build() : currentState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                    }
+                });
+            }
+            deterministicTaskQueue.runAllTasks();
+
+            meterRegistry.getRecorder().resetCalls();
+            meterRegistry.getRecorder().collect();
+            final var countsByResult = new HashMap<Object, Long>();
+            for (final var measurement : meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, "es.cluster.state_update.published.total")) {
+                countsByResult.put(measurement.attributes().get("es_cluster_state_publication_outcome"), measurement.getLong());
+            }
+            assertEquals(expectedSuccesses.get(), (long) countsByResult.getOrDefault("success", 0L));
+            assertEquals(expectedFailures.get(), (long) countsByResult.getOrDefault("failure", 0L));
+
+            final var stats = masterService.getClusterStateUpdateStats();
+            assertEquals(stats.getPublicationSuccessCount(), expectedSuccesses.get());
+            assertEquals(stats.getPublicationFailureCount(), expectedFailures.get());
+        }
+    }
+
     private static void assertMasterQueueMetrics(
         RecordingMeterRegistry meterRegistry,
         String metricName,

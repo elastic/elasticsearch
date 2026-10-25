@@ -32,7 +32,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -536,39 +535,18 @@ public class MetadataDataStreamsService {
         ProjectMetadata projectMetadata,
         Settings settings
     ) {
-        Settings.Builder additionalSettings = Settings.builder();
-        IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
-        Set<String> overrulingSettings = new HashSet<>();
-        indexSettingProviders.getIndexSettingProviders().forEach(indexSettingProvider -> {
-            Settings.Builder providerSettingsBuilder = Settings.builder();
-            indexSettingProvider.provideAdditionalSettings(
-                dataStreamName,
-                dataStreamName,
-                indexMode,
-                registryInstalledTemplate,
-                projectMetadata,
-                Instant.now(),
-                settings,
-                List.of(effectiveMappings),
-                IndexVersion.current(),
-                providerSettingsBuilder
-            );
-            Settings providerSettings = providerSettingsBuilder.build();
-            if (indexSettingProvider.overrulesTemplateAndRequestSettings()) {
-                overrulingSettings.addAll(providerSettings.keySet());
-            }
-            additionalSettings.put(providerSettings);
-        });
-        Settings filteredmergedEffectiveSettings = settings;
-        if (overrulingSettings.isEmpty() == false) {
-            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
-            final Settings.Builder filtered = Settings.builder().put(settings);
-            for (String setting : overrulingSettings) {
-                filtered.remove(setting);
-            }
-            filteredmergedEffectiveSettings = filtered.build();
-        }
-        return additionalSettings.put(filteredmergedEffectiveSettings).build();
+        return IndexSettingProviders.collectAdditionalSettings(
+            indexSettingProviders.getIndexSettingProviders(),
+            dataStreamName,
+            dataStreamName,
+            projectMetadata.dataStreams().get(dataStreamName).getIndexMode(),
+            registryInstalledTemplate,
+            projectMetadata,
+            Instant.now(),
+            settings,
+            effectiveMappings == null ? List.of() : List.of(effectiveMappings),
+            IndexVersion.current()
+        ).applyTo(settings);
     }
 
     private DataStream createDataStreamForUpdatedDataStreamMappings(

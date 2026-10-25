@@ -1,6 +1,7 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+  - https://www.elastic.co/guide/en/elasticsearch/plugins/current/mandatory-plugins.html
 applies_to:
   deployment:
     self:
@@ -90,7 +91,7 @@ Like all node settings, it can also be specified on the command line as:
 ./bin/elasticsearch -Epath.data=/var/elasticsearch/data
 ```
 
-The contents of the `path.data` directory must persist across restarts, because this is where your data is stored. {{es}} requires the filesystem to act as if it were backed by a local disk, but this means that it will work correctly on properly-configured remote block devices (e.g. a SAN) and remote filesystems (e.g. NFS) as long as the remote storage behaves no differently from local storage. You can run multiple {{es}} nodes on the same filesystem, but each {{es}} node must have its own data path.
+The contents of the `path.data` directory must persist across restarts, because this is where your data is stored. {{es}} requires the filesystem to act as if it were backed by a local disk, but this means that it will work correctly on properly-configured remote block devices (e.g. a SAN) and remote filesystems (e.g. NFS) as long as the remote storage behaves no differently from local storage. Refer to [Local vs. remote storage](docs-content://deploy-manage/production-guidance/optimize-performance/indexing-speed.md#_local_vs_remote_storage) for more information. You can run multiple {{es}} nodes on the same filesystem, but each {{es}} node must have its own data path.
 
 ::::{tip}
 When using the `.zip` or `.tar.gz` distributions, the `path.data` setting should be configured to locate the data directory outside the {{es}} home directory, so that the home directory can be deleted without deleting your data! The RPM and Debian distributions do this for you already.
@@ -98,7 +99,13 @@ When using the `.zip` or `.tar.gz` distributions, the `path.data` setting should
 
 
 ::::{warning}
-Don’t modify anything within the data directory or run processes that might interfere with its contents. If something other than {{es}} modifies the contents of the data directory, then {{es}} may fail, reporting corruption or other data inconsistencies, or may appear to work correctly having silently lost some of your data. Don’t attempt to take filesystem backups of the data directory; there is no supported way to restore such a backup. Instead, use [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md) to take backups safely. Don’t run virus scanners on the data directory. A virus scanner can prevent {{es}} from working correctly and may modify the contents of the data directory. The data directory contains no executables so a virus scan will only find false positives.
+Follow these precautions to protect the contents of the {{es}} data directory:
+
+* Don’t modify anything within the data directory or run processes that might interfere with its contents.
+
+  If something other than {{es}} modifies the contents of the data directory, then {{es}} may fail, reporting corruption or other data inconsistencies, or may appear to work correctly having silently lost some of your data.
+* Don’t attempt to take filesystem backups of the data directory; there is no supported way to restore such a backup. Instead, use [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md) to take backups safely.
+* Don’t run virus scanners on the data directory. A virus scanner can prevent {{es}} from working correctly and may modify the contents of the data directory. The data directory contains no executables so a virus scan will only find false positives.
 ::::
 
 
@@ -136,6 +143,18 @@ stack: preview 9.3
 
     GPU indexing is supported for `hnsw` and `int8_hnsw` index types with `float` element type only.
     Requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+
+
+## Mandatory plugin settings [mandatory-plugins]
+
+`plugin.mandatory`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A comma-separated list of plugins that must be installed for the node to start. If any plugin in the list is missing, the node fails to start rather than joining the cluster without functionality you depend on. Use this for plugins your cluster cannot operate correctly without.
+
+    ```yaml
+    plugin.mandatory: analysis-icu,lang-js
+    ```
+
+    To install the plugins themselves, refer to the [plugin installation instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 
 ## Other node settings [other-node-settings]

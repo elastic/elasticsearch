@@ -76,6 +76,11 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         return strings;
     }
 
+    @Override
+    public long maxDecodeBytes() {
+        return input.maxDecodeBytes();
+    }
+
     // this method is required to support the Boolean return values
     // for the old-style "doc" access in ScriptDocValues
     @Override

@@ -526,3 +526,62 @@ setup:
                         lte: ouu
   - match: { hits.total.value: 3 }
 
+
+---
+"Test any_of over a text field that indexes no positions":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+        - method: POST
+          path: /_search
+          capabilities: [ positional_queries_on_text_without_positions ]
+      reason: "A text field indexing no positions answers positional queries from the values it keeps"
+
+  # The wildcard rule has every document of the segment as a candidate, and the last of them ("c d") holds no
+  # match. The any_of keeps its sub-iterators once they are spent and goes on asking them for intervals, which
+  # must not fail for a rule whose last candidate did not match.
+  - do:
+      indices.create:
+        index: test_no_positions
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              body:
+                type: text
+                index_options: docs
+
+  - do:
+      bulk:
+        index: test_no_positions
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"body": "quick brown"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"body": "a b"}'
+          - '{"index": {"_id": "3"}}'
+          - '{"body": "c d"}'
+
+  - do:
+      search:
+        index: test_no_positions
+        body:
+          query:
+            intervals:
+              body:
+                any_of:
+                  intervals:
+                    - wildcard:
+                        pattern: "qu*k"
+                    - match:
+                        query: "brown"
+
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

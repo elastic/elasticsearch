@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.ValueBytes;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
@@ -88,6 +89,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
+    private long bytesDecoded;
     private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
@@ -145,6 +147,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 }
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
+                // What the format reader decoded, measured as the page is handed on: the read that filled the
+                // buffer ran on another thread, so this is the first place on the driver's that sees it.
+                for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                    bytesDecoded += ValueBytes.of(page.getBlock(channel));
+                }
                 return page;
             }
             if (buffer.failure() != null) {
@@ -194,6 +201,16 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         return isBlocked;
     }
 
+    /**
+     * {@link #status()} only reads the buffer and driver-thread counters, so it stays valid after
+     * {@link #close()}. The driver resnapshots after async close so LIMIT teardown does not drop
+     * producer close-time bytes, splits, or format-reader counters.
+     */
+    @Override
+    public boolean finalStatusAfterAsyncActions() {
+        return true;
+    }
+
     @Override
     public void close() {
         try {
@@ -241,7 +258,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      * {@code ThreadContext} response headers only reach the client when the driver happens to run on the coordinator.
      * {@code DriverCompletionInfo} ships this sink's contents back from whatever node ran the scan and the coordinator
      * re-emits them once, which is how every other ES|QL warning already travels. A read shipped to a data node
-     * (elastic/esql-planning#1837) otherwise returned the right values with no warning at all.
+    * otherwise returned the right values with no warning at all.
      */
     private void emitPendingWarnings() {
         String warning;
@@ -266,6 +283,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.size(),
             pagesEmitted,
             rowsEmitted,
+            bytesDecoded,
             buffer.bytesInBuffer(),
             statusFailure,
             processNanos,
@@ -276,7 +294,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.readCounters(),
             buffer.formatReaderStatus(),
             buffer.capturedSourceMetadataSnapshot(),
-            buffer.isPartial()
+            buffer.isPartial(),
+            buffer.requestCount(),
+            buffer.retryCount()
         );
     }
 
@@ -297,9 +317,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
+        private static final TransportVersion ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS = TransportVersion.fromName("esql_external_planning_io");
+
+        private static final TransportVersion ESQL_BYTES_DECODED = TransportVersion.fromName("esql_bytes_decoded");
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
+        /** The bytes the decoded values spell, against {@link #bytesRead} the bytes they were read from. */
+        private final long bytesDecoded;
         private final long bytesBuffered;
         private final Throwable failure;
         private final long processNanos;
@@ -311,11 +337,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final FormatReaderStatus formatReader;
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
         private final boolean partial;
+        private final long requestCount;
+        private final long retryCount;
 
         Status(
             int pagesWaiting,
             int pagesEmitted,
             long rowsEmitted,
+            long bytesDecoded,
             long bytesBuffered,
             Throwable failure,
             long processNanos,
@@ -328,9 +357,50 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             Map<String, List<Map<String, Object>>> capturedSourceMetadata,
             boolean partial
         ) {
+            this(
+                pagesWaiting,
+                pagesEmitted,
+                rowsEmitted,
+                bytesDecoded,
+                bytesBuffered,
+                failure,
+                processNanos,
+                splitsProcessed,
+                splitsTotal,
+                currentSplit,
+                bytesRead,
+                readCounters,
+                formatReader,
+                capturedSourceMetadata,
+                partial,
+                0L,
+                0L
+            );
+        }
+
+        Status(
+            int pagesWaiting,
+            int pagesEmitted,
+            long rowsEmitted,
+            long bytesDecoded,
+            long bytesBuffered,
+            Throwable failure,
+            long processNanos,
+            int splitsProcessed,
+            int splitsTotal,
+            int currentSplit,
+            long bytesRead,
+            ExternalReadCounters readCounters,
+            FormatReaderStatus formatReader,
+            Map<String, List<Map<String, Object>>> capturedSourceMetadata,
+            boolean partial,
+            long requestCount,
+            long retryCount
+        ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
+            this.bytesDecoded = bytesDecoded;
             this.bytesBuffered = bytesBuffered;
             this.failure = failure;
             this.processNanos = processNanos;
@@ -342,12 +412,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.formatReader = formatReader;
             this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
             this.partial = partial;
+            this.requestCount = requestCount;
+            this.retryCount = retryCount;
         }
 
         Status(StreamInput in) throws IOException {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
             rowsEmitted = in.readVLong();
+            bytesDecoded = in.getTransportVersion().supports(ESQL_BYTES_DECODED) ? in.readVLong() : 0;
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
             long readNanos;
@@ -392,6 +465,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 capturedSourceMetadata = Map.of();
             }
             partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS)) {
+                requestCount = in.readVLong();
+                retryCount = in.readVLong();
+            } else {
+                requestCount = 0L;
+                retryCount = 0L;
+            }
         }
 
         @Override
@@ -399,6 +479,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             out.writeVInt(pagesWaiting);
             out.writeVInt(pagesEmitted);
             out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().supports(ESQL_BYTES_DECODED)) {
+                out.writeVLong(bytesDecoded);
+            }
             if (out.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED)) {
                 out.writeVLong(bytesBuffered);
             }
@@ -428,6 +511,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             }
             if (out.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS)) {
                 out.writeBoolean(partial);
+            }
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS)) {
+                out.writeVLong(requestCount);
+                out.writeVLong(retryCount);
             }
         }
 
@@ -485,6 +572,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return rowsEmitted;
         }
 
+        @Override
+        public long bytesDecoded() {
+            return bytesDecoded;
+        }
+
         public long bytesBuffered() {
             return bytesBuffered;
         }
@@ -517,6 +609,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         @Override
         public long bytesRead() {
             return bytesRead;
+        }
+
+        public long requestCount() {
+            return requestCount;
+        }
+
+        public long retryCount() {
+            return retryCount;
         }
 
         public ExternalReadCounters readCounters() {
@@ -554,12 +654,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("pages_waiting", pagesWaiting);
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_emitted", rowsEmitted);
+            builder.field("bytes_decoded", bytesDecoded);
             builder.field("bytes_buffered", bytesBuffered);
             builder.field("process_nanos", processNanos);
             builder.field("splits_processed", splitsProcessed);
             builder.field("splits_total", splitsTotal);
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
+            builder.field("request_count", requestCount);
+            builder.field("retry_count", retryCount);
             builder.field("read_nanos", readCounters.readNanos());
             builder.field("read_cpu_nanos", readCounters.readCpuNanos());
             builder.field("stripes_committed", stripesCommitted());
@@ -589,12 +692,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return pagesWaiting == status.pagesWaiting
                 && pagesEmitted == status.pagesEmitted
                 && rowsEmitted == status.rowsEmitted
+                && bytesDecoded == status.bytesDecoded
                 && bytesBuffered == status.bytesBuffered
                 && processNanos == status.processNanos
                 && splitsProcessed == status.splitsProcessed
                 && splitsTotal == status.splitsTotal
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
+                && requestCount == status.requestCount
+                && retryCount == status.retryCount
                 && readNanos() == status.readNanos()
                 && readCpuNanos() == status.readCpuNanos()
                 && partial == status.partial
@@ -609,6 +715,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 pagesWaiting,
                 pagesEmitted,
                 rowsEmitted,
+                bytesDecoded,
                 bytesBuffered,
                 failure != null ? failure.getMessage() : null,
                 processNanos,
@@ -616,6 +723,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal,
                 currentSplit,
                 bytesRead,
+                requestCount,
+                retryCount,
                 readCounters.readNanos(),
                 readCounters.readCpuNanos(),
                 formatReader,

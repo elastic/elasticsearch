@@ -14,7 +14,9 @@ Rules are mappings in the form of `token1[, ..., tokenN] => override`.
 | Setting | Description |
 | --- | --- |
 | `rules` | A list of mapping rules to use. |
-| `rules_path` | A path (either relative to `config` location, orabsolute) to a list of mappings. |
+| `rules_path` | A path (either relative to `config` location, or absolute) to a list of mappings. |
+
+If you use `rules_path`, the file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 Here is an example:
 

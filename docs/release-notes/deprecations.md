@@ -16,11 +16,19 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.5.4 [elasticsearch-9.5.4-deprecations]
+## 9.5.5 [elasticsearch-9.5.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.8 [elasticsearch-9.4.8-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.4.7 [elasticsearch-9.4.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.5.4 [elasticsearch-9.5.4-deprecations]
 
 There are no deprecations associated with this release.
 

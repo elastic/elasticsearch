@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 158625
-pr: 160152
-summary: Fix query phase losing a listener in remote reduction rejection
-type: bug

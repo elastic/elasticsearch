@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.internal.LeafExecutionScope;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -149,7 +150,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         SegmentState segmentState = null;
         try (T scoreBuilder = createBlockBuilder(blockFactory, docs.getPositionCount())) {
             for (int i = 0; i < docs.getPositionCount(); i++) {
-                int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
+                int shard = docs.shards().getInt(map[i]);
                 int segment = docs.segments().getInt(map[i]);
                 if (segmentState == null || prevShard != shard || prevSegment != segment) {
                     segmentState = shardState(shard).segmentState(segment);
@@ -171,6 +172,9 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
 
     @Override
     public void close() {
+        for (LongObjectPagedHashMap.Cursor<ShardState> shardState : perShardState) {
+            shardState.value.releaseExecutionMemory();
+        }
         perShardState.close();
     }
 
@@ -210,6 +214,14 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
             perSegmentState.set(segment, segmentState);
             return segmentState;
         }
+
+        void releaseExecutionMemory() {
+            for (SegmentState segmentState : perSegmentState) {
+                if (segmentState != null) {
+                    segmentState.releaseExecutionMemory();
+                }
+            }
+        }
     }
 
     /**
@@ -242,14 +254,31 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         private Thread bulkScorerThread;
 
         /**
+         * Exclusive upper bound of the last range scored by {@link #bulkScorer}. A {@link BulkScorer}
+         * only moves forward, so a range starting before this needs a fresh one.
+         */
+        private int bulkScorerNext;
+
+        /**
          * Set to {@code true} if, in the process of building a {@link Scorer} or {@link BulkScorer},
          * the {@link Weight} tells us there aren't any matches.
          */
         private boolean noMatch;
 
+        /**
+         * The execution memory that building {@link #scorer} and {@link #bulkScorer} charged to the request circuit breaker.
+         */
+        private final LeafExecutionScope scorerScope = new LeafExecutionScope();
+        private final LeafExecutionScope bulkScorerScope = new LeafExecutionScope();
+
         private SegmentState(Weight weight, LeafReaderContext ctx) {
             this.weight = weight;
             this.ctx = ctx;
+        }
+
+        void releaseExecutionMemory() {
+            scorerScope.release();
+            bulkScorerScope.release();
         }
 
         /**
@@ -261,10 +290,12 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 return createNoMatchBlock(blockFactory, max - min + 1);
             }
             if (bulkScorer == null ||  // The bulkScorer wasn't initialized
-                Thread.currentThread() != bulkScorerThread // The bulkScorer was initialized on a different thread
+                Thread.currentThread() != bulkScorerThread || // The bulkScorer was initialized on a different thread
+                min < bulkScorerNext // The previous range came "after" this one and the bulkScorer can't go backwards
             ) {
                 bulkScorerThread = Thread.currentThread();
-                bulkScorer = weight.bulkScorer(ctx);
+                bulkScorerScope.release();
+                bulkScorer = bulkScorerScope.capture(() -> weight.bulkScorer(ctx));
                 if (bulkScorer == null) {
                     noMatch = true;
                     return createNoMatchBlock(blockFactory, positionCount);
@@ -282,6 +313,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 )
             ) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
+                bulkScorerNext = max + 1;
                 collector.finish();
                 return collector.build();
             }
@@ -311,7 +343,8 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 scorer.iterator().docID() > minDocId // The previous block came "after" this one
             ) {
                 scorerThread = Thread.currentThread();
-                scorer = weight.scorer(ctx);
+                scorerScope.release();
+                scorer = scorerScope.capture(() -> weight.scorer(ctx));
                 if (scorer == null) {
                     noMatch = true;
                 }

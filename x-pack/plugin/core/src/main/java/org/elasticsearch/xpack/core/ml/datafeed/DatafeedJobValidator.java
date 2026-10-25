@@ -42,6 +42,13 @@ public final class DatafeedJobValidator {
         TimeValue bucketSpan = analysisConfig.getBucketSpan();
         if (delayedDataCheckConfig.isEnabled()) {
             checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
+            if (datafeedConfig.getEsqlQuery() != null) {
+                checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(analysisConfig);
+            }
+        }
+
+        if (datafeedConfig.getEsqlQuery() != null) {
+            checkGroupingIntervalMatchesBucketSpan(datafeedConfig.getGroupingInterval(), bucketSpan);
         }
 
         checkTimeFieldIsNotASearchRuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
@@ -71,6 +78,26 @@ public final class DatafeedJobValidator {
         if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD)
+            );
+        }
+    }
+
+    private static void checkGroupingIntervalMatchesBucketSpan(TimeValue groupingInterval, TimeValue bucketSpan) {
+        if (groupingInterval.millis() != bucketSpan.millis()) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN,
+                    groupingInterval.getStringRep(),
+                    bucketSpan.getStringRep()
+                )
+            );
+        }
+    }
+
+    private static void checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(AnalysisConfig analysisConfig) {
+        if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
             );
         }
     }
@@ -123,6 +150,9 @@ public final class DatafeedJobValidator {
     private static void checkTimeFieldIsNotASearchRuntimeField(DatafeedConfig datafeedConfig, String timeField) {
         // check the search RT mappings defined in the datafeed
         Map<String, Object> runtimeMappings = datafeedConfig.getRuntimeMappings();
+        if (runtimeMappings == null) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields
             String fieldName = entry.getKey();

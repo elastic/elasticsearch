@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -55,6 +56,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final CircuitBreaker breaker;
     @Nullable
     private final ParquetIoWatermark ioWatermark;
+    /** Current row-group lease; window {@code forceAdd} attributes untracked bytes here, not via TLS. */
+    @Nullable
+    private volatile RowGroupIo boundLease;
+    /** Window bytes currently charged on {@link #ioWatermark}. Used to re-home lease.untracked on bind. */
+    private long windowBytesCharged;
 
     /**
      * Optional pre-warmed cache installed before {@code RowGroupFilter} runs. When set, reads
@@ -146,6 +152,43 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
+     * Attributes later sliding-window {@code forceAdd} to {@code io}. Call from the iterator when
+     * it binds a row-group lease; TLS is not open on the window alloc path. If a window was already
+     * charged with a null lease (open-time footer stream), moves that untracked onto {@code io}
+     * without touching node {@code used}.
+     */
+    public synchronized void bindRowGroup(RowGroupIo io) {
+        RowGroupIo prev = this.boundLease;
+        if (prev == io) {
+            return;
+        }
+        if (windowBytesCharged > 0L) {
+            if (prev != null) {
+                prev.releaseUntracked(windowBytesCharged);
+            }
+            if (io != null) {
+                io.addUntracked(windowBytesCharged);
+            }
+        }
+        this.boundLease = io;
+    }
+
+    private synchronized void chargeWindow(long charge) {
+        if (ioWatermark != null) {
+            ioWatermark.forceAdd(charge, boundLease);
+        }
+        windowBytesCharged += charge;
+    }
+
+    private synchronized void refundWindow(long charge) {
+        if (ioWatermark != null) {
+            ioWatermark.release(charge, boundLease);
+        }
+        long next = windowBytesCharged - charge;
+        windowBytesCharged = next < 0L ? 0L : next;
+    }
+
+    /**
      * Window for a range of {@code rangeBytes}: {@link #DEFAULT_WINDOW_SIZE} when the range fits in it, otherwise
      * {@link #MAX_WINDOW_SIZE}. Snapped to those two region-friendly sizes rather than sized to the range: a window
      * in between (say 6 MiB) is humongous and occupies 8 MiB of heap at 4 MiB and 8 MiB G1 regions anyway, so the
@@ -223,7 +266,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             breaker,
             ioWatermark,
             this::currentPreWarmedChunks,
-            openStreams
+            openStreams,
+            this
         );
         synchronized (openStreams) {
             openStreams.add(stream);
@@ -317,6 +361,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
          */
         private final Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier;
         private final List<WindowedSeekableInputStream> openStreams;
+        private final ParquetStorageObjectAdapter adapter;
 
         private long windowStart;
         private int windowLength;
@@ -332,7 +377,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             CircuitBreaker breaker,
             @Nullable ParquetIoWatermark ioWatermark,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier,
-            List<WindowedSeekableInputStream> openStreams
+            List<WindowedSeekableInputStream> openStreams,
+            ParquetStorageObjectAdapter adapter
         ) {
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
@@ -345,6 +391,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.window = null;
             this.preWarmedChunksSupplier = preWarmedChunksSupplier;
             this.openStreams = openStreams;
+            this.adapter = adapter;
             this.windowStart = -1;
             this.windowLength = 0;
             this.position = 0;
@@ -682,9 +729,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 // ChildMemoryCircuitBreaker undoes a parent-limit trip before rethrowing.
                 // Do not catch this call: forceAdd has not run, and a catch would refund a rolled-back add.
                 breaker.addEstimateBytesAndMaybeBreak(windowCharge, WINDOW_BREAKER_LABEL);
-                if (ioWatermark != null) {
-                    ioWatermark.forceAdd(windowCharge);
-                }
+                adapter.chargeWindow(windowCharge);
                 try {
                     window = UninitializedArrays.newByteArray(windowSize);
                 } catch (Throwable t) {
@@ -727,9 +772,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
             breaker.addWithoutBreaking(-charge);
-            if (ioWatermark != null) {
-                ioWatermark.release(charge);
-            }
+            adapter.refundWindow(charge);
         }
 
         /**

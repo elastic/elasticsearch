@@ -70,7 +70,24 @@ public class RepositoryDataTests extends ESTestCase {
             final List<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
             return snapshotIds.contains(randomSnapshot) && snapshotIds.size() > 1;
         }).toArray(IndexId[]::new);
-        assertThat(getIndicesToUpdateAfterRemovingSnapshot(repositoryData, randomSnapshot), containsInAnyOrder(indicesToUpdate));
+        assertThat(getIndicesToUpdateAfterRemovingSnapshots(repositoryData, Set.of(randomSnapshot)), containsInAnyOrder(indicesToUpdate));
+    }
+
+    public void testIndicesToUpdateAfterRemovingSnapshots() {
+        final RepositoryData repositoryData = generateRandomRepoData();
+        final List<IndexId> indicesBefore = List.copyOf(repositoryData.getIndices().values());
+        final Set<SnapshotId> snapshotsToDelete = Set.copyOf(randomNonEmptySubsetOf(repositoryData.getSnapshotIds()));
+        final IndexId[] indicesToUpdate = indicesBefore.stream().filter(index -> {
+            final List<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
+            int deletedCount = 0;
+            for (SnapshotId snapshotId : snapshotIds) {
+                if (snapshotsToDelete.contains(snapshotId)) {
+                    deletedCount++;
+                }
+            }
+            return deletedCount > 0 && deletedCount < snapshotIds.size();
+        }).toArray(IndexId[]::new);
+        assertThat(getIndicesToUpdateAfterRemovingSnapshots(repositoryData, snapshotsToDelete), containsInAnyOrder(indicesToUpdate));
     }
 
     public void testXContent() throws IOException {
@@ -361,7 +378,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = generateRandomRepoData();
         final SnapshotId snapshotId = randomFrom(repositoryData.getSnapshotIds());
         final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
-        final Collection<IndexId> indicesToUpdate = getIndicesToUpdateAfterRemovingSnapshot(repositoryData, snapshotId);
+        final Collection<IndexId> indicesToUpdate = getIndicesToUpdateAfterRemovingSnapshots(repositoryData, Set.of(snapshotId));
         final Map<IndexId, Collection<String>> identifiersToRemove = indexMetaDataGenerations.lookup.get(snapshotId)
             .entrySet()
             .stream()
@@ -372,7 +389,7 @@ public class RepositoryDataTests extends ESTestCase {
 
         assertEquals(
             identifiersToRemove,
-            processIndicesToUpdate(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(List.of(snapshotId)))
+            processIndicesToUpdate(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(Set.of(snapshotId)))
         );
     }
 
@@ -425,11 +442,11 @@ public class RepositoryDataTests extends ESTestCase {
         );
         assertEquals(
             newIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Set.of(newIdentifiers.get(e.getValue())))),
-            processIndicesToUpdate(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(List.of(newSnapshot)))
+            processIndicesToUpdate(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Set.of(newSnapshot)))
         );
         assertEquals(
             removeFromOther,
-            processIndicesToUpdate(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(List.of(otherSnapshotId)))
+            processIndicesToUpdate(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Set.of(otherSnapshotId)))
         );
     }
 
@@ -524,9 +541,12 @@ public class RepositoryDataTests extends ESTestCase {
         return indices;
     }
 
-    private static Collection<IndexId> getIndicesToUpdateAfterRemovingSnapshot(RepositoryData repositoryData, SnapshotId snapshotToDelete) {
+    private static Collection<IndexId> getIndicesToUpdateAfterRemovingSnapshots(
+        RepositoryData repositoryData,
+        Set<SnapshotId> snapshotsToDelete
+    ) {
         final var result = new ArrayList<IndexId>();
-        repositoryData.indicesToUpdateAfterRemovingSnapshot(List.of(snapshotToDelete)).forEachRemaining(result::add);
+        repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotsToDelete).forEachRemaining(result::add);
         return result;
     }
 }

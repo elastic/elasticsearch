@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
       reason: >
         logsdb defaults _source to synthetic and synthetic_source_keep to arrays, but IndexMode.LOGSDB does
         NOT override isStrictColumnar(), so the generic _ignored_source stays enabled and a dynamic:false field
@@ -118,12 +118,11 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_logsdb | KEEP id, level*, meta.*, tags* | LIMIT 5'
-  - length: { columns: 4 }
-  - match: { columns.1.name: level }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: meta.region }
-  - match: { columns.3.name: tags }
-  - match: { values.0: [ "1", "warn", "eu", [ "z", "a", "z" ] ] }
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "1", { level: warn, meta.region: eu, tags: [ "z", "a", "z" ] } ] }
 
 ---
 'logsdb with stored source agrees with logsdb with synthetic source':
@@ -131,20 +130,20 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_logsdb_stored | KEEP id, level*, meta.*, tags* | LIMIT 5'
-  - length: { columns: 4 }
-  - match: { values.0: [ "1", "warn", "eu", [ "z", "a", "z" ] ] }
+  - length: { columns: 2 }
+  - match: { values.0: [ "1", { level: warn, meta.region: eu, tags: [ "z", "a", "z" ] } ] }
 
 ---
-'logsdb agrees with standard mode on the discovered column set':
+'logsdb agrees with standard mode on the discovered leaf set':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_logsdb, la_logsdb_stored, la_logsdb_baseline METADATA _index | KEEP _index, level*, meta.*, tags* | SORT _index | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 2 }
   - length: { values: 3 }
-  - match: { values.0: [ "la_logsdb", "warn", "eu", [ "z", "a", "z" ] ] }
-  - match: { values.1: [ "la_logsdb_baseline", "warn", "eu", [ "z", "a", "z" ] ] }
-  - match: { values.2: [ "la_logsdb_stored", "warn", "eu", [ "z", "a", "z" ] ] }
+  - match: { values.0: [ "la_logsdb", { level: warn, meta.region: eu, tags: [ "z", "a", "z" ] } ] }
+  - match: { values.1: [ "la_logsdb_baseline", { level: warn, meta.region: eu, tags: [ "z", "a", "z" ] } ] }
+  - match: { values.2: [ "la_logsdb_stored", { level: warn, meta.region: eu, tags: [ "z", "a", "z" ] } ] }
 
 ---
 'logsdb_columnar drops the unmapped fields at ingest, so LOAD_ALL finds nothing to expand':
@@ -152,23 +151,25 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_logsdb_columnar | KEEP id, host.name, * | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: host.name }
   - match: { columns.2.name: "@timestamp" }
-  - match: { values.0: [ "1", "h1", "2024-01-01T00:00:00.000Z" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  - match: { values.0: [ "1", "h1", "2024-01-01T00:00:00.000Z", null ] }
 
 ---
-'logsdb and logsdb_columnar in one pattern: the recoverable leg fills the column, the lossy leg is null':
+'logsdb and logsdb_columnar in one pattern: the recoverable leg fills the object, the lossy leg is null':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_logsdb, la_logsdb_columnar METADATA _index | KEEP _index, level*, meta.* | SORT _index | LIMIT 5'
-  - length: { columns: 3 }
-  - match: { columns.1.name: level }
-  - match: { columns.1.type: keyword }
-  - match: { values.0: [ "la_logsdb", "warn", "eu" ] }
-  - match: { values.1: [ "la_logsdb_columnar", null, null ] }
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "la_logsdb", { level: warn, meta.region: eu } ] }
+  - match: { values.1: [ "la_logsdb_columnar", null ] }
 
 ---
 'logsdb: explicitly naming an unmapped object reads as null while its leaf loads':

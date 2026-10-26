@@ -314,7 +314,7 @@ public class PlanExecutor {
         );
         ActionListener<Versioned<Result>> executeListener = wrap(
             x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
-            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin, client)
+            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, executionInfo, begin, client)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
@@ -360,7 +360,7 @@ public class PlanExecutor {
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),
-            planTelemetry.externalSource(),
+            executionInfo.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             partial,
             null
@@ -382,6 +382,7 @@ public class PlanExecutor {
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,
+        EsqlExecutionInfo executionInfo,
         long begin,
         String client
     ) {
@@ -393,7 +394,7 @@ public class PlanExecutor {
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),
-            planTelemetry.externalSource(),
+            executionInfo.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             false,
             ex

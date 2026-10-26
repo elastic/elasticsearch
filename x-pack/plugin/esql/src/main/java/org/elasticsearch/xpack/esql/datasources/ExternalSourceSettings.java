@@ -251,7 +251,7 @@ public final class ExternalSourceSettings {
      * runs one long-lived segmentator that pins a pool thread while it blocks on its chunk/buffer queues and the
      * upstream decompress stream; its per-chunk parser tasks run on the same pool. Without a cap, enough
      * concurrently-open reads pin every pool thread and their parser tasks — queued behind the segmentators — never
-     * get a thread, deadlocking the reads (elastic/esql-planning #1093, item 4). Bounding concurrent segmentators
+     * get a thread, deadlocking the reads. Bounding concurrent segmentators
      * below the pool size guarantees threads remain free for parser tasks.
      * <p>
      * Default {@code 0} means "derive": the effective cap tracks the {@code esql_external_io} pool size

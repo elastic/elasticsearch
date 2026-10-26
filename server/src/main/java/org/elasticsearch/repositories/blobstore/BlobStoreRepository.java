@@ -1015,7 +1015,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,
@@ -1045,7 +1045,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public void cleanup(long repositoryDataGeneration, IndexVersion repositoryFormatIndexVersion, ActionListener<DeleteResult> listener) {
         createSnapshotsDeletion(
-            List.of(),
+            Set.of(),
             repositoryDataGeneration,
             repositoryFormatIndexVersion,
             listener.delegateFailureAndWrap((delegate, snapshotsDeletion) -> snapshotsDeletion.runCleanup(delegate))
@@ -1053,7 +1053,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void createSnapshotsDeletion(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<SnapshotsDeletion> listener
@@ -1097,9 +1097,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     class SnapshotsDeletion {
 
         /**
-         * The IDs of the snapshots to delete. This collection is empty if the deletion is a repository cleanup.
+         * The IDs of the snapshots to delete. This set is empty if the deletion is a repository cleanup.
          */
-        private final Collection<SnapshotId> snapshotIds;
+        private final Set<SnapshotId> snapshotIds;
 
         /**
          * The {@link RepositoryData} generation at the start of the process, to ensure that the {@link RepositoryData} does not change
@@ -1166,7 +1166,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final BlobsToDelete blobsToDelete = new BlobsToDelete();
 
         SnapshotsDeletion(
-            Collection<SnapshotId> snapshotIds,
+            Set<SnapshotId> snapshotIds,
             long originalRepositoryDataGeneration,
             IndexVersion repositoryFormatIndexVersion,
             Map<String, BlobMetadata> originalRootBlobs,
@@ -1666,7 +1666,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private void logStaleRootLevelBlobs(
             long newestStaleRepositoryDataGeneration,
-            Collection<SnapshotId> snapshotIds,
+            Set<SnapshotId> snapshotIds,
             List<String> blobsToDelete
         ) {
             if (logger.isInfoEnabled()) {

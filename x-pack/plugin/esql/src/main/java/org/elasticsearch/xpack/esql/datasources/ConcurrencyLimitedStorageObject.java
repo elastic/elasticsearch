@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -313,7 +314,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
      * Executor-wrapped storage (GCS; Azure/S3 without an async client;
      * {@link StorageObject} default) submits a blocking read on {@code executor}.
      * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
-     * forking them onto {@code esql_external_io} would recreate Bug C. That
+     * forking them onto {@code esql_external_io} would queue a grant with no GET in flight. That
      * occupancy is a later fix.
      */
     private void startDelegate(
@@ -412,6 +413,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
+    }
+
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        delegate.attachMetrics(metrics, scheme);
     }
 
     /**

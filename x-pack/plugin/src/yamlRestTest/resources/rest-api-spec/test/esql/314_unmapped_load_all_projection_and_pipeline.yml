@@ -1,0 +1,121 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column ]
+      reason: The single _unmapped_fields column only exists on nodes with the single-column layout.
+
+  - do:
+      indices.create:
+        index: la_pipe
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_pipe", "_id": "1" } }
+          - { "id": 1, "a1": "x", "a2": "y", "b1": "z", "n": { "k": 1, "j": 2 } }
+          - { "index": { "_index": "la_pipe", "_id": "2" } }
+          - { "id": 2, "a1": "p", "b1": "q" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_pipe
+        ignore_unavailable: true
+
+---
+'a wildcard KEEP restricts the leaves to the matching names':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | KEEP id, a* | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { values.0: [ 1, { a1: x, a2: y } ] }
+  - match: { values.1: [ 2, { a1: p } ] }
+
+---
+'an exact KEEP makes the field a real column and leaves no _unmapped_fields column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | KEEP id, a1 | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.1.name: a1 }
+  - match: { columns.1.type: keyword }
+  - match: { values: [ [ 1, x ], [ 2, p ] ] }
+
+---
+'a wildcard DROP removes the matching leaves':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | DROP b* | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { values.0: [ 1, { a1: x, a2: y, n.j: 2, n.k: 1 } ] }
+  - match: { values.1: [ 2, { a1: p } ] }
+
+---
+'KEEP star then a wildcard DROP leaves what neither names':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | KEEP * | DROP a* | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { values.0: [ 1, { b1: z, n.j: 2, n.k: 1 } ] }
+  - match: { values.1: [ 2, { b1: q } ] }
+
+---
+'an EVAL column shadows the leaf of the same name':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | EVAL a1 = 0 | SORT id | LIMIT 10'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.2.name: a1 }
+  - match: { values.0: [ 1, { a2: y, b1: z, n.j: 2, n.k: 1 }, 0 ] }
+  - match: { values.1: [ 2, { b1: q }, 0 ] }
+
+---
+'SORT and LIMIT keep the column with the surviving rows':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | SORT id DESC | LIMIT 1'
+  - length: { columns: 2 }
+  - match: { values: [ [ 2, { a1: p, b1: q } ] ] }
+
+---
+'STATS discards the column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | STATS c = COUNT(*) | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: c }
+  - match: { values: [ [ 2 ] ] }
+
+---
+'STATS BY a mapped field discards the column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_pipe | STATS c = COUNT(*) BY id | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: c }
+  - match: { columns.1.name: id }
+  - match: { values: [ [ 1, 1 ], [ 1, 2 ] ] }

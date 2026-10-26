@@ -492,7 +492,7 @@ spec:
           access_level: BUILD_AND_READ
       provider_settings:
         build_branches: false
-        build_pull_requests: false
+        build_pull_requests: true
         publish_commit_status: false
         trigger_mode: none
 ---

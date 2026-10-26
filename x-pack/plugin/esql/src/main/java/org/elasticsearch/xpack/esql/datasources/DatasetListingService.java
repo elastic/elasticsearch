@@ -187,9 +187,10 @@ public final class DatasetListingService {
     }
 
     /**
-     * Async counterpart of {@link #cachedListing}, with the same key-and-compute pairing and the same reservation
-     * rule. Concurrent cold misses for one key share one listing: the first query's listing is the one that runs, and
-     * the others wait on it rather than each starting a fan-out. A query that waited allocated nothing in the walk, so
+     * Async counterpart of {@link #cachedListing}, with the same reservation rule. It keys on the extent it is
+     * given; the synchronous overload always lists unbounded. Concurrent cold misses for one key share one
+     * listing: the first query's listing is the one that runs, and the others wait on it rather than each
+     * starting a fan-out. A query that waited allocated nothing in the walk, so
      * like a cache hit it reserves the listing's size here; a leader that was cancelled fails only itself, and the
      * others list again.
      */
@@ -205,6 +206,7 @@ public final class DatasetListingService {
         BooleanSupplier cancelled,
         int concurrency,
         Executor executor,
+        ListingExtents extents,
         ActionListener<FileList> listener
     ) {
         ListingCacheKey listingKey = ListingCacheKey.build(
@@ -215,29 +217,21 @@ public final class DatasetListingService {
             secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
+            GlobExpander.listingCacheDiscriminator(path, hints, config, extents)
         );
         // Set by whichever thread runs the compute and read by whichever completes the listing.
         AtomicBoolean computedHere = new AtomicBoolean();
         cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
             computedHere.set(true);
-            expandAsync(
-                path,
-                provider,
-                hints,
-                config,
-                storagePath,
-                ListingExtents.UNBOUNDED,
-                memory,
-                cancelled,
-                concurrency,
-                executor,
-                innerListener
-            );
+            expandAsync(path, provider, hints, config, storagePath, extents, memory, cancelled, concurrency, executor, innerListener);
         }, ActionListener.wrap(listing -> {
-            // Same refusal as the synchronous path: a truncated listing served from this cache would pass for the dataset.
-            if (listing.isTruncated()) {
-                listener.onFailure(new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path));
+            // Same refusal as the synchronous path, and for the same reason - except that the bound is now part of
+            // the key, so a bounded prefix is addressed as a prefix. What must never be served from the cache is a
+            // listing that truncated when no bound was asked for: that one would answer for the full dataset.
+            if (listing.isTruncated() && extents.boundsFileSet() == false) {
+                listener.onFailure(
+                    new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path)
+                );
                 return;
             }
             try {
@@ -255,9 +249,8 @@ public final class DatasetListingService {
     }
 
     /**
-     * The compacted listing for a cacheable provider, from the cache or computed into it. Always the whole pattern:
-     * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
-     * query is served, and the refusal below is what holds that.
+     * The compacted listing for a cacheable provider, from the cache or computed into it. The scan path always
+     * lists unbounded: every reading query wants the full dataset, not a prefix of it.
      * <p>
      * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
      * through the walk as it grows, a hit reserves the equivalent here.
@@ -284,7 +277,7 @@ public final class DatasetListingService {
             secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
+            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED)
         );
         FileList listing;
         boolean[] servedFromCacheHolder = { true };
@@ -297,10 +290,12 @@ public final class DatasetListingService {
             throw asListingFailure(e);
         }
         // A refusal rather than an assertion: assertions are off in production, and a truncated listing reaching
-        // this cache is served to later queries as though it were the dataset - they would answer from a prefix
-        // with nothing to tell them. Unreachable today, because this method always lists the whole pattern.
+        // this cache would be served to later queries as though it were the dataset - they would answer from a
+        // prefix with nothing to tell them. Nothing reaches it today: this path lists unbounded, so truncation
+        // would need Integer.MAX_VALUE keys, and the object-count cap throws from expand instead. A guard for a
+        // future bounded caller.
         if (listing.isTruncated()) {
-            throw new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path);
+            throw new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path);
         }
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has to fail closed, or
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;

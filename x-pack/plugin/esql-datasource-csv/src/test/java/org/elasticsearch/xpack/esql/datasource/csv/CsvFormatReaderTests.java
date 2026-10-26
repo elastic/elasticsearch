@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -75,6 +76,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -186,7 +188,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The other half of elastic/esql-planning#1807, end to end: a schemaless column holding a bare
+     * The other half of schemaless typing, end to end: a schemaless column holding a bare
      * number and a timestamp must come back as strings. Before, inference typed it datetime and the
      * reader's epoch shortcut turned {@code 42} into an instant 42 milliseconds after 1970 — a value
      * nobody wrote, served as data.
@@ -479,6 +481,65 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
         assertEquals(0, tightBreaker.getUsed());
+    }
+
+    /**
+     * A breaker trip while sampling for schema inference is a resource failure, not a malformed row. Under FAIL_FAST it must
+     * surface as the breaker's own 429 rather than a 400 blaming the data and advising {@code skip_row}.
+     */
+    public void testBreakerTripUnderFailFastPropagatesAsBreakerException() {
+        CircuitBreaker tightBreaker = tinyBreaker();
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> CsvFormatReader.collectSampleRows(wideRows(10), null, 10, tightBreaker, ErrorPolicy.STRICT)
+        );
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(0, tightBreaker.getUsed());
+    }
+
+    /**
+     * Under lenient policies a breaker trip must not be absorbed as a bad row: it is not counted against the error budget, does
+     * not end sampling early, and never yields a truncated schema sample.
+     */
+    public void testBreakerTripUnderSkipRowIsNotCountedAndReturnsNoPartialSample() {
+        for (ErrorPolicy policy : new ErrorPolicy[] { ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE }) {
+            CircuitBreaker tightBreaker = tinyBreaker();
+            CircuitBreakingException e = expectThrows(
+                CircuitBreakingException.class,
+                () -> CsvFormatReader.collectSampleRows(wideRows(100), null, 100, tightBreaker, policy)
+            );
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+            assertEquals(0, tightBreaker.getUsed());
+        }
+    }
+
+    /** Control: the same rows with a roomy breaker sample in full, so the guard discriminates a trip from a clean inference. */
+    public void testWideRowsWithRoomyBreakerSampleInFull() {
+        BigArrays roomy = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(16)).withCircuitBreaking();
+        CircuitBreaker breaker = roomy.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        CsvFormatReader.SchemaSample sample = CsvFormatReader.collectSampleRows(wideRows(10), null, 10, breaker, ErrorPolicy.STRICT);
+        assertEquals(10, sample.rows().size());
+        breaker.addWithoutBreaking(-sample.reservedBytes());
+        assertEquals(0, breaker.getUsed());
+    }
+
+    private static CircuitBreaker tinyBreaker() {
+        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(300)).withCircuitBreaking()
+            .breakerService()
+            .getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    /** Well-formed rows, each wide enough that reserving even the first one exceeds {@link #tinyBreaker()}'s limit. */
+    private static Iterator<List<?>> wideRows(int count) {
+        List<Object> row = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            row.add("value-" + i);
+        }
+        List<List<?>> rows = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            rows.add(row);
+        }
+        return rows.iterator();
     }
 
     public void testSchemaMaxFieldsConfigIsBounded() {
@@ -6746,6 +6807,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     private StorageObject createStorageObject(byte[] bytes) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -7827,7 +7891,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
+    // --- declared `path` binding under a pinned (declared) schema: ---
 
     /**
      * A declaration that names every column of the file must read the same values under declared and inferred binding:

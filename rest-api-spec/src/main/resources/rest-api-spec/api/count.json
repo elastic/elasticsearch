@@ -35,6 +35,24 @@
               "description": "A comma-separated list of indices to restrict the results"
             }
           }
+        },
+        {
+          "path": "/{index}/{_slice}/_count",
+          "methods": [
+            "POST",
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "Index name(s) to count; a single index or a comma-separated list is supported"
+            },
+            "_slice": {
+              "type": "string",
+              "description": "Slice identifier(s) for a slice-enabled index (`index.slice.enabled=true`). A single slice, a comma-separated list (for example `tenant-a,tenant-b`), or the reserved token `_all` to count across all slices.",
+              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+            }
+          }
         }
       ]
     },

@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
@@ -270,7 +271,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056: a top-level list column must be published under its attribute name (so
+     * A top-level list column must be published under its attribute name (so
      * {@code findColumn} hits) but with an <em>unknown</em> null count, which makes {@code COUNT} /
      * {@code IS NOT NULL} decline the footer fast path and scan. Before the fix the list stats were
      * keyed by the leaf path {@code ints.list.element}, never matching the attribute {@code ints}, so
@@ -314,10 +315,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1055: a list nested in a STRUCT is surfaced by the flattener at its logical dotted
+     * A list nested in a STRUCT is surfaced by the flattener at its logical dotted
      * name {@code s.blist} (not the struct root {@code s}, and not the raw leaf {@code s.blist.list.element}).
      * The stats must therefore publish under {@code s.blist} with an <em>unknown</em> null count — like a
-     * top-level list (#1056), a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
+     * top-level list, a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
      * several values per row, so COUNT falls back to a scan. No phantom marker is published under the
      * struct root {@code s}, and the flat struct leaf {@code s.a} keeps its concrete null count.
      */
@@ -707,7 +708,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * flattened like a STRUCT into the Variant encoding's internals. Before the fix the flattener
      * descended into an unshredded variant and emitted {@code var.metadata} / {@code var.value} as
      * {@code keyword} (both are un-annotated BINARY), so a query returned the raw Variant binary
-     * encoding instead of the user's data. esql-planning#1970.
+     * encoding instead of the user's data.
      */
     public void testUnshreddedVariantColumnIsUnsupported() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
@@ -2559,6 +2560,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try {
             StorageObject asyncObject = new StorageObject() {
                 @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
                 public StorageIdentity storageIdentity() {
                     return AbstractTestStorageObject.NOOP;
                 }
@@ -3183,7 +3187,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Pins the operator-isolation half of elastic/esql-planning#1803: each operator obtains its own
+     * Pins operator isolation: each operator obtains its own
      * {@link ParquetReaderCounters} via {@link ParquetFormatReader#newReadCounters()}, so two operators
      * reading from the same reader instance own independent counter structs. Sibling-parity with
      * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersHaveIsolatedCounters}.
@@ -3739,7 +3743,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * A single Parquet file mixing timestamp[ms]/[us]/[ns] columns with distinct sub-millisecond fractions:
      * the millis column stays DATETIME (epoch-millis) while the micros/nanos columns resolve to DATE_NANOS and
-     * round-trip their full fractional precision (the core of elastic/esql-planning#1027).
+    * round-trip their full fractional precision (the core of ).
      */
     public void testReadMixedTimestampUnitsPreservesPrecision() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -4812,7 +4816,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat("both notices must use the supplied relay", drainWarnings(), empty());
     }
 
-    // --- LIST-under-STRUCT tests (elastic/esql-planning#1055) ---
+    // --- LIST-under-STRUCT tests ---
     //
     // A list leaf reached through a struct (struct<list<...>>, the shape of e.g. SQuAD's `answers`)
     // used to bind to no column descriptor and silently read as all-null: the flattener names the
@@ -6847,7 +6851,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat(drainWarnings(), contains(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, droppedElementsNotice("events")));
     }
 
-    // --- Dropped-null-element notices (esql-planning#1799) ---
+    // --- Dropped-null-element notices ---
 
     /** The per-column detail line for a LIST read that dropped null elements. */
     private static String droppedElementsNotice(String column) {
@@ -7853,6 +7857,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -7952,6 +7959,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8038,6 +8048,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger readIndex = new AtomicInteger();
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8118,6 +8131,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -8934,7 +8950,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Regression for esql-planning#2068: when a row group holds values but records no min/max bound,
+    * Regression for : when a row group holds values but records no min/max bound,
      * {@code extractStatistics} must mark the column's bounds as unknown so {@code MIN}/{@code MAX}
      * fall back to a scan rather than returning an answer sourced only from the other row groups.
      * <p>
@@ -9312,7 +9328,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    // esql-planning#1030: WHERE pushdown over a uint32 column (physical INT32, widened to
+    // WHERE pushdown over a uint32 column (physical INT32, widened to
     // ESQL LONG) used to build a Parquet longColumn FilterPredicate, which parquet-mr rejects
     // against the file's INT32 schema — every comparator 500d. This exercises the full read
     // path end to end: the reader must not throw, and must return exactly the matching rows.
@@ -9455,7 +9471,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), andSurvivors);
     }
 
-    // esql-planning#1030 follow-up: aggregate (MIN/MAX) pushdown reads a uint32 column's row-group
+    // follow-up: aggregate (MIN/MAX) pushdown reads a uint32 column's row-group
     // statistics straight off the Parquet footer, which stores the raw INT32 bit pattern. Without
     // widening, a value above Integer.MAX_VALUE (e.g. 4_000_000_000) sign-extends into a negative
     // long, breaking both the SourceStatistics SPI contract (values must match ESQL's in-memory

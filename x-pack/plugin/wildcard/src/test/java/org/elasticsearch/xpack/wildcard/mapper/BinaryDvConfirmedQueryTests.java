@@ -21,24 +21,32 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
@@ -143,6 +151,124 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                     assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
                     assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
                     return e;
+                }
+            }
+        }
+    }
+
+    // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
+    private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
+
+    public void testCircuitBreakerConsultedForWildcardDuringCreateWeight() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document doc = new Document();
+                doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
+                writer.addDocument(doc);
+                try (IndexReader reader = writer.getReader()) {
+                    TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                    ContextIndexSearcher searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
+                        true
+                    );
+                    searcher.setCircuitBreaker(breaker);
+                    Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
+                        Queries.ALL_DOCS_INSTANCE,
+                        "field",
+                        COMPLEX_WILDCARD,
+                        randomBoolean(),
+                        false
+                    );
+                    query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    assertTrue(
+                        "circuit breaker should be consulted during wildcard automaton construction in createWeight",
+                        breaker.wasCalled()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testWildcardChargesBreakerForByteRunAutomatonBuild() throws IOException {
+        final boolean caseInsensitive = randomBoolean();
+        final String pattern = "h*l?o*" + randomAlphaOfLength(5);
+        final Term term = new Term("field", pattern);
+        final Automaton dfa = caseInsensitive
+            ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term)
+            : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        assertChargesTwiceAutomatonRam(
+            BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, caseInsensitive, false),
+            dfa
+        );
+    }
+
+    public void testRegexpChargesBreakerForByteRunAutomatonBuild() throws IOException {
+        final String pattern = "h.*l[a-z]o" + randomAlphaOfLength(5);
+        final Automaton dfa = Operations.determinize(
+            new RegExp(pattern, RegExp.ALL, 0).toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
+        assertChargesTwiceAutomatonRam(
+            BinaryDvConfirmedQuery.fromRegexpQuery(
+                Queries.ALL_DOCS_INSTANCE,
+                "field",
+                pattern,
+                RegExp.ALL,
+                0,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                false
+            ),
+            dfa
+        );
+    }
+
+    public void testRangeChargesBreakerForByteRunAutomatonBuild() throws IOException {
+        final BytesRef lower = new BytesRef("a" + randomAlphaOfLength(5));
+        final BytesRef upper = new BytesRef("z" + randomAlphaOfLength(5));
+        final Automaton dfa = TermRangeQuery.toAutomaton(lower, upper, true, true);
+        assertChargesTwiceAutomatonRam(
+            BinaryDvConfirmedQuery.fromRangeQuery(Queries.ALL_DOCS_INSTANCE, "field", lower, upper, true, true, false),
+            dfa
+        );
+    }
+
+    public void testSuppliedAutomatonChargesBreakerForByteRunAutomatonBuild() throws IOException {
+        final Automaton dfa = Operations.determinize(
+            Operations.union(List.of(Automata.makeString("hello"), Automata.makeString("world"))),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
+        assertChargesTwiceAutomatonRam(
+            BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, "field", () -> dfa, "hello|world", false),
+            dfa
+        );
+    }
+
+    /**
+     * Planning the query must have charged the breaker, at some point, for at least twice the RAM of the automaton it converts to a
+     * {@code ByteRunAutomaton}, and must have released everything afterwards.
+     */
+    private void assertChargesTwiceAutomatonRam(Query query, Automaton automaton) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                final Document doc = new Document();
+                doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
+                writer.addDocument(doc);
+                try (IndexReader reader = writer.getReader()) {
+                    final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                    final ContextIndexSearcher searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
+                        true
+                    );
+                    searcher.setCircuitBreaker(breaker);
+                    query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    assertThat(breaker.peak(), greaterThanOrEqualTo(2 * automaton.ramBytesUsed()));
+                    assertThat(breaker.getUsed(), equalTo(0L));
                 }
             }
         }

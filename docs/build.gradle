@@ -115,7 +115,11 @@ tasks.named("yamlRestTest").configure {
   // Pass the docs project directory through so the test class can resolve config files
   // (analysis configs, p12 truststores, etc.) that still live under docs/src/test/cluster/config
   // and docs/*.p12 by their original paths.
-  systemProperty 'tests.docs.dir', projectDir.absolutePath
+  // The path itself is not an input (it differs per checkout); the files the test reads from it are.
+  nonInputProperties.systemProperty 'tests.docs.dir', projectDir.absolutePath
+  inputs.files(fileTree(projectDir) { include 'src/test/cluster/config/**', '*.p12' })
+    .withPropertyName('docsClusterConfigFiles')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 tasks.matching { it.name == 'forbiddenPatterns' }.configureEach {

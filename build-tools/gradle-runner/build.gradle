@@ -35,12 +35,37 @@ dependencies {
   testRuntimeOnly buildLibs.junit.platform.launcher
 }
 
+/**
+ * Passes absolute paths to the test JVM without making them task inputs. As regular system properties they would
+ * be part of the build cache key, which then differs for every checkout location.
+ */
+class NonInputPathsArgumentProvider implements CommandLineArgumentProvider {
+  private final Provider<RegularFile> runnerJar
+  private final File rootProjectDir
+
+  NonInputPathsArgumentProvider(Provider<RegularFile> runnerJar, File rootProjectDir) {
+    this.runnerJar = runnerJar
+    this.rootProjectDir = rootProjectDir
+  }
+
+  @Override
+  Iterable<String> asArguments() {
+    return [
+      "-Drunner.jar=${runnerJar.get().asFile.absolutePath}".toString(),
+      "-Droot.project.dir=${rootProjectDir.absolutePath}".toString()
+    ]
+  }
+}
+
 tasks.named('test') {
   useJUnitPlatform()
   // The test runs the runner JAR as a subprocess against the real repo
-  dependsOn tasks.named('jar')
-  systemProperty 'runner.jar', tasks.named('jar').flatMap { it.archiveFile }.get().asFile.absolutePath
-  systemProperty 'root.project.dir', rootProject.projectDir.parentFile.absolutePath
+  def runnerJar = tasks.named('jar').flatMap { it.archiveFile }
+  inputs.files(runnerJar).withPropertyName('runnerJar').withPathSensitivity(PathSensitivity.NAME_ONLY)
+  jvmArgumentProviders.add(new NonInputPathsArgumentProvider(runnerJar, rootProject.projectDir.parentFile))
+  // The specs run Gradle and CI scripts against the whole Elasticsearch checkout, none of which is a declared input.
+  // A cached result could therefore be reused for a checkout with different build logic, so never cache it.
+  outputs.doNotCacheIf('Runs against the whole Elasticsearch checkout, which is not a declared input') { true }
 }
 
 tasks.named("jar").configure {

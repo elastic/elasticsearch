@@ -25,6 +25,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -183,6 +184,9 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
 
             test.dependsOn(nativeConfigFiles);
+            // The path is passed as a non-input property because it is absolute and differs per checkout. Track the
+            // library contents instead, so a changed native library re-runs the tests that load it.
+            test.getInputs().files(nativeConfigFiles).withPropertyName("nativeLibraries").withPathSensitivity(PathSensitivity.RELATIVE);
             systemProperties.systemProperty("es.nativelibs.path", libraryPath);
         });
     }

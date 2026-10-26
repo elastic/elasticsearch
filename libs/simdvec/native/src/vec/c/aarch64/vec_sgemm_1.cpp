@@ -197,18 +197,15 @@ EXPORT void vec_sgemm_i8(
                 multiply_rows<TILE_ROWS>(a, k, lStart, lCount, panel, c, n, i, j, cols);
             }
 
-            // row tail
+            // row tail, split into powers of two to avoid instantiating every smaller group size
+            static_assert(TILE_ROWS == 4, "the row tail handles up to 3 rows");
             const int rowTail = m - i;
-            switch (rowTail) {
-                case 3:
-                    multiply_rows<3>(a, k, lStart, lCount, panel, c, n, i, j, cols);
-                    break;
-                case 2:
-                    multiply_rows<2>(a, k, lStart, lCount, panel, c, n, i, j, cols);
-                    break;
-                case 1:
-                    multiply_rows<1>(a, k, lStart, lCount, panel, c, n, i, j, cols);
-                    break;
+            if (rowTail & 2) {
+                multiply_rows<2>(a, k, lStart, lCount, panel, c, n, i, j, cols);
+                i += 2;
+            }
+            if (rowTail & 1) {
+                multiply_rows<1>(a, k, lStart, lCount, panel, c, n, i, j, cols);
             }
         }
     }

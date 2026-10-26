@@ -378,7 +378,7 @@ public class PlanExecutor {
             partial,
             null
         );
-        queryLog.onQueryPhase(result, request.queryDescription());
+        queryLog.onQueryPhase(result, request.queryDescription(), request.viewSettings());
         // record routing usage telemetry
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
@@ -414,7 +414,7 @@ public class PlanExecutor {
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), settings, ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
         if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
             // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the

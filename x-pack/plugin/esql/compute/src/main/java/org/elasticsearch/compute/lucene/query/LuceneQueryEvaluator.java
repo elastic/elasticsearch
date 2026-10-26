@@ -150,7 +150,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         SegmentState segmentState = null;
         try (T scoreBuilder = createBlockBuilder(blockFactory, docs.getPositionCount())) {
             for (int i = 0; i < docs.getPositionCount(); i++) {
-                int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
+                int shard = docs.shards().getInt(map[i]);
                 int segment = docs.segments().getInt(map[i]);
                 if (segmentState == null || prevShard != shard || prevSegment != segment) {
                     segmentState = shardState(shard).segmentState(segment);

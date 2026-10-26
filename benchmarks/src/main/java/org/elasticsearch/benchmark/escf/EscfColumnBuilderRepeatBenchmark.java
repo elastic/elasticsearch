@@ -102,8 +102,26 @@ public class EscfColumnBuilderRepeatBenchmark {
     @Benchmark
     public void writeOncePerRow(Blackhole bh) {
         try (EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler)) {
-            for (int row = 0; row < rows; row++) {
-                writeRow(builder);
+            // The switch picks a loop rather than sitting inside one: a shared per-row writeRow would charge this
+            // benchmark a string switch per row, which is not free next to a long append and would show up as a
+            // speedup that belongs to the harness rather than to the builder.
+            switch (kind) {
+                case "long" -> {
+                    for (int row = 0; row < rows; row++) {
+                        builder.addLong(longValue);
+                    }
+                }
+                case "string" -> {
+                    for (int row = 0; row < rows; row++) {
+                        builder.addString(stringValue);
+                    }
+                }
+                case "longArray" -> {
+                    for (int row = 0; row < rows; row++) {
+                        builder.addLongArray(arrayValue, arrayValue.length);
+                    }
+                }
+                default -> throw new IllegalArgumentException("unknown column kind [" + kind + "]");
             }
             finish(builder, bh);
         }

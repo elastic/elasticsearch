@@ -155,6 +155,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -3163,7 +3164,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             getInstanceFromNode(CircuitBreakerService.class),
             getInstanceFromNode(ExecutorSelector.class),
             Tracer.NOOP,
-            OnlinePrewarmingService.NOOP
+            OnlinePrewarmingService.NOOP,
+            getInstanceFromNode(TransportService.class).getTaskManager()
         );
         service.start();
         return service;

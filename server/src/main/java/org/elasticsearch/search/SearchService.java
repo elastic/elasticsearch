@@ -984,6 +984,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         final long waitForCheckpoint = request.waitForCheckpoint();
         final Executor executor = getExecutor(shard);
+        final AtomicBoolean isDone = new AtomicBoolean(false);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
                 runAsync(executor, executable, listener);
@@ -998,21 +999,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return;
             }
 
-            final AtomicBoolean isDone = new AtomicBoolean(false);
-            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
-            // index shard on timeout so that a timed-out listener does not use up any listener slots.
             final TimeValue timeout = request.getWaitForCheckpointsTimeout();
-            final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
-                if (isDone.compareAndSet(false, true)) {
-                    var shardTarget = new SearchShardTarget(
-                        shard.routingEntry().currentNodeId(),
-                        shard.shardId(),
-                        request.getClusterAlias()
-                    );
-                    var message = LoggerMessageFormat.format("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout);
-                    listener.onFailure(new SearchTimeoutException(shardTarget, message));
-                }
-            }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            // The timeout is scheduled after the listener is registered, so that failures reported synchronously during registration
+            // (e.g. an unissued checkpoint) cannot lose a race against it.
+            final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
 
             // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
             // to 30s
@@ -1054,18 +1044,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 @Override
                 public void onFailure(Exception e) {
                     if (isDone.compareAndSet(false, true)) {
-                        if (timeoutTask != null) {
-                            timeoutTask.cancel();
-                        }
+                        cancelTimeout();
                         listener.onFailure(e);
+                    }
+                }
+
+                private void cancelTimeout() {
+                    final Scheduler.ScheduledCancellable scheduled = timeoutTask.get();
+                    if (scheduled != null) {
+                        scheduled.cancel();
                     }
                 }
 
                 private void searchReady() {
                     if (isDone.compareAndSet(false, true)) {
-                        if (timeoutTask != null) {
-                            timeoutTask.cancel();
-                        }
+                        cancelTimeout();
                         runAsync(executor, executable, listener);
                         // we successfully submitted the async task to the search pool so let's prewarm the shard
                         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
@@ -1074,8 +1067,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
             });
+
+            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
+            // index shard on timeout so that a timed-out listener does not use up any listener slots.
+            if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
+                timeoutTask.set(threadPool.schedule(() -> {
+                    if (isDone.compareAndSet(false, true)) {
+                        var shardTarget = new SearchShardTarget(
+                            shard.routingEntry().currentNodeId(),
+                            shard.shardId(),
+                            request.getClusterAlias()
+                        );
+                        var message = LoggerMessageFormat.format(
+                            "Wait for seq_no [{}] refreshed timed out [{}]",
+                            waitForCheckpoint,
+                            timeout
+                        );
+                        listener.onFailure(new SearchTimeoutException(shardTarget, message));
+                    }
+                }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE));
+                if (isDone.get()) {
+                    // the listener completed before the task was set, so it could not cancel it
+                    timeoutTask.get().cancel();
+                }
+            }
         } catch (Exception e) {
-            listener.onFailure(e);
+            // the refresh listener may already be registered and complete the listener, so only fail it if nothing else has
+            if (isDone.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            }
         }
     }
 

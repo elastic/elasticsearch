@@ -8,11 +8,14 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
@@ -216,7 +219,7 @@ class ValuesFromSingleReader extends ValuesReader {
             sourceLoader = operator.sourceLoader(shard, storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
-        StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
+        StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, ctx, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
             sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
@@ -257,12 +260,21 @@ class ValuesFromSingleReader extends ValuesReader {
     private StoredFieldLoader storedFieldLoader(
         StoredFieldsSpec storedFieldsSpec,
         ValuesSourceReaderOperator.ShardContext shardContext,
+        LeafReaderContext ctx,
         ValuesReaderDocs docs
     ) {
         if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
             return StoredFieldLoader.empty();
         }
-        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
+        int count = docs.count();
+        if (count > 0
+            && useSequentialStoredFieldsReader(
+                ctx,
+                count,
+                docs.get(0),
+                docs.get(count - 1),
+                shardContext.storedFieldsSequentialProportion()
+            )) {
             operator.trackStoredFields(storedFieldsSpec, true);
             return StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
         }
@@ -271,16 +283,45 @@ class ValuesFromSingleReader extends ValuesReader {
     }
 
     /**
-     * Is it more efficient to use a sequential stored field reader
-     * when reading stored fields for the documents contained in {@code docIds}?
+     * Is it more efficient to use a sequential stored field reader when reading stored fields
+     * for {@code count} distinct, ascending documents spanning {@code [firstDoc, lastDoc]} of
+     * the segment in {@code ctx}?
+     * <p>
+     *     Segments that decompress a whole block on every random read always take the sequential
+     *     reader once two documents are wanted: it decompresses each block it visits once rather
+     *     than once per document, and visiting a block for a single document costs the same either
+     *     way. Other segments fall back on the density heuristic.
+     * </p>
      */
-    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
-        int count = docs.count();
+    static boolean useSequentialStoredFieldsReader(
+        LeafReaderContext ctx,
+        int count,
+        int firstDoc,
+        int lastDoc,
+        double storedFieldsSequentialProportion
+    ) {
+        if (count >= 2 && decompressesWholeBlockPerDocument(ctx)) {
+            return true;
+        }
         if (count < SEQUENTIAL_BOUNDARY) {
             return false;
         }
-        int range = docs.get(count - 1) - docs.get(0);
+        int range = lastDoc - firstDoc;
         return range * storedFieldsSequentialProportion <= count;
+    }
+
+    /**
+     * Does a random-access stored fields read on this segment decompress the whole block that
+     * holds the document? True for zstd, which cannot stop part way through a block. Lucene's
+     * own formats compress sub blocks against a preset dictionary and only decompress the
+     * dictionary and the sub blocks the document spans.
+     */
+    static boolean decompressesWholeBlockPerDocument(LeafReaderContext ctx) {
+        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(ctx.reader());
+        if (segmentReader == null) {
+            return false;
+        }
+        return segmentReader.getSegmentInfo().info.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY) != null;
     }
 
     /**

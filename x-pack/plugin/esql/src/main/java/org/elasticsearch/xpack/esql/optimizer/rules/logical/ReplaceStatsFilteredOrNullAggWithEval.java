@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -142,7 +144,7 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
     }
 
     public static boolean shouldReplace(AggregateFunction aggFunction) {
-        if (hasFalseFilter(aggFunction)) {
+        if (hasFalseOrNullFilter(aggFunction)) {
             return true;
         }
         aggFunction = unwrapToPartial(unwrapFromPartial(aggFunction));
@@ -151,14 +153,19 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         }
         // Instead of the allowlist [First, Last], this could benefit from a marker
         // interface `FirstNullIsNull` or similar (comparable to `AnyNullIsNull`).
+        // See also: https://github.com/elastic/elasticsearch/issues/159848
         if (aggFunction instanceof First || aggFunction instanceof Last) {
             return DataType.isNull(aggFunction.fields().getFirst().dataType());
         }
         return false;
     }
 
-    private static boolean hasFalseFilter(AggregateFunction aggFunction) {
-        return aggFunction.hasFilter() && aggFunction.filter() instanceof Literal literal && Boolean.FALSE.equals(literal.value());
+    private static boolean hasFalseOrNullFilter(AggregateFunction aggFunction) {
+        if (aggFunction.hasFilter() == false) {
+            return false;
+        }
+        Expression filter = aggFunction.filter();
+        return Expressions.isGuaranteedNull(filter) || filter instanceof Literal literal && Boolean.FALSE.equals(literal.value());
     }
 
     /**

@@ -305,7 +305,7 @@ tests:
 # Lucene 11 int8 knn on 8.x-written segments can reorder near-tied hits
 # (VectorSearchIT 8.19 rolling upgrade; SemanticTextHighlighter on a random
 # 8.x / early 9.x IndexVersion). hasItem("0") still fails when "0" drops out
-# of k=2 (6727). Highlighter {p0=false} stays unmuted.
+# of k=2. Highlighter {p0=false} stays unmuted.
 - class: org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighterTests
   method: testDenseVector {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/XXXX
@@ -321,9 +321,14 @@ tests:
   method: testBackgroundMergeCanRetainDeletedGenerationalFile
   issue: https://github.com/elastic/elasticsearch/issues/XXXX
 # Lucene 11 force-merge packs .cfs; index.compound_format: false is a no-op until
-# CompoundFormat is wired, so _stats file_sizes hide cnd (6734).
+# CompoundFormat is wired, so _stats file_sizes hide cnd.
 - class: org.elasticsearch.upgrades.ColumnarIndexModeRollingUpgradeIT
   method: testColumnarDataStream {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/163164
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  methods:
+    - testColumnar {cluster=UPGRADED}
+    - testLogsdbColumnar {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/163164
 
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT

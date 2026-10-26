@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryName
 /**
  * Copies the conjuncts of a filter above an {@link InlineJoin} that only reference the aggregated values into the right-hand side, on
  * top of its {@link Aggregate}. The right-hand side is executed first and its result is shipped to the data nodes as a
- * {@link org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation}, so dropping the groups that the filter rejects anyway keeps that
+ * {@link LocalRelation}, so dropping the groups that the filter rejects anyway keeps that
  * result small. The filter stays above the join, where it removes the left rows whose group was dropped.
  * <pre>
  *     ... | INLINE STATS first_seen = MIN(@timestamp) BY host | WHERE @timestamp == first_seen AND first_seen &gt;= "2026-01-01"

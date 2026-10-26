@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -2235,7 +2236,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *             \_LocalRelation[[avgByL{r}#5, languages{f}#22],
      * org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@817a68ce]
      */
-    public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeComplexAggFilters() {
+    public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_CopyOuterAggFilter() {
         var plan = plan("""
             FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
@@ -2249,7 +2250,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
             | WHERE gender IS NOT NULL
-            | INLINE STATS avgByG = AVG(salary) BY gender
+            | INLINE STATS avgByG = AVG(salary) BY gender, keeping only the groups where avgByG < 50000 or gender is multi-valued
             | WHERE languages > 3 AND avgByL > 40000 AND avgByG < 50000
             | KEEP avgB*, languages, gender, emp_no
          */
@@ -2493,6 +2494,35 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals("c", as(multiValuedKey.right(), ReferenceAttribute.class).name());
         var aggregate = as(rightFilter.child(), Aggregate.class);
         assertThat(Expressions.names(aggregate.aggregates()).size(), is(3));
+    }
+
+    public void testPushDown_AggFilter_OnDuplicateAggregate_IntoInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS m = MAX(salary), m2 = MAX(salary) BY languages
+            | WHERE m2 > 70000
+            | KEEP emp_no, languages, m, m2
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var gt = as(commonFilter.condition(), GreaterThan.class);
+        assertEquals("m2", as(gt.left(), ReferenceAttribute.class).name());
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        // The right side computes the duplicated MAX once and projects m2 as an alias of m.
+        var rightProject = as(ij.right(), Project.class);
+        var m2 = as(rightProject.projections().get(1), Alias.class);
+        assertEquals("m2", m2.name());
+        var rightFilter = as(rightProject.child(), Filter.class);
+        var disjunctions = Predicates.splitOr(rightFilter.condition());
+        assertThat(disjunctions.size(), is(2));
+        var copied = as(disjunctions.get(0), GreaterThan.class);
+        assertEquals(m2.child(), copied.left());
+        assertEquals(gt.right(), copied.right());
+        var aggregate = as(rightFilter.child(), Aggregate.class);
+        as(aliasedAggregate(aggregate, copied.left()), Max.class);
+        as(aggregate.child(), StubRelation.class);
     }
 
     private static Expression aliasedAggregate(Aggregate aggregate, Expression attribute) {

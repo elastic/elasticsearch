@@ -5172,6 +5172,22 @@ emp_no:integer | job_positions:keyword |       hire_date:date     |    first_hir
 10053          |Support Engineer       |1986-02-04T00:00:00.000Z  |1986-02-04T00:00:00.000Z
 ;
 
+// Every grouping key needs its own multi-valued guard. job_positions is the only multi-valued key and sits between gender and
+// languages, so guarding only the first or only the last key would drop some of its groups and return 55 rows.
+aggFilter_FirstSeenShape_ThreeKeys_MultiValuedMiddleKey_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY gender, job_positions, languages
+| WHERE MV_MIN(first_hired) >= "1988-01-01"
+| STATS n = COUNT(*), s = SUM(emp_no)
+;
+
+n:long | s:long
+37     | 371737
+;
+
 // Left rows of a group without a matching right row get a null aggregate, which IS NULL accepts.
 nullAcceptingAggFilter_IsNull_PastInlineJoin
 required_capability: inline_stats

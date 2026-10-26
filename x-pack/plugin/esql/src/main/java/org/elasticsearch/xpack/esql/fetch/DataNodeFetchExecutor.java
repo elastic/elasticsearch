@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -64,8 +65,10 @@ import java.util.function.Supplier;
  * <p>
  * For each shard it finds the reader context the query phase kept open and builds a search context on it, on the thread
  * that received the request, so the searcher applies the document and field level security of that request. Then it
- * plans the fetch plan once and runs it in one driver per shard, at most {@link FetchService#MAX_CONCURRENT_SHARD_TASKS}
- * at a time. A shard that fails doesn't stop the others. The response returns the rows of each shard in request order.
+ * plans the fetch plan once and runs it in one driver per piece of a shard, at most
+ * {@link FetchService#MAX_CONCURRENT_SHARD_TASKS} at a time. A shard with enough documents splits into as many pieces, so
+ * a node whose documents sit in one shard still loads them on several threads. A shard that fails doesn't stop the others,
+ * and a piece that fails fails its shard. The response returns the rows of each shard in request order.
  * <p>
  * The executor holds the first reference on the context of each shard, and the pages take their own while they load. It
  * drops its references once the response is sent, on the generic pool, because dropping the last reference to a reader
@@ -125,10 +128,18 @@ final class DataNodeFetchExecutor {
          * The context of each shard of the request, {@code null} for a shard that failed to open.
          */
         private final List<DefaultShardContext> contexts;
-        private final AtomicReferenceArray<Exception> driverFailures;
+        /**
+         * Where the pieces of each shard start in the pieces of the request, with one more entry for the end. A shard that
+         * failed to open has no pieces. Set before the drivers start.
+         */
+        private int[] firstPieceOfShard;
+        /**
+         * The failure of each piece, set by its driver.
+         */
+        private AtomicReferenceArray<Exception> pieceFailures;
         @Nullable
         private ShardPages shardPages;
-        private List<ShardDriver> shardDrivers = List.of();
+        private List<PieceDriver> pieceDrivers = List.of();
         private long setupNanos;
         private final AtomicBoolean released = new AtomicBoolean();
 
@@ -139,7 +150,6 @@ final class DataNodeFetchExecutor {
             int shards = request.shards().size();
             this.results = new ShardResult[shards];
             this.contexts = new ArrayList<>(Arrays.asList(new DefaultShardContext[shards]));
-            this.driverFailures = new AtomicReferenceArray<>(shards);
         }
 
         void start() {
@@ -216,12 +226,15 @@ final class DataNodeFetchExecutor {
         }
 
         /**
-         * Plans the fetch plan and starts its drivers, one per open shard. Once they start, the last one to finish answers
-         * the request.
+         * Plans the fetch plan and starts its drivers, one per piece of an open shard. Once they start, the last one to finish
+         * answers the request.
          */
         private void startDrivers(List<FetchDocsSourceOperator.ShardDocs> open) {
+            int maxConcurrentDrivers = maxConcurrentShardTasks.getAsInt();
+            List<FetchDocsSourceOperator.ShardDocs> pieces = split(open, maxConcurrentDrivers);
+            pieceFailures = new AtomicReferenceArray<>(pieces.size());
             FetchShardContexts<DefaultShardContext> shardContexts = new FetchShardContexts<>(contexts);
-            FetchShardAssignment assignment = new FetchShardAssignment(open, shardContexts);
+            FetchShardAssignment assignment = new FetchShardAssignment(pieces, shardContexts);
             FoldContext foldCtx = request.configuration().newFoldContext();
             LocalExecutionPlanner planner = plannerFactory.create(
                 request.sessionId(),
@@ -232,21 +245,21 @@ final class DataNodeFetchExecutor {
                 shardContexts,
                 assignment
             );
-            shardPages = new ShardPages(request.shards().size());
+            shardPages = new ShardPages(pieces.size());
             LocalExecutionPlanner.LocalExecutionPlan plan = planner.plan(
                 DESCRIPTION,
                 foldCtx,
                 plannerSettings.get(),
                 request.fetchPlan(),
                 shardContexts,
-                shardPages.sinks(assignment::shardOf)
+                shardPages.sinks(assignment::pieceOf)
             );
             List<Driver> created = plan.createDrivers(new TaskId(clusterService.localNode().getId(), task.getId()).toString());
-            List<ShardDriver> byShard = new ArrayList<>(created.size());
+            List<PieceDriver> byPiece = new ArrayList<>(created.size());
             boolean success = false;
             try {
                 for (Driver driver : created) {
-                    byShard.add(new ShardDriver(driver, assignment.shardOf(driver.driverContext())));
+                    byPiece.add(new PieceDriver(driver, assignment.pieceOf(driver.driverContext())));
                 }
                 success = true;
             } finally {
@@ -255,15 +268,15 @@ final class DataNodeFetchExecutor {
                     Releasables.close(created);
                 }
             }
-            shardDrivers = byShard;
+            pieceDrivers = byPiece;
             setupNanos = System.nanoTime() - startNanos;
 
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-            ThrottledIterator.run(shardDrivers.iterator(), (releasable, shardDriver) -> {
-                Driver driver = shardDriver.driver();
+            ThrottledIterator.run(pieceDrivers.iterator(), (releasable, pieceDriver) -> {
+                Driver driver = pieceDriver.driver();
                 // runs at once when the task is already cancelled, and the driver fails on its first iteration
                 task.addListener(() -> driver.cancel(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled")));
-                ActionListener<Void> driverListener = ActionListener.wrap(ignored -> {}, e -> driverFailures.set(shardDriver.shard(), e));
+                ActionListener<Void> driverListener = ActionListener.wrap(ignored -> {}, e -> pieceFailures.set(pieceDriver.piece(), e));
                 Driver.start(
                     threadContext,
                     driverExecutor,
@@ -271,7 +284,28 @@ final class DataNodeFetchExecutor {
                     Driver.DEFAULT_MAX_ITERATIONS,
                     ActionListener.runAfter(driverListener, releasable::close)
                 );
-            }, maxConcurrentShardTasks.getAsInt(), this::onDriversDone);
+            }, maxConcurrentDrivers, this::onDriversDone);
+        }
+
+        /**
+         * Splits each open shard into the pieces its drivers load, at most as many as the request runs drivers at the same
+         * time, and records where the pieces of each shard start.
+         */
+        private List<FetchDocsSourceOperator.ShardDocs> split(List<FetchDocsSourceOperator.ShardDocs> open, int maxPiecesPerShard) {
+            int shards = request.shards().size();
+            firstPieceOfShard = new int[shards + 1];
+            List<FetchDocsSourceOperator.ShardDocs> pieces = new ArrayList<>(open.size());
+            Iterator<FetchDocsSourceOperator.ShardDocs> openShards = open.iterator();
+            FetchDocsSourceOperator.ShardDocs nextOpen = openShards.hasNext() ? openShards.next() : null;
+            for (int position = 0; position < shards; position++) {
+                firstPieceOfShard[position] = pieces.size();
+                if (nextOpen != null && nextOpen.shard() == position) {
+                    pieces.addAll(nextOpen.split(maxPiecesPerShard));
+                    nextOpen = openShards.hasNext() ? openShards.next() : null;
+                }
+            }
+            firstPieceOfShard[shards] = pieces.size();
+            return pieces;
         }
 
         /**
@@ -290,8 +324,14 @@ final class DataNodeFetchExecutor {
                         continue;
                     }
                     FetchRequest.ShardDocs shard = request.shards().get(position);
-                    List<Page> loaded = shardPages.take(position);
-                    Exception failure = driverFailures.get(position);
+                    List<Page> loaded = new ArrayList<>();
+                    Exception failure = null;
+                    for (int piece = firstPieceOfShard[position]; piece < firstPieceOfShard[position + 1]; piece++) {
+                        loaded.addAll(shardPages.take(piece));
+                        if (failure == null) {
+                            failure = pieceFailures.get(piece);
+                        }
+                    }
                     int rows = 0;
                     for (Page page : loaded) {
                         rows += page.getPositionCount();
@@ -353,12 +393,13 @@ final class DataNodeFetchExecutor {
 
         /**
          * The counters and profiles of the drivers that finished. A failed driver has neither, and its shard fails anyway.
+         * The other pieces of that shard did load, so their drivers count.
          */
         private DriverCompletionInfo completionInfo() {
-            List<Driver> finished = new ArrayList<>(shardDrivers.size());
-            for (ShardDriver shardDriver : shardDrivers) {
-                if (driverFailures.get(shardDriver.shard()) == null) {
-                    finished.add(shardDriver.driver());
+            List<Driver> finished = new ArrayList<>(pieceDrivers.size());
+            for (PieceDriver pieceDriver : pieceDrivers) {
+                if (pieceFailures.get(pieceDriver.piece()) == null) {
+                    finished.add(pieceDriver.driver());
                 }
             }
             if (request.configuration().profile()) {
@@ -413,7 +454,10 @@ final class DataNodeFetchExecutor {
         }
     }
 
-    private record ShardDriver(Driver driver, int shard) {}
+    /**
+     * @param piece the position of the piece the driver loads in the pieces of its request
+     */
+    private record PieceDriver(Driver driver, int piece) {}
 
     /**
      * A document outside the reader would fail deep in the loaders, or load another document.

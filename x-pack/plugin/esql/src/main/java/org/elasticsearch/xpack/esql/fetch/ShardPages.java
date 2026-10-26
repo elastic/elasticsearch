@@ -19,49 +19,50 @@ import java.util.function.Function;
 import java.util.function.ToIntFunction;
 
 /**
- * The pages that each shard of one fetch request loaded. The response returns the rows of each shard in the order the
- * request listed them, so the pages of a shard stay together and in order. The driver of each shard fills the slot of its
- * shard through an {@link OutputOperator}, and the request takes the slots once every driver is done.
+ * The pages that the shards of one fetch request loaded, one slot for each piece a shard loads in. The response returns the
+ * rows of each shard in the order the request listed them, so the pages of a piece stay together and in order, and the
+ * request takes the pieces of a shard one after the other. The driver of each piece fills the slot of its piece through
+ * an {@link OutputOperator}, and the request takes the slots once every driver is done.
  */
 final class ShardPages implements Releasable {
-    private final List<List<Page>> pagesByShard;
+    private final List<List<Page>> pagesByPiece;
     /**
      * Set before {@link #close} empties the slots, and read under the lock of a slot. A driver that adds a page after that
      * releases it, because nobody will take it.
      */
     private volatile boolean closed;
 
-    ShardPages(int shardCount) {
-        pagesByShard = new ArrayList<>(shardCount);
-        for (int s = 0; s < shardCount; s++) {
-            pagesByShard.add(new ArrayList<>());
+    ShardPages(int pieceCount) {
+        pagesByPiece = new ArrayList<>(pieceCount);
+        for (int p = 0; p < pieceCount; p++) {
+            pagesByPiece.add(new ArrayList<>());
         }
     }
 
     /**
-     * The sink of each driver: an {@link OutputOperator} that fills the slot of the shard the driver loads.
+     * The sink of each driver: an {@link OutputOperator} that fills the slot of the piece the driver loads.
      *
-     * @param shardOf the shard the driver of a {@link DriverContext} loads. The source of the driver claims it before the
+     * @param pieceOf the piece the driver of a {@link DriverContext} loads. The source of the driver claims it before the
      *                sink is built.
      */
-    SinkOperator.SinkOperatorFactory sinks(ToIntFunction<DriverContext> shardOf) {
+    SinkOperator.SinkOperatorFactory sinks(ToIntFunction<DriverContext> pieceOf) {
         return new SinkOperator.SinkOperatorFactory() {
             @Override
             public SinkOperator get(DriverContext driverContext) {
-                int shard = shardOf.applyAsInt(driverContext);
+                int piece = pieceOf.applyAsInt(driverContext);
                 // the sink already let the page go from its driver, so the request can send it from any thread
-                return new OutputOperator(List.of(), Function.identity(), page -> add(shard, page));
+                return new OutputOperator(List.of(), Function.identity(), page -> add(piece, page));
             }
 
             @Override
             public String describe() {
-                return "OutputOperator[pages of its shard]";
+                return "OutputOperator[pages of its piece]";
             }
         };
     }
 
-    private void add(int shard, Page page) {
-        List<Page> pages = pagesByShard.get(shard);
+    private void add(int piece, Page page) {
+        List<Page> pages = pagesByPiece.get(piece);
         synchronized (pages) {
             if (closed == false) {
                 pages.add(page);
@@ -72,10 +73,10 @@ final class ShardPages implements Releasable {
     }
 
     /**
-     * Hands the pages of {@code shard}, in order, to the caller, which releases them.
+     * Hands the pages of {@code piece}, in order, to the caller, which releases them.
      */
-    List<Page> take(int shard) {
-        List<Page> pages = pagesByShard.get(shard);
+    List<Page> take(int piece) {
+        List<Page> pages = pagesByPiece.get(piece);
         synchronized (pages) {
             List<Page> taken = new ArrayList<>(pages);
             pages.clear();
@@ -89,8 +90,8 @@ final class ShardPages implements Releasable {
     @Override
     public void close() {
         closed = true;
-        for (int s = 0; s < pagesByShard.size(); s++) {
-            for (Page page : take(s)) {
+        for (int p = 0; p < pagesByPiece.size(); p++) {
+            for (Page page : take(p)) {
                 page.releaseBlocks();
             }
         }

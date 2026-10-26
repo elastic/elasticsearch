@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -79,9 +80,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
@@ -89,6 +92,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -99,6 +103,10 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     private static final String FETCHED = "fetched";
+    /**
+     * An index with enough documents in a shard to split it.
+     */
+    private static final String SPLIT = "split";
     private static final int DOCS = 40;
     private static final Attribute ID = field("id", DataType.KEYWORD);
     private static final Attribute N = field("n", DataType.LONG);
@@ -324,7 +332,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
 
     /**
      * A driver that fails, for example because the breaker tripped while it loaded, fails its shard. The other shards
-     * still return their rows, and a profile lists their drivers only.
+     * still return their rows, and a profile lists the other drivers only.
      */
     public void testAFailedDriverFailsOnlyItsShard() throws Exception {
         List<OpenShard> shards = openEveryShard();
@@ -332,15 +340,18 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         if (randomBoolean()) {
             request = withConfiguration(request, new ConfigurationBuilder(request.configuration()).profile(true).build());
         }
-        int failing = between(0, request.shards().size() - 1);
-        SourceWrapper failOne = (driver, source) -> driver != failing ? source : new DelegatingSource(source) {
+        int maxConcurrentShardTasks = between(1, 10);
+        List<Integer> shardOfDriver = shardOfEachDriver(request, maxConcurrentShardTasks);
+        int failingDriver = between(0, shardOfDriver.size() - 1);
+        int failing = shardOfDriver.get(failingDriver);
+        SourceWrapper failOne = (driver, source) -> driver != failingDriver ? source : new DelegatingSource(source) {
             @Override
             public Page getOutput() {
                 throw new IllegalStateException("simulated failure");
             }
         };
 
-        try (Fetched fetched = fetch(request, newTask(), between(1, 10), failOne)) {
+        try (Fetched fetched = fetch(request, newTask(), maxConcurrentShardTasks, failOne)) {
             for (int s = 0; s < request.shards().size(); s++) {
                 ShardResult result = fetched.results().get(s);
                 if (s == failing) {
@@ -356,8 +367,116 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             loaded.remove(failing);
             assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, withShards(request, loaded))));
             if (request.configuration().profile()) {
-                assertThat(fetched.info().driverProfiles(), hasSize(request.shards().size() - 1));
+                assertThat(fetched.info().driverProfiles(), hasSize(shardOfDriver.size() - 1));
             }
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * A shard with many documents splits into pieces, one driver each, and the drivers of its pieces load at the same time:
+     * the first two drivers wait for each other before they load anything.
+     */
+    public void testLoadsTheDocumentsOfOneShardOnSeveralDrivers() throws Exception {
+        List<OpenShard> shards = openEveryShardOf(SPLIT, 1, 100);
+        FetchRequest request = request(shards, ns(100));
+        int maxConcurrentShardTasks = between(2, 10);
+        assertThat(shardOfEachDriver(request, maxConcurrentShardTasks).size(), greaterThan(1));
+        CountDownLatch together = new CountDownLatch(2);
+        SourceWrapper meet = (driver, source) -> new DelegatingSource(source) {
+            private boolean started;
+
+            @Override
+            public Page getOutput() {
+                if (started == false) {
+                    started = true;
+                    together.countDown();
+                    safeAwait(together);
+                }
+                return super.getOutput();
+            }
+        };
+
+        try (Fetched fetched = fetch(request, newTask(), maxConcurrentShardTasks, meet)) {
+            assertThat(fetched.results().getFirst().rows(), equalTo(100));
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * The rows of a shard split into pieces come back in the order of the request, piece after piece.
+     */
+    public void testTheRowsOfASplitShardComeBackInRequestOrder() throws Exception {
+        int docs = between(40, 200);
+        List<OpenShard> shards = openEveryShardOf(SPLIT, between(1, 2), docs);
+        FetchRequest request = request(shards, ns(docs));
+        int maxConcurrentShardTasks = between(2, 10);
+        assertThat("a shard splits", shardOfEachDriver(request, maxConcurrentShardTasks).size(), greaterThan(request.shards().size()));
+
+        try (Fetched fetched = fetch(request, newTask(), maxConcurrentShardTasks)) {
+            assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * A piece that fails fails its whole shard, so the response never holds a part of the rows of a shard. The other
+     * shards still return theirs.
+     */
+    public void testAFailedPieceFailsItsWholeShard() throws Exception {
+        List<OpenShard> shards = openEveryShardOf(SPLIT, 2, 100);
+        FetchRequest request = request(shards, ns(100));
+        int maxConcurrentShardTasks = between(2, 10);
+        List<Integer> shardOfDriver = shardOfEachDriver(request, maxConcurrentShardTasks);
+        List<Integer> driversOfSplitShards = new ArrayList<>();
+        for (int driver = 0; driver < shardOfDriver.size(); driver++) {
+            if (Collections.frequency(shardOfDriver, shardOfDriver.get(driver)) > 1) {
+                driversOfSplitShards.add(driver);
+            }
+        }
+        int failingDriver = randomFrom(driversOfSplitShards);
+        int failing = shardOfDriver.get(failingDriver);
+        SourceWrapper failOne = (driver, source) -> driver != failingDriver ? source : new DelegatingSource(source) {
+            @Override
+            public Page getOutput() {
+                throw new IllegalStateException("simulated failure");
+            }
+        };
+
+        try (Fetched fetched = fetch(request, newTask(), maxConcurrentShardTasks, failOne)) {
+            ShardResult failed = fetched.results().get(failing);
+            assertThat(failed.failure(), instanceOf(IllegalStateException.class));
+            assertThat(failed.rows(), equalTo(0));
+            List<FetchRequest.ShardDocs> loaded = new ArrayList<>(request.shards());
+            loaded.remove(failing);
+            for (FetchRequest.ShardDocs shard : loaded) {
+                ShardResult result = fetched.results().get(request.shards().indexOf(shard));
+                assertThat(result.failure(), nullValue());
+                assertThat(result.rows(), equalTo(shard.docCount()));
+            }
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, withShards(request, loaded))));
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * A shard splits into at most as many pieces as the request runs drivers at the same time, and a request that runs
+     * one driver at a time loads each shard whole.
+     */
+    public void testAShardSplitsIntoAtMostAsManyPiecesAsTheRequestRunsDrivers() throws Exception {
+        List<OpenShard> shards = openEveryShardOf(SPLIT, 1, 200);
+        FetchRequest request = withConfiguration(
+            request(shards, ns(200)),
+            new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).profile(true).build()
+        );
+        int maxConcurrentShardTasks = randomBoolean() ? 1 : between(2, 10);
+
+        try (Fetched fetched = fetch(request, newTask(), maxConcurrentShardTasks)) {
+            // every piece of 200 documents holds at least 20, so no cut is dropped
+            assertThat(fetched.info().driverProfiles(), hasSize(maxConcurrentShardTasks));
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
         }
         freeAndAssertAllFreed(shards);
     }
@@ -406,16 +525,17 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     }
 
     /**
-     * A profiled query gets a {@code fetch} driver for every shard the request loaded.
+     * A profiled query gets a {@code fetch} driver for every piece of every shard the request loaded.
      */
-    public void testProfileListsAFetchDriverPerShard() throws Exception {
+    public void testProfileListsAFetchDriverPerPiece() throws Exception {
         List<OpenShard> shards = openEveryShard();
         FetchRequest request = request(shards, allNs());
         FetchRequest profiledRequest = withConfiguration(request, new ConfigurationBuilder(request.configuration()).profile(true).build());
+        int maxConcurrentShardTasks = between(1, 10);
 
-        try (Fetched fetched = fetch(profiledRequest)) {
+        try (Fetched fetched = fetch(profiledRequest, newTask(), maxConcurrentShardTasks)) {
             List<DriverProfile> profiles = fetched.info().driverProfiles();
-            assertThat(profiles, hasSize(request.shards().size()));
+            assertThat(profiles, hasSize(shardOfEachDriver(request, maxConcurrentShardTasks).size()));
             for (DriverProfile profile : profiles) {
                 assertThat(profile.description(), equalTo(DataNodeFetchExecutor.DESCRIPTION));
             }
@@ -439,6 +559,44 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         contexts.responded();
         endRequest(contexts);
         return shards;
+    }
+
+    /**
+     * A new index of {@code docs} documents in {@code shards} shards, indexed in a few refreshes so each shard has several
+     * segments, with a context open on every shard like {@link #openEveryShard()}.
+     */
+    private List<OpenShard> openEveryShardOf(String index, int shards, int docs) throws IOException {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 0))
+                .setMapping("id", "type=keyword", "n", "type=long")
+        );
+        int refreshes = between(1, 4);
+        for (int r = 0; r < refreshes; r++) {
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = r * docs / refreshes; i < (r + 1) * docs / refreshes; i++) {
+                bulk.add(prepareIndex(index).setSource("id", "doc-" + i, "n", i));
+            }
+            assertFalse(bulk.get().hasFailures());
+        }
+        NodeFetchContexts contexts = newNodeContexts();
+        List<OpenShard> open = new ArrayList<>(shards);
+        for (int shard = 0; shard < shards; shard++) {
+            SearchContext searchContext = open(contexts, index, shard);
+            contexts.originOf(searchContext);
+            open.add(new OpenShard(searchContext.shardTarget().getShardId(), searchContext.readerContext().id(), locate(searchContext)));
+        }
+        contexts.responded();
+        endRequest(contexts);
+        return open;
+    }
+
+    private static List<Long> ns(int count) {
+        List<Long> ns = new ArrayList<>(count);
+        for (long n = 0; n < count; n++) {
+            ns.add(n);
+        }
+        return ns;
     }
 
     private static Map<Long, int[]> locate(SearchContext searchContext) throws IOException {
@@ -494,6 +652,23 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             EsqlTestUtils.TEST_CFG,
             FetchRequestTests.fetchPlan(List.of(ID, N))
         );
+    }
+
+    /**
+     * The position in the request of the shard of each driver, in the order the executor builds them: every shard of the
+     * request opens and splits into its pieces, at most as many as the request runs drivers at the same time.
+     */
+    private static List<Integer> shardOfEachDriver(FetchRequest request, int maxConcurrentShardTasks) {
+        List<Integer> shardOfDriver = new ArrayList<>();
+        for (int position = 0; position < request.shards().size(); position++) {
+            FetchRequest.ShardDocs shard = request.shards().get(position);
+            FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(position, shard.segments(), shard.docs());
+            int pieces = docs.split(maxConcurrentShardTasks).size();
+            for (int piece = 0; piece < pieces; piece++) {
+                shardOfDriver.add(position);
+            }
+        }
+        return shardOfDriver;
     }
 
     private static FetchRequest withShards(FetchRequest request, List<FetchRequest.ShardDocs> shards) {

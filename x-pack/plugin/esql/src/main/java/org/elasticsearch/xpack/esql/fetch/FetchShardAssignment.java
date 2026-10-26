@@ -19,46 +19,47 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Hands the open shards of one fetch request to the drivers of its fetch plan, one shard per driver, in request order.
+ * Hands the pieces of the open shards of one fetch request to the drivers of its fetch plan, one piece per driver, in
+ * request order.
  * <p>
- * The sink of a driver collects the pages of the driver's shard, but it never sees a {@code _doc} column, which the fetch
- * plan drops before the sink. It finds its shard through the {@link DriverContext} the source of the same driver claimed
- * the shard with. The planner builds the source of a driver before its sink, so the shard is always known by then.
+ * The sink of a driver collects the pages of the driver's piece, but it never sees a {@code _doc} column, which the fetch
+ * plan drops before the sink. It finds its piece through the {@link DriverContext} the source of the same driver claimed
+ * the piece with. The planner builds the source of a driver before its sink, so the piece is always known by then.
  */
 final class FetchShardAssignment implements FetchDocsSourceOperator.ShardDocsProvider, FetchSourceProvider {
-    private final List<FetchDocsSourceOperator.ShardDocs> shards;
+    private final List<FetchDocsSourceOperator.ShardDocs> pieces;
     private final IndexedByShardId<? extends RefCounted> shardContexts;
-    private final Map<DriverContext, Integer> shardOfDriver = new IdentityHashMap<>();
-    private int nextShard;
+    private final Map<DriverContext, Integer> pieceOfDriver = new IdentityHashMap<>();
+    private int nextPiece;
 
     /**
-     * @param shards        the open shards, by their position in the request
+     * @param pieces        the pieces of the open shards, each with the position of its shard in the request
      * @param shardContexts the contexts of the shards by their position in the request, which the pages reference
      */
-    FetchShardAssignment(List<FetchDocsSourceOperator.ShardDocs> shards, IndexedByShardId<? extends RefCounted> shardContexts) {
-        this.shards = List.copyOf(shards);
+    FetchShardAssignment(List<FetchDocsSourceOperator.ShardDocs> pieces, IndexedByShardId<? extends RefCounted> shardContexts) {
+        this.pieces = List.copyOf(pieces);
         this.shardContexts = shardContexts;
     }
 
     @Override
     public synchronized FetchDocsSourceOperator.ShardDocs claim(DriverContext driverContext) {
-        if (nextShard == shards.size()) {
+        if (nextPiece == pieces.size()) {
             return null;
         }
-        FetchDocsSourceOperator.ShardDocs shard = shards.get(nextShard++);
-        shardOfDriver.put(driverContext, shard.shard());
-        return shard;
+        int piece = nextPiece++;
+        pieceOfDriver.put(driverContext, piece);
+        return pieces.get(piece);
     }
 
     /**
-     * The position in the request of the shard the driver of {@code driverContext} loads.
+     * The position in {@code pieces} of the piece the driver of {@code driverContext} loads.
      */
-    synchronized int shardOf(DriverContext driverContext) {
-        Integer shard = shardOfDriver.get(driverContext);
-        if (shard == null) {
-            throw new IllegalStateException("no shard was claimed for this fetch driver");
+    synchronized int pieceOf(DriverContext driverContext) {
+        Integer piece = pieceOfDriver.get(driverContext);
+        if (piece == null) {
+            throw new IllegalStateException("no piece was claimed for this fetch driver");
         }
-        return shard;
+        return piece;
     }
 
     @Override
@@ -68,6 +69,6 @@ final class FetchShardAssignment implements FetchDocsSourceOperator.ShardDocsPro
 
     @Override
     public FetchSource fetchSource(FetchSourceExec exec, int maxPageSize) {
-        return new FetchSource(new FetchDocsSourceOperator.Factory(this, maxPageSize), shards.size());
+        return new FetchSource(new FetchDocsSourceOperator.Factory(this, maxPageSize), pieces.size());
     }
 }

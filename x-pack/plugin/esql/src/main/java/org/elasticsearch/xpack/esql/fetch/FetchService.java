@@ -41,10 +41,10 @@ public final class FetchService {
     public static final String FETCH_ACTION_NAME = EsqlQueryAction.NAME + "/fetch";
 
     /**
-     * The most shards one fetch request loads at the same time on a node. Each shard is a driver on the worker pool of
-     * ES|QL, next to the drivers of the query phase. It bounds the loading only: the node opens the search contexts of
-     * every shard of the request before the first driver starts, on the thread that received it, so they all apply the
-     * security of the request.
+     * The most drivers one fetch request runs at the same time on a node, and the most pieces one of its shards splits
+     * into. Each piece of a shard is a driver on the worker pool of ES|QL, next to the drivers of the query phase. It bounds
+     * the loading only: the node opens the search contexts of every shard of the request before the first driver starts,
+     * on the thread that received it, so they all apply the security of the request.
      */
     public static final Setting<Integer> MAX_CONCURRENT_SHARD_TASKS = Setting.intSetting(
         "esql.fetch.max_concurrent_shard_tasks",

@@ -235,7 +235,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
+        runner.document(Map.of("field", value));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();
@@ -261,7 +261,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
+        runner.document(Map.of("field", value));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();

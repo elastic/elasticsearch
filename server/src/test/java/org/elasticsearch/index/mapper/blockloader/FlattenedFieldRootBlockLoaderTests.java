@@ -295,8 +295,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         // Source has a list of maps — both doc values and source paths merge all keyed
         // values into one flat JSON blob.
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", List.of(Map.of("a", "1", "b", "2"), Map.of("c", "3", "a", "4"))));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", List.of(Map.of("a", "1", "b", "2"), Map.of("c", "3", "a", "4"))));
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
@@ -322,8 +321,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
      */
     public void testBlockLoaderPreserveLeafArraysExactWithFieldMultiplicity() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", List.of(Map.of("key", List.of("b", "a")), Map.of("key", "c"))));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", List.of(Map.of("key", List.of("b", "a")), Map.of("key", "c"))));
         runner.fieldName("field");
 
         Map<String, Object> flattenedMapping = Map.of("type", "flattened", "preserve_leaf_arrays", "exact");
@@ -347,8 +345,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         var fieldValue = new LinkedHashMap<String, Object>();
         fieldValue.put("a.b", "cat");
         fieldValue.put("a", Map.of("b", "dog"));
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", fieldValue));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", fieldValue));
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
@@ -365,8 +362,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
     public void testBlockLoaderOutputFlatStructure() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", Map.of("a", Map.of("x", "10"), "b", Map.of("y", "20"))));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", Map.of("a", Map.of("x", "10"), "b", Map.of("y", "20"))));
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
@@ -387,8 +383,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         Map<String, Object> labels = Map.of("env", "prod", "status_code", 200, "message", "hello");
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", labels));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", labels));
         runner.fieldName("field");
 
         // status_code is a mapped long (doc values), message is a mapped text (no doc values, not stored), env is unmapped.
@@ -413,8 +408,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
     public void testBlockLoaderStringifiesMappedRootViaSource() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         // status is a mapped keyword, code a mapped long; unmapped_key lands in the keyed channel.
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", Map.of("status", "ok", "code", 200, "unmapped_key", "some_value")));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", Map.of("status", "ok", "code", 200, "unmapped_key", "some_value")));
         runner.fieldName("field");
 
         Map<String, Object> flattenedMapping = Map.of(
@@ -438,8 +432,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
     public void testBlockLoaderMappedPropertyOnlyViaSource() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         // Only the mapped keyword sub-field has a value; the keyed channel is empty.
-        Map<String, Object> documentMap = new HashMap<>(Map.of("field", Map.of("status", "active")));
-        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(documentMap, params.indexMode()));
+        runner.document(Map.of("field", Map.of("status", "active")));
         runner.fieldName("field");
 
         Map<String, Object> flattenedMapping = Map.of("type", "flattened", "properties", Map.of("status", Map.of("type", "keyword")));

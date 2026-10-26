@@ -11,8 +11,11 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.List;
 
@@ -85,18 +88,39 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
     }
 
     private void logBatchOpFailure(IndexOperationBatch batch, int i, Exception ex) {
-        LOGGER.debug(
-            () -> format(
-                "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
-                batch.id(i),
-                batch.seqNo(i),
-                indexShard.routingEntry().allocationId(),
-                batch.primaryTerm(),
-                indexShard.getOperationPrimaryTerm(),
-                batch.origin()
-            ),
-            ex
+        if (isUserError(ex)) {
+            LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
+        } else {
+            LOGGER.debug(getMessageSupplier("real-index-fail", batch, i), ex);
+        }
+    }
+
+    private Supplier<Object> getMessageSupplier(String messagePrefix, IndexOperationBatch batch, int i) {
+        return () -> format(
+            "%s [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+            messagePrefix,
+            batch.id(i),
+            batch.seqNo(i),
+            indexShard.routingEntry().allocationId(),
+            batch.primaryTerm(),
+            indexShard.getOperationPrimaryTerm(),
+            batch.origin()
         );
+    }
+
+    /**
+     * Returns true if the exception is a user error, false otherwise.
+     * User errors are logged at trace level, while other errors such as codec issues or lucene errors are logged at debug level.
+     * @return true if the exception is a user error, false otherwise
+     */
+    private boolean isUserError(Exception ex) {
+        return switch (ex) {
+            case DocumentMissingException dme -> true;
+            case VersionConflictEngineException vcee -> true;
+            case IllegalArgumentException iae -> iae.getMessage() != null
+                && iae.getMessage().startsWith("Number of documents in the shard cannot exceed [");
+            default -> false;
+        };
     }
 
     private void logEntireBatchFailure(IndexOperationBatch batch, Exception ex) {

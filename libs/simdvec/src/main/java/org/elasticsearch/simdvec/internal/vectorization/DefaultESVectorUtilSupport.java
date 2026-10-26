@@ -812,7 +812,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
         Arrays.fill(result, 0);
-        multiplyAccumulate(a, k, b, result, m, k, n, executor);
+        multiplyAccumulate(a, k, b, result, m, k, n, false, executor);
+    }
+
+    @Override
+    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, n, k, n, true, executor);
     }
 
     private static final int MIN_PARALLEL_TASKS = 16;
@@ -825,15 +831,28 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * @param cRows      rows of C, and of the left operand
      * @param inner      inner dimension of the multiplication
      * @param n          columns of C, and of B
+     * @param upperOnly  C is square and symmetric: each row computes only the entries on and above the diagonal, and copies
+     *                   them into the same column below it
      */
-    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n, TaskExecutor executor) {
+    private void multiplyAccumulate(
+        float[] a,
+        int aRowStride,
+        float[] b,
+        float[] c,
+        int cRows,
+        int inner,
+        int n,
+        boolean upperOnly,
+        TaskExecutor executor
+    ) {
+        assert upperOnly == false || cRows == n : "a symmetric product is square";
         // unroll 4x, so 4 values are accumulated into each c cell at once
         int innerLimit = inner - inner % 4;
         int taskNum = cRows / 4;
 
         if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
             for (int r = 0; r < cRows; r++) {
-                multiplyRow(a, aRowStride, b, c, inner, n, r, innerLimit);
+                multiplyRow(a, aRowStride, b, c, inner, n, r, upperOnly, innerLimit);
             }
         } else {
             List<Callable<Void>> ops = new ArrayList<>(taskNum);
@@ -842,7 +861,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 int rowEnd = Math.min(r + 4, cRows);
                 ops.add(() -> {
                     for (int i = rowStart; i < rowEnd; i++) {
-                        multiplyRow(a, aRowStride, b, c, inner, n, i, innerLimit);
+                        multiplyRow(a, aRowStride, b, c, inner, n, i, upperOnly, innerLimit);
                     }
                     return null;
                 });
@@ -857,7 +876,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    private void multiplyRow(float[] a, int aRowStride, float[] b, float[] c, int inner, int n, int i, int innerLimit) {
+    /**
+     * Accumulates row {@code i} of C. With {@code upperOnly} it accumulates only from the diagonal on, and once the row is
+     * complete copies it into column {@code i} below the diagonal. Only the task for row {@code i} writes that column, so
+     * tasks for different rows do not write the same entries.
+     */
+    private void multiplyRow(float[] a, int aRowStride, float[] b, float[] c, int inner, int n, int i, boolean upperOnly, int innerLimit) {
+        int firstColumn = upperOnly ? i : 0;
         int aBase = i * aRowStride;
         int cBase = i * n;
         int l = 0;
@@ -867,7 +892,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             int b1 = b0 + n;
             int b2 = b0 + n * 2;
             int b3 = b0 + n * 3;
-            for (int j = 0; j < n; j++) {
+            for (int j = firstColumn; j < n; j++) {
                 float acc = c[cBase + j];
                 acc = fma(a[aOffset], b[b0 + j], acc);
                 acc = fma(a[aOffset + 1], b[b1 + j], acc);
@@ -878,7 +903,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         // tail
         for (; l < inner; l++) {
-            linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+            linearCombination(a[aBase + l], b, l * n + firstColumn, c, cBase + firstColumn, n - firstColumn);
+        }
+        if (upperOnly) {
+            for (int j = i + 1; j < n; j++) {
+                c[j * n + i] = c[cBase + j];
+            }
         }
     }
 

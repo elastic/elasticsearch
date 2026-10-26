@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -1565,7 +1566,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         HttpEntity entity;
         try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
             String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
-            entity = new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType));
+            // getByMimeType returns null for the non-JSON XContent types, which would drop the Content-Type header and get a 406
+            entity = new NByteArrayEntity(bos.toByteArray(), ContentType.create(mediaType));
         }
         List<String> params = new ArrayList<>();
         params.add("batch_size=" + batchSize);
@@ -1638,7 +1640,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         result.put("values", resultRows);
 
         @SuppressWarnings("unchecked")
-        List<String> warnings = new ArrayList<>((List<String>) footer.get("warnings"));
+        List<String> footerWarnings = (List<String>) footer.get("warnings");
+        // The footer carries plain-text warnings, but the specs are written against the escaped/encoded form of the Warning header
+        List<String> warnings = new ArrayList<>(footerWarnings.stream().map(HeaderWarning::escapeAndEncode).toList());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE footer warnings (after muted)={}", warnings);

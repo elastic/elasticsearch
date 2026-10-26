@@ -391,7 +391,8 @@ public final class EsqlStreamTestUtils {
                     lineBuffer.setLength(0);
                     start = nl + 1;
                     if (raw.isEmpty() == false) {
-                        Map<String, Object> line = XContentHelper.convertToMap(XContentType.JSON.xContent(), raw, false);
+                        // ordered, so nested objects (e.g. FLATTENED/_source values) keep the server's key order like the sync path
+                        Map<String, Object> line = XContentHelper.convertToMap(XContentType.JSON.xContent(), raw, true);
                         int lineIndex = lines.size();
                         lines.add(line);
 

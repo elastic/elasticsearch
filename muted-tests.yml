@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/149083
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testRightClosedBucketIsNotSubstituted
-  issue: https://github.com/elastic/elasticsearch/issues/149133
 - class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
   method: testLimitsFileCount
   issue: https://github.com/elastic/elasticsearch/issues/149557
@@ -148,9 +145,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors
-  issue: https://github.com/elastic/elasticsearch/issues/151327
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
@@ -244,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
   method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
   issue: https://github.com/elastic/elasticsearch/issues/154023
-- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
-  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
-  issue: https://github.com/elastic/elasticsearch/issues/155014
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testNoBothIncludeCcsMetadataAndIncludeExecutionMetadata
   issue: https://github.com/elastic/elasticsearch/issues/155123
@@ -286,9 +277,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/156829
-- class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/156860
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_DeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/156861
@@ -297,12 +285,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testMultiValuedField
   issue: https://github.com/elastic/elasticsearch/issues/157040
-- class: org.elasticsearch.compute.aggregation.PromqlHistogramQuantileGroupingAggregatorFunctionTests
-  method: testNullGroups
-  issue: https://github.com/elastic/elasticsearch/issues/157104
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=cluster.stats/10_basic/Sparse vector stats}
-  issue: https://github.com/elastic/elasticsearch/issues/157110
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/157299

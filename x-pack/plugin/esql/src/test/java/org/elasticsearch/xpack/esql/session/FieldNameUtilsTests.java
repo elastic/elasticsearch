@@ -66,6 +66,17 @@ public class FieldNameUtilsTests extends ESTestCase {
         this.includePrefixFields = includePrefixFields;
     }
 
+    /**
+     * QSTR and KQL name their fields inside a string, so no field is referenced. All fields are needed so the shadowing
+     * check can see an indexed field that a command redefines.
+     */
+    public void testQueryStringFunctionsNeedAllFields() {
+        assertFieldNames("from test | eval first_name = \"x\" | where qstr(\"first_name: a\") | keep emp_no", ALL_FIELDS);
+        assertFieldNames("from test | eval first_name = \"x\" | where kql(\"first_name: a\") | keep emp_no", ALL_FIELDS);
+        assertFieldNames("from test | where QSTR(\"first_name: a\") | stats c = count(*) by gender", ALL_FIELDS);
+        assertFieldNames("from test, (from test | where kql(\"first_name: a\") | keep emp_no) | keep emp_no", ALL_FIELDS);
+    }
+
     public void testBasicFromCommand() {
         assertFieldNames("from test", ALL_FIELDS);
     }
@@ -2473,7 +2484,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 4)
             | EVAL title = trim(substring(title, 1, 20))
-            | KEEP _score, author, title, _fork""", Set.of("_index", "author", "title", "year", "title.*", "author.*", "year.*"));
+            | KEEP _score, author, title, _fork""", ALL_FIELDS); // the qstr() in the first branch needs all fields
     }
 
     public void testFuseWithSemanticSearch() {

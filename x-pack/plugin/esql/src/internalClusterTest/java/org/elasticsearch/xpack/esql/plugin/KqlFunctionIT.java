@@ -307,6 +307,20 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereKqlWithKeepRejectsRedefinedIndexedField() {
+        // KEEP narrows the fields requested from the index, so the field named only in the query string still has to be seen
+        var query = """
+            FROM test
+            | EVAL content = "constant"
+            | WHERE KQL("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        var e = expectThrows(VerificationException.class, () -> run(query).close());
+        assertThat(e.getMessage(), containsString("[KQL] function cannot be used after EVAL because [content] redefines a field"));
+    }
+
     public void testKqlBeforeSample() {
         var query = """
             FROM test

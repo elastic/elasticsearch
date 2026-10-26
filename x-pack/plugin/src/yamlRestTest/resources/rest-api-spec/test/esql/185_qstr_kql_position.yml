@@ -204,3 +204,23 @@ setup:
       esql.query:
         body:
           query: 'FROM test | LOOKUP JOIN test_lookup_shadow ON id | WHERE KQL("content: fox")'
+
+---
+"qstr after eval that redefines an indexed field with a narrowed projection":
+  - do:
+      catch: /.*\[QSTR\] function cannot be used after EVAL because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL content = "constant" | WHERE QSTR("content: fox") | KEEP id | SORT id'
+
+---
+"kql after eval that redefines an indexed field with a narrowed projection":
+  - do:
+      catch: /.*\[KQL\] function cannot be used after EVAL because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL content = "constant" | WHERE KQL("content: fox") | KEEP id | SORT id'

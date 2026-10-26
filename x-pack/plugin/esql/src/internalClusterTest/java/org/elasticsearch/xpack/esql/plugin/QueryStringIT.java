@@ -314,6 +314,20 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereQstrWithKeepRejectsRedefinedIndexedField() {
+        // KEEP narrows the fields requested from the index, so the field named only in the query string still has to be seen
+        var query = """
+            FROM test
+            | EVAL content = "constant"
+            | WHERE QSTR("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        var e = expectThrows(VerificationException.class, () -> run(query).close());
+        assertThat(e.getMessage(), containsString("[QSTR] function cannot be used after EVAL because [content] redefines a field"));
+    }
+
     public void testQstrAfterInlineStats() {
         assumeTrue(
             "requires full-text functions after INLINE STATS support",

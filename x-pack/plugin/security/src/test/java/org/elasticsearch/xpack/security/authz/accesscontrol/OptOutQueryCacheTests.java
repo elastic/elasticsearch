@@ -187,16 +187,21 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     /**
-     * Checks that each random query is cacheable only when it is safe to cache, using a searcher over an FLS-filtered reader as in production.
+     * Checks that each random query is cacheable only when it is safe to cache, using a searcher over an FLS-filtered reader as in
+     * production.
      */
     public void testCachingIsSafeRandomQueries() throws IOException {
-        final Set<String> allowedFields = Set.of("foo", "bar");
-        final Set<String> disallowedFields = Set.of(
-            randomValueOtherThanMany(allowedFields::contains, () -> randomAlphaOfLengthBetween(3, 10)),
-            "_" + randomAlphaOfLengthBetween(1, 10)
-        );
+        final Set<String> allowedFields = Set.of("foo", "_allowed");
+        final Set<String> disallowedFields = Set.of("secret", "_disallowed");
+
+        // metadata fields are granted by default, so _allowed is left out of the grant and _disallowed must be excluded explicitly
         final IndicesAccessControl.IndexAccessControl permissions = new IndicesAccessControl.IndexAccessControl(
-            new FieldPermissions(fieldPermissionDef(allowedFields.toArray(String[]::new), null)),
+            new FieldPermissions(
+                fieldPermissionDef(
+                    allowedFields.stream().filter(f -> f.startsWith("_") == false).toArray(String[]::new),
+                    disallowedFields.stream().filter(f -> f.startsWith("_")).toArray(String[]::new)
+                )
+            ),
             DocumentPermissions.allowAll()
         );
 
@@ -220,7 +225,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
             ) {
                 IndexSearcher flsSearcher = newSearcher(flsReader);
                 for (int i = 0; i < 100; i++) {
-                    RandomQuery query = randomQuery(flsSearcher, allowedFields, disallowedFields);
+                    // production rewrites before the query cache is consulted
+                    RandomQuery query = randomQuery(flsSearcher, allowedFields, disallowedFields).rewrite(flsSearcher);
                     Weight weight = query.query().createWeight(flsSearcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     assertEquals(query.query().toString(), query.cacheable(), OptOutQueryCache.cachingIsSafe(weight, permissions));
                 }
@@ -257,33 +263,36 @@ public class OptOutQueryCacheTests extends ESTestCase {
         verify(indicesQueryCache).doCache(same(weight), same(policy));
     }
 
-    private RandomQuery randomQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields) throws IOException {
+    private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
+        return new FieldPermissionsDefinition(granted, denied);
+    }
+
+    private static RandomQuery randomQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields)
+        throws IOException {
         return randomQuery(searcher, allowedFields, disallowedFields, randomFrom(QueryType.values()));
     }
 
-    private RandomQuery randomQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields, QueryType type)
+    private static RandomQuery randomQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields, QueryType type)
         throws IOException {
         boolean fieldAllowed = randomBoolean();
         String field = randomFrom(fieldAllowed ? allowedFields : disallowedFields);
+        boolean cacheable = fieldAllowed && field.startsWith("_") == false; // Queries on metadata fields are never cached
         BitSetProducer parents = new QueryBitSetProducer(new TermQuery(new Term("parent", "true")));
 
         return switch (type) {
-            case TERM -> new RandomQuery(new TermQuery(new Term(field, "x")), fieldAllowed);
-            case PHRASE -> new RandomQuery(new PhraseQuery(field, "a", "b"), fieldAllowed);
+            case TERM -> new RandomQuery(new TermQuery(new Term(field, "x")), cacheable);
+            case PHRASE -> new RandomQuery(new PhraseQuery(field, "a", "b"), cacheable);
+            // a visible field in every document rewrites to match-all, which is cacheable even for a metadata field, while a hidden
+            // field isn't rewritten and reports itself
             case FIELD_EXISTS -> new RandomQuery(new FieldExistsQuery(field), fieldAllowed);
-            // multi-term queries must be rewritten before creating a weight
-            case PREFIX -> new RandomQuery(searcher.rewrite(new PrefixQuery(new Term(field, "a"))), fieldAllowed);
-            case WILDCARD -> new RandomQuery(searcher.rewrite(new WildcardQuery(new Term(field, "a*b"))), fieldAllowed);
-            case REGEXP -> new RandomQuery(searcher.rewrite(new RegexpQuery(new Term(field, "a.*b"))), fieldAllowed);
-            case TERM_IN_SET -> new RandomQuery(
-                searcher.rewrite(new TermInSetQuery(field, List.of(new BytesRef("a"), new BytesRef("b")))),
-                fieldAllowed
-            );
-            case TERMS_MATCHING_ONLY -> new RandomQuery(new ConsumeTermsMatchingQuery(field), fieldAllowed);
+            case PREFIX -> new RandomQuery(new PrefixQuery(new Term(field, "a")), cacheable);
+            case WILDCARD -> new RandomQuery(new WildcardQuery(new Term(field, "a*b")), cacheable);
+            case REGEXP -> new RandomQuery(new RegexpQuery(new Term(field, "a.*b")), cacheable);
+            case TERM_IN_SET -> new RandomQuery(new TermInSetQuery(field, List.of(new BytesRef("a"), new BytesRef("b"))), cacheable);
+            case TERMS_MATCHING_ONLY -> new RandomQuery(new ConsumeTermsMatchingQuery(field), cacheable);
             case MATCH_ALL -> new RandomQuery(new MatchAllDocsQuery(), true);
             case MATCH_NONE -> new RandomQuery(new MatchNoDocsQuery(), true);
-            // MinDocQuery doesn't report a field, and must be rewritten against the reader before creating a weight
-            case MIN_DOC -> new RandomQuery(searcher.rewrite(new MinDocQuery(randomNonNegativeInt())), false);
+            case MIN_DOC -> new RandomQuery(new MinDocQuery(randomNonNegativeInt()), false); // MinDocQuery doesn't report a field
             // Lucene's block join queries don't visit the query they wrap
             case TO_PARENT_BLOCK_JOIN -> new RandomQuery(
                 new ToParentBlockJoinQuery(
@@ -340,18 +349,17 @@ public class OptOutQueryCacheTests extends ESTestCase {
                     minimumNumberMatch = new ScriptLikeLongValuesSource();
                 }
 
-                Query rewritten = searcher.rewrite(new CoveringQuery(queries, minimumNumberMatch));
                 // A constant minimum is rewritten to a boolean query, so only the inner clauses matter. That rewrite drops match-none
                 // SHOULD clauses, and if fewer than the minimum remain it collapses to a MatchNoDocsQuery, which is always cacheable.
                 // CoveringQuery doesn't report the field its minimum match count comes from, so field and script sources are never
                 // cacheable, even when the field is granted.
-                boolean cacheable = constant && (rewritten instanceof MatchNoDocsQuery || innerCacheable);
-                yield new RandomQuery(rewritten, cacheable);
+                Query rewritten = searcher.rewrite(new CoveringQuery(queries, minimumNumberMatch));
+                yield new RandomQuery(rewritten, constant && (rewritten instanceof MatchNoDocsQuery || innerCacheable));
             }
         };
     }
 
-    private RandomQuery randomInnerQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields)
+    private static RandomQuery randomInnerQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields)
         throws IOException {
         return randomQuery(
             searcher,
@@ -392,11 +400,11 @@ public class OptOutQueryCacheTests extends ESTestCase {
         }
     }
 
-    private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
-        return new FieldPermissionsDefinition(granted, denied);
+    private record RandomQuery(Query query, boolean cacheable) {
+        RandomQuery rewrite(IndexSearcher searcher) throws IOException {
+            return new RandomQuery(searcher.rewrite(query), cacheable);
+        }
     }
-
-    private record RandomQuery(Query query, boolean cacheable) {}
 
     /**
      * Real multi-term queries call {@code acceptField} before {@code consumeTermsMatching}, so a hidden field is rejected before

@@ -523,3 +523,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:test
   issue: https://github.com/elastic/elasticsearch/issues/163299
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#oldToNew
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
+  issue: https://github.com/elastic/elasticsearch/issues/163410

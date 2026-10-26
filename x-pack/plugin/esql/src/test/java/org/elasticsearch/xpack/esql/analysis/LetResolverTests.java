@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InS
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -185,63 +184,6 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // FORKs that only share a pipeline once a binding is substituted
-    // -----------------------------------------------------------------------
-
-    /**
-     * Each binding body is a FORK scope of its own while parsing, so a FORK in a body and a FORK over the name that references it
-     * both parse. Once substituted they sit on one pipeline and must be rejected before view resolution multiplies the plan.
-     */
-    public void testForkInBindingAndForkOverReferenceRejected() {
-        String error = "Only a single FORK command is supported, but found multiple";
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)")
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> parseAndResolveLet(
-                "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0)); FROM r"
-            )
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> parseAndResolveLet(
-                "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q | FORK (WHERE y > 0) (WHERE y < 0))"
-            )
-        );
-    }
-
-    /** Each binding adds a FORK over the previous one; the chain stays under the plan-size limit so the FORK rule is what rejects it. */
-    public void testChainedForkBindingsRejected() {
-        StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
-        for (int i = 1; i < 6; i++) {
-            query.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
-        }
-        query.append(" FROM f5");
-        expectThrows(
-            VerificationException.class,
-            containsString("Only a single FORK command is supported, but found multiple"),
-            () -> parseAndResolveLet(query.toString())
-        );
-    }
-
-    /** A binding referenced next to another source becomes one branch of a UNION ALL, which starts a new FORK segment. */
-    public void testForkInBindingSeparatedByUnionAllAccepted() {
-        LogicalPlan result = parseAndResolveLet(
-            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q, b | FORK (WHERE y > 0) (WHERE y < 0)"
-        );
-        assertThat(result, instanceOf(Fork.class));
-        result = parseAndResolveLet(
-            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q) | FORK (WHERE y > 0) (WHERE y < 0)"
-        );
-        assertThat(result, instanceOf(Fork.class));
-    }
-
-    // -----------------------------------------------------------------------
     // Mixed FROM: binding name alongside real index patterns
     // -----------------------------------------------------------------------
 
@@ -324,19 +266,6 @@ public class LetResolverTests extends ESTestCase {
         );
     }
 
-    /**
-     * FORKs nested through UNION ALL subqueries are legal, but their branches share input by reference, so the parsed plan is already
-     * past the limit and the first binding substituted into it is rejected. The size check must not walk the paths to find that out.
-     */
-    public void testNestedForksSeparatedByUnionAllRejectedByPlanSizeWithoutWalkingEveryPath() {
-        String query = "FROM q | FORK (WHERE x > 0) (WHERE x < 0)";
-        for (int i = 0; i < 8; i++) {
-            query = "FROM (" + query + "), b | FORK (WHERE x > 0) (WHERE x < 0)";
-        }
-        String statement = "LET q = (FROM a); " + query;
-        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(statement));
-    }
-
     public void testMainQueryExceedingPlanSizeIsRejected() {
         expectThrows(
             VerificationException.class,
@@ -372,6 +301,37 @@ public class LetResolverTests extends ESTestCase {
         }
         query.append("FROM b49");
         expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(query.toString()));
+    }
+
+    public void testForkInLetReferenceAccepted() {
+        parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0)); FROM r"
+        );
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q | FORK (WHERE y > 0) (WHERE y < 0))"
+        );
+        parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q, b | FORK (WHERE y > 0) (WHERE y < 0)");
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q) | FORK (WHERE y > 0) (WHERE y < 0)"
+        );
+    }
+
+    /** Each binding adds a FORK over the previous one; the chain goes over the plan size limit */
+    public void testBigForkExpansionRejected() {
+        StringBuilder insideLet = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            insideLet.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        insideLet.append(" FROM f39");
+        expectThrows(VerificationException.class, containsString(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(insideLet.toString()));
+
+        StringBuilder outsideLet = new StringBuilder("FROM q | FORK (WHERE x > 0) (WHERE x < 0)");
+        for (int i = 0; i < 8; i++) {
+            outsideLet = new StringBuilder("FROM (" + outsideLet + "), b | FORK (WHERE x > 0) (WHERE x < 0)");
+        }
+        String statement = "LET q = (FROM a); " + outsideLet;
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(statement));
     }
 
     // -----------------------------------------------------------------------

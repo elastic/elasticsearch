@@ -120,7 +120,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -165,18 +164,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private int queryDepth = 0;
-    private int explainCount = 0;
-    private Source forkInScope = null;
-    private int forkBranchDepth = 0;
+    private boolean forkSeenInScope = false;
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
-
-    /**
-     * Nodes of each plan built so far, kept by identity so that a FORK's input, held by every branch, is counted once and a FORK
-     * above finds it ready, see {@link PlanSize#countNodes(LogicalPlan, Map)}.
-     */
-    private final Map<LogicalPlan, Integer> planSizes = new IdentityHashMap<>();
 
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
@@ -185,10 +176,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
-        if (p instanceof Explain == false && explainCount > 0) {
+        if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
             throw new ParsingException(source(ctx), "EXPLAIN does not support downstream commands");
         }
-        if (p instanceof Explain && explainCount > 1) {
+        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
             // TODO this one is never reached because the Parser fails to understand multiple round brackets
             throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
         }
@@ -509,17 +500,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 context.maxCommandCount()
             );
         }
-        Source forkInEnclosingScope = forkInScope;
-        int enclosingForkBranchDepth = forkBranchDepth;
-        forkInScope = null;
-        forkBranchDepth = 0;
+        boolean forkSeenInEnclosingScope = forkSeenInScope;
+        forkSeenInScope = false;
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
-        forkInScope = forkInEnclosingScope;
-        forkBranchDepth = enclosingForkBranchDepth;
+        forkSeenInScope = forkSeenInEnclosingScope;
         return plan;
     }
 
@@ -969,9 +957,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public Explain visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
-        LogicalPlan query = plan(ctx.subqueryExpression().query());
-        explainCount++;
-        return new Explain(source(ctx), query);
+        return new Explain(source(ctx), plan(ctx.subqueryExpression().query()));
     }
 
     @Override
@@ -1426,17 +1412,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
-        Source source = source(ctx);
-        if (forkInScope != null) {
-            Source forkNearestSource = forkBranchDepth > 0 ? source : forkInScope;
-            throw new VerificationException(
-                List.of(Failure.fail(new Fork(forkNearestSource, List.of(), List.of()), Fork.MULTIPLE_FORKS_ERROR))
-            );
-        }
-        forkInScope = source;
-        forkBranchDepth++;
+        boolean duplicate = forkSeenInScope;
+        forkSeenInScope = true;
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        forkBranchDepth--;
         // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
         int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
         if (subQueries.size() > maxBranches) {
@@ -1446,7 +1424,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             Fork fork = new Fork(source(ctx), subPlans, List.of());
-            PlanSize.checkParsedPlan(fork, context.maxCommandCount(), planSizes);
+            if (duplicate) {
+                throw new VerificationException(List.of(Failure.fail(fork, Fork.MULTIPLE_FORKS_ERROR)));
+            }
+            new PlanSize(0, context.maxCommandCount()).add(PlanSize.countNodes(fork));
             return fork;
         };
     }

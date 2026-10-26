@@ -4066,9 +4066,8 @@ public class InSubqueryResolverTests extends ESTestCase {
     private static void assertStopsAtLimit(LogicalPlan plan, Consumer<PlanSize> rewrite) {
         CountingPlanSize planSize = new CountingPlanSize(PlanSize.countNodes(plan), 100);
         expectThrows(VerificationException.class, () -> rewrite.accept(planSize));
-        // The plan starts with 2 nodes and each IN subquery adds 2 in two calls (the join, then the subquery's nodes), so the 100th
-        // call crosses 100 and throws. One extra call of slack.
-        assertThat(planSize.adds, lessThanOrEqualTo(101));
+        // The plan starts with 2 nodes and each IN subquery adds 2, so the 50th add crosses 100 and throws. One extra call of slack.
+        assertThat(planSize.adds, lessThanOrEqualTo(51));
     }
 
     private static LogicalPlan resolve(String query) {

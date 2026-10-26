@@ -444,17 +444,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
     // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveMergePlan.
-    // Two FORKs written on one pipeline are rejected by the parser, so the first FORK sits in a FROM subquery, which the parser scopes
-    // on its own and the analyzer promotes onto the outer pipeline.
     public void testLoadModeRejectsMultipleForksWithDroppedUnmappedField() {
         partialMappingTest().statementError(setUnmappedLoad("""
-            FROM (FROM partial_mapping_sample_data | FORK (DROP unmapped_message) (WHERE true))
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message) (WHERE true)
             | FORK (WHERE true) (WHERE true)
             """), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
-    // A FORK nested inside a FORK branch is rejected by the parser, and a branch cannot hold a subquery that would carry the inner FORK
-    // past it, so this shape no longer reaches the analyzer; the parser rejection is what is checked.
+    // Same guard as above for a FORK nested inside a FORK branch: the outer branch drops the unmapped field ahead of the inner FORK,
+    // so both the outer sibling materialization and the nesting are seen before the single-FORK rejection fires.
     public void testLoadModeRejectsNestedForkWithDroppedUnmappedField() {
         partialMappingTest().statementError(setUnmappedLoad("""
             FROM partial_mapping_sample_data

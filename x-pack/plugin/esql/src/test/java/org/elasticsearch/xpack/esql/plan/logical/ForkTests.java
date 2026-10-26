@@ -7,58 +7,19 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.List;
-
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class ForkTests extends ESTestCase {
 
     private static ReferenceAttribute text(String name, String valuesAnalyzer) {
         return new ReferenceAttribute(EMPTY, null, name, DataType.TEXT, Nullability.TRUE, null, false, valuesAnalyzer);
-    }
-
-    private static LogicalPlan row() {
-        return new Row(EMPTY, List.of(new Alias(EMPTY, "x", new Literal(EMPTY, 1, DataType.INTEGER))));
-    }
-
-    /**
-     * Before analysis, FORK branches share their input by reference, so 60 nested FORKs are a DAG of 61 nodes with 2^60 paths. The walk
-     * has to find the offence, and report the FORK below the topmost one, without visiting every path.
-     */
-    public void testFindUnseparatedForkOnSharedInputDag() {
-        LogicalPlan plan = row();
-        LogicalPlan belowTop = null;
-        for (int i = 0; i < 60; i++) {
-            belowTop = plan;
-            plan = new Fork(EMPTY, List.of(plan, plan), List.of());
-        }
-        Failure failure = Fork.findUnseparatedFork(plan);
-        assertThat(failure, notNullValue());
-        assertThat(failure.node(), sameInstance(belowTop));
-        assertThat(failure.message(), containsString(Fork.MULTIPLE_FORKS_ERROR));
-    }
-
-    /** The same DAG with a UNION ALL between each pair of FORKs is legal, and the walk still has to finish without visiting every path. */
-    public void testFindUnseparatedForkOnUnionAllSeparatedDag() {
-        LogicalPlan plan = row();
-        for (int i = 0; i < 60; i++) {
-            plan = new Fork(EMPTY, List.of(plan, plan), List.of());
-            plan = new UnionAll(EMPTY, List.of(plan, row()), List.of());
-        }
-        assertThat(Fork.findUnseparatedFork(plan), nullValue());
     }
 
     public void testNoConflictWhenTypeAndAnalyzerAgree() {

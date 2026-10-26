@@ -4240,7 +4240,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String error = "Only a single FORK command is supported, but found multiple";
         expectVerificationError(
             "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)",
-            "Found 1 problem\nline 1:10: " + error
+            "Found 1 problem\nline 1:45: " + error
         );
         expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", "line 1:16: " + error);
         expectVerificationError(
@@ -4279,22 +4279,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * FORK branches share their input by reference, so FORKs nested through UNION ALL subqueries, which are legal, form a DAG with
-     * 2^depth paths over a few nodes per level. Up to the parsed-plan ceiling they parse, with any command on top, without anything
-     * walking them once per path; the EXPLAIN checks of {@code plan()} and the STATS checks used to.
-     */
-    public void testNestedForksSeparatedByUnionAllParseWithoutWalkingEveryPath() {
-        String query = nestedForks(9);
-        assertThat(query(query), instanceOf(Fork.class));
-        assertThat(query(query + "\n| STATS COUNT(*)"), instanceOf(Aggregate.class));
-        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        assertThat(query("EXPLAIN (" + query + ")"), instanceOf(Explain.class));
-        expectError("EXPLAIN (" + query + ") | LIMIT 1", "EXPLAIN does not support downstream commands");
-    }
-
-    /**
-     * Past the ceiling the parser rejects the FORK that crosses it, before any later command is applied: a 40-deep nesting has
-     * 2^40 paths and would otherwise take days in any per-path walk.
+     * 40 FORKs nested through UNION ALL subqueries, which account for 2^40 paths and would otherwise take days in any per-path walk.
      */
     public void testNestedForksPastTheCeilingRejectedWhileParsing() {
         for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {

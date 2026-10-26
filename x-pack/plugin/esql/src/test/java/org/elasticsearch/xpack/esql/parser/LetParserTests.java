@@ -278,11 +278,16 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     /** A view body goes through parseView and then LetResolver, the two steps the session applies to it. */
-    public void testSecondForkOnOnePipelineInViewBodyRejected() {
+    public void testChainedForkBindingsInViewBodyRejected() {
         assumeLet();
         var parser = new EsqlParser(new EsqlConfig(EsqlTestUtils.TEST_FUNCTION_REGISTRY));
+        StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            query.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        query.append(" FROM f39");
         var stmt = parser.parseView(
-            "LET x = (FROM a | FORK (WHERE p > 0) (WHERE p < 0)); FROM x | FORK (WHERE q > 0) (WHERE q < 0)",
+            query.toString(),
             new QueryParams(),
             new InferenceSettings(Settings.EMPTY),
             "my_view",
@@ -290,7 +295,7 @@ public class LetParserTests extends AbstractStatementParserTests {
         );
         expectThrows(
             VerificationException.class,
-            containsString("Only a single FORK command is supported, but found multiple"),
+            containsString("ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs"),
             () -> LetResolver.resolve(stmt.plan(), stmt.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
         );
     }

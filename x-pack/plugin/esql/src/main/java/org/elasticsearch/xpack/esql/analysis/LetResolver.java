@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -91,18 +89,13 @@ public final class LetResolver {
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            PlanSize bindingSize = PlanSize.of(binding.plan(), maxPlanNodesCount);
+            PlanSize bindingSize = new PlanSize(PlanSize.countNodes(binding.plan()), maxPlanNodesCount);
             var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
             resolved.put(binding.name(), current);
             sizes.put(binding.name(), bindingSize.size());
         }
         // Substitute the full map into the main query plan.
-        var result = substitute(plan, resolved, sizes, allBindings, PlanSize.of(plan, maxPlanNodesCount));
-        Failure failure = Fork.findUnseparatedFork(result);
-        if (failure != null) {
-            throw new VerificationException(List.of(failure));
-        }
-        return result;
+        return substitute(plan, resolved, sizes, allBindings, new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount));
     }
 
     /**

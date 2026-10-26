@@ -159,17 +159,6 @@ public final class QueryPragmas implements Writeable {
     public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
 
     /**
-     * The most nodes a parsed plan may hold before views, LET bindings or IN subqueries are expanded into it, a FORK's input counted
-     * once per branch since analysis copies it per branch. A FORK repeats its input in every branch, so a query within
-     * {@code maxCommandCount} commands may hold {@link #MAX_BRANCH_COUNT_PER_MERGE_MAX} times that many nodes plus the FORK's own;
-     * past it the plan can only be FORKs nested through subqueries, whose path count grows exponentially and which no walk of the
-     * plan could afford.
-     */
-    public static int maxParsedPlanNodes(int maxCommandCount) {
-        return (int) Math.min((long) maxCommandCount * (MAX_BRANCH_COUNT_PER_MERGE_MAX + 1), Integer.MAX_VALUE);
-    }
-
-    /**
      * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
      * chain.
      * <p>

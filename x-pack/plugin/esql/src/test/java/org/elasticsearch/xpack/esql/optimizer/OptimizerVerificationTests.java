@@ -291,7 +291,10 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var err = error(fullTextAnalyzer().query(unionThenTopN("", "") + "| WHERE match(title, \"data\")"));
         assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
-        assertThat(err, containsString("Search [title] in the subqueries instead"));
+        // unlike after FORK, declaring an analyzer doesn't work here - TO_TEXT above the subqueries is pushed into them,
+        // where the declaration lands on the mapped field and is rejected
+        assertThat(err, containsString("Search [title] in the subqueries instead."));
+        assertThat(err, not(containsString("TO_TEXT(")));
     }
 
     public void testRuntimeTextSearchRejectedAfterUnionAllWithConflictingAnalyzers() {
@@ -306,6 +309,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
         assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
         assertThat(err, containsString("its subqueries analyze its values with different analyzers [simple] and [whitespace]"));
+        assertThat(err, containsString("TO_TEXT(t, {\"analyzer\": ...})"));
         // declaring nothing is declaring the standard analyzer, in whichever order the branches come
         for (var branches : List.of(
             List.of("| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})", "| EVAL t = to_text(concat(title, body))"),
@@ -324,6 +328,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE title : \"data\""));
             assertThat(err, containsString("[:] operator cannot search column [title] after subqueries in FROM"));
             assertThat(err, containsString("different analyzers [standard] and [whitespace]"));
+            assertThat(err, containsString("Search [title] in the subqueries instead."));
+            assertThat(err, not(containsString("TO_TEXT(")));
         }
     }
 
@@ -360,6 +366,19 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
             assertThat(err, containsString("rather than the analyzer mapped for [title]"));
         }
+    }
+
+    public void testRuntimeTextSearchAllowedAfterUnionAllWithInlineDeclaredAnalyzer() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the declaration is pushed into the subqueries like any conversion, and lands on a computed column, where it is allowed
+        optimize(
+            fullTextAnalyzer().query(
+                unionThenTopN(
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})",
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"simple\"})"
+                ) + "| WHERE match(to_text(t, {\"analyzer\": \"whitespace\"}), \"data\")"
+            )
+        );
     }
 
     public void testRuntimeTextSearchAllowedAfterUnionAllWithAgreeingAnalyzers() {

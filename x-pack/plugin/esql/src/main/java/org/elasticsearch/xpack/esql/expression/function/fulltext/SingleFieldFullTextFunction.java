@@ -288,8 +288,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                         fail(
                             this,
                             "[{}] {} cannot search column [{}] after {}: the merged column is not index-backed, and its "
-                                + "{} analyze its values with different analyzers [{}] and [{}]. Search [{}] in the {} "
-                                + "instead, or declare one analyzer for the merged column with TO_TEXT({}, {\"analyzer\": ...}).",
+                                + "{} analyze its values with different analyzers [{}] and [{}]. Search [{}] in the {} instead{}.",
                             functionName(),
                             functionType(),
                             merged.column().name(),
@@ -299,7 +298,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                             analyzers.get(1),
                             merged.column().name(),
                             merged.branchesName(),
-                            merged.column().name()
+                            merged.analyzerDeclarationHint()
                         )
                     );
                 } else if (merged.mappedField() != null) {
@@ -308,8 +307,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                             this,
                             "[{}] {} cannot search column [{}] after {}: the merged column is not index-backed, so its "
                                 + "values are analyzed with the [{}] analyzer rather than the analyzer mapped for [{}]. "
-                                + "Search [{}] in the {} instead, or declare an analyzer for the merged column "
-                                + "with TO_TEXT({}, {\"analyzer\": ...}).",
+                                + "Search [{}] in the {} instead{}.",
                             functionName(),
                             functionType(),
                             merged.column().name(),
@@ -319,7 +317,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                             // the branches know the field by its own name, which a RENAME above them may have changed
                             merged.mappedField().name(),
                             merged.branchesName(),
-                            merged.column().name()
+                            merged.analyzerDeclarationHint()
                         )
                     );
                 }
@@ -335,14 +333,28 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * @param mappedField a mapped {@code text} field one of the branches fills the column from, or {@code null} when
      *                    none does. It differs from {@code column} when {@code RENAME} or {@code EVAL} sits between them.
      * @param branchAnalyzers the analyzers the branches that have values analyze the column with, sorted
+     * @param canDeclareAnalyzer whether {@code TO_TEXT(column, {"analyzer": ...})} can declare an analyzer for the
+     *                           merged column. It cannot after subqueries that fill the column from a mapped field:
+     *                           union-type resolution pushes the conversion into the subqueries, where declaring an
+     *                           analyzer on the field is rejected.
      */
     private record MergedTextColumn(
         Attribute column,
         String mergeName,
         String branchesName,
         @Nullable FieldAttribute mappedField,
-        Set<String> branchAnalyzers
-    ) {}
+        Set<String> branchAnalyzers,
+        boolean canDeclareAnalyzer
+    ) {
+        /**
+         * Hint for user-facing error message, if appropriate.
+         */
+        String analyzerDeclarationHint() {
+            return canDeclareAnalyzer
+                ? ", or declare an analyzer for the merged column with TO_TEXT(" + column.name() + ", {\"analyzer\": ...})"
+                : "";
+        }
+    }
 
     /**
      * Whether this runtime search reads a {@code FORK} or {@code UNION ALL} output column, and if so what the
@@ -410,8 +422,15 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         Set<String> branchAnalyzers = new TreeSet<>();
         collectBranchSources(merge, merged.name(), mappedField, branchAnalyzers);
         return merge instanceof Fork
-            ? new MergedTextColumn(column, "FORK", "FORK branches", mappedField.get(), branchAnalyzers)
-            : new MergedTextColumn(column, "subqueries in FROM", "subqueries", mappedField.get(), branchAnalyzers);
+            ? new MergedTextColumn(column, "FORK", "FORK branches", mappedField.get(), branchAnalyzers, true)
+            : new MergedTextColumn(
+                column,
+                "subqueries in FROM",
+                "subqueries",
+                mappedField.get(),
+                branchAnalyzers,
+                mappedField.get() == null
+            );
     }
 
     /**

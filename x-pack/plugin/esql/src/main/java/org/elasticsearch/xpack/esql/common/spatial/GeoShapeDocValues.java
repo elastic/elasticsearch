@@ -17,6 +17,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
+import org.elasticsearch.lucene.spatial.VertexLookupTable;
 
 import java.io.IOException;
 
@@ -30,10 +31,18 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * see {@link TriangleTreeVisitor} for why that duplication is deliberate. The binary format itself is owned by
  * the server's {@code GeometryDocValueWriter}/{@code TriangleTreeWriter}, which also write the values this class
  * reads on the WKB path in {@link #from}.
+ * <p>
+ * Both doc-value formats are supported: the legacy tree with inline coordinate deltas, and the V2 tree whose nodes
+ * reference a vertex table (which also backs geometry reconstruction). Grid functions only traverse the tree.
  */
 public class GeoShapeDocValues {
     private final ByteArrayStreamInput input;
+    /** The array backing {@link #input}, which the vertex table reads from directly. */
+    private final byte[] bytes;
     private final int treeOffset;
+    /** Length of the tree in bytes for the V2 format, or -1 for the legacy format. */
+    private final int v2TreeLength;
+    private VertexLookupTable vertices;
     private final Extent extent;
     private final int encodedCentroidX;
     private final int encodedCentroidY;
@@ -45,14 +54,18 @@ public class GeoShapeDocValues {
 
     private GeoShapeDocValues(
         ByteArrayStreamInput input,
+        byte[] bytes,
         int treeOffset,
+        int v2TreeLength,
         Extent extent,
         DimensionalShapeType shapeType,
         int encodedCentroidX,
         int encodedCentroidY
     ) {
         this.input = input;
+        this.bytes = bytes;
         this.treeOffset = treeOffset;
+        this.v2TreeLength = v2TreeLength;
         this.extent = extent;
         this.encodedCentroidX = encodedCentroidX;
         this.encodedCentroidY = encodedCentroidY;
@@ -82,9 +95,26 @@ public class GeoShapeDocValues {
     /** Visits the triangle tree, for example with a {@code GeoHexVisitor} to relate it to an H3 cell. */
     public void visit(TriangleTreeVisitor visitor) throws IOException {
         if (visitor.push(extent.minX(), extent.minY(), extent.maxX(), extent.maxY())) {
-            input.setPosition(treeOffset);
-            TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
+            if (v2TreeLength < 0) {
+                input.setPosition(treeOffset);
+                TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
+            } else {
+                VertexLookupTable vertices = vertices();
+                input.setPosition(treeOffset);
+                V2TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertices);
+            }
         }
+    }
+
+    /** The V2 layout after the tree is {@code connectivityLength(4) | connectivity | vertexTable}. */
+    private VertexLookupTable vertices() throws IOException {
+        if (vertices == null) {
+            input.setPosition(treeOffset + v2TreeLength);
+            int connectivityLength = input.readInt();
+            input.skipBytes(connectivityLength);
+            vertices = VertexLookupTable.readFrom(input, bytes);
+        }
+        return vertices;
     }
 
     /**
@@ -114,7 +144,8 @@ public class GeoShapeDocValues {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
-        return fromDocValue(GeometryDocValueWriter.write(indexer.indexShape(geometry), CoordinateEncoder.GEO, centroidCalculator));
+        // The grid functions only traverse the tree, so skip the vertex table and connectivity of the V2 format
+        return fromDocValue(GeometryDocValueWriter.writeLegacy(indexer.indexShape(geometry), CoordinateEncoder.GEO, centroidCalculator));
     }
 
     /**
@@ -126,12 +157,14 @@ public class GeoShapeDocValues {
         input.reset(encoded.bytes, encoded.offset, encoded.length);
         int encodedCentroidX = input.readInt();
         int encodedCentroidY = input.readInt();
-        DimensionalShapeType shapeType = DimensionalShapeType.readFrom(input);
+        byte shapeTypeByte = input.readByte();
+        DimensionalShapeType shapeType = DimensionalShapeType.fromOrdinalByte(shapeTypeByte);
         input.readVLong(); // sum of centroid weights, not needed for grid functions
         Extent extent = new Extent();
         Extent.readFromCompressed(input, extent);
+        int v2TreeLength = DimensionalShapeType.isV2Format(shapeTypeByte) ? input.readVInt() : -1;
         int treeOffset = input.getPosition();
-        return new GeoShapeDocValues(input, treeOffset, extent, shapeType, encodedCentroidX, encodedCentroidY);
+        return new GeoShapeDocValues(input, encoded.bytes, treeOffset, v2TreeLength, extent, shapeType, encodedCentroidX, encodedCentroidY);
     }
 
     /**

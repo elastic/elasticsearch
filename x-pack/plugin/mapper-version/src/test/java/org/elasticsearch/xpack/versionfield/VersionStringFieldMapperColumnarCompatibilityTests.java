@@ -317,6 +317,40 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
     }
 
     /**
+     * Under {@code index.mapping.synthetic_source_keep: arrays} the row path keeps an array in {@code _ignored_source} so it
+     * round-trips in its original order; a version field has no offsets, and the columnar path writes none, so it must fall back.
+     */
+    public void testTsdbKeepArraysArrayBailsOut() throws IOException {
+        final var mapperService = createMapperService(
+            Settings.builder().put(tsdbSettings()).put("index.mapping.synthetic_source_keep", "arrays").build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "version").endObject();
+            })
+        );
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0\",\"2.0.0\"]}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
+    }
+
+    /** Under field-level {@code synthetic_source_keep: all} the row path keeps every value, so an array must fall back. */
+    public void testTsdbFieldKeepAllArrayBailsOut() throws IOException {
+        final var mapperService = createMapperService(tsdbSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "version").field("synthetic_source_keep", "all").endObject();
+        }));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0\"]}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
+    }
+
+    /**
      * A {@code version} field carrying a keyword multi-field. Parity here covers the removal of this mapper's multi-field gate:
      * the sub-mapper is driven from the parent's own source column.
      */

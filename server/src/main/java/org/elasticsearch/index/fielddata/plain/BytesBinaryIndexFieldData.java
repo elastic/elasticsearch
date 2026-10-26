@@ -10,6 +10,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -72,22 +73,27 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
-        return binaryDocValuesSortField(missingValue, sortMode, reverse);
+        return sortFieldForFormat(missingValue, sortMode, reverse);
     }
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         if (nested == null && isStandardMissingSentinel(missingValue) && canUseBinaryDocValuesSortField()) {
-            return binaryDocValuesSortField(missingValue, sortMode, reverse);
+            return sortFieldForFormat(missingValue, sortMode, reverse);
         }
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
-    private MultiValuedBinaryDocValuesSortField binaryDocValuesSortField(Object missingValue, MultiValueMode sortMode, boolean reverse) {
+    private SortField sortFieldForFormat(Object missingValue, MultiValueMode sortMode, boolean reverse) {
         Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
             ? SortField.STRING_LAST
             : SortField.STRING_FIRST;
+        if (binaryFormat == BinaryDocValuesFormat.PLAIN) {
+            // Single-valued plain field: raw bytes are already the sort key. Use Lucene's BinarySortField directly,
+            // which reads DocValues.getBinary(reader, field) unchanged — no multi-valued machinery needed.
+            return new BinarySortField(getFieldName(), reverse, luceneMissingValue);
+        }
         return new MultiValuedBinaryDocValuesSortField(
             getFieldName(),
             reverse,

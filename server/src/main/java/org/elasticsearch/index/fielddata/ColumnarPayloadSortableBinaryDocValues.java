@@ -12,6 +12,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -86,13 +87,24 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
             return new ColumnarPayloadSortableBinaryDocValues(
                 binary,
                 source,
-                column.numDocsWithField() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE,
+                sparsityOf(column, leafReader.maxDoc()),
                 // No value addresses means one slot a document, so none holds two. A null slot is no value,
                 // which single valued allows: it says at most one.
                 column.hasValueAddresses() ? ValueMode.UNKNOWN : ValueMode.SINGLE_VALUED
             );
         }
         return new ColumnarPayloadSortableBinaryDocValues(binary);
+    }
+
+    /**
+     * Whether every document holds a value, as the column records it. A document whose slots are all null holds none, and
+     * the column counts null slots but not the documents they leave empty, so a column with one is left unknown.
+     */
+    static Sparsity sparsityOf(StringColumnReader column, int maxDoc) {
+        if (column.numDocsWithField() < maxDoc) {
+            return Sparsity.SPARSE;
+        }
+        return column.numNullSlots() == 0 ? Sparsity.DENSE : Sparsity.UNKNOWN;
     }
 
     @Override
@@ -103,6 +115,18 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
     @Override
     public ValueMode getValueMode() {
         return valueMode;
+    }
+
+    /**
+     * The column's documents holding a value, where each document holds one slot: a slot that is not null is then one
+     * value. Unknown where documents hold several slots, since holding a value there does not say how many.
+     */
+    @Override
+    public DocIdSetIterator singleValuedDocs() throws IOException {
+        if (source == null || source.reader().hasValueAddresses()) {
+            return null;
+        }
+        return source.reader().documentsWithValue();
     }
 
     @Override

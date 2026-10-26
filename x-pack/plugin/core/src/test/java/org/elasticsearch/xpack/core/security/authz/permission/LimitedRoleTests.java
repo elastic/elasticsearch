@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -455,6 +458,60 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(iac.hasIndexPermissions("_index"), is(false));
             assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index1"), is(false));
+        }
+    }
+
+    public void testAuthorizeSharesOneComposedIndexAccessControlAcrossDataStreamBackingIndices() {
+        final String dataStreamName = randomAlphaOfLength(6);
+        final int numBackingIndices = randomIntBetween(2, 10);
+        final List<IndexMetadata> backingIndices = new ArrayList<>(numBackingIndices);
+        for (int i = 1; i <= numBackingIndices; i++) {
+            backingIndices.add(
+                IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, i))
+                    .settings(indexSettings(IndexVersion.current(), 1, 1))
+                    .build()
+            );
+        }
+        final List<Index> indices = backingIndices.stream().map(IndexMetadata::getIndex).toList();
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(DataStreamTestHelper.newInstance(dataStreamName, indices));
+        for (IndexMetadata backingIndex : backingIndices) {
+            metadataBuilder.put(backingIndex, false);
+        }
+        final ProjectMetadata projectMetadata = metadataBuilder.build();
+
+        // Distinct FLS and DLS on each side, so the composition cannot short-circuit to either input.
+        final Role ownerRole = Role.builder(EMPTY_RESTRICTED_INDICES, "owner")
+            .add(
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "@timestamp", "owner-field" }, new String[0])),
+                Set.of(new BytesArray("{\"term\":{\"tenant\":\"owner\"}}")),
+                IndexPrivilege.WRITE,
+                false,
+                dataStreamName
+            )
+            .build();
+        final Role keyRole = Role.builder(EMPTY_RESTRICTED_INDICES, "key")
+            .add(
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "@timestamp", "key-field" }, new String[0])),
+                Set.of(new BytesArray("{\"term\":{\"tenant\":\"key\"}}")),
+                IndexPrivilege.WRITE,
+                false,
+                dataStreamName
+            )
+            .build();
+
+        final IndicesAccessControl iac = ownerRole.limitedBy(keyRole)
+            .authorize(TransportBulkAction.NAME, Set.of(dataStreamName), projectMetadata, new FieldPermissionsCache(Settings.EMPTY));
+
+        assertThat(iac.isGranted(), is(true));
+        final IndicesAccessControl.IndexAccessControl composed = iac.getIndexPermissions(dataStreamName);
+        assertThat(composed, is(notNullValue()));
+        assertThat(composed.getFieldPermissions().hasFieldLevelSecurity(), is(true));
+        assertThat(composed.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+        // Each side's IndexAccessControl is shared across the data stream's backing indices, and composing the same pair is
+        // memoized on its identity, so the composed object is shared the same way. One object, not one per backing index.
+        for (IndexMetadata backingIndex : backingIndices) {
+            assertThat(iac.getIndexPermissions(backingIndex.getIndex().getName()), sameInstance(composed));
         }
     }
 

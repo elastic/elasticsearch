@@ -223,7 +223,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
         boolean ccsMinimizeRoundtrips = SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request);
-        SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseParamRoutingOrSliceWithProvenance(request);
 
         final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();

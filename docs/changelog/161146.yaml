@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161146
+summary: Add failure reasons to datasource telemetry and report read-concurrency timeouts as "External read concurrency limit reached on this node" instead of "External store unavailable"
+type: enhancement

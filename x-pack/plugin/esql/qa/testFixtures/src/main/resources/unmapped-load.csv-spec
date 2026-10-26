@@ -68,16 +68,14 @@ count:long | integer:integer | short_int:integer
 
 // Reproducer for #152184.
 partiallyUnmappedDenseVectorIsNotAutoCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_partially_unmapped_dense_vector
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM dense_vector, dense_vector_unmapped METADATA _index
 | KEEP _index, id, float_vector
 | SORT _index, id
 ;
-warning:Field [float_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [float_vector] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index: keyword       | id:l | float_vector:dense_vector
 dense_vector          | 0    | [1.0, 2.0, 3.0]
@@ -497,10 +495,9 @@ book_no:keyword | author:text
 ;
 
 qstrTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: qstr_function
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -508,7 +505,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
-warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -517,10 +514,9 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 kqlTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: kql_function
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -528,7 +524,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
-warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -537,10 +533,9 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 matchTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: match_function
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -548,7 +543,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
-warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -557,10 +552,9 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: match_operator_colon
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -568,7 +562,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
-warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -576,9 +570,169 @@ text_state_nonexistent  | nonexistent-1  | null
 text_state_unmapped     | unmapped-1     | null
 ;
 
+fillNullOnPartiallyUnmappedTextUnderLoad
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON txt
+| KEEP _index, doc_id, txt
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_mapped       | mapped-2       | Jane Austen
+text_state_nonexistent  | nonexistent-1  | none
+text_state_unmapped     | unmapped-1     | none
+;
+
+fillNullAllColumnsOnPartiallyUnmappedTextUnderLoad
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON *
+| RENAME txt AS filled
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+doc_id:keyword | filled:text      | _index:keyword
+mapped-1       | William Faulkner | text_state_mapped
+mapped-2       | Jane Austen      | text_state_mapped
+nonexistent-1  | none             | text_state_nonexistent
+unmapped-1     | none             | text_state_unmapped
+;
+
+fillNullTargetedInSubqueryBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "none" ON no_such_field)
+| KEEP _index, no_such_field
+| SORT _index
+;
+
+_index:keyword              | no_such_field:keyword
+no_mapping_sample_data      | none
+partial_mapping_sample_data | null
+;
+
+fillNullAllColumnsInSubqueryBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | EVAL m = CASE(message == "42", null, message) | KEEP _index, m),
+     (FROM no_mapping_sample_data METADATA _index | EVAL m = CASE(message == "42", null, message) | KEEP _index, m | FILLNULL "filled" ON *)
+| WHERE m IS NULL OR m == "filled"
+| SORT _index
+;
+
+_index:keyword              | m:keyword
+no_mapping_sample_data      | filled
+partial_mapping_sample_data | null
+;
+
+fillNullAllColumnsInForkBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP m
+| WHERE m IS NULL
+| FORK (FILLNULL "filled" ON *) (WHERE m IS NULL)
+| SORT _fork
+;
+
+m:keyword | _fork:keyword
+filled    | fork1
+null      | fork2
+;
+
+fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "x" ON *)
+| KEEP _index, message
+| SORT _index
+;
+
+_index:keyword              | message:keyword
+no_mapping_sample_data      | null
+partial_mapping_sample_data | 42
+;
+
+// A fully unmapped field loads as keyword, so match requires the exact value: "Connected" alone matches nothing,
+// although analyzed text would match the "Connected to ..." rows.
+matchOnFullyUnmappedKeywordUnderLoad
+required_capability: optional_fields_v5
+required_capability: match_function
+required_capability: fn_match_unmapped_fields_pushdown_fix
+
+SET unmapped_fields="load"\;
+FROM no_mapping_sample_data
+| WHERE MATCH(message, "Connection error?") OR MATCH(message, "Connected")
+| KEEP message
+;
+
+message:keyword
+Connection error?
+Connection error?
+Connection error?
+;
+
+matchOperatorOnFullyUnmappedKeywordUnderLoad
+required_capability: optional_fields_v5
+required_capability: match_operator_colon
+required_capability: fn_match_unmapped_fields_pushdown_fix
+
+SET unmapped_fields="load"\;
+FROM no_mapping_sample_data
+| WHERE message:"Connection error?"
+| KEEP message
+;
+
+message:keyword
+Connection error?
+Connection error?
+Connection error?
+;
+
+matchPhraseOnFullyUnmappedFieldAsTextUnderLoad
+required_capability: optional_fields_v5
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_unmapped_fields_pushdown_fix
+
+SET unmapped_fields="load"\;
+FROM no_mapping_sample_data
+| EVAL t = TO_TEXT(message)
+| WHERE MATCH_PHRASE(t, "connected to")
+| KEEP message
+| SORT message
+;
+
+message:keyword
+Connected to 10.1.0.1!
+Connected to 10.1.0.2!
+Connected to 10.1.0.3!
+;
+
 renameTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -586,7 +740,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, renamed_txt
 | SORT _index, doc_id
 ;
-warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index:keyword          | doc_id:keyword | renamed_txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -613,8 +767,8 @@ colors_unmapped      | green      | null
 ;
 
 knnOnDenseVectorPunkUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: knn_function_v5
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM colors, employees METADATA _index, _score
@@ -623,8 +777,7 @@ FROM colors, employees METADATA _index, _score
 | KEEP _index, color
 | LIMIT 1
 ;
-warning:Field [color] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
-warning:Field [rgb_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Fields [color], [rgb_vector] are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices
 
 _index:keyword | color:text
 colors         | green
@@ -3009,9 +3162,8 @@ null           | null           | null          | null               | null     
 ;
 
 loadPartiallyUnmappedTextFieldAcrossForkBranches
-required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -3022,7 +3174,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | STATS c=COUNT(*) BY _fork, gender, _index
 | SORT c DESC, _fork, gender, _index
 ;
-warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [gender] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 c:long | _fork:keyword | gender:text | _index:keyword
 100    | fork1         | null        | employees_no_gender
@@ -3306,6 +3458,7 @@ loadViewSingleEvalNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3313,6 +3466,7 @@ FROM employees_all
 | WHERE extra IS NULL
 | STATS c = COUNT(*)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long
 100
@@ -3322,11 +3476,13 @@ loadViewSingleStatsByNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
 | STATS c = COUNT(*) BY nonexistent_field
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | nonexistent_field:keyword
 100    | null
@@ -3336,6 +3492,7 @@ loadViewSingleSortByNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3343,6 +3500,7 @@ FROM employees_all
 | KEEP emp_no, nonexistent_field
 | LIMIT 3
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 emp_no:integer | nonexistent_field:keyword
 10001          | null
@@ -3354,12 +3512,14 @@ loadViewSingleRenameNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
 | RENAME nonexistent_field AS missing
 | STATS c = COUNT(*), m = COUNT(missing) BY missing
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | m:long | missing:keyword
 100    | 0      | null
@@ -3369,12 +3529,14 @@ loadViewSingleWhereNonExistentNotNull
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
 | WHERE nonexistent_field IS NOT NULL
 | STATS c = COUNT(*)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long
 0
@@ -3384,6 +3546,7 @@ loadViewSingleKeepNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3391,6 +3554,7 @@ FROM employees_all
 | KEEP emp_no, nonexistent_field
 | LIMIT 2
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 emp_no:integer | nonexistent_field:keyword
 10001          | null
@@ -3402,12 +3566,14 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM view_with_subquery
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_subquery], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 100    | 0
@@ -3418,12 +3584,14 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_extra
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 200    | 0
@@ -3434,12 +3602,15 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all, employees_extra
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 300    | 0
@@ -3450,12 +3621,14 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM employees_all | WHERE emp_no < 10005)
 | EVAL extra = nonexistent_field
 | STATS rows = COUNT(), missing = COUNT(extra)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 rows:long | missing:long
 4         | 0
@@ -3520,11 +3693,13 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees, employees_all
 | STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 200    | 0
@@ -3534,11 +3709,13 @@ loadViewDedupViewAndView_CountNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all, employees_all
 | STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 100    | 0
@@ -3608,8 +3785,10 @@ loadViewWildcardCountryViewsLoadMode
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
 
 SET unmapped_fields="load"\;
+SET wildcards_match_views=true\;
 FROM country_*
 | STATS count=SUM(count) BY country
 | WHERE count > 11
@@ -3708,21 +3887,25 @@ loadViewPassthroughLoadsFromSource_KeepUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
 | WHERE message == "42"
 | KEEP @timestamp, message, unmapped_message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
-@timestamp:date          | message:keyword | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 42              | 43
+@timestamp:datetime      | message:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42              | null
 ;
 
 loadViewDefinitionWildcardKeepPermitsUnmappedLoad
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view_message_wildcard
@@ -3731,21 +3914,24 @@ FROM partial_mapping_view_message_wildcard
 ;
 
 message:keyword | unmapped_message:keyword
-42              | 43
+42              | null
 ;
 
 loadViewPassthroughLoadsFromSource_WithStatsUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
 | STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 loaded:long | rows:long
-7           | 7
+0           | 7
 ;
 
 loadViewBranchingLoadsFromSourceInOneBranch_KeepUnmappedInsideAndOut
@@ -3753,6 +3939,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -3760,15 +3948,9 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
-message:keyword        | unmapped_message:keyword
-42                     | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
-Connected to 10.1.0.2! | Disconnected from 10.1.0.2
-Connected to 10.1.0.3! | Disconnected from 10.1.0.3
-Connection error?      | Disconnection error
-Connection error?      | Disconnection error
-Connection error?      | Disconnection error
+message:keyword | unmapped_message:keyword
 ;
 
 loadViewBranchingUnmappedFieldReferencedOnlyAboveUnion
@@ -3776,37 +3958,45 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
-42                     | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | null
+Connected to 10.1.0.1! | null
 ;
 
 loadMvViewExpandCount_MvExpandUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
 | MV_EXPAND unmapped_mv
 | STATS c = COUNT(*)
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long
-13
+7
 ;
 
 loadMvViewExpandValues_MvExpandUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3815,19 +4005,20 @@ FROM partial_mapping_mv_view
 | KEEP message, unmapped_mv
 | SORT unmapped_mv
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword   | unmapped_mv:keyword
-Connection error? | c
-Connection error? | d
-Connection error? | e
-Connection error? | f
-Connection error? | g
+Connection error? | null
+Connection error? | null
+Connection error? | null
 ;
 
 loadMvViewFunctions_WithUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3835,15 +4026,18 @@ FROM partial_mapping_mv_view
 | EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
 | KEEP message, n, lo, hi
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | n:integer | lo:keyword | hi:keyword
-42              | 2         | h          | i
+42              | null      | null       | null
 ;
 
 loadDissectViewLoadedUnmappedField
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3851,9 +4045,10 @@ FROM partial_mapping_mv_view
 | DISSECT unmapped_message "%{action} from %{host}"
 | KEEP message, action, host
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | action:keyword | host:keyword
-Connected to 10.1.0.3! | Disconnected   | 10.1.0.3
+Connected to 10.1.0.3! | null           | null
 ;
 
 loadMvViewBranching_ExpandUnmapped_InOneBranch
@@ -3861,16 +4056,18 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
 | SORT message, unmapped_mv
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_mv:keyword
-42                     | h
-42                     | i
-Connected to 10.1.0.1! | [a, b]
+42                     | null
+Connected to 10.1.0.1! | null
 ;
 
 loadViewOuterEvalFunction_MaterializesUnmapped_AllBranches
@@ -3878,6 +4075,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3886,10 +4085,11 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message, upper
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
-message:keyword        | unmapped_message:keyword   | upper:keyword
-42                     | 43                         | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+message:keyword        | unmapped_message:keyword | upper:keyword
+42                     | null                     | null
+Connected to 10.1.0.1! | null                     | null
 ;
 
 loadViewOuterStatsBy_MaterializesUnmapped_AllBranches
@@ -3897,6 +4097,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3904,10 +4106,10 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | STATS c = COUNT(*) BY unmapped_message
 | SORT unmapped_message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | unmapped_message:keyword
-1      | 43
-1      | Disconnected from 10.1.0.1
+2      | null
 ;
 
 loadViewOuterSortDesc_MaterializesUnmapped_ThreeBranches
@@ -3915,19 +4117,24 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
+// unmapped_message is null in every row (the views contribute null at their output), so the sort needs the
+// message tiebreaker to be deterministic.
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
      (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
      (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
 | KEEP message, unmapped_message
-| SORT unmapped_message DESC
+| SORT unmapped_message DESC, message ASC
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
-Connected to 10.1.0.2! | Disconnected from 10.1.0.2
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
-42                     | 43
+42                     | null
+Connected to 10.1.0.1! | null
+Connected to 10.1.0.2! | null
 ;
 
 loadViewDropUnmapped_InOneBranch_MaterializesUnmapped_Sibling
@@ -3935,6 +4142,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
@@ -3942,10 +4151,11 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message)
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.1! | null
 ;
 
 loadViewRenameUnmappedAway_OuterReferences_OriginalUnmappedName
@@ -3953,6 +4163,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -3960,10 +4172,11 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | KEEP message, unmapped_message, renamed
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
-message:keyword        | unmapped_message:keyword   | renamed:keyword
-42                     | null                       | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+message:keyword        | unmapped_message:keyword | renamed:keyword
+42                     | null                     | null
+Connected to 10.1.0.1! | null                     | null
 ;
 
 loadViewWhereThenDropUnmappedInOneBranch_MaterializesUnmappedSibling
@@ -3971,6 +4184,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
@@ -3978,10 +4193,10 @@ FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
-42                     | null
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.1! | null
 ;
 
 loadViewEvalUnmappedInOneBranch_ScopesFieldToBranch
@@ -3989,6 +4204,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
@@ -3996,9 +4213,10 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_me
 | KEEP message, unmapped_message, tag
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword | tag:keyword
-42                     | 43                       | 43
+42                     | null                     | null
 Connected to 10.1.0.1! | null                     | null
 ;
 
@@ -4007,6 +4225,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4015,9 +4235,10 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 | KEEP message, unmapped_message, has
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword | has:boolean
-42                     | 43                       | true
+42                     | null                     | false
 Connected to 10.1.0.1! | null                     | false
 ;
 
@@ -4026,6 +4247,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4033,9 +4256,10 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | KEEP message, renamed
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | renamed:keyword
-42                     | 43
+42                     | null
 Connected to 10.1.0.1! | null
 ;
 
@@ -4044,6 +4268,8 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4051,9 +4277,10 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
-42                     | 43
+42                     | null
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
@@ -4079,6 +4306,8 @@ loadViewPassthrough_OuterEvalMaterializesUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4086,9 +4315,10 @@ FROM partial_mapping_view
 | EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
 | KEEP message, upper, len
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
-message:keyword        | upper:keyword              | len:integer
-Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
+message:keyword        | upper:keyword | len:integer
+Connected to 10.1.0.3! | null          | null
 ;
 
 loadViewInSubqueryAfterSubqueryIn_FromWhereUnmapped_KeepBranchesUnmapped
@@ -4097,6 +4327,8 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: where_in_subquery_with_view
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4105,9 +4337,9 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | unmapped_message:keyword
-42              | 43
 ;
 
 dropNonMatchingPatternIsNoop
@@ -4290,4 +4522,34 @@ all_types_unmapped           | key1            | true            | 1            
 all_types_unmapped_synthetic | key1            | true            | 1               | 1.1            | 2024-01-01T00:00:00.000Z | 127.0.0.1  | 1.0.0           | "{""boolean"":""true"",""byte"":1,""constant_keyword-foo"":""foo"",""date"":""2024-01-01T00:00:00.000Z"",""date_nanos"":""2024-01-01T00:00:00.000000001Z"",""double"":1.1,""float"":1.1,""half_float"":1.1,""integer"":1,""ip"":""127.0.0.1"",""keyword"":""key1"",""long"":100,""scaled_float"":1.1,""short"":10,""text"":""text1"",""unsigned_long"":100,""version"":""1.0.0"",""wildcard"":""wild1""}"
 all_types_unmapped           | key2            | false           | 2               | 2.2            | 2024-01-02T00:00:00.000Z | 127.0.0.2  | 2.0.0           | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""scaled_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""unsigned_long"":200,""short"":20,""text"":""text2"",""version"":""2.0.0"",""wildcard"":""wild2""}"
 all_types_unmapped_synthetic | key2            | false           | 2               | 2.2            | 2024-01-02T00:00:00.000Z | 127.0.0.2  | 2.0.0           | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""scaled_float"":2.2,""short"":20,""text"":""text2"",""unsigned_long"":200,""version"":""2.0.0"",""wildcard"":""wild2""}"
+;
+
+// order.items.qty is not in nested_paths_mapped's mapping, so it loads from _source even though its parent is nested; the declared
+// order.items.name does not load there. The decision is per shard, so nested_paths_unmapped loads both.
+nestedPathsUndeclaredLeafLoads
+required_capability: optional_fields_v5
+required_capability: fix_nested_subfield_extraction
+
+SET unmapped_fields="LOAD"\;
+FROM nested_paths_mapped, nested_paths_unmapped
+| KEEP id, order.items.name, order.items.qty
+| SORT id
+;
+
+id:keyword | order.items.name:keyword | order.items.qty:keyword
+m | null | [1, 2]
+u | [a, b] | [1, 2]
+;
+
+nestedPathsLoneUndeclaredLeafLoads
+required_capability: optional_fields_v5
+required_capability: fix_nested_subfield_extraction
+
+SET unmapped_fields="LOAD"\;
+FROM nested_paths_mapped
+| KEEP order.items.qty
+;
+
+order.items.qty:keyword
+[1, 2]
 ;

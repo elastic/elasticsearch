@@ -49,6 +49,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapArchive;
 import org.junit.Before;
@@ -72,15 +73,18 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -302,7 +306,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         if (forceUnsafe) {
             // Make sure the map is marked as unsafe
             indexDocs(indexName, randomIntBetween(1, 10));
-            assertTrue(isUnsafe(map));
+            assertTrue(isUnsafeForGets(map));
         }
         // Enforce safe access mode
         client().prepareIndex(indexName).setId(randomIdentifier()).setSource("field1", randomUnicodeOfLength(10)).get();
@@ -318,7 +322,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
             // The map was unsafe, so the get above forced a flush and the archive stays unsafe until the search shard acks that
             // commit. A second get before the ack forces another flush, whose ack can prune "1" from the archive before the
             // engine looks it up, making the get legitimately return null. Wait for the ack so the next get is deterministic.
-            assertBusy(() -> assertFalse(isUnsafe(map)));
+            assertBusy(() -> assertFalse(isUnsafeForGets(map)));
         }
         // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
@@ -383,20 +387,20 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         var indexShard = findIndexShard(indexName);
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // While map is unsafe and unpromotable refresh is inflight, index more
         safeAwait(sendUnpromotableRefreshStarted);
         var id = client().prepareIndex(indexName).setSource("field", randomIdentifier()).get().getId();
         // Still unsafe and `id` is not in the previous commit
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // Local refresh happens (sets minSafeGeneration).
         indexEngine.refresh("local");
         var archive = (StatelessLiveVersionMapArchive) getArchive(map);
         assertThat(archive.getMinSafeGeneration(), equalTo(indexEngine.getCurrentGeneration() + 1));
-        // After unpromotable refresh comes back, map should still be unsafe
+        // After unpromotable refresh comes back, map should still be unsafe for gets
         continueSendUnpromotableRefresh.countDown();
         refreshFuture.get();
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         var getResponse = client().prepareGet(indexName, id).get();
         assertTrue(getResponse.isExists());
     }
@@ -767,17 +771,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var getFromTranslogSeen = new AtomicInteger();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
-                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                final var attempt = getFromTranslogSeen.incrementAndGet();
+                if (attempt <= failCount) {
                     channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+                    // Update cluster state after failed attempt to retry the get call
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("field" + attempt, "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
             });
         final var getFuture = client().prepareGet(indexName, "non-existing").setRealtime(true).execute();
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < failCount; i++) {
-            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
-        }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
@@ -865,17 +870,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var getFromTranslogSeen = new AtomicInteger();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
-                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                final var attempt = getFromTranslogSeen.incrementAndGet();
+                if (attempt <= failCount) {
                     channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+                    // Update cluster state after failed attempt to retry the multi-get call
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("field" + attempt, "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
             });
         final var getFuture = client().prepareMultiGet().addIds(indexName, "non-existing").setRealtime(true).execute();
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < failCount; i++) {
-            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
-        }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).getResponses()[0].getResponse().isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
@@ -956,6 +962,89 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }
         assertThat(getFromTranslogAttempts.get(), equalTo(1));
         assertThat(shardGetsOnSearchB.get(), equalTo(0));
+    }
+
+    public void testNoConflictsOrLostUpdatesDuringRefreshes() throws Exception {
+        // LiveVersionMap could leave safe access mode between an update's enforceSafeAccess() and its put. This caused a bug where an
+        // update could succeed without putting the version into the version map. The next update then either hit a version conflict,
+        // or, when the stale version was used for both the get for update and the version check, succeeded on top of stale data and
+        // silently dropped the earlier update. Each update adds its own field so that both symptoms are detected.
+        String indexNodeA = startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                // Set a large max size and amount to control the uploads manually in the test
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
+                .build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+
+        String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var map = indexEngine.getLiveVersionMap();
+
+        assertFalse(isUnsafeForGets(map));
+
+        String docId = "doc-1";
+        // index 1 doc with doc-id. This should enforce safe access mode
+        client().prepareIndex(indexName).setId(docId).setSource("f_init", 0).get();
+        assertTrue(isSafeAccessRequired(map));
+        assertNotNull(get(map, docId));
+
+        var stopThreads = new AtomicBoolean(false);
+
+        final Thread refreshThread = new Thread(() -> {
+            while (stopThreads.get() == false) {
+                // trigger an internal refresh. We want this to cause safe -> unsafe transition in the middle of indexing
+                indexEngine.refresh("VERSION_CONFLICT_TEST");
+            }
+        }, "RefreshThread");
+        refreshThread.start();
+
+        // 30 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
+        final int updates = 30;
+        final List<Integer> acked = new ArrayList<>();
+        final List<String> failures = new ArrayList<>();
+        try {
+            for (int i = 0; i < updates; ++i) {
+                var response = client().prepareBulk().add(client().prepareUpdate(indexName, docId).setDoc("f" + i, i)).get();
+                if (response.hasFailures()) {
+                    failures.add("update " + i + ": " + response.buildFailureMessage());
+                } else {
+                    acked.add(i);
+                }
+            }
+        } finally {
+            stopThreads.set(true);
+            refreshThread.join();
+        }
+
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+        indicesAdmin().prepareRefresh(indexName).get();
+        final List<Integer> lost = new ArrayList<>();
+        assertResponse(client().prepareSearch(indexName), r -> {
+            assertThat(r.getHits().getHits().length, equalTo(1));
+            var source = r.getHits().getHits()[0].getSourceAsMap();
+            // The last acked update must be visible, so missing earlier fields cannot be explained by a stale read.
+            if (acked.isEmpty() == false) {
+                assertTrue("last acked update missing: " + source.keySet(), source.containsKey("f" + acked.get(acked.size() - 1)));
+            }
+            for (int i : acked) {
+                if (source.containsKey("f" + i) == false) {
+                    lost.add(i);
+                }
+            }
+        });
+        assertThat("failures: " + failures + ", lost acked updates: " + lost, failures.size() + lost.size(), equalTo(0));
     }
 
     private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {

@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -28,6 +29,7 @@ import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,7 +47,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     private final S3Client mockS3Client = mock(S3Client.class);
 
     /**
-     * When HeadObject returns 403, fetchMetadata should fall back to a range GET
+     * When HeadObject returns 403, probeObject should fall back to a range GET
      * and discover the object length from the Content-Range header.
      */
     public void testHeadFallbackToRangeGet() throws IOException {
@@ -92,7 +94,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET fails with a retryable S3 status, metadata resolution falls back to HEAD.
+     * When the range GET fails with a retryable S3 status, metadata resolution falls back to HEAD.
      * A retryable HEAD status maps like a retryable GET: {@link ExternalUnavailableException} (HTTP 503),
      * not a client-class {@link IOException}.
      */
@@ -116,7 +118,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET succeeds, metadata is resolved without HEAD.
+     * When the range GET succeeds, metadata is resolved without HEAD.
      */
     public void testHeadSucceedsNormally() throws IOException {
         GetObjectResponse resp = GetObjectResponse.builder()
@@ -135,8 +137,8 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When suffix-range GET and the bytes=0-0 fallback both return 403, the error
-     * is a client-class {@link IOException} (not retryable).
+     * When the range GET is refused and the HEAD that follows a non-403 failure is refused too, the error
+     * is a client-class error (not retryable), and includes the object name.
      */
     public void testHeadFallbackRangeGetAlsoFails() {
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
@@ -148,13 +150,20 @@ public class S3AnonymousAccessTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
-        IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("Access denied reading [" + PATH + "]"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
+        assertThat(e.getMessage(), containsString("Access denied reading [" + PATH.objectName() + "]"));
         assertThat(e.getMessage(), containsString("HTTP 403"));
-        // The message has to say what to change, not only what was refused: S3 answers a wrong key and an
-        // anonymous request against an authenticated bucket identically, so both remedies are named.
-        assertThat(e.getMessage(), containsString("access_key and secret_key"));
-        assertThat(e.getMessage(), containsString("auth=anonymous"));
+        // The message has to say what to change, not only what was refused. A bare 403 does not say why, and the
+        // storage object does not know the auth mode, so the remedy holds for every mode and names no setting.
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Verify that the data source is allowed to read this object with the credentials it is configured with, "
+                    + "or anonymously if it has none."
+            )
+        );
+        assertThat(e.getMessage(), not(containsString("access_key")));
+        assertThat(e.getMessage(), not(containsString("auth=anonymous")));
     }
 
     /**

@@ -28,6 +28,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -48,6 +49,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -68,9 +70,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
@@ -81,7 +88,11 @@ import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.KeyFilteredSlots;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -1077,6 +1088,322 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             ) {
                 assertEquals("{\"fieldA\":\"valueA\"}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
             }
+        }
+    }
+
+    /**
+     * A columnar index keeps the fields its mapping does not declare in the {@code _unmapped} field, which is always granted as a field
+     * whose name starts with {@code _}. Each unmapped field it holds is filtered on its own name: a role that excludes some of them
+     * hides those, nulls and arrays included, and keeps the others.
+     */
+    public void testUnmappedFieldsKeepOnlyGrantedFields() throws Exception {
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "k", "obj.hidden" })
+        );
+        List<Map<String, Object>> sources = unmappedFieldsSources(filter);
+        assertThat(sources.get(0), equalTo(Map.of("name", "a", "visible", "v", "obj.shown", "s", "arr", Arrays.asList("1", null, "3"))));
+        assertThat(sources.get(1), equalTo(Map.of("name", "b")));
+        assertThat(sources.get(2), equalTo(Map.of("visible", "w")));
+    }
+
+    /** A role that grants some fields by name keeps the unmapped fields it grants, and only those. */
+    public void testUnmappedFieldsGrantOnly() throws Exception {
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "visible", "obj.*" }, null));
+        List<Map<String, Object>> sources = unmappedFieldsSources(filter);
+        assertThat(sources.get(0), equalTo(Map.of("visible", "v", "obj.hidden", "h", "obj.shown", "s")));
+        assertThat(sources.get(1), equalTo(Map.of()));
+        assertThat(sources.get(2), equalTo(Map.of("visible", "w")));
+    }
+
+    /**
+     * The doc values of the {@code _unmapped} field and their {@code .counts} skip the documents that hold no granted unmapped field,
+     * and count only the granted slots of the others.
+     */
+    public void testUnmappedFieldsIterateOverGrantedDocuments() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "k" }));
+        DocumentMapper mapper = unmappedFieldsMapper();
+        try (Directory directory = newDirectory()) {
+            indexUnmappedFields(mapper, directory);
+            try (DirectoryReader reader = wrapUnmappedFields(directory, filter)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                String keyed = FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+                BinaryDocValues slots = leaf.getBinaryDocValues(keyed);
+                // the synthetic source loader skips the slots of the other fields as it decodes them
+                assertThat(slots, instanceOf(KeyFilteredSlots.class));
+                assertThat(slots.nextDoc(), equalTo(0));
+                assertThat(slotKeys(slots.binaryValue(), 6), equalTo(List.of("visible", "obj.hidden", "obj.shown", "arr", "arr", "arr")));
+                assertThat(slots.nextDoc(), equalTo(2));
+                assertThat(slotKeys(slots.binaryValue(), 1), equalTo(List.of("visible")));
+                assertThat(slots.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+                NumericDocValues counts = leaf.getNumericDocValues(
+                    keyed + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
+                );
+                assertThat(counts.advance(1), equalTo(2));
+                assertThat(counts.longValue(), equalTo(1L));
+                counts = leaf.getNumericDocValues(keyed + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+                assertTrue(counts.advanceExact(0));
+                assertThat(counts.longValue(), equalTo(6L));
+                assertFalse(counts.advanceExact(1));
+            }
+        }
+    }
+
+    /**
+     * Unmapped fields inside a nested object are kept in the {@code _unmapped} field of the nested document, under their full path,
+     * and are filtered on that path like the fields at the root.
+     */
+    public void testUnmappedFieldsInsideNestedObjects() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("n")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("k")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "n.secret", "top_secret" })
+        );
+        try (Directory directory = newDirectory()) {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startArray("n");
+                b.startObject().field("k", "a").field("secret", "s1").field("u", "u1").endObject();
+                b.startObject().field("secret", "s2").endObject();
+                b.endArray();
+                b.field("top_secret", "t").field("top", "o");
+            }));
+            IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter iw = new IndexWriter(directory, config)) {
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = wrapUnmappedFields(directory, filter)) {
+                assertEquals(
+                    "{\"n\":[{\"k\":\"a\",\"u\":\"u1\"},{}],\"top\":\"o\"}",
+                    syntheticSource(mapper, reader, doc.docs().size() - 1)
+                );
+            }
+        }
+    }
+
+    private List<Map<String, Object>> unmappedFieldsSources(CharacterRunAutomaton filter) throws IOException {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = unmappedFieldsMapper();
+        try (Directory directory = newDirectory()) {
+            indexUnmappedFields(mapper, directory);
+            try (DirectoryReader reader = wrapUnmappedFields(directory, filter)) {
+                List<Map<String, Object>> sources = new ArrayList<>();
+                for (int doc = 0; doc < 3; doc++) {
+                    sources.add(XContentHelper.convertToMap(JsonXContent.jsonXContent, syntheticSource(mapper, reader, doc), false));
+                }
+                return sources;
+            }
+        }
+    }
+
+    private DocumentMapper unmappedFieldsMapper() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            .build();
+        return createMapperService(settings, mapping(b -> b.startObject("name").field("type", "keyword").endObject())).documentMapper();
+    }
+
+    /** The keys of the {@code count} slots of {@code slots}, in the order they are stored. */
+    private static List<String> slotKeys(BytesRef slots, int count) throws IOException {
+        var reader = new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
+        reader.reset(slots, count);
+        List<String> keys = new ArrayList<>();
+        while (reader.next()) {
+            keys.add(reader.key());
+        }
+        return keys;
+    }
+
+    /** Three documents: unmapped fields of every shape, only the hidden field {@code k}, and only the field {@code visible}. */
+    private void indexUnmappedFields(DocumentMapper mapper, Directory directory) throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+        try (IndexWriter iw = new IndexWriter(directory, config)) {
+            List<CheckedConsumer<XContentBuilder, IOException>> documents = List.of(b -> {
+                b.field("name", "a").field("k", "secret").field("visible", "v");
+                b.startObject("obj").field("hidden", "h").field("shown", "s").endObject();
+                b.startArray("arr").value("1").nullValue().value("3").endArray();
+            }, b -> b.field("name", "b").field("k", "only"), b -> b.field("visible", "w"));
+            for (int i = 0; i < documents.size(); i++) {
+                ParsedDocument doc = mapper.parse(source(documents.get(i)));
+                doc.updateSeqID(i, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+            }
+            iw.forceMerge(1);
+        }
+    }
+
+    private static DirectoryReader wrapUnmappedFields(Directory directory, CharacterRunAutomaton filter) throws IOException {
+        return FieldSubsetReader.wrap(
+            wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+            filter,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
+            fieldName -> true
+        );
+    }
+
+    /**
+     * The decoder that holds the decompressed blocks of {@code _ignored_source} sits behind the field-level-security wrapper, so the
+     * wrapper has to pass on what the decoder reports it can allocate; callers such as ES|QL's fallback synthetic source reader use it to
+     * account for it in their circuit breaker, and would otherwise see {@code 0} for every index with field-level security.
+     * The index here is not written with the TSDB format, so a doc values wrapper that reports a known estimate stands in for the decoder.
+     */
+    public void testIgnoredSourceDocValuesPassOnTheDecodeEstimate() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", true)
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        assertEquals(
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+        );
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "fieldA" }, null));
+        long estimate = randomLongBetween(1, 1L << 30);
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("fieldA", "valueA");
+                b.field("fieldB", "valueB");
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader filtered = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(withIgnoredSourceDecodeEstimate(DirectoryReader.open(directory), estimate)),
+                    filter,
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
+                    (fieldName) -> true
+                )
+            ) {
+                var leaf = filtered.leaves().get(0).reader();
+                assertEquals(
+                    estimate,
+                    MultiValuedSortableBinaryDocValues.fromMultiValued(leaf, IgnoredSourceFieldMapper.NAME).maxDecodeBytes()
+                );
+            }
+            // Doc values that report nothing give -1, "no estimate", which callers must not mistake for 0, "no buffer".
+            try (DirectoryReader plain = DirectoryReader.open(directory)) {
+                assertEquals(
+                    -1L,
+                    MultiValuedSortableBinaryDocValues.fromMultiValued(plain.leaves().get(0).reader(), IgnoredSourceFieldMapper.NAME)
+                        .maxDecodeBytes()
+                );
+            }
+        }
+    }
+
+    /** Wraps {@code _ignored_source} doc values of every leaf so that they report {@code estimate} as their decode size. */
+    private static DirectoryReader withIgnoredSourceDecodeEstimate(DirectoryReader reader, long estimate) throws IOException {
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+                        BinaryDocValues values = super.getBinaryDocValues(field);
+                        if (values == null || IgnoredSourceFieldMapper.NAME.equals(field) == false) {
+                            return values;
+                        }
+                        return new DecodeEstimateBinaryDocValues(values, estimate);
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return in.getCoreCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return withIgnoredSourceDecodeEstimate(in, estimate);
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
+    }
+
+    private static final class DecodeEstimateBinaryDocValues extends BinaryDocValues
+        implements
+            BlockLoader.OptionalDecodeMemoryUsageEstimator {
+        private final BinaryDocValues delegate;
+        private final long estimate;
+
+        DecodeEstimateBinaryDocValues(BinaryDocValues delegate, long estimate) {
+            this.delegate = delegate;
+            this.estimate = estimate;
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            return estimate;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return delegate.advanceExact(target);
+        }
+
+        @Override
+        public BytesRef binaryValue() throws IOException {
+            return delegate.binaryValue();
+        }
+
+        @Override
+        public int docID() {
+            return delegate.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return delegate.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return delegate.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return delegate.cost();
         }
     }
 

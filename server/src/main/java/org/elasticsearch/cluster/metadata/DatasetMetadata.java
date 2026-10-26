@@ -94,10 +94,7 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // API + GATEWAY. Datasets carry no secrets (credentials live on the parent data source), so full API exposure
-        // is intentional. SNAPSHOT is excluded to stay consistent with DataSourceMetadata: restoring datasets without
-        // their data sources would leave dangling references. Snapshot support is tracked as a future milestone.
-        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 
     @Override

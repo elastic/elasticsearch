@@ -19,8 +19,10 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchScatterer;
 import org.elasticsearch.escf.EscfColumn;
@@ -31,7 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -80,41 +81,64 @@ final class BatchModeRouter implements Releasable {
     private int lastRow = -1;
     private int routedCount;
     private boolean scattered;
+    private boolean routingFailed;
     private boolean groupingBuilt;
+    private boolean closed;
+
+    private final Recycler<BytesRef> recycler;
 
     // x-content mode state (null in provided-batch mode)
     @Nullable
     private final BulkBatchEncoders encoders;
 
-    private BatchModeRouter(String indexAbstractionName, EscfBatch source) {
+    private BatchModeRouter(String indexAbstractionName, EscfBatch source, Recycler<BytesRef> recycler) {
         this.indexAbstractionName = indexAbstractionName;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
         this.items = new BulkItemRequest[source.docCount()];
+        this.recycler = recycler;
         this.encoders = null;
     }
 
-    private BatchModeRouter(BulkBatchEncoders encoders) {
+    private BatchModeRouter(BulkBatchEncoders encoders, Recycler<BytesRef> recycler) {
         this.indexAbstractionName = null;
         this.source = null;
         this.partitionIds = null;
         this.items = null;
+        this.recycler = recycler;
         this.encoders = encoders;
     }
 
     /** Returns the router for this bulk, or {@code null} when batch indexing does not apply. */
     @Nullable
-    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
-        Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
-        boolean hasProvidedBatch = provided != null && provided.isEmpty() == false;
-
-        if (hasProvidedBatch) {
+    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
+        if (bulkRequest.hasPreBuiltBatches()) {
             if (batchIndexingSupported == false) {
                 throw new IllegalStateException(
                     "pre-built source batch submitted but batch indexing is not supported"
                         + " (setting disabled, feature flag off, or mixed-version cluster)"
                 );
             }
+            return createForProvidedBatches(bulkRequest, bulkRequest.takePreBuiltBatches(), recycler);
+        }
+        if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
+            return null;
+        }
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            if ((request instanceof IndexRequest indexRequest && BulkBatchEncoders.isItemBatchEligible(indexRequest)) == false) {
+                return null;
+            }
+        }
+        return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
+    }
+
+    private static BatchModeRouter createForProvidedBatches(
+        BulkRequest bulkRequest,
+        Map<String, SourceBatch> provided,
+        Recycler<BytesRef> recycler
+    ) {
+        boolean success = false;
+        try {
             if (provided.size() > 1) {
                 throw new IllegalArgumentException(
                     "pre-built source batch bulk carries "
@@ -122,16 +146,8 @@ final class BatchModeRouter implements Releasable {
                         + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
                 );
             }
-        } else if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
-            return null;
-        }
-
-        // Single scan: both paths require all items to be IndexRequests; the provided-batch path
-        // additionally requires every item to carry a source-row reference; the x-content path
-        // requires each item to carry inline source with a known content type.
-        for (DocWriteRequest<?> request : bulkRequest.requests()) {
-            if (request instanceof IndexRequest indexRequest) {
-                if (hasProvidedBatch) {
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof IndexRequest indexRequest) {
                     if (indexRequest.indexSource().hasSourceRow() == false) {
                         throw new IllegalArgumentException(
                             "item targeting index ["
@@ -139,11 +155,7 @@ final class BatchModeRouter implements Releasable {
                                 + "] must carry a source-row reference when a pre-built batch is attached"
                         );
                     }
-                } else if (BulkBatchEncoders.isItemBatchEligible(indexRequest) == false) {
-                    return null;
-                }
-            } else {
-                if (hasProvidedBatch) {
+                } else {
                     throw new IllegalArgumentException(
                         "["
                             + request.opType()
@@ -153,23 +165,23 @@ final class BatchModeRouter implements Releasable {
                             + " request carrying a source-row reference"
                     );
                 }
-                return null;
             }
-        }
-
-        if (hasProvidedBatch) {
             Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
             String name = only.getKey();
             SourceBatch batch = only.getValue();
             if (batch instanceof EscfBatch escfBatch) {
-                return new BatchModeRouter(name, escfBatch);
+                BatchModeRouter router = new BatchModeRouter(name, escfBatch, recycler);
+                success = true;
+                return router;
             }
             throw new IllegalArgumentException(
                 "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
             );
+        } finally {
+            if (success == false) {
+                Releasables.close(provided.values());
+            }
         }
-
-        return new BatchModeRouter(new BulkBatchEncoders());
     }
 
     /**
@@ -524,7 +536,7 @@ final class BatchModeRouter implements Releasable {
         } catch (Exception e) {
             // The trio does not give us a row index, so we cannot isolate which row(s) caused the
             // problem. Fail every deferred item with the same exception.
-            scattered = true; // prevent shardBatches() from attempting a stale scatter
+            routingFailed = true; // no valid grouping exists, so shardBatches() must not attempt a scatter
             for (int i = 0; i < source.docCount(); i++) {
                 if (items[i] != null) {
                     onItemFailure.accept(items[i], e);
@@ -618,48 +630,61 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Returns the per-shard batches. For provided-batch mode, returns empty on any call after the
-     * first — the failure-store redirect pass must not re-scatter batches already in flight.
+     * Returns the per-shard batches. The caller owns every returned batch. Building them hands the
+     * underlying buffers to the returned batches, so this may be called at most once per bulk. The failure-store redirect pass must not
+     * call it: redirected items are new requests carrying inline source.
+     *
+     * <p>In provided-batch mode, returns empty if {@link #buildGrouping} failed to route, since no
+     * valid grouping exists to scatter.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> shardBatches() {
         if (encoders != null) {
             return encoders.finalizeBatches();
         }
-        if (scattered) {
+        if (routingFailed) {
             return Map.of();
+        }
+        if (scattered) {
+            throw new IllegalStateException("shard batches were already built for this bulk");
         }
         scattered = true;
         if (routedCount == 0) {
             return Map.of();
-        }
-        if (totalPartitions == 1) {
-            // Fast path: single target, single shard — hand the original batch through untouched.
-            return Map.of(new ShardId(targets[0].index(), 0), source);
         }
         return scatter();
     }
 
     private Map<ShardId, SourceBatch> scatter() {
         EscfBatch[] parts;
-        try (EscfBatchScatterer scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+        try (EscfBatchScatterer scatterer = new EscfBatchScatterer(recycler)) {
             parts = scatterer.scatter(source, partitionIds, totalPartitions);
         }
-        Map<ShardId, SourceBatch> result = new HashMap<>();
-        int[] nextRow = new int[totalPartitions];
-        for (int row = 0; row < routedCount; row++) {
-            int globalPartition = partitionIds[row];
-            EscfBatch part = parts[globalPartition];
-            assert part != null : "null partition " + globalPartition + " for row " + row;
+        boolean success = false;
+        try {
+            Map<ShardId, SourceBatch> result = new HashMap<>();
+            int[] nextRow = new int[totalPartitions];
+            for (int row = 0; row < routedCount; row++) {
+                int globalPartition = partitionIds[row];
+                EscfBatch part = parts[globalPartition];
+                assert part != null : "null partition " + globalPartition + " for row " + row;
 
-            // Recover the ShardId from the global partition: find which target owns this partition.
-            IndexTarget target = targetForPartition(globalPartition);
-            int localShardId = globalPartition - target.partitionBase();
-            result.putIfAbsent(new ShardId(target.index(), localShardId), part);
+                // Recover the ShardId from the global partition: find which target owns this partition.
+                IndexTarget target = targetForPartition(globalPartition);
+                int localShardId = globalPartition - target.partitionBase();
+                result.putIfAbsent(new ShardId(target.index(), localShardId), part);
 
-            IndexRequest req = (IndexRequest) items[row].request();
-            req.indexSource().setSourceRow(part, nextRow[globalPartition]++, req.indexSource().contentType());
+                IndexRequest req = (IndexRequest) items[row].request();
+                req.indexSource().setSourceRow(part, nextRow[globalPartition]++, req.indexSource().contentType());
+            }
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(parts);
+            }
         }
-        return result;
     }
 
     /** Returns the target that owns the given global partition id. Linear scan; N is typically 1–2. */
@@ -708,10 +733,13 @@ final class BatchModeRouter implements Releasable {
         }
     }
 
+    /** Releases the encoders and the provided batch. Safe to call more than once. */
     @Override
     public void close() {
-        if (encoders != null) {
-            encoders.close();
+        if (closed) {
+            return;
         }
+        closed = true;
+        Releasables.close(encoders, source);
     }
 }

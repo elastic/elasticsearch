@@ -23,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -101,7 +99,7 @@ public class DatafeedRunner {
             "es.ml.datafeeds.cps.with_unavailable_projects.current",
             "Count of datafeeds running on this node whose last search cycle saw at least one skipped or unavailable linked project.",
             "datafeeds",
-            () -> new LongWithAttributes(countDatafeedsWithUnavailableProjects(), Map.of())
+            this::countDatafeedsWithUnavailableProjects
         );
         clusterService.addListener(taskRunner);
     }
@@ -352,9 +350,6 @@ public class DatafeedRunner {
                     holder.finishedLookback(true);
                     if (holder.isIsolated() == false) {
                         if (next != null) {
-                            // Extraction failures during lookback must not count towards the real-time stop
-                            // threshold, which tracks consecutive real-time extraction failures.
-                            holder.problemTracker.resetConsecutiveExtractionFailureCount();
                             doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                         } else {
                             holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);
@@ -386,25 +381,7 @@ public class DatafeedRunner {
                         holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        int consecutiveExtractionFailures = holder.problemTracker.reportExtractionProblem(e);
-                        if (holder.shouldStopAfterConsecutiveExtractionFailures(consecutiveExtractionFailures)) {
-                            String extractionFailureMessage = Messages.getMessage(
-                                Messages.JOB_AUDIT_DATAFEED_STOPPED_CONSECUTIVE_EXTRACTION_FAILURES,
-                                consecutiveExtractionFailures,
-                                ExceptionsHelper.findSearchExceptionRootCause(e).getMessage()
-                            );
-                            logger.warn("[{}] {}", jobId, extractionFailureMessage);
-                            // Clean stop of the datafeed, leaving the job open so it can be restarted once the
-                            // underlying extraction problem is resolved.
-                            holder.stop(
-                                "consecutive_extraction_failures",
-                                TimeValue.timeValueSeconds(20),
-                                e,
-                                false,
-                                extractionFailureMessage
-                            );
-                            return;
-                        }
+                        holder.problemTracker.reportExtractionProblem(e);
                     } catch (DatafeedJob.AnalysisProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
                         holder.problemTracker.reportAnalysisProblem(e);
@@ -515,11 +492,6 @@ public class DatafeedRunner {
         boolean shouldStopAfterEmptyData(int emptyDataCount) {
             Integer emptyDataCountToStopAt = datafeedJob.getMaxEmptySearches();
             return emptyDataCountToStopAt != null && emptyDataCount >= emptyDataCountToStopAt;
-        }
-
-        boolean shouldStopAfterConsecutiveExtractionFailures(int consecutiveExtractionFailures) {
-            long threshold = datafeedJob.effectiveMaxConsecutiveExtractionFailures();
-            return threshold > 0 && consecutiveExtractionFailures >= threshold;
         }
 
         private void finishedLookback(boolean value) {

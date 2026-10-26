@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -33,6 +34,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -64,11 +66,13 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -83,6 +87,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialGeometryFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
@@ -179,6 +185,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.time.ZoneId;
@@ -203,7 +210,6 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -213,6 +219,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
@@ -221,7 +228,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -249,6 +255,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -296,7 +303,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
          * A logical optimizer configured for the same minimum transport version as the analyzer.
          */
         LogicalPlanOptimizer logicalOptimizer() {
-            return new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion()));
+            return new LogicalPlanOptimizer(logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion()));
         }
 
         /**
@@ -871,7 +878,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertNull(query.limit());
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -920,7 +927,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -969,7 +976,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertNull(query.limit());
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -1233,7 +1240,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
+        assertThat(query.query(), is(esqlExistsQuery("emp_no")));
     }
 
     /**
@@ -1268,7 +1275,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
+        assertThat(query.query(), is(esqlExistsQuery("emp_no")));
     }
 
     public void testQueryForStatWithMultiAgg() {
@@ -1289,7 +1296,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
-        assertThat(query.query(), is(boolQuery().should(unscore(existsQuery("emp_no"))).should(unscore(existsQuery("salary")))));
+        assertThat(query.query(), is(boolQuery().should(esqlExistsQuery("emp_no")).should(esqlExistsQuery("salary"))));
+    }
+
+    private static QueryBuilder esqlExistsQuery(String field) {
+        return new ExistsQuery(Source.EMPTY, field).toQueryBuilder();
     }
 
     /**
@@ -2165,6 +2176,126 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var tqb = as(sv(source.query(), "emp_no"), TermsQueryBuilder.class);
         assertThat(tqb.fieldName(), is("emp_no"));
         assertThat(tqb.values(), is(List.of(10020, 10040)));
+    }
+
+    /**
+     * {@code IN} on ip, version, unsigned_long, datetime and date_nanos fields must collapse into a single
+     * {@code terms} query under a single {@code sv} wrapper, not into a disjunction of per-value {@code sv}-wrapped
+     * term/range clauses. See https://github.com/elastic/elasticsearch/pull/120192 for the regression history.
+     */
+    public void testPushDownInIp() {
+        var plan = physicalPlan("""
+            from test_all
+            | where ip in (to_ip("1.1.1.1"), to_ip("2.2.2.2"))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "ip"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("ip"));
+        assertThat(tqb.values(), is(List.of("1.1.1.1", "2.2.2.2")));
+    }
+
+    public void testPushDownInVersion() {
+        var plan = physicalPlan("""
+            from test_all
+            | where version in (to_version("1.2.3"), to_version("4.5.6"))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "version"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("version"));
+        assertThat(tqb.values(), is(List.of("1.2.3", "4.5.6")));
+    }
+
+    public void testPushDownInUnsignedLong() {
+        var plan = physicalPlan("""
+            from test_all
+            | where unsigned_long in (to_ul(10), to_ul(20))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "unsigned_long"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("unsigned_long"));
+        assertThat(tqb.values(), is(List.of(10L, 20L)));
+    }
+
+    public void testPushDownInDate() {
+        String first = "2023-10-23T13:55:01.543Z";
+        String second = "2023-10-24T00:00:00.000Z";
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            from test_all
+            | where date in (to_datetime("%s"), to_datetime("%s"))
+            """, first, second), testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "date"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("date"));
+        assertThat(
+            tqb.values(),
+            is(
+                List.of(
+                    EsqlDataTypeConverter.dateTimeToString(EsqlDataTypeConverter.dateTimeToLong(first)),
+                    EsqlDataTypeConverter.dateTimeToString(EsqlDataTypeConverter.dateTimeToLong(second))
+                )
+            )
+        );
+    }
+
+    /**
+     * date_nanos formatting/conversion is handled separately from datetime ({@link EsqlDataTypeConverter#nanoTimeToString}
+     * vs. {@link EsqlDataTypeConverter#dateTimeToString}), so it's pinned here with its own test; date_nanos pushdown has
+     * regressed independently of datetime before.
+     */
+    public void testPushDownInDateNanos() {
+        String first = "2023-10-23T13:55:01.543123456Z";
+        String second = "2017-10-23T13:53:55.832987654Z";
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            from test_all
+            | where date_nanos in (to_date_nanos("%s"), to_date_nanos("%s"))
+            """, first, second), testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "date_nanos"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("date_nanos"));
+        assertThat(
+            tqb.values(),
+            is(
+                List.of(
+                    EsqlDataTypeConverter.nanoTimeToString(EsqlDataTypeConverter.dateNanosToLong(first)),
+                    EsqlDataTypeConverter.nanoTimeToString(EsqlDataTypeConverter.dateNanosToLong(second))
+                )
+            )
+        );
     }
 
     public void testPushDownInAndConjunction() {
@@ -3921,17 +4052,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * The subquery branch is a bare relation once the analyzer strips its wrapper, so the union is a direct-leaf shape
+     * and {@code PushAggregateThroughUnionAll} splits the count into per-branch partials that compile to Lucene-level
+     * {@code EsStatsQueryExec} counts, summed by the combiner aggregate above the merge.
      * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
-     * seen{r}#5],8]
-     *   \_MergeExec[[],UNION]
-     *     |_ExchangeExec[[],false]
-     *     | \_ProjectExec[[]]
-     *     |   \_EsQueryExec[no_fields_index], ...]
-     *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[]]
-     *         \_EsQueryExec[no_fields_index], ...]
+     * \_AggregateExec[[],[SUM($$partial$$count(){r$}#4,...) AS count()#3],SINGLE,[$$count()$sum{r}#9, $$count()$seen{r}#10],8]
+     *   \_MergeExec[[$$partial$$count(){r$}#4],UNION]
+     *     |_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *     | \_ExchangeExec[[$$partial$$count()$count{r}#5, $$partial$$count()$seen{r}#6],true]
+     *     |   \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
+     *     \_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *       \_ExchangeExec[[$$partial$$count()$count{r}#7, $$partial$$count()$seen{r}#8],true]
+     *         \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
      * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
@@ -3945,16 +4078,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(0, merge.output().size());
+            // The single merged column is the per-branch partial count, summed by the combiner aggregate above.
+            assertEquals(1, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
-                ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(0, exchange.output().size());
-                ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(0, project.projections().size());
-                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
-                assertEquals("no_fields_index", esQuery.indexPattern());
+                AggregateExec partial = as(child, AggregateExec.class);
+                ExchangeExec exchange = as(partial.child(), ExchangeExec.class);
+                EsStatsQueryExec statsQuery = as(exchange.child(), EsStatsQueryExec.class);
+                var stat = as(statsQuery.stat(), EsStatsQueryExec.BasicStat.class);
+                assertThat(stat.type(), is(EsStatsQueryExec.StatsType.COUNT));
             }
         }
     }
@@ -4424,6 +4557,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * <p>
      * Also note that the type converting function is removed when it does not actually convert the type,
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
+     * <p>
+     * When location has doc-values the grid function is additionally fused into field loading, so the data node plan becomes
+     * {@code AggregateExec -> FieldExtractExec[location (doc-values)] -> EvalExec[grid = $$location$ST_GEOHASH$..] ->
+     * FieldExtractExec[$$location$ST_GEOHASH$..] -> EsQueryExec}.
      */
     public void testSpatialTypesAndStatsCentroidByGeoGridUseDocValues() {
         for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
@@ -4447,15 +4584,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 agg = as(exchange.child(), AggregateExec.class);
                 // below the exchange (in data node) the aggregation is using doc-values.
                 assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, fieldExtractPreference);
-                var evalExec = as(agg.child(), EvalExec.class);
-                var alias = as(evalExec.fields().getFirst(), Alias.class);
-                var spatialFunction = as(alias.child(), SpatialDocValuesFunction.class);
-                assertThat(
-                    "Expected spatial doc values to be used for spatial function",
-                    spatialFunction.spatialDocValues(),
-                    equalTo(withDocValues)
-                );
-                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                if (withDocValues) {
+                    // The grid function is fused into field loading, so the EVAL no longer needs location: the centroid's doc-values
+                    // extraction of location sits directly under the aggregation and the fused cell ids are loaded under the EVAL.
+                    var locationExtract = as(agg.child(), FieldExtractExec.class);
+                    assertThat(names(locationExtract.attributesToExtract()), is(List.of("location")));
+                    assertThat(names(locationExtract.docValuesAttributes()), is(List.of("location")));
+                    var evalExec = as(locationExtract.child(), EvalExec.class);
+                    assertChildIsFusedGridExtract(evalExec, grid, 2);
+                } else {
+                    var evalExec = as(agg.child(), EvalExec.class);
+                    var alias = as(evalExec.fields().getFirst(), Alias.class);
+                    var spatialFunction = as(alias.child(), SpatialDocValuesFunction.class);
+                    assertThat("Expected spatial function to evaluate location from source", spatialFunction.spatialDocValues(), is(false));
+                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                }
             }
         }
     }
@@ -4809,8 +4952,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     | SORT abbrev
                     """.replace("GRID", grid) + (keepLocation ? "| KEEP abbrev, location, grid" : "| KEEP abbrev, grid");
                 for (boolean withDocValues : new boolean[] { false, true }) {
-                    withDocValues &= keepLocation == false; // if we keep location, we cannot use doc-values
-                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
                     var testData = withDocValues ? airports : airportsNoDocValues;
                     var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
                     var optimized = optimizedPlan(plan, testData.stats);
@@ -4824,17 +4965,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         assertThat(Expressions.names(project.projections()), allOf(hasItems("abbrev", "grid"), not(hasItems("location"))));
                     }
                     var fieldExtract = as(project.child(), FieldExtractExec.class);
-                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("abbrev"), not(hasItems("location"))));
                     var evalExec = as(fieldExtract.child(), EvalExec.class);
                     var alias = as(evalExec.fields().getLast(), Alias.class);
                     assertThat(alias.name(), equalTo("grid"));
-                    var gridFunction = as(alias.child(), SpatialGridFunction.class);
-                    var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
-                    assertThat(spatialField.name(), equalTo("location"));
-                    assertThat(spatialField.dataType(), equalTo(GEO_POINT));
-                    fieldExtract = as(evalExec.child(), FieldExtractExec.class);
-                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
-                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    if (withDocValues) {
+                        // The grid function is fused into field loading regardless of whether location itself is kept, since the
+                        // cell ids are loaded as a separate attribute. A kept location is then extracted (from source) above the EVAL.
+                        assertThat(
+                            Expressions.names(fieldExtract.attributesToExtract()),
+                            keepLocation ? hasItems("abbrev", "location") : allOf(hasItems("abbrev"), not(hasItems("location")))
+                        );
+                        assertThat(fieldExtract.docValuesAttributes(), is(empty()));
+                        assertChildIsFusedGridExtract(evalExec, grid, 2);
+                    } else {
+                        assertThat(
+                            Expressions.names(fieldExtract.attributesToExtract()),
+                            allOf(hasItems("abbrev"), not(hasItems("location")))
+                        );
+                        var gridFunction = as(alias.child(), SpatialGridFunction.class);
+                        var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                        assertThat(spatialField.name(), equalTo("location"));
+                        assertThat(spatialField.dataType(), equalTo(GEO_POINT));
+                        fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                        assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
+                        assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.NONE);
+                    }
                 }
             }
         }
@@ -4918,9 +5073,125 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     agg = as(exchange.child(), AggregateExec.class);
                     assertAggregation(agg, "count", Count.class);
                     var evalExec = as(agg.child(), EvalExec.class);
-                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    if (withDocValues) {
+                        // With doc-values the grid function is fused into field loading: the EVAL only renames an attribute
+                        // that the FieldExtractExec below loads directly as cell ids, so no geo_point is extracted at all.
+                        assertChildIsFusedGridExtract(evalExec, grid, 2);
+                    } else {
+                        assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    }
                 }
             }
+        }
+    }
+
+    /**
+     * The shape of the geo-grid aggregation queries in the Rally geopoint track: a pushable bounding-box filter on the same field,
+     * a bounded grid function and a COUNT grouped by the cell. The filter must end up in the Lucene query and the bounded grid
+     * function must be fused into field loading, so the data node plan touches no geo_point value at all.
+     */
+    public void testSpatialGridStatsWithPushedFilterUsesFusedLoad() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            String query = """
+                FROM airports
+                | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("BBOX(2.20, 2.40, 48.95, 48.75)"))
+                | EVAL grid = ST_GRID(location, 5, TO_GEOSHAPE("BBOX(2.20, 2.40, 48.95, 48.75)"))
+                | STATS count = COUNT(*) BY grid
+                """.replace("GRID", grid);
+            var plan = physicalPlan(query, airports);
+            var optimized = optimizedPlan(plan, airports.stats);
+            var limit = as(optimized, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertAggregation(agg, "count", Count.class);
+            var evalExec = as(agg.child(), EvalExec.class);
+            var fused = assertGridFusedIntoFieldLoad(as(evalExec.fields().getFirst(), Alias.class).child(), grid, 5);
+            var config = as(as(fused.field(), FunctionEsField.class).functionConfig(), BlockLoaderFunctionConfig.GeoGrid.class);
+            assertThat(config.bounds(), notNullValue());
+            var source = assertChildIsFusedGridExtract(evalExec, grid, 5);
+            assertThat("bounding box filter should be pushed to Lucene", source.query(), notNullValue());
+            assertThat(source.query().toString(), containsString("geo_shape"));
+        }
+    }
+
+    /**
+     * Grid functions over a geo_shape field are fused into field loading as well when the field has doc-values: the cells are
+     * tiled from the indexed triangle tree in the doc values. Without doc-values the shape is loaded as WKB and evaluated.
+     */
+    public void testSpatialGridStatsOnGeoShapeUsesFusedLoad() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            for (boolean bounded : new boolean[] { false, true }) {
+                String function = bounded
+                    ? "ST_GRID(city_boundary, 2, TO_GEOSHAPE(\"BBOX(-180, 180, 90, -90)\"))"
+                    : "ST_GRID(city_boundary, 2)";
+                String query = ("FROM airports_city_boundaries | EVAL grid = " + function + " | STATS count = COUNT(*) BY grid").replace(
+                    "GRID",
+                    grid
+                );
+                for (boolean shapeDocValues : new boolean[] { true, false }) {
+                    var testData = shapeDocValues ? airportsCityBoundaries : airportsCityBoundariesNoShapeDocValues;
+                    var plan = physicalPlan(query, testData);
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    var limit = as(optimized, LimitExec.class);
+                    var agg = as(limit.child(), AggregateExec.class);
+                    var exchange = as(agg.child(), ExchangeExec.class);
+                    agg = as(exchange.child(), AggregateExec.class);
+                    assertAggregation(agg, "count", Count.class);
+                    var evalExec = as(agg.child(), EvalExec.class);
+                    var alias = as(evalExec.fields().getFirst(), Alias.class);
+                    if (shapeDocValues) {
+                        var fused = assertGridFusedIntoFieldLoad(alias.child(), grid, 2);
+                        var config = as(as(fused.field(), FunctionEsField.class).functionConfig(), BlockLoaderFunctionConfig.GeoGrid.class);
+                        assertThat(config.bounds() != null, is(bounded));
+                        assertChildIsFusedGridExtract(evalExec, grid, 2);
+                    } else {
+                        var gridFunction = as(alias.child(), SpatialGridFunction.class);
+                        var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                        assertThat(spatialField.name(), equalTo("city_boundary"));
+                        assertThat(spatialField.dataType(), equalTo(GEO_SHAPE));
+                        var extract = as(evalExec.child(), FieldExtractExec.class);
+                        assertThat(names(extract.attributesToExtract()), is(List.of("city_boundary")));
+                        assertThat(extract.docValuesAttributes(), is(empty()));
+                        as(extract.child(), EsQueryExec.class);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Casting the grid cell to a long, for instance to sort on it, must not prevent the grid function from being fused into field
+     * loading: the fused attribute is loaded below the TopN and the cast runs on the cell ids, while the kept location is only
+     * extracted after the TopN.
+     */
+    public void testSpatialGridSortWithCastToLongUsesFusedLoad() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            String query = """
+                FROM airports
+                | EVAL grid = ST_GRID(location, 5)::long
+                | SORT grid ASC
+                | KEEP grid, location
+                | LIMIT 10
+                """.replace("GRID", grid);
+            var plan = physicalPlan(query, airports);
+            var optimized = optimizedPlan(plan, airports.stats);
+            var project = as(optimized, ProjectExec.class);
+            var topN = as(project.child(), TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            project = as(exchange.child(), ProjectExec.class);
+            var locationExtract = as(project.child(), FieldExtractExec.class);
+            assertThat(names(locationExtract.attributesToExtract()), is(List.of("location")));
+            topN = as(locationExtract.child(), TopNExec.class);
+            assertThat(topN.docValuesAttributes(), is(empty()));
+            var evalExec = as(topN.child(), EvalExec.class);
+            var alias = as(evalExec.fields().getFirst(), Alias.class);
+            assertThat(alias.name(), equalTo("grid"));
+            var cast = as(alias.child(), ToLong.class);
+            assertGridFusedIntoFieldLoad(cast.field(), grid, 5);
+            var extract = as(evalExec.child(), FieldExtractExec.class);
+            assertThat(names(extract.attributesToExtract()), hasSize(1));
+            as(extract.child(), EsQueryExec.class);
         }
     }
 
@@ -5034,9 +5305,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     query = query.replace("| KEEP abbrev, location, gridString", "| KEEP abbrev, gridString");
                 }
                 for (boolean withDocValues : new boolean[] { true, false }) {
-                    withDocValues &= keepLocation == false; // if we keep location, we cannot use doc-values
-                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                    // The index decides whether the grid functions are fused into field loading. From here on withDocValues means
+                    // whether location itself may be extracted from doc-values, which additionally requires it not to be kept.
                     var testData = withDocValues ? airports : airportsNoDocValues;
+                    boolean fused = withDocValues;
+                    withDocValues &= keepLocation == false;
+                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
                     var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
                     var optimized = optimizedPlan(plan, testData.stats);
                     var project = as(optimized, ProjectExec.class);
@@ -5052,25 +5326,56 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                             allOf(hasItems("abbrev", "gridString"), not(hasItems("location")))
                         );
                     }
-                    topNExec = as(project.child(), TopNExec.class);
-                    assertThat(Expressions.names(topNExec.docValuesAttributes()), is(withDocValues ? List.of("location") : List.of()));
+                    PhysicalPlan belowProject = project.child();
+                    if (fused && keepLocation) {
+                        // Once fused, nothing below the TopN reads location, so when it is kept for the output it is extracted as WKB
+                        // only after the TopN has reduced the rows. Without doc-values it is extracted for the grid functions further
+                        // down and flows through the TopN instead.
+                        var locationExtract = as(belowProject, FieldExtractExec.class);
+                        assertThat(Expressions.names(locationExtract.attributesToExtract()), is(List.of("location")));
+                        assertThat(locationExtract.docValuesAttributes(), is(empty()));
+                        belowProject = locationExtract.child();
+                    }
+                    topNExec = as(belowProject, TopNExec.class);
+                    assertThat(Expressions.names(topNExec.docValuesAttributes()), is(List.of()));
                     var fieldExtract = as(topNExec.child(), FieldExtractExec.class);
                     assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("abbrev"), not(hasItems("location"))));
+                    assertThat(fieldExtract.docValuesAttributes(), is(empty()));
                     var evalExec = as(fieldExtract.child(), EvalExec.class);
                     var alias = as(evalExec.fields().getLast(), Alias.class);
                     assertThat(alias.name(), equalTo("gridString"));
-                    var filter = as(evalExec.child(), FilterExec.class);
+                    PhysicalPlan belowGridString = evalExec.child();
+                    if (fused) {
+                        // The unbounded grid function inside TO_STRING is fused into field loading, so its cell ids are loaded by a
+                        // FieldExtractExec between the EVAL and the FILTER.
+                        var toString = as(alias.child(), ToString.class);
+                        var fusedGrid = assertGridFusedIntoFieldLoad(toString.field(), grid, 1);
+                        var fusedExtract = as(belowGridString, FieldExtractExec.class);
+                        assertThat(Expressions.names(fusedExtract.attributesToExtract()), is(List.of(fusedGrid.name())));
+                        belowGridString = fusedExtract.child();
+                    }
+                    var filter = as(belowGridString, FilterExec.class);
                     evalExec = as(filter.child(), EvalExec.class);
                     alias = as(evalExec.fields().getLast(), Alias.class);
                     assertThat(alias.name(), equalTo("grid"));
-                    var gridFunction = as(alias.child(), SpatialGridFunction.class);
-                    var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
-                    assertThat(spatialField.name(), equalTo("location"));
-                    assertThat(spatialField.dataType(), equalTo(GEO_POINT));
-                    fieldExtract = as(evalExec.child(), FieldExtractExec.class);
-                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
-                    assertThat(Expressions.names(fieldExtract.docValuesAttributes()), is(withDocValues ? List.of("location") : List.of()));
-                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    if (fused) {
+                        // The bounded grid function is fused as well, with the bounds recorded in the loader config
+                        var fusedGrid = assertGridFusedIntoFieldLoad(alias.child(), grid, 1);
+                        var config = as(
+                            as(fusedGrid.field(), FunctionEsField.class).functionConfig(),
+                            BlockLoaderFunctionConfig.GeoGrid.class
+                        );
+                        assertThat(config.bounds(), notNullValue());
+                        assertChildIsFusedGridExtract(evalExec, grid, 1);
+                    } else {
+                        var gridFunction = as(alias.child(), SpatialGridFunction.class);
+                        var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                        assertThat(spatialField.name(), equalTo("location"));
+                        assertThat(spatialField.dataType(), equalTo(GEO_POINT));
+                        fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                        assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
+                        assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    }
                 }
             }
         }
@@ -5153,7 +5458,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * The combination of spatial grid functions and SORT will lead to doc-values being extracted for points.
-     * We test that all nine spatial functions get correctly notified that they will receive doc value points.
+     * We test that all nine spatial functions get correctly notified that they will receive doc value points,
+     * except the grid function which, with doc-values available, is fused into field loading instead.
      */
     public void testSpatialGridTypesAndSortWithEnvelopeUseDocValues() {
         for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
@@ -5194,8 +5500,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("abbrev"), not(hasItems("location"))));
                     var evalExec = as(fieldExtract.child(), EvalExec.class);
                     assertThat(Expressions.names(evalExec.fields()), hasItems("grid", "envelope", "points"));
+                    String fusedGridName = null;
                     for (var field : evalExec.fields()) {
                         var alias = as(field, Alias.class);
+                        if (withDocValues && alias.name().equals("grid")) {
+                            // The grid function is fused into field loading rather than evaluated from the doc-values point
+                            fusedGridName = assertGridFusedIntoFieldLoad(alias.child(), grid, 2).name();
+                            continue;
+                        }
                         var gridFunction = as(alias.child(), SpatialDocValuesFunction.class);
                         assertThat(alias.name(), gridFunction.spatialDocValues(), is(withDocValues));
                         var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
@@ -5203,7 +5515,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         assertThat(alias.name(), spatialField.dataType(), equalTo(GEO_POINT));
                     }
                     fieldExtract = as(evalExec.child(), FieldExtractExec.class);
-                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
+                    if (withDocValues) {
+                        assertThat(Expressions.names(fieldExtract.attributesToExtract()), containsInAnyOrder("location", fusedGridName));
+                    } else {
+                        assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
+                    }
                     assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
                 }
             }
@@ -9961,6 +10277,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
                 EmptyIndexedByShardId.instance(),
@@ -9970,10 +10287,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
-            null,  // RemoteFetchService - not needed for these tests
+            true,  // snapshotBuild - bare external sources are planned without a registered dataset
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
-            MatcherWatchdog.noop()
+            MatcherWatchdog.noop(),
+            TransportVersion.current()
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
@@ -10155,13 +10473,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             query.query(),
             equalTo(
-                new BoolQueryBuilder().filter(
-                    new SingleValueQuery(
-                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
-                        "job",
-                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
-                    ).toQueryBuilder()
-                )
+                new SingleValueQuery(
+                    new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                    "job",
+                    SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                ).toQueryBuilder()
             )
         );
     }
@@ -10261,6 +10577,34 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("Expected filter field", field.name(), equalTo(fieldName));
         var value = as(condition.right(), Literal.class);
         assertThat("Expected filter value", value.value(), equalTo(expected));
+    }
+
+    /**
+     * Asserts that {@code expression} is the attribute that replaces an unbounded {@code ST_GEOHASH}, {@code ST_GEOTILE} or
+     * {@code ST_GEOHEX} over a {@code geo_point} field with doc-values once the function has been fused into field loading by
+     * {@code PushExpressionsToFieldLoad}: a {@link FieldAttribute} backed by a {@link FunctionEsField} carrying the grid config.
+     */
+    private static FieldAttribute assertGridFusedIntoFieldLoad(Expression expression, String grid, int precision) {
+        var fused = as(expression, FieldAttribute.class);
+        assertThat(fused.dataType(), equalTo(DataType.fromEs(grid)));
+        var functionField = as(fused.field(), FunctionEsField.class);
+        var config = as(functionField.functionConfig(), BlockLoaderFunctionConfig.GeoGrid.class);
+        assertThat(config.function().name(), equalTo("ST_" + grid.toUpperCase(Locale.ROOT)));
+        assertThat(config.precision(), equalTo(precision));
+        return fused;
+    }
+
+    /**
+     * Asserts that the last field of the EVAL is a fused grid attribute (see {@link #assertGridFusedIntoFieldLoad}) and that the
+     * {@link FieldExtractExec} directly below loads only that attribute, without any geo_point doc-values extraction.
+     */
+    private static EsQueryExec assertChildIsFusedGridExtract(EvalExec evalExec, String grid, int precision) {
+        var alias = as(evalExec.fields().getLast(), Alias.class);
+        var fused = assertGridFusedIntoFieldLoad(alias.child(), grid, precision);
+        var extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), is(List.of(fused.name())));
+        assertThat(extract.docValuesAttributes(), is(empty()));
+        return as(extract.child(), EsQueryExec.class);
     }
 
     private EsQueryExec assertChildIsGeoPointExtract(UnaryExec parent, FieldExtractPreference fieldExtractPreference) {

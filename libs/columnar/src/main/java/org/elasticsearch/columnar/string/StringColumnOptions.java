@@ -15,16 +15,28 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
 
 /**
  * How one string column is written. Every choice here is a write-time one that the column records for
- * itself: the chunk codec is named in the chunk index and the layout in the column's metadata, so two
- * fields written differently are read by the same reader and a field may be written differently tomorrow
- * than it was today.
+ * itself: the chunk codec is named in the chunk index, the layout in the column's metadata and the framing
+ * beside the column's type, so two fields written differently are read by the same reader and a field may
+ * be written differently tomorrow than it was today.
  *
  * @param dictionary when the column's values are named by ordinals rather than stored
  * @param summary    how much of what the column held it summarises for a later merge
  * @param chunkCodec what compresses the chunks the values are written in
  * @param sizes      the units the column's streams are written in
+ * @param singleValued whether each document's blob is its value's own bytes rather than a
+ *                     {@link StringBinaryPayload}. Unlike the other options it cannot change for a field: a merge
+ *                     decodes a source that is not a ColumNAR column with the target's framing
+ * @param enableSkipIndex whether a dictionary column without escapes writes the smallest and largest ordinal of
+ *                     each interval of documents, which a range query uses to skip intervals
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
+public record StringColumnOptions(
+    DictionaryPolicy dictionary,
+    SummaryPolicy summary,
+    ChunkCodec chunkCodec,
+    Sizes sizes,
+    boolean singleValued,
+    boolean enableSkipIndex
+) {
 
     /**
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
@@ -97,7 +109,7 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      * admitting the tails of larger ones, where terms seen once cover almost nothing and widen the ordinal
      * every value pays for.
      */
-    public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
+    public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.9, 0.2);
 
     /**
      * Values a read takes as one unit. Larger trades more bytes read on random access for fewer, larger
@@ -173,16 +185,53 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
     /**
      * How much of what a column held it summarises for a later merge, when a field names nothing of its own.
      *
-     * <p>The same half a megabyte the dictionary is capped at, since what a merge may name is bounded by that
-     * cap too: a summary larger than it describes terms no merged dictionary could hold.
+     * <p>The same half a megabyte the dictionary is capped at, so a flush and the merge that reads it are
+     * bounded alike. A wider summary is not wasted: it carries more candidates into the merge and leaves
+     * fewer occurrences unaccounted for, which tightens the bound, at the cost of bytes on every column.
      */
-    public static final SummaryPolicy DEFAULT_SUMMARY = new SummaryPolicy(DEFAULT_DICTIONARY.maxBytes());
+    public static final SummaryPolicy DEFAULT_SUMMARY = SummaryPolicy.sized(DEFAULT_DICTIONARY.maxBytes());
+
+    /**
+     * A payload holds every shape a document can take, so it is correct for every field. The bare value is correct only
+     * when the mapping guarantees one non-null value per document. A column that reads a payload as a bare value stores
+     * the whole payload as the value.
+     */
+    public static final boolean DEFAULT_SINGLE_VALUED = false;
+
+    public static final boolean DEFAULT_ENABLE_SKIP_INDEX = true;
 
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         DEFAULT_SUMMARY,
         ChunkCodec.ZSTD,
-        DEFAULT_SIZES
+        DEFAULT_SIZES,
+        DEFAULT_SINGLE_VALUED,
+        DEFAULT_ENABLE_SKIP_INDEX
+    );
+
+    /**
+     * What closes a chunk of a payload column. Payloads compress little and a read of one decompresses every chunk it
+     * touches, so chunks stay small.
+     */
+    public static final ChunkBounds PAYLOAD_PLAIN_CHUNKS = new ChunkBounds(32 * 1024, DEFAULT_VALUES_PER_BLOCK);
+
+    /** For a field whose values are payloads stored and read back whole: no dictionary, and small chunks. */
+    public static final StringColumnOptions PAYLOADS = new StringColumnOptions(
+        DictionaryPolicy.NONE,
+        SummaryPolicy.NONE,
+        ChunkCodec.ZSTD,
+        new Sizes(
+            DEFAULT_VALUES_PER_BLOCK,
+            PAYLOAD_PLAIN_CHUNKS,
+            DEFAULT_ESCAPE_CHUNKS,
+            DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+            DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+            DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+            DEFAULT_LENGTH_BLOCK_SIZE
+        ),
+        DEFAULT_SINGLE_VALUED,
+        DEFAULT_ENABLE_SKIP_INDEX
     );
 
     public StringColumnOptions {
@@ -206,11 +255,21 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes);
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued, enableSkipIndex);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued, enableSkipIndex);
+    }
+
+    /** These options for a field whose documents each hold exactly one value, handed over as its own bytes. */
+    public StringColumnOptions withSingleValued(boolean singleValued) {
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex);
+    }
+
+    /** These options for a field whose ordinals should not be indexed. */
+    public StringColumnOptions withoutSkipIndex() {
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, false);
     }
 }

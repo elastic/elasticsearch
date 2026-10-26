@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -130,9 +131,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
-        }
-        if (randomBoolean()) {
-            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.setIndicesOptions(
@@ -340,6 +338,124 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
     }
 
+    public void testApplyEsqlQueryChangeShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Recreate ES|QL datafeed [esql-datafeed] to change esql_query"));
+    }
+
+    public void testApplyEsqlQueryUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM source-index").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("cannot add [esql_query] to non-ES|QL datafeed [classic-datafeed]"));
+    }
+
+    public void testApplyEsqlSourceTimeFieldUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("t").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("source_time_field can only be set when esql_query is configured"));
+    }
+
+    public void testApplyEsqlGroupingIntervalUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueHours(1)).build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("grouping_interval can only be set when esql_query is configured"));
+    }
+
+    public void testMinRequiredTransportVersionShouldCoverAllEsqlFields() {
+        List<DatafeedUpdate> esqlUpdates = List.of(
+            new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build(),
+            new DatafeedUpdate.Builder("test-datafeed").setSourceTimeField("t").build(),
+            new DatafeedUpdate.Builder("test-datafeed").setGroupingInterval(TimeValue.timeValueHours(1)).build()
+        );
+        for (DatafeedUpdate update : esqlUpdates) {
+            assertThat(update.minRequiredTransportVersion().orElseThrow().v1(), equalTo(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
+        }
+        DatafeedUpdate classicUpdate = new DatafeedUpdate.Builder("test-datafeed").setQueryDelay(TimeValue.timeValueMinutes(5)).build();
+        assertThat(classicUpdate.minRequiredTransportVersion().isPresent(), is(false));
+    }
+
+    public void testApplyEsqlDatafeedQueryShapeUpdatesShouldReject() throws IOException {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        List<DatafeedUpdate> queryShapeUpdates = List.of(
+            new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("event.ingested").build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
+                .build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setRuntimeMappings(Collections.emptyMap()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED).build()
+        );
+
+        for (DatafeedUpdate update : queryShapeUpdates) {
+            ElasticsearchStatusException exception = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+            );
+            assertThat(exception.getMessage(), containsString("update API only supports operational settings"));
+        }
+    }
+
+    public void testApplyQueryDelayOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setQueryDelay(TimeValue.timeValueMinutes(5))
+            .setFrequency(TimeValue.timeValueMinutes(10))
+            .setMaxEmptySearches(7)
+            .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2)))
+            .build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getEsqlQuery(), equalTo(datafeed.getEsqlQuery()));
+        assertThat(updated.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(updated.getFrequency(), equalTo(TimeValue.timeValueMinutes(10)));
+        assertThat(updated.getMaxEmptySearches(), equalTo(7));
+        assertThat(updated.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
+        assertThat(
+            updated.getDelayedDataCheckConfig(),
+            equalTo(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2)))
+        );
+    }
+
+    private static DatafeedConfig createEsqlDatafeed(String id) {
+        return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+    }
+
     public void testApply_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
@@ -412,7 +528,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 14)) {
+        switch (between(1, 13)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -539,34 +655,10 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setProjectRouting(randomAlphaOfLength(20));
                 }
                 break;
-            case 14:
-                if (instance.getMaxConsecutiveExtractionFailures() == null) {
-                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
-                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
-                    builder.setMaxConsecutiveExtractionFailures(10);
-                } else {
-                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
-                }
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
-    }
-
-    public void testApplyMaxConsecutiveExtractionFailures() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
-            .setMaxConsecutiveExtractionFailures(null)
-            .build();
-        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
-
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
-        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
-        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
-
-        DatafeedUpdate disable = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
-        DatafeedConfig disabled = disable.apply(updated, Collections.emptyMap(), clusterState);
-        assertThat(disabled.getMaxConsecutiveExtractionFailures(), equalTo(-1));
     }
 
     public void testApplyWithProjectRouting() {
@@ -655,6 +747,31 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 DatafeedUpdate deserialized = new DatafeedUpdate(in);
                 assertThat(deserialized.getProjectRouting(), equalTo(projectRouting));
             }
+        }
+    }
+
+    public void testEsqlQuerySerializationWithNewTransportVersionShouldRoundTrip() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                assertThat(new DatafeedUpdate(in).getEsqlQuery(), equalTo("FROM logs"));
+            }
+        }
+    }
+
+    public void testEsqlQuerySerializationBeforeEsqlDatafeedTransportVersionShouldReject() throws IOException {
+        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs")
+            .setQueryDelay(TimeValue.timeValueMinutes(5))
+            .build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(previousVersion);
+            expectThrows(IOException.class, () -> update.writeTo(output));
         }
     }
 

@@ -12,6 +12,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Deque;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -38,12 +41,18 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
      */
     private final Logger changeLog = LogManager.getLogger(getClass().getName() + ".changes");
 
+    /**
+     * Number of most recent plan-changing rules reported when a {@link Limiter} is reached, to help identify the rules that keep
+     * a batch from converging.
+     */
+    static final int LAST_APPLIED_RULES_TO_REPORT = 10;
+
     public static class Limiter {
         public static final Limiter DEFAULT = new Limiter(100);
         public static final Limiter ONCE = new Limiter(1) {
 
             @Override
-            boolean reached(int runs) {
+            boolean reached(int runs, Collection<String> lastAppliedRules) {
                 return runs >= 1;
             }
         };
@@ -54,9 +63,13 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             this.runs = maximumRuns;
         }
 
-        boolean reached(int numberOfRuns) {
+        boolean reached(int numberOfRuns, Collection<String> lastAppliedRules) {
             if (numberOfRuns >= this.runs) {
-                throw new RuleExecutionException("Rule execution limit [{}] reached", numberOfRuns);
+                throw new RuleExecutionException(
+                    "Rule execution limit [{}] reached, last rules that changed the plan: {}",
+                    numberOfRuns,
+                    lastAppliedRules
+                );
             }
             return false;
         }
@@ -114,6 +127,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             long batchDuration = 0;
 
             TreeType before = currentPlan;
+            Deque<String> lastAppliedRules = new ArrayDeque<>(LAST_APPLIED_RULES_TO_REPORT);
             // run each batch until no change occurs or the limit is reached
             do {
                 hasChanged = false;
@@ -130,6 +144,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
                     if (Objects.equals(beforeRule, afterRule) == false) {
                         hasChanged = true;
+                        if (lastAppliedRules.size() == LAST_APPLIED_RULES_TO_REPORT) {
+                            lastAppliedRules.removeFirst();
+                        }
+                        lastAppliedRules.addLast(rule.name());
                         if (changeLog.isTraceEnabled()) {
                             changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(beforeRule, afterRule));
                         }
@@ -140,7 +158,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     }
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
-            } while (hasChanged && batch.limit.reached(batchRuns) == false);
+            } while (hasChanged && batch.limit.reached(batchRuns, lastAppliedRules) == false);
             TreeType after = currentPlan;
 
             totalDuration += batchDuration;

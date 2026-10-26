@@ -27,6 +27,9 @@ public interface StringColumnSource {
     /** The column behind these values. */
     StringColumnReader reader();
 
+    /** Whether a document's blob is its one value's own bytes rather than a payload of its slots. */
+    boolean singleValued();
+
     /**
      * The largest or smallest value the document these values are positioned on holds, or null when it holds none.
      *
@@ -73,4 +76,10 @@ public interface StringColumnSource {
      * through rather than assemble it. The returned {@link BytesRef} is only valid until the next call.
      */
     BytesRef slotAt(int slot) throws IOException;
+
+    /**
+     * How many non-null values the document holds; when exactly one, its length in bytes is left in
+     * {@code length[0]}. Unlike {@link #nonNullValues} no value is decoded.
+     */
+    int nonNullLength(int[] length) throws IOException;
 }

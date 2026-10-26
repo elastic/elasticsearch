@@ -26,9 +26,11 @@ import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -57,6 +59,9 @@ import static org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType
 public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
+
+    /** Computed on first use: it inspects the segments of every shard. */
+    private Boolean mayHoldUnmappedFields;
 
     private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues, MappedFieldType fieldType) {
         FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {
@@ -109,7 +114,7 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (context.isMappedField(field)) {
+            if (isExtractableMappedField(context, field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -139,7 +144,46 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (context.isMappedField(field)) {
+            if (isExtractableMappedField(context, field)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A field ES|QL can extract from this shard: present in the mapping and not under a nested
+     * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
+     * on the field-caps request, so treating nested subfields as present here would make
+     * {@code exists}/{@code count} or pushed-down predicates disagree with extraction.
+     */
+    public static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
+        return context.isMappedField(field) && isNestedSubfield(context, field) == false;
+    }
+
+    private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
+        return context.nestedLookup().hasNestedParent(field);
+    }
+
+    @Override
+    public boolean mayHoldUnmappedFields() {
+        if (mayHoldUnmappedFields == null) {
+            boolean mayHold = false;
+            for (SearchExecutionContext context : contexts) {
+                if (context.unmappedFields().mayExist()) {
+                    mayHold = true;
+                    break;
+                }
+            }
+            mayHoldUnmappedFields = mayHold;
+        }
+        return mayHoldUnmappedFields;
+    }
+
+    @Override
+    public boolean mayHoldUnmappedField(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.unmappedFields().mayExist(field.string())) {
                 return true;
             }
         }
@@ -172,6 +216,9 @@ public class SearchContextStats implements SearchStats {
             throw new UnsupportedOperationException("config must be provided");
         }
         for (SearchExecutionContext context : contexts) {
+            if (isNestedSubfield(context, name.string())) {
+                return false;
+            }
             MappedFieldType ft = context.getFieldType(name.string());
             if (ft == null) {
                 /*
@@ -218,11 +265,11 @@ public class SearchContextStats implements SearchStats {
         }
         long count = 0;
         for (SearchExecutionContext context : contexts) {
-            // Skip shards where this field is a dynamic sub-key of a flattened field rather
-            // than an explicitly mapped field; those shards store the field's terms in Lucene
-            // even though it is absent from the mapping, so counting without this guard
-            // inflates the result.
-            if (context.isMappedField(field.string()) == false) {
+            // Skip shards where this field is a dynamic flattened sub-key (terms exist in Lucene
+            // but field caps does not report it — see #154508) or a nested subfield (IndexResolver
+            // applies -nested on the field-caps request; counting nested Lucene docs would disagree
+            // with extraction — #154011).
+            if (isExtractableMappedField(context, field.string()) == false) {
                 continue;
             }
             for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
@@ -394,8 +441,29 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean hasValueQueries(FieldAttribute.FieldName name) {
+        for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return false;
+            }
+            MappedFieldType type = ctx.getFieldType(name.string());
+            if (type instanceof TextFamilyFieldType textFamily) {
+                if (textFamily.valueQueries() == null) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return contexts.isEmpty() == false;
+    }
+
+    @Override
     public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
         for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return false;
+            }
             MappedFieldType type = ctx.getFieldType(name.string());
             if (type == null) {
                 return false;
@@ -412,9 +480,26 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return null;
+            }
             MappedFieldType f = ctx.getFieldType(name.string());
             if (f == null) {
                 return null;
@@ -502,7 +587,7 @@ public class SearchContextStats implements SearchStats {
     private boolean doWithFieldLeafReaders(String field, FieldLeafReaderTester tester) {
         try {
             for (SearchExecutionContext context : contexts) {
-                if (context.isMappedField(field) == false) {
+                if (isExtractableMappedField(context, field) == false) {
                     continue;
                 }
                 MappedFieldType fieldType = context.getFieldType(field);

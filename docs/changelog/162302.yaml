@@ -1,0 +1,6 @@
+area: Security
+issues:
+ - 161396
+pr: 162302
+summary: Apply fls to `constant_keyword` in new and reindexed percolate queries at runtime
+type: bug

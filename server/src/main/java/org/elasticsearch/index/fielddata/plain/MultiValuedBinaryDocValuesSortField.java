@@ -78,6 +78,9 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         return switch (binaryFormat) {
             // The payload carries its own count, so there is nothing to advance alongside it.
             case COLUMNAR_PAYLOAD -> new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
+            case PLAIN -> throw new AssertionError(
+                "PLAIN fields use a plain BinarySortField, not MultiValuedBinaryDocValuesSortField; field=[" + getField() + "]"
+            );
             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                 String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
                 NumericDocValues counts = reader.getNumericDocValues(countsFieldName);
@@ -123,6 +126,9 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     public static BytesRef decodeExtreme(BytesRef raw, long count, boolean maxMode, BinaryDocValuesFormat format) throws IOException {
         return switch (format) {
             case COLUMNAR_PAYLOAD -> new StringBinaryPayload.Decoder().extreme(raw, maxMode);
+            case PLAIN -> throw new AssertionError(
+                "PLAIN fields use a plain BinarySortField, not MultiValuedBinaryDocValuesSortField; decodeExtreme should never be called"
+            );
             // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
             case ARRAY_ORDER_INLINE_NULL -> count <= 1
                 ? raw
@@ -225,11 +231,13 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         public int nextDoc() throws IOException {
             int doc = in.nextDoc();
             if (doc != NO_MORE_DOCS) {
-                // Use nextDoc (sequential) rather than advanceExact: during segment flush
-                // Lucene iterates docs with nextDoc() only and the buffered NumericDocValues
-                // writer does not support advanceExact(). The binary and count fields are
-                // always indexed together so they have the same doc IDs and stay in sync.
-                counts.nextDoc();
+                // Step with nextDoc rather than advance/advanceExact: during segment flush the buffered
+                // NumericDocValues writer supports neither. The counts are dense but the binary values
+                // are sparse (a document with no non-null value writes only its count), so stepping counts
+                // once per binary doc would drift out of step; step until it reaches the binary doc.
+                while (counts.docID() < doc) {
+                    counts.nextDoc();
+                }
             }
             return doc;
         }

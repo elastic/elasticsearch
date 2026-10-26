@@ -46,9 +46,15 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         assertFalse(handler.hasData(DataSourceMetadata.EMPTY));
     }
 
-    public void testHasDataReturnsTrueWhenDataSourcesPresent() {
-        DataSource ds = new DataSource("s3", "s3", null, Map.of());
-        assertTrue(handler.hasData(new DataSourceMetadata(Map.of("s3", ds))));
+    public void testHasDataReturnsFalseWhenNoSecrets() {
+        DataSource ds = new DataSource("s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
+        assertFalse(handler.hasData(new DataSourceMetadata(Map.of("s3", ds))));
+    }
+
+    public void testHasDataReturnsTrueWhenAnyDataSourceHasSecret() {
+        DataSource noSecret = new DataSource("gcs", "gcs", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
+        DataSource withSecret = new DataSource("s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA", true)));
+        assertTrue(handler.hasData(new DataSourceMetadata(Map.of("gcs", noSecret, "s3", withSecret))));
     }
 
     public void testNullAndEmptyAreReturnedAsIs() {

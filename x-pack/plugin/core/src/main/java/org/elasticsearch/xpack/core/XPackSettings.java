@@ -128,6 +128,14 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling metric exemplar ingestion. Defaults to true. */
+    public static final Setting<Boolean> METRIC_EXEMPLARS_ENABLED = Setting.boolSetting(
+        "xpack.metrics.exemplars.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",
@@ -401,6 +409,7 @@ public class XPackSettings {
         settings.add(APM_DATA_ENABLED);
         settings.add(OTEL_DATA_ENABLED);
         settings.add(PROMETHEUS_ENABLED);
+        settings.add(METRIC_EXEMPLARS_ENABLED);
         settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);

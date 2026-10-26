@@ -54,17 +54,18 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -92,6 +93,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -140,7 +142,7 @@ public abstract class ViewResolutionBenchmarkBase {
     private ViewResolver viewResolver;
     private LogicalPlan preParsedPlan;
     private String queryString;
-    private BiFunction<String, String, LogicalPlan> viewParser;
+    private BiFunction<String, String, EsqlStatement> viewParser;
     private Analyzer analyzer;
     private LogicalPlanOptimizer optimizer;
     private ThreadPool threadPool;
@@ -157,7 +159,13 @@ public abstract class ViewResolutionBenchmarkBase {
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), inferenceSettings, viewName).plan();
+        viewParser = (query, viewName) -> parser.parseView(
+            query,
+            new QueryParams(),
+            inferenceSettings,
+            viewName,
+            EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+        );
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -206,7 +214,7 @@ public abstract class ViewResolutionBenchmarkBase {
             new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
 
-        optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
+        optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), minimumVersion));
 
         boolean viewsEnabled;
         ViewMetadata viewMetadata;
@@ -309,7 +317,7 @@ public abstract class ViewResolutionBenchmarkBase {
     @Benchmark
     public void resolveViews(Blackhole blackhole) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(preParsedPlan, null, viewParser, false, future);
+        viewResolver.replaceViews(preParsedPlan, null, true, true, viewParser, ViewBoundaryPreservation.NONE, future);
         blackhole.consume(future.actionGet());
     }
 
@@ -319,7 +327,7 @@ public abstract class ViewResolutionBenchmarkBase {
         LogicalPlan parsed = parsePlan(queryString);
 
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(parsed, null, viewParser, false, future);
+        viewResolver.replaceViews(parsed, null, true, true, viewParser, ViewBoundaryPreservation.NONE, future);
         LogicalPlan resolved = future.actionGet().plan();
 
         LogicalPlan analyzed = analyzer.analyze(resolved);

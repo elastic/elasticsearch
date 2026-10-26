@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String POSITIONS = "positions";
     public static final String OFFSETS = "offsets";
     public static final String DOC_VALUES = "doc_values";
+    public static final String DOC_VALUES_SKIPPER = "doc_values_skipper";
     public static final String STORED_FIELDS = "stored_fields";
     public static final String NORMS = "norms";
     public static final String PAYLOADS = "payloads";
@@ -40,6 +42,8 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String POINTS = "points";
     public static final String PROXIMITY = "proximity";
     public static final String KNN_VECTORS = "knn_vectors";
+
+    private static final TransportVersion FIELD_USAGE_DOC_VALUES_SKIPPER = TransportVersion.fromName("field_usage_doc_values_skipper");
 
     private final Map<String, PerFieldUsageStats> stats;
 
@@ -113,6 +117,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
 
     public enum UsageContext {
         DOC_VALUES,
+        DOC_VALUES_SKIPPER,
         STORED_FIELDS,
         TERMS,
         POSTINGS,
@@ -128,7 +133,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
 
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
 
-        static final PerFieldUsageStats EMPTY = new PerFieldUsageStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        static final PerFieldUsageStats EMPTY = new PerFieldUsageStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         private final long any;
         private final long proximity;
@@ -144,6 +149,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
         private final long termVectors;
         private final long points;
         private final long knnVectors;
+        private final long docValuesSkipper;
 
         public PerFieldUsageStats(
             long any,
@@ -159,7 +165,8 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             long payloads,
             long termVectors,
             long points,
-            long knnVectors
+            long knnVectors,
+            long docValuesSkipper
         ) {
             this.any = any;
             this.proximity = proximity;
@@ -175,6 +182,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             this.termVectors = termVectors;
             this.points = points;
             this.knnVectors = knnVectors;
+            this.docValuesSkipper = docValuesSkipper;
         }
 
         private PerFieldUsageStats add(PerFieldUsageStats other) {
@@ -192,7 +200,8 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
                 payloads + other.payloads,
                 termVectors + other.termVectors,
                 points + other.points,
-                knnVectors + other.knnVectors
+                knnVectors + other.knnVectors,
+                docValuesSkipper + other.docValuesSkipper
             );
         }
 
@@ -211,6 +220,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             termVectors = in.readVLong();
             points = in.readVLong();
             knnVectors = in.readVLong();
+            docValuesSkipper = in.getTransportVersion().supports(FIELD_USAGE_DOC_VALUES_SKIPPER) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -229,6 +239,9 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(termVectors);
             out.writeVLong(points);
             out.writeVLong(knnVectors);
+            if (out.getTransportVersion().supports(FIELD_USAGE_DOC_VALUES_SKIPPER)) {
+                out.writeVLong(docValuesSkipper);
+            }
         }
 
         @Override
@@ -245,6 +258,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             builder.endObject();
             builder.field(STORED_FIELDS, storedFields);
             builder.field(DOC_VALUES, docValues);
+            builder.field(DOC_VALUES_SKIPPER, docValuesSkipper);
             builder.field(POINTS, points);
             builder.field(NORMS, norms);
             builder.field(TERM_VECTORS, termVectors);
@@ -271,6 +285,9 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             }
             if (docValues > 0L) {
                 set.add(UsageContext.DOC_VALUES);
+            }
+            if (docValuesSkipper > 0L) {
+                set.add(UsageContext.DOC_VALUES_SKIPPER);
             }
             if (storedFields > 0L) {
                 set.add(UsageContext.STORED_FIELDS);
@@ -315,6 +332,10 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
 
         public long getDocValues() {
             return docValues;
+        }
+
+        public long getDocValuesSkipper() {
+            return docValuesSkipper;
         }
 
         public long getStoredFields() {

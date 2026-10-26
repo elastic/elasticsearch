@@ -14,18 +14,21 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * The one comparison of a partition value against a filter literal, shared by the two layers that prune by it:
- * {@link FileSplitProvider} (files) and the listing walk in {@code GlobExpander} (folders). A folder skipped at
- * listing time is unrecoverable downstream, so where the layers cannot be proven to agree, the walk must not
- * prune. Sharing this comparator removes one source of divergence, but the LITERAL may still differ between the
- * layers — the analyzer implicitly casts string literals for some column types (boolean among them), so the read
- * layer compares a cast value where a pre-resolution hint still holds the raw string. The kind guard bridges
- * this gap: a hint whose literal's kind (number/boolean/text) differs from the typed folder value's is
- * undecidable, never an exclusion. {@link #matchesFolders} is the listing entry point; evaluation is
- * three-valued, and "cannot decide" (a NULL partition, a kind mismatch) always means keep.
+ * The one comparison of a storage value against a filter literal, shared by the layers that prune by it:
+ * {@link FileSplitProvider} (files) and the listing walk in {@code GlobExpander} (folders, and {@code _file.*}
+ * columns). A folder or file skipped at listing time is unrecoverable downstream, so where the layers cannot be
+ * proven to agree, the walk must not prune. Sharing this comparator removes one source of divergence, but the
+ * literal may still differ between the layers: the analyzer implicitly casts string literals for some column types
+ * (boolean among them), so the read layer compares a cast value where a pre-resolution hint still holds the raw
+ * string. The kind guard bridges this gap: a hint whose literal's kind (number/boolean/text) differs from the
+ * typed value's is undecidable, never an exclusion. Evaluation is three-valued, and "cannot decide" (a null value,
+ * a kind mismatch) always means keep. {@link #matchesFolders} answers for folders; {@link #matches} is what the
+ * {@code _file.*} arms call.
  */
 public final class PartitionValueMatcher {
 
@@ -63,6 +66,19 @@ public final class PartitionValueMatcher {
         return keep;
     }
 
+    /**
+     * Whether one decoded folder value survives {@code hints} when typed alone. {@code null} (the Hive NULL
+     * partition) and an undecidable comparison are kept. Sibling folders are not consulted: the flat listing
+     * decides per file, so a discovery cap counts only files that remain. Level-wide typing stays with
+     * {@link #matchesFolders}, which the walk can afford because it already buffered the directory.
+     */
+    public static boolean keepsIsolated(@Nullable String raw, List<PartitionFilterHint> hints) {
+        if (raw == null || hints.isEmpty()) {
+            return true;
+        }
+        return matchesFolders(List.of(raw), hints)[0];
+    }
+
     /** Whether {@code hint} definitively excludes this typed value; unknown is not exclusion. */
     private static boolean excludes(Object typed, PartitionFilterHint hint) {
         Boolean matches = matches(typed, hint);
@@ -70,15 +86,15 @@ public final class PartitionValueMatcher {
     }
 
     /**
-     * Whether a typed partition value satisfies one hint, three-valued: {@code null} (a NULL partition value, a
-     * malformed hint, or a literal whose kind differs from the value's) means the caller must not prune. The kind
-     * guard is what keeps a raw string hint from disagreeing with the read layer's implicitly-cast literal:
-     * {@code WHERE flag IN ("True", "false")} reaches the walk as text against a boolean-typed folder value, and
-     * text-vs-boolean must be "cannot decide", not {@code "true".equals("True")}. Mirrors
-     * {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
+     * Whether a typed value satisfies one hint, three-valued: {@code null} (a null value, a malformed hint, or a
+     * literal whose kind differs from the value's) means the caller must not prune. The kind guard is what keeps a
+     * raw string hint from disagreeing with the read layer's implicitly-cast literal: {@code WHERE flag IN ("True",
+     * "false")} reaches the walk as text against a boolean-typed folder value, and text-vs-boolean must be "cannot
+     * decide", not {@code "true".equals("True")}. The listing walk calls this for {@code _file.*} too, after reading
+     * the entry's own field. Mirrors {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
      */
     @Nullable
-    static Boolean matches(@Nullable Object partitionValue, PartitionFilterHint hint) {
+    public static Boolean matches(@Nullable Object partitionValue, PartitionFilterHint hint) {
         if (partitionValue == null || hint.values().isEmpty()) {
             return null;
         }
@@ -158,6 +174,23 @@ public final class PartitionValueMatcher {
         return HivePartitionDetector.segmentValue(folderName);
     }
 
+    /**
+     * First-wins {@code key=value} bindings of directory segments. Same skip-if-already-bound fill as
+     * {@link HivePartitionDetector#fillPartitions}; keys use {@link #folderKey}, including reserved-name
+     * surfacing. Never binds a deeper repeated key.
+     */
+    public static Map<String, String> pathBindings(String path) {
+        LinkedHashMap<String, String> into = new LinkedHashMap<>();
+        for (String segment : HivePartitionDetector.directorySegments(path)) {
+            String key = folderKey(segment);
+            if (key == null || into.containsKey(key)) {
+                continue;
+            }
+            into.put(key, folderValue(segment));
+        }
+        return into;
+    }
+
     /** The hints naming {@code column}. */
     public static List<PartitionFilterHint> hintsFor(String column, List<PartitionFilterHint> hints) {
         List<PartitionFilterHint> matching = new ArrayList<>();
@@ -188,6 +221,38 @@ public final class PartitionValueMatcher {
             return compareNumbers(na, nb) == 0;
         }
         return stringOf(a).equals(stringOf(b));
+    }
+
+    /**
+     * Three-valued equality for the split matcher. A kind mismatch or {@link Kind#OTHER} (an
+     * {@link java.time.Instant} from a date column) is unknown — keep — rather than string-comparing
+     * {@code Instant.toString()} to a keyword folder. {@link #compareEquals} stays two-valued;
+     * {@link #matches} kind-guards before calling it.
+     */
+    @Nullable
+    static Boolean equalIfComparable(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareEquals(a, b);
+    }
+
+    /**
+     * Ordered comparison for the split matcher. A kind mismatch or {@link Kind#OTHER} (an {@link java.time.Instant}
+     * from a date column, for example) is undecidable — keep the file — rather than ordering {@code Instant.toString()}
+     * against a keyword folder. {@link #compareValues} itself still coerces number-vs-text for callers that already
+     * know both sides are comparable.
+     */
+    @Nullable
+    static Integer orderedCompare(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareValues(a, b);
     }
 
     static int compareValues(Object a, Object b) {

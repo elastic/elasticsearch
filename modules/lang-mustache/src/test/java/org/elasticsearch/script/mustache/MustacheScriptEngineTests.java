@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -264,6 +265,35 @@ public class MustacheScriptEngineTests extends ESTestCase {
             assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
             assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query.string] is missing"));
         }
+
+        // key present with a null value must not throw — null is a valid present value, not a missing param.
+        {
+            String source = "{{field}}";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = new HashMap<>();
+            params.put("field", null);
+            assertThat(compiled.newInstance(params).execute(), equalTo(""));
+        }
+
+        // null intermediate in a dot path: the first component is found but cannot be traversed, so throws.
+        {
+            String source = "{{foo.bar}}";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = new HashMap<>();
+            params.put("foo", null);
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [foo.bar] is missing"));
+        }
+
+        // leaf key present with null value in a dot path must not throw — the key exists, the value happens to be null.
+        {
+            String source = "{{foo.bar}}";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> inner = new HashMap<>();
+            inner.put("bar", null);
+            assertThat(compiled.newInstance(Map.of("foo", inner)).execute(), equalTo(""));
+        }
     }
 
     public void testMissingParam() {
@@ -274,6 +304,11 @@ public class MustacheScriptEngineTests extends ESTestCase {
         // When the DETECT_MISSING_PARAMS_OPTION is not specified, missing variable is replaced with an empty string.
         assertThat(compiled.newInstance(Map.of()).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
         assertThat(compiled.newInstance(null).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+
+        // A key present with a null value also renders as an empty string.
+        Map<String, Object> paramsWithNull = new HashMap<>();
+        paramsWithNull.put("query_string", null);
+        assertThat(compiled.newInstance(paramsWithNull).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
     }
 
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {

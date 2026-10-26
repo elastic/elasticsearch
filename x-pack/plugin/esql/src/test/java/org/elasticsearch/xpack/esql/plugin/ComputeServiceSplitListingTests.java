@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -38,6 +41,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
@@ -58,6 +62,22 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
         assertSame(FileList.EMPTY, dropped.fileList());
         assertTrue(dropped.schemaMap().isEmpty());
         assertEquals(List.of(split), collected);
+    }
+
+    /**
+     * The synchronous fragment path plans for the cluster it is given, as the async one does: a provider planning for a
+     * cluster with older nodes must see their version, or it may emit a split shape they cannot read.
+     */
+    public void testSyncDiscoveryHandsTheProviderTheMinimumTransportVersion() {
+        TransportVersion minimum = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
+        StoragePath path = StoragePath.of("s3://bucket/data/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://bucket/data/*.parquet");
+        AtomicReference<SplitDiscoveryContext> seen = new AtomicReference<>();
+
+        discover(new FragmentExec(relation(fileList, schemaMap(path))), new ArrayList<>(), SplitDiscoveryResult.EMPTY, minimum, seen);
+
+        assertNotNull("the provider must be reached", seen.get());
+        assertEquals(minimum, seen.get().minTransportVersion());
     }
 
     public void testExhaustivePruneClearsFileListAndSchemaMap() {
@@ -117,8 +137,18 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
     }
 
     private static PhysicalPlan discover(PhysicalPlan plan, List<ExternalSplit> collected, SplitDiscoveryResult result) {
+        return discover(plan, collected, result, TransportVersion.current(), new AtomicReference<>());
+    }
+
+    private static PhysicalPlan discover(
+        PhysicalPlan plan,
+        List<ExternalSplit> collected,
+        SplitDiscoveryResult result,
+        TransportVersion minTransportVersion,
+        AtomicReference<SplitDiscoveryContext> seen
+    ) {
         OperatorFactoryRegistry registry = new OperatorFactoryRegistry(
-            Map.of("parquet", factory(result)),
+            Map.of("parquet", factory(result, seen)),
             Map.of(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -128,7 +158,8 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             null,
             () -> false,
-            registry
+            registry,
+            minTransportVersion
         );
     }
 
@@ -150,7 +181,7 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
         return new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
-    private static ExternalSourceFactory factory(SplitDiscoveryResult result) {
+    private static ExternalSourceFactory factory(SplitDiscoveryResult result, AtomicReference<SplitDiscoveryContext> seen) {
         return new ExternalSourceFactory() {
             @Override
             public void validateConfig(String location, Map<String, Object> config) {
@@ -174,7 +205,10 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
 
             @Override
             public SplitProvider splitProvider() {
-                return context -> result;
+                return context -> {
+                    seen.set(context);
+                    return result;
+                };
             }
         };
     }

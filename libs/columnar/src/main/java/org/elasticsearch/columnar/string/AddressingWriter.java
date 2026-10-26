@@ -48,6 +48,7 @@ final class AddressingWriter {
 
     /** Where the document last started, whose count is only known once the next one starts. */
     private long previousAddress = -1;
+    private boolean someDocumentHoldsSeveral;
     private long written;
 
     /**
@@ -55,10 +56,18 @@ final class AddressingWriter {
      * @param numValues        slots across all of them, null slots included
      * @param countsBlockSize  documents a block of counts holds, and so the granularity of the bases
      */
-    static AddressingWriter open(int numDocsWithField, long numValues, int countsBlockSize, ColumnOutputs outputs) {
+    static AddressingWriter open(
+        int numDocsWithField,
+        long numValues,
+        boolean oneSlotADocument,
+        int countsBlockSize,
+        ColumnOutputs outputs
+    ) {
         // A document holding several slots and one holding none both put the slots out of step with the
-        // documents, and either way a rank stops being its own value address.
-        if (numValues == numDocsWithField) {
+        // documents, and either way a rank stops being its own value address. As many slots as documents does
+        // not say they are in step, since the two shapes cancel out, so the caller says it.
+        if (oneSlotADocument) {
+            assert numValues == numDocsWithField : numValues + " slots over " + numDocsWithField + " documents holding one apiece";
             return new AddressingWriter(null, null, numDocsWithField, numValues, countsBlockSize);
         }
         // One count a document, through the chain that takes out the runs a column of like documents makes and
@@ -82,9 +91,18 @@ final class AddressingWriter {
 
     /** Records that the document about to be written begins at {@code valueAddress}. */
     void startDocument(long valueAddress) throws IOException {
+        if (counts == null && valueAddress != written) {
+            // Checked rather than asserted: a column written without the table answers every document from
+            // its rank, so a document beginning anywhere else would read a neighbour's values ever after.
+            throw new IllegalStateException(
+                "document " + written + " begins at slot " + valueAddress + " in a column counted as holding one slot a document"
+            );
+        }
         if (counts != null) {
             if (previousAddress >= 0) {
-                counts.add(valueAddress - previousAddress);
+                final long held = valueAddress - previousAddress;
+                someDocumentHoldsSeveral |= held > 1;
+                counts.add(held);
             }
             if (written % countsBlockSize == 0) {
                 bases.add(valueAddress);
@@ -114,8 +132,9 @@ final class AddressingWriter {
         if (counts == null) {
             return SlotAddressing.NONE;
         }
+        someDocumentHoldsSeveral |= writtenSlots - previousAddress > 1;
         counts.add(writtenSlots - previousAddress);
         final MonotonicWriter.Table basesTable = bases.finish();
-        return new SlotAddressing(counts.finish(), basesTable);
+        return new SlotAddressing(counts.finish(), basesTable, someDocumentHoldsSeveral);
     }
 }

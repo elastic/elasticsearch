@@ -321,3 +321,172 @@ setup:
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.2._id: "4" }
   - match: { hits.hits.3._id: "3" }
+
+---
+# Indexes across several segments (refresh: true) so the force merge sorts from the column rather than the indexing buffer,
+# with a document whose only value is null among multi-valued ones: that document writes a count but no binary value.
+"Index sort on high cardinality keyword field - mode=max asc, missing=_first, null values":
+
+  - requires:
+      cluster_features: [ "mapper.multi_valued_binary_index_sort_sparse_fix" ]
+      reason: "index sort with min/max mode used to fail on documents without a sort value"
+
+  - do:
+      indices.create:
+        index: test_max_nulls
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.mode: columnar
+            index.sort.field: name
+            index.sort.mode: max
+            index.sort.missing: _first
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      cluster.health:
+        index: test_max_nulls
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # max = "charlie"
+  - do:
+      index:
+        index: test_max_nulls
+        id: "1"
+        body: { "name": "charlie" }
+  # max = "delta"
+  - do:
+      index:
+        index: test_max_nulls
+        id: "2"
+        refresh: true
+        body: { "name": ["delta", "alpha"] }
+  # only a null: missing
+  - do:
+      index:
+        index: test_max_nulls
+        id: "3"
+        body: { "name": [null] }
+  # max = "bob", the null is skipped
+  - do:
+      index:
+        index: test_max_nulls
+        id: "4"
+        refresh: true
+        body: { "name": ["bob", null] }
+  # max = "echo", the null is skipped
+  - do:
+      index:
+        index: test_max_nulls
+        id: "5"
+        refresh: true
+        body: { "name": [null, "echo", "alice"] }
+
+  - do:
+      indices.forcemerge:
+        index: test_max_nulls
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_max_nulls
+
+  # Missing first, then ascending by maximum value:
+  # (missing) (id=3), "bob" (id=4), "charlie" (id=1), "delta" (id=2), "echo" (id=5).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_max_nulls
+        body:
+          sort: _doc
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.3._id: "2" }
+  - match: { hits.hits.4._id: "5" }
+
+---
+"Index sort on high cardinality ip field":
+
+  - requires:
+      cluster_features: [ "mapper.columnar.ip_inline_array_order_binary_doc_values" ]
+      reason: "ip fields use binary doc values in columnar mode"
+
+  - do:
+      indices.create:
+        index: test_ip
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.mode: columnar
+            index.sort.field: addr
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              addr:
+                type: ip
+
+  - do:
+      cluster.health:
+        index: test_ip
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  - do:
+      index:
+        index: test_ip
+        id: "1"
+        body: { "addr": "10.0.0.2" }
+  # min = 10.0.0.1
+  - do:
+      index:
+        index: test_ip
+        id: "2"
+        refresh: true
+        body: { "addr": ["192.168.0.1", "10.0.0.1"] }
+  - do:
+      index:
+        index: test_ip
+        id: "3"
+        body: { "addr": "2001:db8::1" }
+  - do:
+      index:
+        index: test_ip
+        id: "4"
+        refresh: true
+        body: { "addr": "1.2.3.4" }
+
+  - do:
+      indices.forcemerge:
+        index: test_ip
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_ip
+
+  # Ascending by minimum address, compared as 16-byte addresses so IPv4 sorts before IPv6:
+  # 1.2.3.4 (id=4), 10.0.0.1 (id=2), 10.0.0.2 (id=1), 2001:db8::1 (id=3).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_ip
+        body:
+          sort: _doc
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.3._id: "3" }

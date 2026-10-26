@@ -494,4 +494,36 @@ public class ExceptionsHelperTests extends ESTestCase {
         ExceptionsHelper.compressPackages(s, className);
         return s.toString();
     }
+
+    public void testStackTraceWithAdditionalSuppressedMatchesAddSuppressed() {
+        Throwable innerCause = new IllegalStateException("inner cause");
+        Throwable ownSuppressed = new IllegalArgumentException("own suppressed");
+        Throwable[] additionalSuppressed = randomArray(
+            1,
+            3,
+            Throwable[]::new,
+            () -> randomBoolean() ? new ElasticsearchException(randomAlphaOfLength(5)) : new IllegalStateException(randomAlphaOfLength(5))
+        );
+        Throwable shared = newCauseWithSuppressed(innerCause, ownSuppressed);
+        Throwable mutated = newCauseWithSuppressed(innerCause, ownSuppressed);
+        mutated.setStackTrace(shared.getStackTrace());
+        for (Throwable suppressed : additionalSuppressed) {
+            mutated.addSuppressed(suppressed);
+        }
+
+        assertThat(ExceptionsHelper.stackTrace(shared, additionalSuppressed), equalTo(ExceptionsHelper.stackTrace(mutated)));
+        assertThat(shared.getSuppressed(), equalTo(new Throwable[] { ownSuppressed }));
+    }
+
+    public void testStackTraceWithoutAdditionalSuppressedMatchesStackTrace() {
+        Throwable shared = newCauseWithSuppressed(new IllegalStateException("inner cause"), new IllegalArgumentException("suppressed"));
+
+        assertThat(ExceptionsHelper.stackTrace(shared, new Throwable[0]), equalTo(ExceptionsHelper.stackTrace(shared)));
+    }
+
+    private static Throwable newCauseWithSuppressed(Throwable cause, Throwable suppressed) {
+        Throwable throwable = new ElasticsearchException("outer", cause);
+        throwable.addSuppressed(suppressed);
+        return throwable;
+    }
 }

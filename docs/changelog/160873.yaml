@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160873
+summary: Handle disconnected CPS remotes on exception
+type: bug

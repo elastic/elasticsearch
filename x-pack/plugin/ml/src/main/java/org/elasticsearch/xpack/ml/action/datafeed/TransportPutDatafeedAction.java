@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
@@ -73,6 +73,12 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        try {
+            DatafeedEsqlGates.validateDatafeedCreate(request.getDatafeed(), state);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
         datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
     }
 
@@ -84,11 +90,20 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     @Override
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
+        try {
+            DatafeedEsqlGates.validateDatafeedCreate(
+                request.getDatafeed().getId(),
+                request.getDatafeed().minRequiredTransportVersion(),
+                request.getDatafeed().getEsqlQuery() != null,
+                clusterService.state(),
+                org.elasticsearch.xpack.ml.MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
+            );
+        } catch (ElasticsearchStatusException e) {
+            releasingListener.onFailure(e);
+            return;
+        }
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
-            CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
-            if (callerCredential != null) {
-                request.setCloudCredential(callerCredential);
-            }
+            datafeedManager.carryCallerCredential(threadPool, securityContext, request::setCloudCredential);
             super.doExecute(task, request, releasingListener);
         } else {
             releasingListener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

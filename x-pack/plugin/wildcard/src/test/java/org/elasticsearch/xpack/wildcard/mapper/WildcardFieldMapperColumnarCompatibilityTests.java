@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.wildcard.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
@@ -165,20 +167,28 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
         );
     }
 
-    public void testIgnoreAbove() throws IOException {
+    /**
+     * {@code ignore_above} is a no-op in strictly columnar mode at or after the gate: the 8192-char value
+     * is indexed normally and parity holds between the row and batch paths.
+     */
+    public void testIgnoreAboveIsNoOp() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 8191).endObject()),
             columnarSettings(),
-            batch("ignore_above value", 1L, doc("d1", 1L, "{\"f\":\"" + "x".repeat(8192) + "\"}"))
+            batch("ignore_above is no-op", 1L, doc("d1", 1L, "{\"f\":\"" + "x".repeat(8192) + "\"}"))
         );
     }
 
-    public void testIgnoreAboveWithOtherValuesInDoc() throws IOException {
+    /**
+     * {@code ignore_above} is a no-op: all values (including the one that would have been ignored pre-gate)
+     * are indexed normally and parity holds.
+     */
+    public void testIgnoreAboveIsNoOpWithOtherValuesInDoc() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 4).endObject()),
             columnarSettings(),
             batch(
-                "ignore_above with other values",
+                "ignore_above is no-op with other values",
                 1L,
                 doc("d1", 1L, "{\"f\":[\"hi\",\"toolong\",\"ok\"]}"),
                 doc("d2", 2L, "{\"f\":\"short\"}"),
@@ -187,8 +197,25 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
         );
     }
 
-    public void testIgnoreAboveTwoValuesInDocFallsBack() throws IOException {
+    /**
+     * Two {@code ignore_above}-exceeded values per doc: in strictly columnar mode at or after the gate,
+     * {@code ignore_above} is a no-op, so both values are indexed normally and parity holds.
+     */
+    public void testIgnoreAboveIsNoOpTwoValuesInDoc() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 4).endObject()),
+            columnarSettings(),
+            batch("two ignored values per doc", 1L, doc("d1", 1L, "{\"f\":[\"toolong1\",\"toolong2\"]}"))
+        );
+    }
+
+    /**
+     * Pre-gate: a second {@code ignore_above}-exceeded value in the same document must throw
+     * {@link UnsupportedOperationException} so {@code ShardBatchMapper} falls back to the row path.
+     */
+    public void testIgnoreAboveTwoValuesInDocFallsBackPreGate() throws IOException {
         final MapperService ms = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
             columnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 4).endObject())
         );
@@ -211,6 +238,11 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
         );
     }
 
+    /**
+     * {@code null_value} substitution combined with {@code ignore_above}: at gate, {@code ignore_above}
+     * is a no-op so the substituted {@code null_value} ("toolong", 7 chars) is indexed normally on both
+     * paths even though it would have been ignored pre-gate.
+     */
     public void testNullValueCombinedWithIgnoreAbove() throws IOException {
         assertColumnarMatchesXContent(
             mapping(
@@ -218,7 +250,7 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
             ),
             columnarSettings(),
             batch(
-                "null_value combined with ignore_above",
+                "null_value combined with ignore_above (no-op)",
                 1L,
                 doc("d1", 1L, "{\"f\":null}"),
                 doc("d2", 2L, "{\"f\":\"ok\"}"),
@@ -279,6 +311,11 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
         );
     }
 
+    /**
+     * Diverging {@code ignore_above} on parent wildcard and keyword sub-field: at gate,
+     * {@code ignore_above} is a no-op for both fields in strictly columnar mode, so all values
+     * are indexed normally in both and parity holds across the full multi-field mapping.
+     */
     public void testMultiFieldDivergingIgnoreAbove() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 10);
@@ -287,7 +324,7 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
         }),
             columnarSettings(),
             batch(
-                "multi-field diverging ignore_above",
+                "multi-field diverging ignore_above (no-op)",
                 1L,
                 doc("d1", 1L, "{\"f\":\"tiny\"}"),
                 doc("d2", 2L, "{\"f\":\"medium_len\"}"),

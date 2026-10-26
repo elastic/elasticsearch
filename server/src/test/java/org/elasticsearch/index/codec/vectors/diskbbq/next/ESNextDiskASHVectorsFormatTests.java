@@ -246,8 +246,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         int dimensions = random().nextInt(12, 128);
         ESNextDiskASHVectorsFormat localFormat = ashSlicedFormat(sliceField);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
-        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
         iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -305,8 +304,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         int dimensions = random().nextInt(12, 128);
         ESNextDiskASHVectorsFormat localFormat = ashSlicedFormat(sliceField);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
-        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
         iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -374,8 +372,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         boolean[] docHasVector = new boolean[numDocs];
         boolean[] docFilterMatch = new boolean[numDocs];
         IndexWriterConfig iwc = newIndexWriterConfig();
-        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
-        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
         iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {

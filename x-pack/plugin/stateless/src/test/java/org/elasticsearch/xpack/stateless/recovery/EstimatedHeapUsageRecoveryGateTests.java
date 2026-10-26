@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -27,9 +28,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ToLongFunction;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 
 public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
 
@@ -246,19 +249,15 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
 
         assertBlocks(gate);
         assertBlocks(gate); // cached evaluation does not record another computation
-        meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
-            RecordingMeterRegistry.measures(estimate)
+                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
+            everyItem(transformedMatch(Measurement::value, equalTo(estimate)))
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.DOUBLE_ASYNC_GAUGE,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC
-                ),
-            RecordingMeterRegistry.measures(watermarkPercent - estimatedUsagePercent)
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC),
+            everyItem(transformedMatch(Measurement::value, equalTo(watermarkPercent - estimatedUsagePercent)))
         );
         assertThat(
             meterRegistry.getRecorder()
@@ -276,36 +275,20 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 .build()
         );
         assertRuns(gate);
-        meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
+                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
             RecordingMeterRegistry.measures(estimate)
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.DOUBLE_ASYNC_GAUGE,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC
-                ),
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC),
             RecordingMeterRegistry.measures(raisedWatermarkPercent - estimatedUsagePercent)
         );
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
             empty()
-        );
-
-        gate.close();
-        assertFalse(
-            meterRegistry.getRecorder()
-                .getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE)
-                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC)
-        );
-        assertFalse(
-            meterRegistry.getRecorder()
-                .getRegisteredMetrics(InstrumentType.DOUBLE_ASYNC_GAUGE)
-                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC)
         );
     }
 

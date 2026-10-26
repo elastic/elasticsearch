@@ -110,7 +110,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         }
         ValuesMode mode = ValuesMode.from(fieldMapping, params);
         var ignoreAboveRaw = fieldMapping.get("ignore_above");
-        int ignoreAbove = ignoreAboveRaw instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+        int ignoreAbove = (ignoreAboveRaw instanceof Number n && params.indexMode().isStrictColumnar() == false)
+            ? n.intValue()
+            : Integer.MAX_VALUE;
         return flattenAndStringify(value, mode, ignoreAbove);
     }
 

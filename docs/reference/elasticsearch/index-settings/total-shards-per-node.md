@@ -19,24 +19,16 @@ $$$total-shards-per-node$$$
 `index.routing.allocation.total_shards_per_node`
 :   The maximum number of shards (replicas and primaries) that will be allocated to a single node. Defaults to unbounded.
 
-With the following cluster level setting, you can also limit the amount of shards a node can have regardless of the index. This setting applies across all indices on a node and can be set at runtime using the [update cluster settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API:
-
+% Temporary anchor: docs-content links to it from troubleshoot/elasticsearch/increase-cluster-shard-limit.md.
+% Remove it after that link points to configuration-reference/cluster-level-shard-allocation-routing-settings.md.
 $$$cluster-total-shards-per-node$$$
 
-`cluster.routing.allocation.total_shards_per_node`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards allocated to each node. Defaults to `-1` (unlimited).
-
-{{es}} checks this setting during shard allocation. For example, a cluster has a `cluster.routing.allocation.total_shards_per_node` setting of `100` and three nodes with the following shard allocations:
-
-* Node A: 100 shards
-* Node B: 98 shards
-* Node C: 1 shard
-
-If node C fails, {{es}} reallocates its shard to node B. Reallocating the shard to node A would exceed node A’s shard limit.
-
+::::{note}
+To also limit the number of shards a node can have regardless of the index, use the node-level [`cluster.routing.allocation.total_shards_per_node`](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-allocation-total-shards-per-node) cluster setting. It applies across all indices on a node.
+::::
 
 ::::{warning}
-These settings impose a hard limit which can result in some shards not being allocated.
+This setting imposes a hard limit which can result in some shards not being allocated.
 
 Use with caution.
 

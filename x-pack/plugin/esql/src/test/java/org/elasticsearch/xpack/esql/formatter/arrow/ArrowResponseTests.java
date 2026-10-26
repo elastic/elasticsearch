@@ -271,6 +271,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.DATE_NANOS, DATE_NANOS_VALUES),
         Map.entry(DataType.IP, IP_VALUES),
         Map.entry(DataType.VERSION, VERSION_VALUES),
+        Map.entry(DataType.TSID_DATA_TYPE, BINARY_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
         Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
 
@@ -430,6 +431,31 @@ public class ArrowResponseTests extends ESTestCase {
             TestCase testCase = new TestCase(List.of(testColumn), pages);
 
             compareEsqlAndArrow(testCase);
+        }
+    }
+
+    public void testTsidBinaryOutput() throws IOException {
+        BytesRef tsid = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+        int padding = randomIntBetween(1, 8);
+        byte[] padded = randomByteArrayOfLength(tsid.length + padding + 1);
+        System.arraycopy(tsid.bytes, tsid.offset, padded, padding, tsid.length);
+
+        BytesRefBlock block;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            block = builder.appendBytesRef(new BytesRef(padded, padding, tsid.length)).appendNull().appendBytesRef(tsid).build();
+        }
+        var column = TestColumn.create("_tsid", DataType.TSID_DATA_TYPE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            VarBinaryVector vector = (VarBinaryVector) root.getVector("_tsid");
+            assertEquals(Types.MinorType.VARBINARY.getType(), vector.getField().getType());
+            assertEquals("_tsid", vector.getField().getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+            assertEquals(3, vector.getValueCount());
+            assertEquals(tsid, new BytesRef(vector.get(0)));
+            assertTrue(vector.isNull(1));
+            assertEquals(tsid, new BytesRef(vector.get(2)));
         }
     }
 

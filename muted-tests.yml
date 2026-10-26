@@ -503,3 +503,28 @@ tests:
   - :x-pack:qa:rolling-upgrade-multi-cluster:v9.6.0#bwcTest
   method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=2 followerNodesUpgraded=3}
   issue: https://github.com/elastic/elasticsearch/issues/163301
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecChangePointIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#csvSpecTestsOldCoordinator
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/163319
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
+  method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
+  issue: https://github.com/elastic/elasticsearch/issues/163321
+- class: org.elasticsearch.xpack.stateless.cache.SearchShardCacheWarmingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
+  issue: https://github.com/elastic/elasticsearch/issues/163325
+- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
+  tasks:
+  - :x-pack:plugin:slm:internalClusterTest
+  method: testSLMRetentionAfterRestore
+  issue: https://github.com/elastic/elasticsearch/issues/163334
+- class: org.elasticsearch.search.builder.SearchSourceBuilderTests
+  tasks:
+  - :server:test
+  method: testSupportsParallelCollection
+  issue: https://github.com/elastic/elasticsearch/issues/163337

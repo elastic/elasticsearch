@@ -64,14 +64,7 @@ public final class LuceneForks {
         return new Fork(className, reason, null, "This fork is intentional and does not expire.");
     }
 
-    private static final String RANGE_FIX_REMOVAL =
-        "Delete XSortedSetDocValuesRangeQuery, XSortedSkipperScorerSupplier and XRangeBulkScorer, "
-            + "revert callers to SortedSetDocValuesField.newSlowRangeQuery/newSlowExactQuery, and keep the regression tests.";
-
     public static final List<Fork> ALL = List.of(
-        expiring("org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
-        expiring("org.elasticsearch.lucene.document.XSortedSkipperScorerSupplier", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
-        expiring("org.elasticsearch.lucene.document.XRangeBulkScorer", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),

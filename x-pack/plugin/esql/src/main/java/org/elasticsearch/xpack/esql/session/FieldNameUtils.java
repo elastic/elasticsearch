@@ -87,6 +87,7 @@ public class FieldNameUtils {
         Latest.NAME.toLowerCase(Locale.ROOT)
     );
 
+    // QSTR and KQL call names, which need all fields because they name their fields inside a query string.
     private static final Set<String> QUERY_STRING_FUNCTIONS = Set.of(
         QueryString.DEFINITION.name().toLowerCase(Locale.ROOT),
         Kql.DEFINITION.name().toLowerCase(Locale.ROOT)

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -304,27 +305,9 @@ public abstract class FullTextFunction extends Function
             || checkFullTextFunctionsAboveSubqueries
             || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
-            // Most filters have no QSTR/KQL, so skip collecting the indexed field names for them.
+            // Most filters have no QSTR/KQL, so skip their checks, which collect the indexed field names.
             if (isLookupJoinOnCondition == false && condition.anyMatch(e -> e instanceof QueryString || e instanceof Kql)) {
-                Set<String> indexedNames = indexedFieldNames(plan);
-                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                    // QSTR/KQL need a Lucene index to search, so they can't follow a source without one. They also can't follow
-                    // INLINE STATS: they have no attribute references, so the optimizer pushes them into the aggregate's input
-                    // and changes its result. MATCH has references and stays above the aggregate.
-                    checkCommandsBeforeExpression(
-                        plan,
-                        condition,
-                        functionClass,
-                        lp -> (lp instanceof ExternalRelation
-                            || lp instanceof Row
-                            || lp instanceof ShowInfo
-                            || lp instanceof InlineStats
-                            || lp instanceof InlineJoin) == false,
-                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                        lp -> asShadowingCommand(lp, indexedNames),
-                        failures
-                    );
-                });
+                checkQueryStringFunctions(plan, condition, failures);
             }
 
             // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
@@ -371,6 +354,39 @@ public abstract class FullTextFunction extends Function
             m -> "[" + m.functionName() + "] function",
             failures
         );
+    }
+
+    /**
+     * Checks where QSTR and KQL are used. They can't follow a source without a Lucene index, or {@code INLINE STATS}, and
+     * they are rejected after a command that redefines a field of the index, see {@link #asShadowingCommand}.
+     */
+    private static void checkQueryStringFunctions(LogicalPlan plan, Expression condition, Failures failures) {
+        Set<String> indexedNames = indexedFieldNames(plan);
+        List.of(QueryString.class, Kql.class)
+            .forEach(
+                functionClass -> checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    FullTextFunction::canPrecedeQueryString,
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    lp -> asShadowingCommand(lp, indexedNames),
+                    failures
+                )
+            );
+    }
+
+    /**
+     * Whether QSTR/KQL can follow {@code lp}. They need a Lucene index to search, so they can't follow a source without one.
+     * They also can't follow {@code INLINE STATS}: they have no attribute references, so the optimizer pushes them into the
+     * aggregate's input and changes its result. MATCH has references and stays above the aggregate.
+     */
+    private static boolean canPrecedeQueryString(LogicalPlan lp) {
+        return (lp instanceof ExternalRelation
+            || lp instanceof Row
+            || lp instanceof ShowInfo
+            || lp instanceof InlineStats
+            || lp instanceof InlineJoin) == false;
     }
 
     private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
@@ -505,69 +521,87 @@ public abstract class FullTextFunction extends Function
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
+            String functionDescription = typeErrorMsgProvider.apply(exp);
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
-                    if (lp instanceof ExternalRelation externalRelation) {
-                        // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
-                        // fail here regardless of position. Name the actual limitation instead of the generic positional
-                        // message below, which reads like the function is misplaced rather than unsupported on this source.
-                        failures.add(
-                            fail(
-                                plan,
-                                "{} is not supported on federated data sources [{}]; it requires an index. Use "
-                                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
-                                typeErrorMsgProvider.apply(exp),
-                                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
-                            )
-                        );
-                        return;
-                    }
-                    String sourceText = lp.sourceText();
-                    String errorMessage;
-                    if (lp instanceof TopN) {
-                        // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
-                        // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
-                        errorMessage = "SORT and LIMIT";
-                    } else if (inheritedSourceTexts.contains(sourceText)) {
-                        // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
-                        // clause instead of its misleading first token.
-                        errorMessage = abbreviateSource(sourceText);
-                    } else {
-                        errorMessage = commandKeyword(sourceText);
-                    }
-                    // Name the reason for functions that could have searched an expression instead, since for them the
-                    // restriction is not about the command at all. For the rest there is no alternative to point at.
-                    String qualifier = exp instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
-                        ? " when it targets an indexed field"
-                        : "";
-                    failures.add(fail(plan, "{} cannot be used after {}{}", typeErrorMsgProvider.apply(exp), errorMessage, qualifier));
+                    failures.add(positionFailure(plan, lp, exp, functionDescription, inheritedSourceTexts));
                     return;
                 }
                 ShadowingCommand shadowing = shadowCheck.apply(lp);
-                if (shadowing == null) {
-                    return;
-                }
-                if (inheritedSourceTexts.contains(lp.sourceText())) {
-                    // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
-                    // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
-                    // the whole FROM clause as its source text. Naming it "EVAL" would point the user at a command they never
-                    // wrote and a field they never mentioned, so report the FROM clause instead, like the other positional rejections.
-                    failures.add(
-                        fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), abbreviateSource(lp.sourceText()))
-                    );
-                } else {
-                    failures.add(
-                        fail(
-                            plan,
-                            "{} cannot be used after {} because [{}] redefines a field used by the index",
-                            typeErrorMsgProvider.apply(exp),
-                            shadowing.commandName(),
-                            shadowing.fieldName()
-                        )
-                    );
+                if (shadowing != null) {
+                    failures.add(shadowingFailure(plan, lp, functionDescription, shadowing, inheritedSourceTexts));
                 }
             });
         });
+    }
+
+    /**
+     * The failure for a function that follows {@code lp}, a command it can't follow.
+     */
+    private static Failure positionFailure(
+        LogicalPlan plan,
+        LogicalPlan lp,
+        Expression function,
+        String functionDescription,
+        Set<String> inheritedSourceTexts
+    ) {
+        if (lp instanceof ExternalRelation externalRelation) {
+            // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
+            // fail here regardless of position. Name the actual limitation instead of the generic positional
+            // message below, which reads like the function is misplaced rather than unsupported on this source.
+            return fail(
+                plan,
+                "{} is not supported on federated data sources [{}]; it requires an index. Use "
+                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
+                functionDescription,
+                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
+            );
+        }
+        String sourceText = lp.sourceText();
+        String commandName;
+        if (lp instanceof TopN) {
+            // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
+            // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
+            commandName = "SORT and LIMIT";
+        } else if (inheritedSourceTexts.contains(sourceText)) {
+            // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
+            // clause instead of its misleading first token.
+            commandName = abbreviateSource(sourceText);
+        } else {
+            commandName = commandKeyword(sourceText);
+        }
+        // Name the reason for functions that could have searched an expression instead, since for them the
+        // restriction is not about the command at all. For the rest there is no alternative to point at.
+        String qualifier = function instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
+            ? " when it targets an indexed field"
+            : "";
+        return fail(plan, "{} cannot be used after {}{}", functionDescription, commandName, qualifier);
+    }
+
+    /**
+     * The failure for a function that follows {@code lp}, a command that redefines a field of the index.
+     */
+    private static Failure shadowingFailure(
+        LogicalPlan plan,
+        LogicalPlan lp,
+        String functionDescription,
+        ShadowingCommand shadowing,
+        Set<String> inheritedSourceTexts
+    ) {
+        if (inheritedSourceTexts.contains(lp.sourceText())) {
+            // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
+            // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
+            // the whole FROM clause as its source text. Naming it "EVAL" would point the user at a command they never
+            // wrote and a field they never mentioned, so report the FROM clause instead, like the other positional rejections.
+            return fail(plan, "{} cannot be used after {}", functionDescription, abbreviateSource(lp.sourceText()));
+        }
+        return fail(
+            plan,
+            "{} cannot be used after {} because [{}] redefines a field used by the index",
+            functionDescription,
+            shadowing.commandName(),
+            shadowing.fieldName()
+        );
     }
 
     /**

@@ -423,7 +423,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
      * reference is per item rather than on the multi-search response, because when a batch spans several enrich indices, the
      * coordinator frees the response of the index that answered first before the processors have used its items.
      */
-    private static final class ChargedSearchResponse extends SearchResponse {
+    static final class ChargedSearchResponse extends SearchResponse {
         private final SourceBytesReservation reservation;
 
         ChargedSearchResponse(SearchHits hits, SourceBytesReservation reservation) {

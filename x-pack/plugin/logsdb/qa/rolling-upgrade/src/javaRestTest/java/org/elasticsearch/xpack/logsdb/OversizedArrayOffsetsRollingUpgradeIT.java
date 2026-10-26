@@ -13,6 +13,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +39,10 @@ import static org.hamcrest.Matchers.equalTo;
  * The test verifies that regular array documents written on the old cluster stay readable throughout the upgrade, that an
  * oversized array is rejected or accepted according to the version of the node holding the primary, and that after the upgrade
  * oversized arrays are accepted and round-trip through GET, search and a force merge.
+ * <p>
+ * Whether offsets are recorded at all is gated on {@code index.version.created}. An index created on a version without native
+ * array offsets (9.0.x) never records them, also after the upgrade: its arrays live in {@code _ignored_source}, so an oversized
+ * array is accepted on every version and the test only checks the round-trip.
  */
 public class OversizedArrayOffsetsRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
@@ -61,6 +67,7 @@ public class OversizedArrayOffsetsRollingUpgradeIT extends AbstractLogsdbRolling
             MAPPING
         );
         ensureGreen(INDEX_NAME);
+        boolean indexRecordsOffsets = indexRecordsOffsets();
 
         // Documents whose synthetic source must match exactly, by id. Regular arrays use native offsets; they are indexed on the
         // old cluster, before the upgrade.
@@ -74,10 +81,11 @@ public class OversizedArrayOffsetsRollingUpgradeIT extends AbstractLogsdbRolling
         }
         verify(expected);
 
-        // On the old cluster the oversized array is either rejected with Lucene's error, or accepted and kept in _ignored_source.
+        // On the old cluster the oversized array is either rejected with Lucene's error, or accepted and kept in _ignored_source. It
+        // is only rejected when the index records offsets and the old version has no fallback.
         Map<String, Object> oversized = oversizedDocument(time, false);
         time = time.plusSeconds(1);
-        if (oldClusterHasFallback) {
+        if (oldClusterHasFallback || indexRecordsOffsets == false) {
             indexDocument("old-oversized", oversized);
             expected.put("old-oversized", oversized);
             verify(expected);
@@ -105,6 +113,7 @@ public class OversizedArrayOffsetsRollingUpgradeIT extends AbstractLogsdbRolling
                 verify(expected);
             } catch (ResponseException e) {
                 logger.info("oversized array rejected after upgrading node [{}]: {}", nodeIndex, e.getMessage());
+                assertTrue("an index without offsets must accept oversized arrays on every version", indexRecordsOffsets);
                 assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
                 assertThat(e.getMessage(), containsString(OLD_REJECTION));
             }
@@ -138,6 +147,20 @@ public class OversizedArrayOffsetsRollingUpgradeIT extends AbstractLogsdbRolling
         assertOK(client().performRequest(forceMergeRequest));
         refresh(INDEX_NAME);
         verify(expected);
+    }
+
+    /**
+     * Whether the index records {@code .offsets} doc values for the {@code n} array, mirroring the {@code index.version.created}
+     * check the number field mapper applies. The gate is fixed at index creation, so it holds throughout the upgrade.
+     */
+    private static boolean indexRecordsOffsets() throws IOException {
+        String created = (String) getIndexSettingsAsMap(INDEX_NAME).get("index.version.created");
+        IndexVersion createdVersion = IndexVersion.fromId(Integer.parseInt(created));
+        return createdVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER)
+            || createdVersion.between(
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
     }
 
     private static Map<String, Object> regularDocument(Instant time, int i) {

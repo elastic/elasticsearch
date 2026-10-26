@@ -12,25 +12,29 @@ package org.elasticsearch.plugin.analysis.kuromoji;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
-import org.apache.lucene.analysis.ja.dict.UserDictionary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.Analysis;
 
-import java.util.Set;
-
 public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<JapaneseAnalyzer> {
 
     private final JapaneseAnalyzer analyzer;
+    private final Object sharingKey;
 
     public KuromojiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        final Set<?> stopWords = Analysis.parseStopWords(env, settings, JapaneseAnalyzer.getDefaultStopSet());
+        final CharArraySet stopWords = Analysis.parseStopWords(env, settings, JapaneseAnalyzer.getDefaultStopSet());
         final JapaneseTokenizer.Mode mode = KuromojiTokenizerFactory.getMode(settings);
-        final UserDictionary userDictionary = KuromojiTokenizerFactory.getUserDictionary(env, settings);
-        analyzer = new JapaneseAnalyzer(userDictionary, mode, CharArraySet.copy(stopWords), JapaneseAnalyzer.getDefaultStopTags());
+        final KuromojiTokenizerFactory.LoadedUserDictionary userDictionary = KuromojiTokenizerFactory.loadUserDictionary(env, settings);
+        analyzer = new JapaneseAnalyzer(
+            userDictionary.dictionary(),
+            mode,
+            CharArraySet.copy(stopWords),
+            JapaneseAnalyzer.getDefaultStopTags()
+        );
+        this.sharingKey = new Key(userDictionary.rulesSha256(), mode, Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override
@@ -38,4 +42,10 @@ public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Japa
         return this.analyzer;
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String userDictionaryRulesSha256, JapaneseTokenizer.Mode mode, Analysis.StableCharArraySet stopWords) {}
 }

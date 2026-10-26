@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.ko.KoreanAnalyzer;
 import org.apache.lucene.analysis.ko.KoreanPartOfSpeechStopFilter;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
 import org.apache.lucene.analysis.ko.POS;
-import org.apache.lucene.analysis.ko.dict.UserDictionary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -27,14 +26,20 @@ import static org.elasticsearch.plugin.analysis.nori.NoriPartOfSpeechStopFilterF
 
 public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAnalyzer> {
     private final KoreanAnalyzer analyzer;
+    private final Object sharingKey;
 
     public NoriAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         final KoreanTokenizer.DecompoundMode mode = NoriTokenizerFactory.getMode(settings);
-        final UserDictionary userDictionary = NoriTokenizerFactory.getUserDictionary(env, settings, indexSettings);
+        final NoriTokenizerFactory.LoadedUserDictionary userDictionary = NoriTokenizerFactory.loadUserDictionary(
+            env,
+            settings,
+            indexSettings
+        );
         final List<String> tagList = Analysis.getWordList(env, settings, "stoptags");
         final Set<POS.Tag> stopTags = tagList != null ? resolvePOSList(tagList) : KoreanPartOfSpeechStopFilter.DEFAULT_STOP_TAGS;
-        analyzer = new KoreanAnalyzer(userDictionary, mode, stopTags, false);
+        analyzer = new KoreanAnalyzer(userDictionary.dictionary(), mode, stopTags, false);
+        this.sharingKey = new Key(userDictionary.rulesSha256(), mode, Set.copyOf(stopTags));
     }
 
     @Override
@@ -42,4 +47,10 @@ public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAn
         return analyzer;
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String userDictionaryRulesSha256, KoreanTokenizer.DecompoundMode mode, Set<POS.Tag> stopTags) {}
 }

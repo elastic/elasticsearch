@@ -41,6 +41,7 @@ import java.nio.file.InvalidPathException;
 public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
+    private final Object sharingKey;
 
     @SuppressWarnings("HiddenField")
     public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
@@ -160,10 +161,45 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         this.collator = collator;
+        // Key on the settings the collator is built from, with rules resolved to the file content they were read from.
+        this.sharingKey = new Key(
+            rules,
+            settings.get("language"),
+            settings.get("country"),
+            settings.get("variant"),
+            strength,
+            decomposition,
+            alternate,
+            caseLevel,
+            caseFirst,
+            numeric,
+            variableTop,
+            hiraganaQuaternaryMode
+        );
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        String rules,
+        String language,
+        String country,
+        String variant,
+        String strength,
+        String decomposition,
+        String alternate,
+        Boolean caseLevel,
+        String caseFirst,
+        Boolean numeric,
+        String variableTop,
+        Boolean hiraganaQuaternaryMode
+    ) {}
 }

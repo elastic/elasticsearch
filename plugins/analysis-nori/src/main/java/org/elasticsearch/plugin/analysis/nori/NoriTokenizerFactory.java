@@ -36,15 +36,24 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private final UserDictionary userDictionary;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
     private final boolean discardPunctuation;
+    private final Object sharingKey;
 
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         decompoundMode = getMode(settings);
-        userDictionary = getUserDictionary(env, settings, indexSettings);
+        LoadedUserDictionary loaded = loadUserDictionary(env, settings, indexSettings);
+        userDictionary = loaded.dictionary();
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
+        this.sharingKey = new Key(loaded.rulesSha256(), decompoundMode, discardPunctuation);
     }
 
-    public static UserDictionary getUserDictionary(Environment env, Settings settings, IndexSettings indexSettings) {
+    // The dictionary has no value equality and its rules can be large, so a SHA-256 of the rules stands in for it in sharing
+    // keys. Both null when there are no rules.
+    record LoadedUserDictionary(UserDictionary dictionary, String rulesSha256) {
+        static final LoadedUserDictionary NONE = new LoadedUserDictionary(null, null);
+    }
+
+    static LoadedUserDictionary loadUserDictionary(Environment env, Settings settings, IndexSettings indexSettings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
@@ -60,14 +69,15 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             isSupportDuplicateCheck(indexSettings)
         );
         if (ruleList == null || ruleList.isEmpty()) {
-            return null;
+            return LoadedUserDictionary.NONE;
         }
         StringBuilder sb = new StringBuilder();
         for (String line : ruleList) {
             sb.append(line).append(System.lineSeparator());
         }
-        try (Reader rulesReader = new StringReader(sb.toString())) {
-            return UserDictionary.open(rulesReader);
+        String rules = sb.toString();
+        try (Reader rulesReader = new StringReader(rules)) {
+            return new LoadedUserDictionary(UserDictionary.open(rulesReader), Analysis.sha256Hex(rules));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load nori user dictionary", e);
         }
@@ -107,4 +117,10 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
         );
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String userDictionaryRulesSha256, KoreanTokenizer.DecompoundMode decompoundMode, boolean discardPunctuation) {}
 }

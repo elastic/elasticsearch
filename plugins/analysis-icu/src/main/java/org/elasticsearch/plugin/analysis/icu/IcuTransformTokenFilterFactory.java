@@ -22,6 +22,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private final Transliterator transliterator;
+    private final Object sharingKey;
 
     public IcuTransformTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -43,6 +44,9 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
         } else {
             this.transliterator = Transliterator.getInstance(id != null ? id : "Null", dir);
         }
+        // Transliterator has identity equality, so key on the settings it is built from. The filter name a
+        // ruleset transliterator is created with only labels it, so it is left out.
+        this.sharingKey = new Key(id, ruleset, dir);
     }
 
     @Override
@@ -50,4 +54,10 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
         return new ICUTransformFilter(tokenStream, transliterator);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String id, String ruleset, int dir) {}
 }

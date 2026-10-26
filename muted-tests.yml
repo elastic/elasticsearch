@@ -505,10 +505,6 @@ tests:
 - class: org.elasticsearch.search.basic.TransportSearchFailuresIT
   method: testFailedSearchWithWrongQuery
   issue: https://github.com/elastic/elasticsearch/issues/162738
-- class: org.elasticsearch.xpack.esql.CsvColumnarCodecIT
-  issue: https://github.com/elastic/elasticsearch/issues/162749
-- class: org.elasticsearch.xpack.esql.CsvColumnarIT
-  issue: https://github.com/elastic/elasticsearch/issues/162751
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754

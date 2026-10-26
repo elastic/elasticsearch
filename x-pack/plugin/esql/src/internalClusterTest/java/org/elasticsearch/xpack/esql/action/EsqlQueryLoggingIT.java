@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
@@ -29,6 +30,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -36,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -163,6 +167,75 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertThat(params.get("host_name"), equalTo("192.168.0.1"));
             assertThat(params.get("max_value"), equalTo("1000"));
         }
+    }
+
+    /**
+     * Each resolved view's own settings are logged under one field keyed by view name, apart from the caller's, which
+     * stay what the caller set. Every resolved view is logged, with the default for each setting its definition does not
+     * SET, and a query that resolves no view has no such field.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLoggingViewSettings() throws Exception {
+        int numDocs = setupIndex("logged-view-source", "192.168.0.1");
+        createView("nullifying_view", "SET unmapped_fields=\"nullify\"; SET wildcards_match_views=true; FROM logged-view-source");
+        createView("plain_view", "FROM logged-view-source");
+        try {
+            String query = SET_SETTINGS + "FROM nullifying_view, plain_view | LIMIT 100";
+            try (var resp = run(query)) {
+                var event = appender.getLastEventAndReset();
+                var message = getMessageData(event);
+                assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+                assertSettingsLogged(message, query);
+                assertThat(message.get(EsqlLogProducer.SETTINGS_PREFIX + "wildcards_match_views"), equalTo("false"));
+                assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(2L * numDocs)));
+                var viewSettings = (Map<String, Object>) getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD);
+                assertThat(
+                    viewSettings,
+                    equalTo(
+                        Map.of(
+                            "nullifying_view",
+                            Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false"),
+                            "plain_view",
+                            PLAIN_VIEW_SETTINGS
+                        )
+                    )
+                );
+            }
+
+            try (var resp = run("FROM plain_view | LIMIT 100")) {
+                var event = appender.getLastEventAndReset();
+                var viewSettings = (Map<String, Object>) getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD);
+                assertThat(viewSettings, equalTo(Map.of("plain_view", PLAIN_VIEW_SETTINGS)));
+            }
+
+            try (var resp = run("FROM logged-view-source | LIMIT 100")) {
+                var event = appender.getLastEventAndReset();
+                assertNull(getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD));
+            }
+        } finally {
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "nullifying_view", "plain_view" })
+            ).actionGet(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static final Map<String, String> PLAIN_VIEW_SETTINGS = Map.of(
+        "unmapped_fields",
+        "DEFAULT",
+        "wildcards_match_views",
+        "false",
+        "wildcards_match_datasets",
+        "false"
+    );
+
+    private void createView(String viewName, String query) {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, null, false))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
     }
 
     private static void assertSettingsLogged(Map<String, String> message, String query) {

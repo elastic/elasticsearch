@@ -541,11 +541,6 @@ tests:
   - :modules:data-streams:yamlRestCompatTest
   method: test {yaml=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/163288
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v9.1.9#yamlRestTest
-  - :qa:mixed-cluster:v9.2.8#yamlRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   tasks:
   - :x-pack:plugin:downsample:test

@@ -400,7 +400,7 @@ public abstract class SimdVecLibrary {
      * {@code rows x cols} matrix and {@code v} has {@code cols} values.
      */
     @Function("vec_sgemv_i8")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    @Critical
     public abstract void sgemvI8(
         @MatrixSegment(rowsParam = "rows", colsParam = "cols", elementBits = Byte.SIZE) MemorySegment a,
         @VectorSegment(countParam = "cols", elementBits = Byte.SIZE) MemorySegment v,

@@ -352,8 +352,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             sessionId,
             clusterService.state().getMinTransportVersion(),
             new AnalyzerSettings(
-                resultTruncationMaxSize,
-                resultTruncationDefaultSize,
+                request.unboundedResults() ? Integer.MAX_VALUE : resultTruncationMaxSize,
+                request.unboundedResults() ? Integer.MAX_VALUE : resultTruncationDefaultSize,
                 timeseriesResultTruncationMaxSize,
                 timeseriesResultTruncationDefaultSize
             ),

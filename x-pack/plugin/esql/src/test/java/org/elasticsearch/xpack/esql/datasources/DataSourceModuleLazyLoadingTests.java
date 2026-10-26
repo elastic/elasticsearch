@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -15,7 +18,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -26,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -36,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +56,8 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests verifying per-plugin lazy loading behavior in DataSourceModule.
@@ -312,6 +324,64 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         List<String> warnings = new ArrayList<>();
         wrapper.validateConfig("warn://table", Map.of(), warnings::add);
         assertEquals(List.of("warning for [warn://table]"), warnings);
+    }
+
+    public void testLazyConnectorUsesStoredDatasourceCredentials() throws IOException {
+        EncryptionService encryption = mock(EncryptionService.class);
+        EncryptedData encrypted = new EncryptedData("test-key", new byte[] { 1 });
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.writeGenericValue("test-password");
+            when(encryption.decrypt(encrypted)).thenAnswer(invocation -> BytesReference.toBytes(output.bytes()));
+            ConnectorFactory delegate = mock(ConnectorFactory.class);
+            when(delegate.type()).thenReturn("clickhouse");
+            DataSourcePlugin plugin = new DataSourcePlugin() {
+                @Override
+                public Set<String> supportedConnectorSchemes() {
+                    return Set.of("clickhouse");
+                }
+
+                @Override
+                public Map<String, ConnectorFactory> connectors(Settings settings) {
+                    return Map.of("clickhouse", delegate);
+                }
+            };
+            DataSourceModule module = new DataSourceModule(
+                List.of(plugin),
+                DataSourceCapabilities.build(List.of(plugin)),
+                Settings.EMPTY,
+                blockFactory,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(encryption),
+                () -> false
+            );
+            ConnectorFactory wrapper = (ConnectorFactory) module.sourceFactories().get("clickhouse");
+            Map<String, Object> stored = Map.of("_datasource", Map.of("endpoint", "https://example.com", "password", encrypted));
+            Map<String, Object> expected = Map.of("endpoint", "https://example.com", "password", "test-password");
+            Consumer<String> warnings = warning -> {};
+            wrapper.validateConfig("clickhouse://default/logs", stored);
+            wrapper.validateConfig("clickhouse://default/logs", stored, warnings);
+            wrapper.resolveMetadata("clickhouse://default/logs", stored);
+            wrapper.open(stored);
+            verify(delegate).validateConfig("clickhouse://default/logs", expected);
+            verify(delegate).validateConfig("clickhouse://default/logs", expected, warnings);
+            verify(delegate).resolveMetadata("clickhouse://default/logs", expected);
+            verify(delegate).open(expected);
+            assertEquals(Map.of("_datasource", Map.of("endpoint", "https://example.com", "password", encrypted)), stored);
+
+            String path = "clickhouse://default/logs";
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, "message", DataType.KEYWORD));
+            when(delegate.canHandle(path)).thenReturn(true);
+            when(delegate.resolveMetadata(path, expected)).thenReturn(new SimpleSourceMetadata(schema, "clickhouse", path));
+            ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(path, stored), future);
+            var resolved = future.actionGet().resolvedSource(path);
+            assertEquals("clickhouse", resolved.metadata().sourceType());
+            assertEquals(schema, resolved.metadata().schema());
+            assertEquals(stored, resolved.metadata().config());
+            assertFalse(resolved.fileList().isResolved());
+            assertTrue(resolved.schemaMap().isEmpty());
+        }
     }
 
     public void testLazyTableCatalogWrapperForwardsWarningSink() {

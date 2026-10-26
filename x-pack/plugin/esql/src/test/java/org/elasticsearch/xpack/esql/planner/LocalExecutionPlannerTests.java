@@ -22,7 +22,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -100,6 +102,8 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
@@ -572,12 +576,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             @Override
             public Connector open(Map<String, Object> config) {
                 opened.set(config);
-                throw new AssertionError("a registered dataset must never reach a connector");
+                throw new AssertionError("an unmatched dataset must never reach this connector");
             }
         };
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
         assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "flight");
         assertNull(opened.get());
+    }
+
+    public void testRegisteredDatasetConnectorMustMatchStoredSourceType() throws IOException {
+        ConnectorFactory connector = mock(ConnectorFactory.class);
+        when(connector.canHandle("clickhouse://default/logs")).thenReturn(true);
+        when(connector.open(Map.of())).thenReturn(mock(Connector.class));
+        var registry = new OperatorFactoryRegistry(Map.of("clickhouse", connector), Map.of(), Runnable::run);
+        var dataset = new Dataset("logs", new DataSourceReference("parent"), "clickhouse://default/logs", null, Map.of());
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            dataset.resource(),
+            "clickhouse",
+            List.of(new ReferenceAttribute(Source.EMPTY, "message", DataType.KEYWORD)),
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withDatasetName("logs");
+        for (String storedType : List.of("clickhouse", "s3")) {
+            var parent = new DataSource("parent", storedType, null, Map.of());
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of(parent.name(), parent)))
+                .datasets(Map.of(dataset.name(), dataset))
+                .build();
+            var planner = planner(registry, true, null, false, project);
+            if (storedType.equals("clickhouse")) {
+                assertNotNull(
+                    planner.plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, exec, EmptyIndexedByShardId.instance(), false)
+                );
+            } else {
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> planner.plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, exec, EmptyIndexedByShardId.instance(), false)
+                );
+            }
+        }
     }
 
     public void testRegisteredDatasetRefusedThroughTableCatalogSourceType() throws IOException {
@@ -1825,7 +1865,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 randomBoolean()
             )
         );
-        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through non-file source type [" + sourceType + "]"));
+        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through incompatible source type [" + sourceType + "]"));
     }
 
     private LocalExecutionPlanner planner() throws IOException {
@@ -1855,6 +1895,22 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         InferenceService inferenceService,
         boolean snapshotBuild
     ) throws IOException {
+        return planner(
+            operatorFactoryRegistry,
+            federationEnabled,
+            inferenceService,
+            snapshotBuild,
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build()
+        );
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild,
+        ProjectMetadata projectMetadata
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1877,7 +1933,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+            projectMetadata,
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
             snapshotBuild,

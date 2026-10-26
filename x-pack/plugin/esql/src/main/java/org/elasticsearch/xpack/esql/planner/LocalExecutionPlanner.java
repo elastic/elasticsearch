@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -143,7 +144,9 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -2265,12 +2268,14 @@ public class LocalExecutionPlanner {
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
-        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
-        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+        // A plan cannot dispatch registered credentials through a connector for a different data source type.
+        if (externalSource.datasetName() != null
+            && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false
+            && isRegisteredDatasetConnector(externalSource) == false) {
             throw new IllegalArgumentException(
                 "external dataset ["
                     + externalSource.datasetName()
-                    + "] cannot be read through non-file source type ["
+                    + "] cannot be read through incompatible source type ["
                     + externalSource.sourceType()
                     + "]"
             );
@@ -2364,6 +2369,19 @@ public class LocalExecutionPlanner {
         annotateDatasetLabel(externalSource, factory);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    private boolean isRegisteredDatasetConnector(ExternalSourceExec externalSource) {
+        var dataset = DatasetMetadata.get(projectMetadata).get(externalSource.datasetName());
+        if (dataset == null) {
+            return false;
+        }
+        var parent = DataSourceMetadata.get(projectMetadata).get(dataset.dataSource().getName());
+        var factory = operatorFactoryRegistry.sourceFactories().get(externalSource.sourceType());
+        return parent != null
+            && parent.type().equals(externalSource.sourceType())
+            && factory instanceof ConnectorFactory
+            && factory.canHandle(dataset.resource());
     }
 
     private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {

@@ -51,7 +51,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES813FlatVectorReader(format.fieldsReader(state));
+        return new ES813FlatVectorReader(format.fieldsReader(VectorReadHints.scannedBySearches(state)));
     }
 
     @Override
@@ -101,6 +101,16 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
             return reader.getOffHeapByteSize(fieldInfo);
+        }
+
+        @Override
+        public KnnVectorsReader getMergeInstance() throws IOException {
+            return new ES813FlatVectorReader(reader.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            reader.finishMerge();
         }
 
         @Override

@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -210,7 +211,10 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // skip_unavailable=false cluster is unavailable, throws Exception
         {
-            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
+                clusterAlias -> Objects.equals(clusterAlias, REMOTE1_ALIAS),
+                EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY
+            );
             executionInfo.swapCluster(
                 LOCAL_CLUSTER_ALIAS,
                 (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)

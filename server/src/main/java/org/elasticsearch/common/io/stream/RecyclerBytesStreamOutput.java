@@ -192,6 +192,67 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.positionOffset = ((long) pageIndex) * pageSize - pageStart;
     }
 
+    /**
+     * Appends {@code times} more copies of the last {@code length} bytes already written to this stream.
+     *
+     * <p>The copies are made with a doubling scheme: every round duplicates everything appended so far, so
+     * {@code times} copies take {@code O(log(times))} page-level {@code System.arraycopy} calls instead of
+     * {@code times} individual writes. Each round reads the region ending exactly where it writes, so the
+     * source and destination never overlap even when both live in the same recycler page.
+     */
+    public void repeatLastBytes(int length, int times) {
+        assert length >= 0 : "negative length " + length;
+        assert times >= 0 : "negative times " + times;
+        if (length == 0 || times == 0) {
+            return;
+        }
+        final long start = position() - length;
+        assert start >= 0 : "cannot repeat the last " + length + " bytes, only " + position() + " were written";
+        // Allocate the pages for all copies up front; the copy loop below then never has to grow the stream.
+        ensureCapacityFromPosition(position() + (long) length * times);
+        // Every round reads from this same position, so resolve its page once rather than per round: locating a
+        // page costs an integer division and a lookup, more than the copy itself for a short block. All pages are
+        // allocated above, so neither the page list nor the resolved page can move while copying.
+        final int startPage = (int) (start / pageSize);
+        final int startOffsetInPage = (int) (start - (long) startPage * pageSize);
+        final BytesRef sourcePage = pages.get(startPage).v();
+        final int sourceOffset = sourcePage.offset + startOffsetInPage;
+        final int sourceAvailable = pageSize - startOffsetInPage;
+        int present = 1;
+        int remaining = times;
+        while (remaining > 0) {
+            final int blocks = Math.min(present, remaining);
+            final int chunk = blocks * length;
+            if (chunk <= sourceAvailable) {
+                writeBytes(sourcePage.bytes, sourceOffset, chunk);
+            } else {
+                // The round outgrew the page holding the block, so it has to be read page by page. Only reached
+                // once a single round copies more than a page, where the per-page bookkeeping is negligible.
+                copyFromSelf(startPage, startOffsetInPage, chunk);
+            }
+            present += blocks;
+            remaining -= blocks;
+        }
+    }
+
+    /**
+     * Appends {@code length} bytes read from {@code offsetInPage} of page {@code pageIndex}, continuing into the
+     * pages that follow it. The source and destination ranges must not overlap.
+     */
+    private void copyFromSelf(int pageIndex, int offsetInPage, int length) {
+        while (true) {
+            final BytesRef page = pages.get(pageIndex).v();
+            final int chunk = Math.min(length, pageSize - offsetInPage);
+            writeBytes(page.bytes, page.offset + offsetInPage, chunk);
+            length -= chunk;
+            if (length == 0) {
+                return;
+            }
+            pageIndex++;
+            offsetInPage = 0;
+        }
+    }
+
     @Override
     public void writeVInt(int i) {
         if ((i & 0xFFFF_FF80) != 0) {

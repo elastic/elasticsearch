@@ -55,6 +55,7 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
     static final String[] GRANTED_FIELDS = {
         "spaceId",
         "id",
+        "runName",
         "workflowId",
         "managed",
         "managedBy",

@@ -39,6 +39,11 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
 
 $if(BytesRef)$
     @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {

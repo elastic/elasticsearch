@@ -18,7 +18,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -34,6 +38,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,9 +58,11 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.atomic.LongAdder;
@@ -73,7 +80,11 @@ import java.util.concurrent.atomic.LongAdder;
  * <p>
  * {@link AsyncOperator} keeps the pages in order and limits how many the operator holds. The responses arrive on other
  * threads, which only store them. The driver thread then puts the fetched columns next to the rows, with the block factory
- * of the driver. A fetch frees no reader context: the query frees them all once it ends.
+ * of the driver.
+ * <p>
+ * A fetch request frees no reader context, because a later batch can read the same shard. Once the input ends, the cut is
+ * complete, and the reader contexts that none of its rows read can go before the fetch loads the documents. The others go
+ * once the operator closes, when nothing fetches anymore.
  * <p>
  * A fetch can fail for some shards: a shard whose context is gone, a request a node rejected, a node that left. When the
  * query allows partial results, the page goes on without the rows of those shards, in the order of the cut, and the query
@@ -159,6 +170,16 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             PhysicalPlan fetchPlan,
             ActionListener<FetchResponse> listener
         );
+
+        /**
+         * The cut is complete, and its rows read only the reader contexts in {@code read}. The others can go.
+         */
+        void cutEnded(Set<ShardSearchContextId> read);
+
+        /**
+         * Nothing fetches anymore, so the reader contexts of the rows can go too.
+         */
+        void fetchEnded();
     }
 
     /**
@@ -267,6 +288,11 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      * The pages the first page of a batch gathered for the later pages of the batch, which come out next.
      */
     private final Deque<Page> gatheredForLaterPages = new ArrayDeque<>();
+    /**
+     * The reader contexts that the rows of the cut read so far.
+     */
+    private final Set<ShardSearchContextId> contextsRead = new HashSet<>();
+    private boolean cutEnded;
 
     FetchOperator(
         DriverContext driverContext,
@@ -290,11 +316,44 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     @Override
     protected void performAsync(Page cut, ActionListener<Fetched> listener) {
         rowsReceived += cut.getPositionCount();
+        recordContextsRead(cut);
         synchronized (queued) {
             queued.addLast(new QueuedPage(cut, listener));
             queuedRows += cut.getPositionCount();
         }
         sendQueuedPages();
+    }
+
+    /**
+     * Records the reader contexts that the rows of {@code cut} read. The origins of a page can name contexts that none of its
+     * rows read, so the rows decide. A page whose documents didn't leave their node is the planner's to reject.
+     */
+    private void recordContextsRead(Page cut) {
+        if (cut.getBlock(docChannel) instanceof DocBlock docBlock && docBlock.asVector().origins() != null) {
+            DocVector documents = docBlock.asVector();
+            DocOrigins origins = documents.origins();
+            IntVector ordinals = documents.shards();
+            boolean[] recorded = new boolean[origins.size()];
+            for (int p = 0; p < cut.getPositionCount(); p++) {
+                int ordinal = ordinals.getInt(p);
+                if (recorded[ordinal] == false) {
+                    recorded[ordinal] = true;
+                    contextsRead.add(origins.get(ordinal).contextId());
+                }
+            }
+        }
+    }
+
+    /**
+     * Once the input ends, the cut is complete, so the reader contexts that none of its rows read can go.
+     */
+    @Override
+    public void finish() {
+        if (cutEnded == false) {
+            cutEnded = true;
+            client.cutEnded(contextsRead);
+        }
+        super.finish();
     }
 
     /**
@@ -743,6 +802,8 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         while ((gathered = gatheredForLaterPages.pollFirst()) != null) {
             gathered.releaseBlocks();
         }
+        // a batch still in flight finds its contexts gone, and its result is dropped anyway
+        client.fetchEnded();
         nodeHeaders.finish();
     }
 

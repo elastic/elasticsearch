@@ -62,6 +62,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -500,6 +501,64 @@ public class FetchOperatorTests extends ComputeTestCase {
         assertThat(e.getMessage(), equalTo("maxPagesHeld [1] must be at least maxBatchesInFlight [2]"));
         e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(4, 2, 0));
         assertThat(e.getMessage(), equalTo("maxBatchRows must be positive but was [0]"));
+    }
+
+    /**
+     * When the input ends, the operator names the reader contexts that the rows of the cut read, and no others: a page can
+     * name an origin that none of its rows reads. It names them once.
+     */
+    public void testTheEndOfTheCutNamesTheContextsItsRowsRead() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(1), 1, 3), new Ref(ORIGINS.get(0), 0, 4));
+            operator.addInput(pageNamingAnOriginNoRowReads(blockFactory, first, ORIGINS.get(3)));
+            operator.addInput(page(blockFactory, second));
+            assertThat("the cut goes on", client.cutsEnded, empty());
+
+            operator.finish();
+            operator.finish();
+
+            Set<ShardSearchContextId> read = Set.of(ORIGINS.get(0).contextId(), ORIGINS.get(1).contextId(), ORIGINS.get(2).contextId());
+            assertThat(client.cutsEnded, contains(read));
+            assertThat(releasedRows(takeOutput(operator, 2)), equalTo(concat(first, second)));
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+        assertThat(client.ends, contains("cut", "fetch"));
+    }
+
+    /**
+     * Closing the operator ends its fetch, also when it closes before its input ended. Its cut then ends first, so the
+     * contexts its rows read so far go as well.
+     */
+    public void testClosingEndsTheFetch() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
+        boolean inputEnded = randomBoolean();
+        try {
+            List<Ref> rows = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
+            operator.addInput(page(blockFactory, rows));
+            if (inputEnded) {
+                operator.finish();
+                client.holdResponses.countDown();
+                assertThat(releasedRows(takeOutput(operator, 1)), equalTo(rows));
+            }
+            assertThat("the fetch goes on", client.ends, inputEnded ? contains("cut") : empty());
+        } finally {
+            operator.close();
+            client.holdResponses.countDown();
+            awaitResponses(driverContext);
+        }
+        assertThat(client.ends, contains("cut", "fetch"));
+        assertThat(client.cutsEnded, contains(Set.of(ORIGINS.get(0).contextId(), ORIGINS.get(2).contextId())));
     }
 
     /**
@@ -1158,6 +1217,10 @@ public class FetchOperatorTests extends ComputeTestCase {
         private CountDownLatch holdResponses;
         /** The responses of each node in the map wait for its latch. */
         private final Map<String, CountDownLatch> holdResponsesOf = new ConcurrentHashMap<>();
+        /** The reader contexts that each end of the cut named. */
+        private final List<Set<ShardSearchContextId>> cutsEnded = new CopyOnWriteArrayList<>();
+        /** The ends of the cut and of the fetch, in the order the operator reported them. */
+        private final List<String> ends = new CopyOnWriteArrayList<>();
         /** Each node answers with this response header, its id as the value. */
         private String responseHeader;
 
@@ -1218,6 +1281,17 @@ public class FetchOperatorTests extends ComputeTestCase {
                     listener.onFailure(e);
                 }
             });
+        }
+
+        @Override
+        public void cutEnded(Set<ShardSearchContextId> read) {
+            cutsEnded.add(Set.copyOf(read));
+            ends.add("cut");
+        }
+
+        @Override
+        public void fetchEnded() {
+            ends.add("fetch");
         }
 
         private FetchResponse respond(String nodeId, List<FetchRequest.ShardDocs> shards) {
@@ -1282,6 +1356,26 @@ public class FetchOperatorTests extends ComputeTestCase {
                 builder.appendShard(origins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
             }
             // rows may share a document
+            return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
+        }
+    }
+
+    /**
+     * A page of {@code refs} whose origins also name {@code unread}, an origin that none of its rows reads.
+     */
+    private static Page pageNamingAnOriginNoRowReads(BlockFactory blockFactory, List<Ref> refs, DocOrigin unread) {
+        List<DocOrigin> origins = new ArrayList<>();
+        for (Ref ref : refs) {
+            if (origins.contains(ref.origin()) == false) {
+                origins.add(ref.origin());
+            }
+        }
+        assertFalse("no row may read it", origins.contains(unread));
+        origins.add(unread);
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, refs.size())) {
+            for (Ref ref : refs) {
+                builder.appendShard(origins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
+            }
             return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
         }
     }

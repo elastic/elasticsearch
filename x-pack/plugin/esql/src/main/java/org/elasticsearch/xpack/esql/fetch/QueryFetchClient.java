@@ -15,11 +15,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -118,5 +120,15 @@ final class QueryFetchClient implements FetchOperator.Client {
         } catch (Exception e) {
             countingDrivers.onFailure(e);
         }
+    }
+
+    @Override
+    public void cutEnded(Set<ShardSearchContextId> read) {
+        scope.fetchContexts().cutEnded(read);
+    }
+
+    @Override
+    public void fetchEnded() {
+        scope.fetchContexts().fetchEnded();
     }
 }

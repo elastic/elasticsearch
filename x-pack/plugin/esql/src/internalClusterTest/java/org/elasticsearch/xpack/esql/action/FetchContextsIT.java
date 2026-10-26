@@ -23,6 +23,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -168,8 +169,8 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * When every row is a winner, the fetch reads every context that kept rows. The fetch frees none of them, so the
-     * coordinator's lease frees them all once the query ends, with one request of the free action of {@code _search} per
+     * When every row is a winner, the fetch reads every context that kept rows. The fetch requests free none of them, so the
+     * coordinator's lease frees them all once the fetch ended, with one request of the free action of {@code _search} per
      * context.
      */
     public void testTheLeaseFreesTheContextsAFetchRead() throws Exception {
@@ -185,6 +186,42 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
         });
         // a shard without documents keeps no rows, and its data node frees its context itself
         assertThat(freeRequests.get(), allOf(greaterThan(0), lessThanOrEqualTo(shards)));
+    }
+
+    /**
+     * The contexts of shards whose rows all lost the cut of the coordinator are freed before the fetch loads the winners.
+     */
+    public void testLosersAreFreedBeforeTheFetch() throws Exception {
+        Set<ShardSearchContextId> fetched = ConcurrentHashMap.newKeySet();
+        CountDownLatch fetchArrived = new CountDownLatch(1);
+        CountDownLatch releaseFetches = new CountDownLatch(1);
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).<FetchRequest>addRequestHandlingBehavior(
+                FetchService.FETCH_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    request.shards().forEach(shard -> fetched.add(shard.contextId()));
+                    fetchArrived.countDown();
+                    safeAwait(releaseFetches);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+        // one winner: every other node that sends a row to the coordinator holds a loser
+        ActionFuture<EsqlQueryResponse> query = client().execute(
+            EsqlQueryAction.INSTANCE,
+            request("FROM " + INDEX + " | SORT ts DESC | LIMIT 1 | KEEP a, b, ts", true)
+        );
+        try {
+            safeAwait(fetchArrived);
+            assertBusy(() -> assertThat("only the winner stays open", Set.copyOf(registeredIds), equalTo(Set.copyOf(fetched))));
+        } finally {
+            releaseFetches.countDown();
+        }
+        try (EsqlQueryResponse response = query.actionGet(30, TimeUnit.SECONDS)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("a-59", 590L, 59L))));
+        }
+        assertThat(fetched, hasSize(1));
+        assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
     }
 
     /**

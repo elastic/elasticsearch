@@ -31,7 +31,8 @@ import java.util.concurrent.Executor;
  * <p>
  * On a data node, a request of the query phase opens a single-session reader context per shard, like the query phase of
  * {@code _search}, and keeps the ones whose rows leave the node. On a coordinator, it keeps one {@link FetchContextLease}
- * per running query, which frees the contexts of the query once it ends, with the free action of {@code _search}.
+ * per running query, which frees each context with the free action of {@code _search} once its execution no longer reads
+ * it, and at the latest when the query ends.
  */
 public final class FetchContextService {
     private static final Logger logger = LogManager.getLogger(FetchContextService.class);
@@ -63,9 +64,9 @@ public final class FetchContextService {
 
     /**
      * The lease of the query that runs under {@code rootTask}, created by the first execution of the query that opens fetch
-     * contexts. Every later execution of the query shares it, because a later stage can fetch rows an earlier one made.
-     * The lease closes when the task is cancelled or goes away. Called only while the query runs, because nothing closes
-     * a lease created after its task went away.
+     * contexts. Every later execution of the query shares it and keeps its own contexts in it, so the task frees what any
+     * execution left. The lease closes when the task is cancelled or goes away. Called only while the query runs, because
+     * nothing closes a lease created after its task went away.
      */
     public FetchContextLease leaseFor(CancellableTask rootTask) {
         FetchContextLease existing = leases.get(rootTask.getId());

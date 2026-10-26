@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -36,6 +38,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * One fetch request as the coordinator sends it: what it carries, and that the drivers of the fetch reach the query
@@ -192,6 +200,40 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     /**
+     * The ends of the cut and of the fetch reach the lease of the query, for the execution of the client: the end of the
+     * cut frees the context no row read, and the end of the fetch the one they read.
+     */
+    public void testTheEndsOfTheCutAndTheFetchReachTheLeaseOfItsExecution() {
+        // there is no node to free a context on, so the free action of _search only records what the lease frees
+        SearchTransportService searchTransport = mock(SearchTransportService.class);
+        when(searchTransport.transportService()).thenReturn(mock(TransportService.class));
+        FetchContextLease lease = new FetchContextLease(
+            new FetchContextService(null, searchTransport),
+            rootTask.getId(),
+            threadContext.newRestorableContext(false)
+        );
+        FetchContextLease.Execution fetchContexts = lease.newExecution();
+        QueryFetchClient client = new QueryFetchClient(
+            (node, request, parentTask, listener) -> fail("nothing to send"),
+            threadContext,
+            this::nodes,
+            scope(fetchContexts),
+            List.of("logs-*")
+        );
+        ShardSearchContextId read = new ShardSearchContextId("session", 1);
+        ShardSearchContextId unread = new ShardSearchContextId("session", 2);
+        fetchContexts.add(NODE, List.of(read, unread));
+
+        client.cutEnded(Set.of(read));
+        verify(searchTransport).sendFreeContext(any(), eq(unread), any());
+        verify(searchTransport, never()).sendFreeContext(any(), eq(read), any());
+
+        client.fetchEnded();
+        verify(searchTransport).sendFreeContext(any(), eq(read), any());
+        lease.close();
+    }
+
+    /**
      * A request without index expressions would be authorized for every index.
      */
     public void testNeedsTheIndexExpressionsOfTheRelation() {
@@ -207,7 +249,15 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     private QueryFetchScope scope() {
-        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, new FetchFailures(false));
+        // the client holds no context in these tests, so the lease never sends a free request
+        return scope(
+            new FetchContextLease(new FetchContextService(null, null), rootTask.getId(), threadContext.newRestorableContext(false))
+                .newExecution()
+        );
+    }
+
+    private QueryFetchScope scope(FetchContextLease.Execution fetchContexts) {
+        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, new FetchFailures(false), fetchContexts);
     }
 
     private DiscoveryNodes nodes() {

@@ -25,6 +25,7 @@ import org.junit.After;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -49,8 +50,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testCloseFreesEveryContext() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease lease = service.leaseFor(task);
-        lease.add(localNode(), respond(INDEX));
+        service.leaseFor(task).newExecution().add(localNode(), respond(INDEX));
         assertThat(searchService().getActiveContexts(), equalTo(SHARDS));
 
         service.closeLease(task.getId());
@@ -64,7 +64,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testFreesEachContextWithTheFreeActionOfSearch() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        service.leaseFor(task).add(localNode(), respond(INDEX));
+        service.leaseFor(task).newExecution().add(localNode(), respond(INDEX));
         AtomicInteger freeRequests = countFreeRequests();
 
         service.closeLease(task.getId());
@@ -80,15 +80,127 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testContextsListedAfterCloseAreFreedAtOnce() throws Exception {
         createIndexWithDocs(INDEX);
         FetchContextLease lease = service.leaseFor(rootTask());
+        FetchContextLease.Execution execution = lease.newExecution();
         lease.close();
 
-        lease.add(localNode(), respond(INDEX));
+        execution.add(localNode(), respond(INDEX));
 
         assertAllFreed();
     }
 
     /**
-     * Every execution of a query shares its lease, because a later stage can fetch rows an earlier one made.
+     * Once the cut of an execution ended, the lease frees the contexts its rows don't read, and keeps the others for the
+     * fetch.
+     */
+    public void testTheEndOfTheCutFreesTheContextsItsRowsDontRead() throws Exception {
+        createIndexWithDocs(INDEX);
+        CancellableTask task = rootTask();
+        FetchContextLease.Execution execution = service.leaseFor(task).newExecution();
+        List<ShardSearchContextId> open = respond(INDEX);
+        execution.add(localNode(), open);
+        Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), open));
+        AtomicInteger freeRequests = countFreeRequests();
+
+        execution.cutEnded(read);
+
+        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS - read.size())));
+        for (ShardSearchContextId id : open) {
+            assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
+        }
+        service.closeLease(task.getId());
+        assertAllFreed();
+    }
+
+    /**
+     * A response that arrives after the cut ended has its contexts freed at once, unless the rows of the cut read them.
+     */
+    public void testAContextListedAfterTheCutIsFreedUnlessItsRowsReadIt() throws Exception {
+        createIndexWithDocs(INDEX);
+        CancellableTask task = rootTask();
+        FetchContextLease.Execution execution = service.leaseFor(task).newExecution();
+        List<ShardSearchContextId> open = respond(INDEX);
+        Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), open));
+        execution.cutEnded(read);
+        AtomicInteger freeRequests = countFreeRequests();
+
+        execution.add(localNode(), open);
+
+        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS - read.size())));
+        for (ShardSearchContextId id : open) {
+            assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
+        }
+        service.closeLease(task.getId());
+        assertAllFreed();
+    }
+
+    /**
+     * Once the fetch of an execution ended, the lease frees every context the execution kept.
+     */
+    public void testTheEndOfTheFetchFreesTheContextsOfItsRows() throws Exception {
+        createIndexWithDocs(INDEX);
+        CancellableTask task = rootTask();
+        FetchContextLease.Execution execution = service.leaseFor(task).newExecution();
+        List<ShardSearchContextId> open = respond(INDEX);
+        execution.add(localNode(), open);
+        // a fetch that closes before its input ended never saw the end of its cut
+        if (randomBoolean()) {
+            execution.cutEnded(Set.copyOf(open));
+        }
+        assertThat("the fetch still reads them", searchService().getActiveContexts(), equalTo(SHARDS));
+
+        execution.fetchEnded();
+
+        assertAllFreed();
+        service.closeLease(task.getId());
+    }
+
+    /**
+     * A response that arrives after the fetch ended has its contexts freed at once.
+     */
+    public void testAContextListedAfterTheFetchIsFreedAtOnce() throws Exception {
+        createIndexWithDocs(INDEX);
+        CancellableTask task = rootTask();
+        FetchContextLease.Execution execution = service.leaseFor(task).newExecution();
+        execution.fetchEnded();
+
+        execution.add(localNode(), respond(INDEX));
+
+        assertAllFreed();
+        service.closeLease(task.getId());
+    }
+
+    /**
+     * The end of the cut or of the fetch of one execution frees none of the contexts of another execution.
+     */
+    public void testAnExecutionFreesOnlyItsOwnContexts() throws Exception {
+        createIndexWithDocs(INDEX);
+        CancellableTask task = rootTask();
+        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease.Execution ending = lease.newExecution();
+        FetchContextLease.Execution running = lease.newExecution();
+        List<ShardSearchContextId> endingContexts = respond(INDEX);
+        List<ShardSearchContextId> runningContexts = respond(INDEX);
+        ending.add(localNode(), endingContexts);
+        running.add(localNode(), runningContexts);
+
+        if (randomBoolean()) {
+            ending.cutEnded(Set.of());
+        } else {
+            ending.fetchEnded();
+        }
+
+        for (ShardSearchContextId id : endingContexts) {
+            assertBusy(() -> assertFalse(isOpen(id)));
+        }
+        for (ShardSearchContextId id : runningContexts) {
+            assertTrue("the other execution still reads [" + id + "]", isOpen(id));
+        }
+        service.closeLease(task.getId());
+        assertAllFreed();
+    }
+
+    /**
+     * Every execution of a query shares its lease, so the task of the query frees what any execution left.
      */
     public void testOneLeasePerQuery() {
         CancellableTask task = rootTask();
@@ -106,7 +218,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testCancellingTheQueryFreesItsContexts() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        service.leaseFor(task).add(localNode(), respond(INDEX));
+        service.leaseFor(task).newExecution().add(localNode(), respond(INDEX));
 
         TaskCancelHelper.cancel(task, "the user cancelled the query");
 
@@ -123,7 +235,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
         CancellableTask task = rootTask();
         as(owner, () -> {
-            service.leaseFor(task).add(localNode(), respond(INDEX));
+            service.leaseFor(task).newExecution().add(localNode(), respond(INDEX));
             return null;
         });
 

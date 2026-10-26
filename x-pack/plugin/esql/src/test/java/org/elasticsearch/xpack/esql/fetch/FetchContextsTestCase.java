@@ -18,6 +18,7 @@ import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -134,6 +135,18 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
 
     protected DiscoveryNode localNode() {
         return getInstanceFromNode(ClusterService.class).localNode();
+    }
+
+    /**
+     * Whether the context {@code id} is still registered.
+     */
+    protected boolean isOpen(ShardSearchContextId id) {
+        try {
+            searchService().findReaderContext(id, new LookupRequest(), null);
+            return true;
+        } catch (SearchContextMissingException e) {
+            return false;
+        }
     }
 
     /**

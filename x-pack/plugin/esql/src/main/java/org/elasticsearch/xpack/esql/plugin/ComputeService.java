@@ -1507,9 +1507,10 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
-        // documents that leave the data nodes name the contexts they keep open for the fetch phase, freed when the query ends
-        final FetchContextLease fetchContextLease = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
-            ? fetchPhaseServices.contextService().leaseFor(rootTask)
+        // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
+        // frees once it no longer reads them, and the query once it ends
+        final FetchContextLease.Execution fetchContexts = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
+            ? fetchPhaseServices.contextService().leaseFor(rootTask).newExecution()
             : null;
         /*
          * Grab the output attributes here, so we can pass them to
@@ -1567,7 +1568,14 @@ public class ComputeService {
                     if (coordinatorPlan.anyMatch(FetchExec.class::isInstance)) {
                         // the fetches of the query send their requests as children of its task, and count their drivers as its own
                         fetchOperators = fetchPhaseServices.operatorProvider(
-                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute, fetchFailures)
+                            new QueryFetchScope(
+                                rootTask,
+                                sessionId,
+                                configuration,
+                                localListener::acquireCompute,
+                                fetchFailures,
+                                fetchContexts
+                            )
                         );
                     }
                     runCompute(
@@ -1604,7 +1612,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
-                            fetchContextLease,
+                            fetchContexts,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());

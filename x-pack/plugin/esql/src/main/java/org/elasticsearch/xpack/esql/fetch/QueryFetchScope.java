@@ -22,17 +22,21 @@ import java.util.function.Supplier;
  * @param completionInfo acquires a listener for the drivers of one fetch request. The query adds them to its own
  *                       counters and profile.
  * @param fetchFailures  the shards whose fetch failed, which the query reports once its computes are done
+ * @param fetchContexts  the contexts the data nodes keep for the fetch of this execution, which it frees as soon as its cut
+ *                       and its fetch no longer read them
  */
 public record QueryFetchScope(
     CancellableTask rootTask,
     String sessionId,
     Configuration configuration,
     Supplier<ActionListener<DriverCompletionInfo>> completionInfo,
-    FetchFailures fetchFailures
+    FetchFailures fetchFailures,
+    FetchContextLease.Execution fetchContexts
 ) {
     public QueryFetchScope {
         Objects.requireNonNull(rootTask, "rootTask");
         Objects.requireNonNull(completionInfo, "completionInfo");
         Objects.requireNonNull(fetchFailures, "fetchFailures");
+        Objects.requireNonNull(fetchContexts, "fetchContexts");
     }
 }

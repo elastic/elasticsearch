@@ -189,8 +189,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        // Non-null when documents leave the data nodes: the data nodes keep fetch contexts open, and the lease frees them.
-        @Nullable FetchContextLease fetchContextLease,
+        // Non-null when documents leave the data nodes: the data nodes keep fetch contexts open, and the execution frees them.
+        @Nullable FetchContextLease.Execution fetchContexts,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -283,7 +283,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
                                 List.of(),
-                                fetchContextLease != null
+                                fetchContexts != null
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -293,8 +293,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 groupTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
-                                    if (fetchContextLease != null) {
-                                        fetchContextLease.add(connection.getNode(), r.openContexts());
+                                    if (fetchContexts != null) {
+                                        fetchContexts.add(connection.getNode(), r.openContexts());
                                     }
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();

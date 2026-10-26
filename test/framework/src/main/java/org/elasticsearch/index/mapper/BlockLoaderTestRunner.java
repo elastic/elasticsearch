@@ -182,9 +182,6 @@ public class BlockLoaderTestRunner {
      * calling {@link #run}.
      */
     public void document(ParsedDocument doc) throws IOException {
-        if (params.indexMode() == IndexMode.LOGSDB && containsTimestampField(doc) == false) {
-            throw new IllegalStateException("LogsDB documents must contains a @timestamp field");
-        }
         this.doc = doc;
     }
 

@@ -139,11 +139,8 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
             boolean indexKeepsArray = BlockLoaderTestCase.indexKeepsArray(params.blTestCaseParams());
             var configuredValue = fieldMapping.get("preserve_leaf_arrays");
-            if (configuredValue == null && (params.indexMode().isStrictColumnar() || indexKeepsArray)) {
-                return ValuesMode.AS_IS_OFFSETS;
-            }
 
-            boolean isExact = "exact".equals(configuredValue) || (configuredValue == null && params.indexMode().isStrictColumnar());
+            boolean isExact = "exact".equals(configuredValue) || (configuredValue == null && (params.indexMode().isStrictColumnar() || indexKeepsArray));
             if (isExact == false) {
                 return SORTED_UNIQUE;
             }

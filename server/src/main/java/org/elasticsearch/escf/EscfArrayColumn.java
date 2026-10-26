@@ -20,9 +20,14 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all arrays of a single fixed primitive element kind, stored in a
- * columnar list layout: a per-row element-range offset vector ({@code offsets}) over a single dense
+ * columnar list layout: a per-row element-range offset vector ({@code offsets}) over a single
  * primitive {@code child} sub-column. Row {@code d}'s elements are the child elements in
  * {@code [offsets[d], offsets[d + 1])}. There are no inline arrays.
+ *
+ * <p>Following Arrow's list layout, the child carries its own validity bitset, separate from this
+ * column's row {@link #validity}: a clear bit marks an explicit JSON {@code null} element. A null
+ * element keeps its slot in the child (a zero-filled value or an empty range), so the row offsets
+ * index the child directly.
  */
 final class EscfArrayColumn extends EscfColumn {
 
@@ -41,6 +46,14 @@ final class EscfArrayColumn extends EscfColumn {
 
     IntsRef rowOffsets() {
         return rowOffsets;
+    }
+
+    /**
+     * Returns {@code true} when the child holds at least one explicit JSON {@code null} element. A slice
+     * shares its parent's child, so it also reports nulls that belong to rows outside the slice.
+     */
+    public boolean hasNullElements() {
+        return child.isDense() == false;
     }
 
     @Override
@@ -84,7 +97,8 @@ final class EscfArrayColumn extends EscfColumn {
     /**
      * Returns an element-granular {@link LongTupleCursor} over this array column's fixed-64 element
      * values. The child column must be an {@link AbstractFixed64Column} (LONG or DOUBLE); throws
-     * {@link UnsupportedOperationException} otherwise.
+     * {@link UnsupportedOperationException} otherwise, and {@link IllegalStateException} when
+     * {@link #hasNullElements()} is true, because the cursor yields one value per element.
      *
      * <p>As with {@link AbstractFixed64Column#longCursor()}, the yielded {@code longValue()} is the
      * <em>raw 64-bit stored word</em>: the long value for a {@link EscfLongColumn} child, and
@@ -144,7 +158,8 @@ final class EscfArrayColumn extends EscfColumn {
     /**
      * Returns an element-granular {@link ObjectTupleCursor}{@code <BytesRef>} over this array
      * column's byte-string element values. The child column must be a var-width (STRING or BINARY)
-     * column; throws {@link UnsupportedOperationException} otherwise.
+     * column; throws {@link UnsupportedOperationException} otherwise, and {@link IllegalStateException}
+     * when {@link #hasNullElements()} is true, because the cursor yields one value per element.
      *
      * <p>For multi-valued rows the same row-id is returned once per element. Empty rows (zero-width
      * offset range) and absent rows (no elements) are skipped automatically.

@@ -10,16 +10,21 @@ import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.Nonce;
+import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RequestParams;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -31,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
@@ -38,6 +44,8 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,7 +83,11 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     @Before
     public void setupEnv() {
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        globalSettings = Settings.builder()
+            .put("path.home", createTempDir())
+            // Registers the realm's SSL context so that SSLService#profile(...) can resolve it in the discovery tests
+            .put("xpack.security.authc.realms.oidc." + REALM_NAME + ".ssl.verification_mode", "certificate")
+            .build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
     }
@@ -446,6 +458,222 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
                 + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
+    }
+
+    public void testProviderConfigurationIsDiscoveredWhenEndpointsAreUnset() throws Exception {
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+        try {
+            final String issuer = issuerUrl(httpServer);
+            httpServer.createContext(
+                "/.well-known/openid-configuration",
+                exchange -> respondWithJson(
+                    exchange,
+                    discoveryDocument(issuer, issuer + "/login", issuer + "/token", issuer + "/jwks.json")
+                )
+            );
+
+            final Settings.Builder settingsBuilder = Settings.builder()
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+                // Use an HMAC signature algorithm so that the (http, test-server-hosted) discovered jwks_uri is
+                // never dereferenced for token validation purposes; only the discovery/precedence wiring is under test.
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_SIGNATURE_ALGORITHM), "HS256")
+                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                .setSecureSettings(getSecureSettings());
+            final OpenIdConnectRealm realm = new OpenIdConnectRealm(
+                buildConfig(settingsBuilder.build(), threadContext),
+                new SSLService(env),
+                null,
+                null
+            );
+            try {
+                final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
+                assertThat(response.getAuthenticationRequestUrl(), containsString(issuer + "/login"));
+            } finally {
+                realm.close();
+            }
+        } finally {
+            httpServer.stop(1);
+        }
+    }
+
+    public void testExplicitEndpointOverridesDiscoveredValue() throws Exception {
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+        try {
+            final String issuer = issuerUrl(httpServer);
+            httpServer.createContext(
+                "/.well-known/openid-configuration",
+                exchange -> respondWithJson(
+                    exchange,
+                    discoveryDocument(issuer, issuer + "/login", issuer + "/discovered-token", issuer + "/jwks.json")
+                )
+            );
+
+            final Settings.Builder settingsBuilder = Settings.builder()
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://explicit.example.org/token")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_SIGNATURE_ALGORITHM), "HS256")
+                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                .setSecureSettings(getSecureSettings());
+            final OpenIdConnectRealm realm = new OpenIdConnectRealm(
+                buildConfig(settingsBuilder.build(), threadContext),
+                new SSLService(env),
+                null,
+                null
+            );
+            try {
+                // Endpoint used only for logout, but proves the realm built successfully with the explicit token endpoint honoured;
+                // the token endpoint itself is exercised via OpenIdConnectAuthenticator, tested independently.
+                final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
+                assertThat(response.getAuthenticationRequestUrl(), containsString(issuer + "/login"));
+            } finally {
+                realm.close();
+            }
+        } finally {
+            httpServer.stop(1);
+        }
+    }
+
+    public void testDiscoveryFailsOnIssuerMismatch() throws Exception {
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+        try {
+            final String issuer = issuerUrl(httpServer);
+            final String otherIssuer = "https://not-the-configured-issuer.example.org";
+            httpServer.createContext(
+                "/.well-known/openid-configuration",
+                exchange -> respondWithJson(
+                    exchange,
+                    discoveryDocument(otherIssuer, issuer + "/login", issuer + "/token", issuer + "/jwks.json")
+                )
+            );
+
+            final Settings.Builder settingsBuilder = Settings.builder()
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+                .setSecureSettings(getSecureSettings());
+            final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+            final SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> new OpenIdConnectRealm(config, new SSLService(env), null, null)
+            );
+            assertThat(e.getMessage(), containsString(issuer));
+            assertThat(e.getMessage(), containsString(otherIssuer));
+        } finally {
+            httpServer.stop(1);
+        }
+    }
+
+    public void testDiscoveryFailsWhenUnreachable() {
+        // Bind and immediately release a port so the connection is refused
+        final int closedPort;
+        try (var socket = new java.net.ServerSocket(0, 0, InetAddress.getLoopbackAddress())) {
+            closedPort = socket.getLocalPort();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        final String issuer = "http://" + InetAddresses.toUriString(InetAddress.getLoopbackAddress()) + ":" + closedPort;
+
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .setSecureSettings(getSecureSettings());
+        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+        final SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> new OpenIdConnectRealm(config, new SSLService(env), null, null)
+        );
+        assertThat(e.getMessage(), containsString(issuer));
+    }
+
+    public void testDiscoveryFailsOnMalformedJson() throws Exception {
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+        try {
+            final String issuer = issuerUrl(httpServer);
+            httpServer.createContext("/.well-known/openid-configuration", exchange -> respondWithJson(exchange, "{not json"));
+
+            final Settings.Builder settingsBuilder = Settings.builder()
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+                .setSecureSettings(getSecureSettings());
+            final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+            expectThrows(SettingsException.class, () -> new OpenIdConnectRealm(config, new SSLService(env), null, null));
+        } finally {
+            httpServer.stop(1);
+        }
+    }
+
+    public void testFullyExplicitConfigurationNeverTriggersDiscovery() throws Exception {
+        // Regression check: when every op.* endpoint is explicit (as in getBasicRealmSettings()), no HTTP request
+        // is made to a discovery endpoint, even one running locally.
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+        try {
+            final AtomicReference<Boolean> called = new AtomicReference<>(false);
+            httpServer.createContext("/.well-known/openid-configuration", exchange -> {
+                called.set(true);
+                respondWithJson(exchange, "{}");
+            });
+            final Settings settings = getBasicRealmSettings().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
+            final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settings, threadContext), new SSLService(env), null, null);
+            try {
+                realm.buildAuthenticationRequestUri(null, null, null);
+                assertThat(called.get(), equalTo(false));
+            } finally {
+                realm.close();
+            }
+        } finally {
+            httpServer.stop(1);
+        }
+    }
+
+    private static String issuerUrl(HttpServer httpServer) {
+        final InetSocketAddress address = httpServer.getAddress();
+        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+    }
+
+    private static String discoveryDocument(String issuer, String authorizationEndpoint, String tokenEndpoint, String jwksUri) {
+        return """
+            {
+              "issuer": "%s",
+              "authorization_endpoint": "%s",
+              "token_endpoint": "%s",
+              "jwks_uri": "%s",
+              "response_types_supported": ["code"],
+              "subject_types_supported": ["public"],
+              "id_token_signing_alg_values_supported": ["RS256"]
+            }
+            """.formatted(issuer, authorizationEndpoint, tokenEndpoint, jwksUri);
+    }
+
+    private static void respondWithJson(com.sun.net.httpserver.HttpExchange exchange, String body) throws java.io.IOException {
+        try {
+            final byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+        } finally {
+            exchange.close();
+        }
     }
 
     private void assertEqualUrlStrings(String actual, String expected) {

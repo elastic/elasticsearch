@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
@@ -96,7 +98,12 @@ final class BulkBatchEncoders {
      * original inline source bytes.
      */
     @Nullable
-    static BatchRouterSet encode(BulkRequest bulkRequest, ProjectMetadata project, IndexNameExpressionResolver resolver) {
+    static BatchRouterSet encode(
+        BulkRequest bulkRequest,
+        ProjectMetadata project,
+        IndexNameExpressionResolver resolver,
+        Recycler<BytesRef> recycler
+    ) {
         if (isBulkBatchEligible(bulkRequest) == false) {
             return null;
         }
@@ -137,7 +144,7 @@ final class BulkBatchEncoders {
                     return null;
                 }
 
-                EscfEncoder encoder = encoders.computeIfAbsent(key, k -> new EscfEncoder());
+                EscfEncoder encoder = encoders.computeIfAbsent(key, k -> new EscfEncoder(recycler));
                 int rowIndex = encoder.addDocument(indexRequest.indexSource().bytes(), indexRequest.getContentType());
                 // Attachment is deferred: indexSource().bytes() must remain intact for the row path fallback.
                 pending.add(new PendingAttachment(indexRequest, key, rowIndex));
@@ -163,7 +170,7 @@ final class BulkBatchEncoders {
                     .setSourceRow(batch, attachment.rowIndex(), attachment.indexRequest().getContentType());
             }
 
-            return BatchRouterSet.forBatches(batches);
+            return BatchRouterSet.forBatches(batches, recycler);
 
         } catch (Exception e) {
             logger.debug("batch encoding failed; falling back to the row path for this bulk", e);

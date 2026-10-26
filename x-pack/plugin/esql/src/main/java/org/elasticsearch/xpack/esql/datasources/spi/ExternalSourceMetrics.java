@@ -250,20 +250,18 @@ public final class ExternalSourceMetrics {
      */
     public static final String CPU_COMPONENT_ATTRIBUTE = "es_datasource_cpu_component";
 
-    /** Real per-thread CPU time spent by drivers executing the query (via {@code ThreadMXBean}). */
+    /**
+     * Real per-thread CPU time (via {@code ThreadMXBean}) spent by drivers executing the query, plus the CPU time
+     * operators meter on other threads for their driver, such as parallel aggregation workers and the connector producer
+     * threads of {@code AsyncConnectorSourceOperatorFactory}. File-based format-reader producer threads are reported
+     * under {@link #CPU_COMPONENT_READ}.
+     */
     public static final String CPU_COMPONENT_EXECUTION = "execution";
 
     /** Real per-thread CPU time spent by format-reader producer threads (via {@code ThreadMXBean}). */
     public static final String CPU_COMPONENT_READ = "read";
 
-    /**
-     * Planning-phase duration included for parity with the Serverless billing formula.
-     * <p>
-     * <b>This is wall time ({@code System.nanoTime} delta), not real CPU time.</b> No per-thread CPU
-     * measurement exists for the planning phase yet. This component must be replaced with a real
-     * planning CPU measurement once {@code EsqlQueryProfile} tracks it.
-     * TODO: replace with real planning CPU once EsqlQueryProfile tracks planning CPU.
-     */
+    /** Real CPU time spent planning the query ({@code EsqlQueryProfile#planningCpuNanos}), as used by the Serverless billing formula. */
     public static final String CPU_COMPONENT_PLANNING = "planning";
 
     /** Real per-thread CPU time spent by split-discovery (via {@code ThreadMXBean}). */
@@ -272,8 +270,7 @@ public final class ExternalSourceMetrics {
     /**
      * Total CPU consumed by successful external-source queries, broken down by
      * {@link #CPU_COMPONENT_ATTRIBUTE}. Unit: nanoseconds. Intended to approximate the Serverless
-     * billing signal; exact alignment may drift as the billing formula evolves. Note: the
-     * {@code planning} component is currently wall time — see {@link #CPU_COMPONENT_PLANNING}.
+     * billing signal; exact alignment may drift as the billing formula evolves.
      */
     public static final String QUERY_CPU_TOTAL = "es.esql.datasources.query.cpu.total";
 
@@ -501,8 +498,7 @@ public final class ExternalSourceMetrics {
         this.queryCpuTotal = meterRegistry.registerLongCounter(
             QUERY_CPU_TOTAL,
             "CPU consumed by successful ES|QL queries that scanned an external data source, "
-                + "broken down by component (execution, read, planning, split_discovery). "
-                + "The planning component is currently wall time pending a real planning-CPU measurement.",
+                + "broken down by component (execution, read, planning, split_discovery).",
             "ns"
         );
     }
@@ -878,12 +874,10 @@ public final class ExternalSourceMetrics {
      * Records the CPU consumed by one successful external-source query, broken down by component.
      * Clamps negative values to zero. Skips zero-valued components to avoid noise.
      * <p>
-     * {@code execution}, {@code read}, and {@code splitDiscovery} are real per-thread CPU time
-     * (via {@code ThreadMXBean#getCurrentThreadCpuTime}). {@code planning} is currently wall time
-     * ({@code System.nanoTime} delta) because no CPU measurement exists for the planning phase yet;
-     * it is included because the Serverless billing formula uses {@code planning} nanos; exact
-     * alignment with the billing signal may drift as the formula evolves.
-     * TODO: replace planning wall time with real CPU time once EsqlQueryProfile tracks planning CPU.
+     * The components match those of the Serverless billing formula; exact alignment with the billing
+     * signal may drift as the formula evolves. All components are real per-thread CPU time (via
+     * {@code ThreadCpuTimer}); see {@link #CPU_COMPONENT_EXECUTION} for what {@code execution} covers. {@code planning}
+     * comes from {@code EsqlQueryProfile#planningCpuNanos}, which only covers the work metered by {@code PlanningCpuTracker}.
      * <p>
      * Best-effort (self-guarded).
      */

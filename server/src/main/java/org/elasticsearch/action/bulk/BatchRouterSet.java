@@ -9,12 +9,16 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,7 +37,7 @@ import java.util.function.BiConsumer;
  * <p>When the bulk targets exactly one index abstraction — the common case — this class short-circuits
  * the key lookup and delegates directly to the sole {@link BatchModeRouter}, avoiding map overhead.
  */
-final class BatchRouterSet {
+final class BatchRouterSet implements Releasable {
 
     /** Fast path: non-null only when the bulk has exactly one index abstraction. */
     @Nullable
@@ -55,7 +59,8 @@ final class BatchRouterSet {
 
     /**
      * Returns a router set when the bulk carries externally pre-built ESCF batches, or {@code null}
-     * when no pre-built batches are present.
+     * when no pre-built batches are present. On success the router set owns the batches, taken from
+     * the request; on failure they are released here.
      *
      * @throws IllegalStateException    if pre-built batches are present but batch indexing is not
      *                                  supported on this node
@@ -64,9 +69,8 @@ final class BatchRouterSet {
      *                                  {@link EscfBatch}
      */
     @Nullable
-    static BatchRouterSet create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
-        Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
-        if (provided == null || provided.isEmpty()) {
+    static BatchRouterSet create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
+        if (bulkRequest.hasPreBuiltBatches() == false) {
             return null;
         }
         if (batchIndexingSupported == false) {
@@ -75,53 +79,73 @@ final class BatchRouterSet {
                     + " (setting disabled, feature flag off, or mixed-version cluster)"
             );
         }
-
-        // Every item in a batch bulk must carry a source-row reference.
-        for (DocWriteRequest<?> request : bulkRequest.requests()) {
-            if (request instanceof IndexRequest indexRequest) {
-                if (indexRequest.indexSource().hasSourceRow() == false) {
+        Map<String, SourceBatch> provided = bulkRequest.takePreBuiltBatches();
+        boolean success = false;
+        try {
+            // Every item in a batch bulk must carry a source-row reference.
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof IndexRequest indexRequest) {
+                    if (indexRequest.indexSource().hasSourceRow() == false) {
+                        throw new IllegalArgumentException(
+                            "item targeting index ["
+                                + request.index()
+                                + "] must carry a source-row reference when a pre-built batch is attached"
+                        );
+                    }
+                } else {
                     throw new IllegalArgumentException(
-                        "item targeting index ["
+                        "["
+                            + request.opType()
+                            + "] operation on index ["
                             + request.index()
-                            + "] must carry a source-row reference when a pre-built batch is attached"
+                            + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
+                            + " request carrying a source-row reference"
                     );
                 }
-            } else {
-                throw new IllegalArgumentException(
-                    "["
-                        + request.opType()
-                        + "] operation on index ["
-                        + request.index()
-                        + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
-                        + " request carrying a source-row reference"
-                );
+            }
+            BatchRouterSet set = forBatches(provided, recycler);
+            success = true;
+            return set;
+        } finally {
+            if (success == false) {
+                Releasables.close(provided.values());
             }
         }
-
-        return forBatches(provided);
     }
 
     /**
      * Creates a router set from a map of pre-built {@link SourceBatch}es. Each key is the string
-     * returned by {@link BatchModeRouter#batchKey} for the corresponding abstraction.
+     * returned by {@link BatchModeRouter#batchKey} for the corresponding abstraction. On success the
+     * router set owns the batches; if this throws, the caller still owns all of them.
      *
      * @throws IllegalArgumentException if any batch is not an {@link EscfBatch}
      */
-    static BatchRouterSet forBatches(Map<String, SourceBatch> batches) {
+    static BatchRouterSet forBatches(Map<String, SourceBatch> batches, Recycler<BytesRef> recycler) {
+        for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
+            if (entry.getValue() instanceof EscfBatch == false) {
+                throw new IllegalArgumentException(
+                    "pre-built batch for ["
+                        + entry.getKey()
+                        + "] must be an EscfBatch but was ["
+                        + entry.getValue().getClass().getName()
+                        + "]"
+                );
+            }
+        }
         if (batches.size() == 1) {
             Map.Entry<String, SourceBatch> entry = batches.entrySet().iterator().next();
-            return new BatchRouterSet(toRouter(entry.getKey(), entry.getValue()));
+            return new BatchRouterSet(toRouter(entry.getKey(), entry.getValue(), recycler));
         }
         Map<String, BatchModeRouter> map = new HashMap<>(batches.size() * 2);
         for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
-            map.put(entry.getKey(), toRouter(entry.getKey(), entry.getValue()));
+            map.put(entry.getKey(), toRouter(entry.getKey(), entry.getValue(), recycler));
         }
         return new BatchRouterSet(map);
     }
 
-    private static BatchModeRouter toRouter(String key, SourceBatch batch) {
+    private static BatchModeRouter toRouter(String key, SourceBatch batch, Recycler<BytesRef> recycler) {
         if (batch instanceof EscfBatch escfBatch) {
-            return new BatchModeRouter(key, escfBatch);
+            return new BatchModeRouter(key, escfBatch, recycler);
         }
         throw new IllegalArgumentException(
             "pre-built batch for [" + key + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
@@ -192,16 +216,27 @@ final class BatchRouterSet {
     }
 
     /**
-     * Returns the per-shard batches for all abstractions. Returns empty on any call after the first —
-     * the failure-store redirect pass must not re-scatter batches already in flight.
+     * Returns the per-shard batches for all abstractions. The caller owns every returned batch. May be
+     * called at most once per bulk: the failure-store redirect pass must not call it, since redirected
+     * items are new requests carrying inline source.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> shardBatches() {
         if (sole != null) {
             return sole.shardBatches();
         }
         Map<ShardId, SourceBatch> result = new HashMap<>();
-        for (BatchModeRouter router : routers.values()) {
-            result.putAll(router.shardBatches());
+        boolean success = false;
+        try {
+            for (BatchModeRouter router : routers.values()) {
+                result.putAll(router.shardBatches());
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(result.values());
+            }
         }
         return result;
     }
@@ -242,14 +277,17 @@ final class BatchRouterSet {
     }
 
     /**
-     * No-op: source batches are owned by the caller (external pre-built) or, for the x-content
-     * encode path, by the {@link org.elasticsearch.escf.EscfBatch} instances that survive in the
-     * scattered sub-batches until the shard responses arrive.
-     *
-     * <p>TODO: introduce recycler-backed encoding and ref-counted batch lifetime so that internally
-     * encoded batches are properly released after {@link BulkOperation#closeBatchEncoders}.
+     * Releases every router's source batch. Safe to call more than once. Batches returned from {@link #shardBatches()} stay valid; their owner
+     * releases them.
      */
-    void close() {}
+    @Override
+    public void close() {
+        if (sole != null) {
+            sole.close();
+        } else {
+            Releasables.close(routers.values());
+        }
+    }
 
     /**
      * Returns the router for the given abstraction, or {@code null} if no batch was supplied for it.

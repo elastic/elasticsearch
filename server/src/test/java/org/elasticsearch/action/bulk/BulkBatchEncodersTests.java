@@ -19,7 +19,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -28,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +51,27 @@ public class BulkBatchEncodersTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
 
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
+    private final List<BatchRouterSet> routers = new ArrayList<>();
+
+    /** Releases the routers created by {@link #encode}, then checks that no recycler page is still held. */
+    @After
+    public void releaseRouters() {
+        Releasables.close(routers);
+        recycler.close();
+    }
+
     // ---- helpers ----
+
+    /** Runs the encode pass, registering the resulting router for release after the test. */
+    @Nullable
+    private BatchRouterSet encode(BulkRequest request, ProjectMetadata project) {
+        BatchRouterSet router = BulkBatchEncoders.encode(request, project, RESOLVER, recycler);
+        if (router != null) {
+            routers.add(router);
+        }
+        return router;
+    }
 
     private static Settings.Builder indexSettings(String name) {
         return Settings.builder()
@@ -126,7 +150,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
         BulkRequest eligible = new BulkRequest();
         eligible.add(indexRequest(INDEX, doc(0)));
         ProjectMetadata project = singleIndexProject(INDEX);
-        BatchRouterSet router = BulkBatchEncoders.encode(eligible, project, RESOLVER);
+        BatchRouterSet router = encode(eligible, project);
         assertNotNull(router);
         // The request in `eligible` now has hasSourceRow == true.
         IndexRequest encoded = (IndexRequest) eligible.requests().get(0);
@@ -145,7 +169,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
             req.add(indexRequest(INDEX, src));
         }
         ProjectMetadata project = singleIndexProject(INDEX);
-        BatchRouterSet router = BulkBatchEncoders.encode(req, project, RESOLVER);
+        BatchRouterSet router = encode(req, project);
         assertThat(router, notNullValue());
         // Every IndexRequest must now carry a source-row reference.
         for (int i = 0; i < n; i++) {
@@ -168,7 +192,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
             req.add(indexRequest(idx2, doc(100 + i)));
         }
         ProjectMetadata project = twoIndexProject(idx1, idx2);
-        BatchRouterSet router = BulkBatchEncoders.encode(req, project, RESOLVER);
+        BatchRouterSet router = encode(req, project);
         assertThat(router, notNullValue());
 
         // idx1 items: rows 0..n1-1; idx2 items: rows 0..n2-1 (separate batches).
@@ -192,7 +216,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
         req.add(new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE).source(doc(0), XContentType.JSON));
         req.add(new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE).source(doc(1), XContentType.JSON));
         ProjectMetadata project = projectWithDataStream();
-        BatchRouterSet router = BulkBatchEncoders.encode(req, project, RESOLVER);
+        BatchRouterSet router = encode(req, project);
         assertThat(router, notNullValue());
         for (int i = 0; i < 2; i++) {
             IndexRequest ir = (IndexRequest) req.requests().get(i);
@@ -211,7 +235,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
         BulkRequest req = new BulkRequest();
         // Backing index write uses CREATE; use CREATE here so the resolver sees the full metadata.
         req.add(new IndexRequest(backingName).opType(DocWriteRequest.OpType.CREATE).source(src, XContentType.JSON));
-        BatchRouterSet router = BulkBatchEncoders.encode(req, project, RESOLVER);
+        BatchRouterSet router = encode(req, project);
         assertThat("direct write to backing index should return null", router, nullValue());
 
         // Inline bytes must still be intact on the request (deferred-attachment invariant).
@@ -233,7 +257,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
         BytesReference secondSrc = badRequest.indexSource().bytes();
 
         ProjectMetadata project = singleIndexProject(INDEX);
-        BatchRouterSet router = BulkBatchEncoders.encode(req, project, RESOLVER);
+        BatchRouterSet router = encode(req, project);
         // encode() should return null due to the parse failure.
         assertThat(router, nullValue());
 
@@ -252,7 +276,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
         req.add(indexRequest(INDEX, doc(0)));
         req.add(new DeleteRequest(INDEX).id("d1"));
         ProjectMetadata project = singleIndexProject(INDEX);
-        assertThat(BulkBatchEncoders.encode(req, project, RESOLVER), nullValue());
+        assertThat(encode(req, project), nullValue());
     }
 
     // ---- alias tests ----
@@ -268,7 +292,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
 
         BulkRequest req = new BulkRequest();
         req.add(indexRequest(alias, doc(0)));
-        BatchRouterSet router = BulkBatchEncoders.encode(req, project, RESOLVER);
+        BatchRouterSet router = encode(req, project);
         assertThat(router, notNullValue());
         IndexRequest ir = (IndexRequest) req.requests().get(0);
         assertTrue(ir.indexSource().hasSourceRow());

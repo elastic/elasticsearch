@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget.UntrackedWait;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -1160,8 +1161,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Stress test the consumer's EOF predicate against the race between the segmentator's final
      * {@code chunksDispatched.incrementAndGet()} and the dispatched parser task's
      * {@code tasksOutstanding.decrementAndGet()} in its {@code finally} block. The EOF condition
-     * — {@code currentChunk >= chunksDispatched && tasksOutstanding == 0} — must be re-checked
-     * after the apparent-empty branch of {@code takeNextPage}; without the re-read, the consumer
+     * — {@code tasksOutstanding == 0} then {@code currentChunk >= chunksDispatched} — must be re-checked
+     * after the apparent-empty branch of {@code takeNextPage}. {@code isReadyNow} / {@code producersDoneAndDrained}
+     * read {@code tasksOutstanding} first; the reverse order is the race. Without the re-read, the consumer
      * can return false while a parser is mid-page-publish, dropping the last chunk's rows.
      * <p>
      * Tiny chunks plus a small input plus high parallelism maximises the chance the consumer
@@ -1307,6 +1309,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             gate.countDown();
             List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted());
             assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
             for (int i = 0; i < linesPerFile; i++) {
                 assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
@@ -1319,6 +1322,178 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 } catch (IOException ignored) {}
             }
             pool.shutdownNow();
+        }
+    }
+
+    /**
+     * Leftover parser after an inline steal can publish into a chunk that {@code dispatchChunk}
+     * has offered but not yet counted. Readiness must use the same {@code chunksDispatched} guard
+     * as {@code takeNextPage}, otherwise {@code tryAdvanceOrPark} sees done+null+not-exhausted and
+     * hits its retry-cap assert (#162111).
+     */
+    public void testPageReadyIgnoresUncountedOfferedChunk() throws Exception {
+        int lineCount = 40;
+        int chunkSize = 32;
+        int batchSize = 8;
+        int parallelism = 2;
+
+        CountDownLatch offeredChunk1 = new CountDownLatch(1);
+        CountDownLatch releaseChunk1 = new CountDownLatch(1);
+        AtomicReference<Runnable> segmentator = new AtomicReference<>();
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        Executor executor = command -> {
+            if (segmentator.compareAndSet(null, command)) {
+                return;
+            }
+            pool.execute(command);
+        };
+        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        try {
+            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                batchSize,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            it.afterOfferBeforeDispatchCount = index -> {
+                if (index != 1) {
+                    return;
+                }
+                offeredChunk1.countDown();
+                try {
+                    if (releaseChunk1.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out holding dispatch of chunk 1");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted holding dispatch of chunk 1", e);
+                }
+            };
+            Runnable start = segmentator.get();
+            assertNotNull("admission must submit the segmentator", start);
+            pool.execute(start);
+
+            assertTrue("chunk 1 never offered", offeredChunk1.await(30, TimeUnit.SECONDS));
+
+            List<String> rows = new ArrayList<>();
+            BytesRef scratch = new BytesRef();
+            // Drain chunk 0 with tryAdvance only. waitForReady would skip the chunk-0 POISON,
+            // sit on the uncounted gap, and park with no one to wake it.
+            long drainDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (it.consumerChunkIndex() < 1) {
+                if (System.nanoTime() > drainDeadline) {
+                    fail("timed out draining chunk 0 before the uncounted gap");
+                }
+                Page page = it.tryAdvance();
+                if (page != null) {
+                    BytesRefBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        rows.add(block.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                    continue;
+                }
+                Thread.onSpinWait();
+            }
+            assertEquals("consumer must sit on the uncounted gap", 1, it.consumerChunkIndex());
+            assertThat(rows.size(), Matchers.both(Matchers.greaterThan(0)).and(Matchers.lessThan(lineCount)));
+
+            it.runParserOnce();
+            assertTrue("leftover parser must have published into the uncounted slot", it.uncountedSlotHasPage());
+            assertFalse("gap is not EOF", it.isExhausted());
+
+            SubscribableListener<Void> ready = it.waitForReady();
+            assertFalse("page in an offered-but-uncounted slot must not report ready", ready.isDone());
+
+            Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+            Page raced = ExternalSourceDrainUtils.tryAdvanceOrPark(it, blockedOn);
+            if (raced != null) {
+                raced.releaseBlocks();
+            }
+            assertNull("uncounted chunk must not be readable yet", raced);
+            assertNotNull("drain must park until chunksDispatched catches up", blockedOn.get());
+            assertFalse("parked listener must not be done until dispatch count advances", blockedOn.get().isDone());
+
+            releaseChunk1.countDown();
+            awaitListener(blockedOn.get());
+
+            rows.addAll(drainLinesViaTryAdvanceOrPark(it));
+            assertEquals(lineCount, rows.size());
+            for (int i = 0; i < lineCount; i++) {
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            releaseChunk1.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * {@code putPoisonAndSignal} must not re-set the interrupt flag inside {@code queue.put}.
+     * After one interrupt that loop would throw immediately and the parser would spin until
+     * suite leak. Close drains the full slot, so the parser must exit and join promptly.
+     * Parallelism 2 is required: 1 falls back to a sequential read.
+     */
+    public void testPoisonPutInterruptExitsOnClose() throws Exception {
+        int pageQueueCapacity = StreamingParallelParsingCoordinator.StreamingParallelIterator.PAGE_QUEUE_CAPACITY;
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        try (
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(1024),
+                new ByteArrayInputStream(buildContent(pageQueueCapacity).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                1,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            AtomicReference<Thread> parser = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedPoisonPutThread(poolThreads);
+                assertNotNull("parser never blocked in putPoisonAndSignal", found);
+                parser.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            parser.get().interrupt();
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iterator.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "poison-put-closer");
+            try {
+                closer.start();
+                assertTrue("close() must return after poison-put interrupt", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
+            assertNull(closeFailure.get());
+            executor.shutdown();
+            assertTrue("parser spun after poison-put interrupt; pool did not terminate", executor.awaitTermination(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -1550,8 +1725,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard
-     * (elastic/esql-planning #1093, structural-fix item 4). Faithfully mirrors the post-#153074 two-pool
+     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard.
+     * Faithfully mirrors the post-#153074 two-pool
      * wiring: segmentators <em>and</em> their one-shot parser tasks share a single bounded pool of size
      * {@code K} (the production {@code esql_external_io} pool), while the consumer drains run on a
      * <strong>separate</strong> pool (the production {@code esql_worker} producer-loop drivers).
@@ -1645,7 +1820,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     + " never drained: their parser tasks starved. The admission gate ("
                     + admission.maxConcurrentSegmentators()
                     + " concurrent segmentators) must keep a pool thread free for parsers "
-                    + "(regression of the esql-planning #1093 item 4 fix).",
+                    + "(regression of the admission-gate fix).",
                 completed
             );
             assertTrue("no drain thread should have failed: " + failures, failures.isEmpty());
@@ -1662,7 +1837,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * T2 (C1): production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
+     * Production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
      * non-segmentator thread pinned so parser tasks never run. Inline parse on the segmentator must
      * still drain. If this starves later, raise the cap and the pool together; do not drop the cap.
      * Do not use {@link StreamingSegmentatorAdmission#unbounded()}.
@@ -2313,9 +2488,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        public SubscribableListener<Hold> admitAsync(
+            long bytes,
+            RowGroupIo lease,
+            BooleanSupplier cancelSignal,
+            Executor executor,
+            UntrackedWait untrackedWait
+        ) {
             SubscribableListener<Hold> out = new SubscribableListener<>();
-            inner.admitAsync(bytes, lease, cancelSignal, executor).addListener(ActionListener.wrap(hold -> {
+            inner.admitAsync(bytes, lease, cancelSignal, executor, untrackedWait).addListener(ActionListener.wrap(hold -> {
                 record();
                 out.onResponse(wrap(hold));
             }, e -> {
@@ -2326,15 +2507,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public void add(long bytes) {
+        public void add(long bytes, RowGroupIo lease) {
             addCount.incrementAndGet();
-            inner.add(bytes);
+            inner.add(bytes, lease);
             record();
         }
 
         @Override
-        public void release(long bytes) {
-            inner.release(bytes);
+        public void release(long bytes, RowGroupIo lease) {
+            inner.release(bytes, lease);
             record();
         }
 
@@ -2356,6 +2537,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public long limit() {
             return inner.limit();
+        }
+
+        @Override
+        public long untracked() {
+            return inner.untracked();
         }
 
         @Override
@@ -2842,6 +3028,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         if (ready.isDone() == false) {
             awaitListener(ready);
         }
+    }
+
+    private static Thread findParkedPoisonPutThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            for (StackTraceElement frame : thread.getStackTrace()) {
+                if (iteratorClass.equals(frame.getClassName()) && "putPoisonAndSignal".equals(frame.getMethodName())) {
+                    return thread;
+                }
+            }
+        }
+        return null;
     }
 
     private static void awaitListener(SubscribableListener<Void> ready) throws Exception {

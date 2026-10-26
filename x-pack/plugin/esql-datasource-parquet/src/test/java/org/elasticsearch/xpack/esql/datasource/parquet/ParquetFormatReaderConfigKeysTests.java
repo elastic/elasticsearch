@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -123,5 +124,25 @@ public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
         return new FileDataSourceValidator("s3", (settings, secrets) -> null, Set.of("s3")).withFormatConfigKeyResolver(
             FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat)
         );
+    }
+
+    public void testDatasetAuditSettings() {
+        for (var field : ParquetFormatReader.RECOGNIZED_KEYS) {
+            var request = new PutDatasetAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "dataset",
+                "datasource",
+                "resource",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

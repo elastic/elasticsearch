@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
@@ -51,10 +52,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -78,7 +76,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -268,22 +265,6 @@ public class PlannerUtils {
             return p;
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
-    }
-
-    /**
-     * Builds the minimally planned local physical shape used to establish a data-driver/reduction-driver schema contract.
-     * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
-     */
-    public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        var logicalContext = new LocalLogicalOptimizerContext(
-            context.configuration(),
-            context.foldCtx(),
-            context.searchStats(),
-            context.flags()
-        );
-        // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
-        LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
     }
 
     public sealed interface PlanReduction {}
@@ -497,6 +478,38 @@ public class PlannerUtils {
         List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            searchStats,
+            formatReaderRegistry,
+            externalSplits,
+            planTimeProfile,
+            null
+        );
+    }
+
+    /**
+     * The production entry: besides the split injection above, every {@link ExternalSourceExec} is rebound to this node's
+     * registered dataset definition by {@code datasetConfigResolver} before anything reads its config, whether the plan
+     * arrived over the wire or is the coordinator's own local scan. See {@link DatasetConfigResolver} for what that
+     * refuses and why.
+     */
+    public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        FormatReaderRegistry formatReaderRegistry,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile,
+        @Nullable DatasetConfigResolver datasetConfigResolver
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
         );
@@ -511,7 +524,7 @@ public class PlannerUtils {
             )
         );
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, null, datasetConfigResolver);
     }
 
     /**
@@ -585,22 +598,36 @@ public class PlannerUtils {
         PlanTimeProfile planTimeProfile,
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, onLogicalPlanOptimized, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized,
+        @Nullable DatasetConfigResolver datasetConfigResolver
+    ) {
+        if (datasetConfigResolver != null) {
+            // An ExternalSourceExec that arrived already materialized (the coordinator ships that shape when it
+            // distributes discovered splits) sits outside any FragmentExec, so the walk below never sees it and it
+            // skips local physical optimization altogether; its config is read only at the operator build. Rebind it
+            // here. A FragmentExec is a leaf of the physical tree, so this pass leaves its logical fragment alone.
+            plan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
+        }
         var isCoordPlan = new Holder<>(Boolean.TRUE);
-        // Possible future improvement: both are BinaryExec nodes excluded for the same reason, so one collect
-        // over a shared predicate could build a single set. Kept separate for now to preserve the history of each case.
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
-        Set<PhysicalPlan> remoteFetchExecRightChildren = plan.collect(RemoteFetchExec.class::isInstance)
-            .stream()
-            .map(x -> ((RemoteFetchExec) x).right())
-            .collect(Collectors.toSet());
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            if (lookupJoinExecRightChildren.contains(f) || remoteFetchExecRightChildren.contains(f)) {
-                // These fragments are shipped as logical plans and planned on the target node, where the right stats and
-                // execution context are available.
+            if (lookupJoinExecRightChildren.contains(f)) {
+                // Do not optimize the right child of a lookup join exec
+                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
+                // Also we only ship logical plans across the network, so the plan needs to remain logical
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);
@@ -631,6 +658,14 @@ public class PlannerUtils {
                 // listing copied onto every worker, and INITIAL COUNT(*) would fold the full set
                 // on each data node (#161409).
                 physicalFragment = physicalFragment.transformUp(ExternalSourceExec.class, exec -> exec.withSplits(typedSplits));
+            }
+            if (datasetConfigResolver != null) {
+                // After the splits, which the rebind checks against the dataset's resource, and before the physical
+                // optimizer, whose rules read the exec's config (error policy) and must see the registered one. The
+                // stamp above puts the node's whole split list on every exec; the check holds because a fragment carries
+                // one dataset (a second exchange is refused in breakPlanBetweenCoordinatorAndDataNode), so a fragment
+                // with two datasets would need the splits assigned per exec first.
+                physicalFragment = physicalFragment.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
             }
 
             // Physical optimization

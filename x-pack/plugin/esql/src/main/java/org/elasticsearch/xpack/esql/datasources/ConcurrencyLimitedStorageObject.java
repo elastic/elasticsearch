@@ -114,6 +114,16 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
+    public String probedVersion() {
+        return delegate.probedVersion();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -314,7 +324,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
      * Executor-wrapped storage (GCS; Azure/S3 without an async client;
      * {@link StorageObject} default) submits a blocking read on {@code executor}.
      * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
-     * forking them onto {@code esql_external_io} would recreate Bug C. That
+     * forking them onto {@code esql_external_io} would queue a grant with no GET in flight. That
      * occupancy is a later fix.
      */
     private void startDelegate(

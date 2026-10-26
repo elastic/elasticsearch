@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -54,14 +58,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThan;
@@ -247,7 +258,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A Spark _SUCCESS marker at the same prefix level must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -268,7 +279,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A .crc sidecar file must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '.' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '.' are excluded.
      */
     public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -287,7 +298,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A _metadata file must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesMetadataFile() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
@@ -303,7 +314,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A zero-byte directory placeholder key (ending in '/') must not appear in the expansion result.
-     * Object stores create these when the S3 console creates a "folder" (esql-planning#1544).
+     * Object stores create these when the S3 console creates a "folder".
      */
     @SuppressWarnings("RegexpMultiline")
     public void testExpandGlobExcludesZeroByteDirectoryPlaceholder() throws IOException {
@@ -373,7 +384,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * Mixed non-data objects (_SUCCESS marker, .crc sidecars, zero-byte placeholder) alongside real
      * Parquet data files: only the data files must be returned, exactly as Hive/Spark/Trino behave
-     * on the same prefix (esql-planning#1544).
+     * on the same prefix.
      */
     public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -823,7 +834,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * End-to-end: an IN over a Hive-escaped partition folder lists it. Folders `category=login/` and the escaped
      * `category=ns%3Aclick/` (Spark's on-disk spelling of value `ns:click`); `WHERE category IN ("login","ns:click")`
-     * must list both, not silently drop the escaped one. Red before the escape-spelling fix (esql-planning#1176).
+     * must list both, not silently drop the escaped one. Red before the escape-spelling fix.
      */
     public void testInListMatchesHiveEscapedFolder() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -1332,6 +1343,46 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
+    public void testListingCacheDiscriminatorReflectsFolderRangePredicate() {
+        String pattern = "s3://bucket/logs/" + "**/*.parquet";
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)");
+        Instant morning = Instant.parse("2026-10-14T01:00:00Z");
+        Instant afternoon = Instant.parse("2026-10-14T18:00:00Z");
+        Instant nextDay = Instant.parse("2026-10-15T01:00:00Z");
+        FolderRangePredicate sameDayA = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, morning))
+        );
+        FolderRangePredicate sameDayB = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, afternoon))
+        );
+        FolderRangePredicate next = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, nextDay))
+        );
+        assertNotNull(sameDayA);
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        String a = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, sameDayA);
+        String b = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, sameDayB);
+        String c = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, next);
+        assertNotEquals("one-sided must not share the unfiltered listing", unhinted, a);
+        assertEquals("same UTC day shares identity", a, b);
+        assertNotEquals("next UTC day differs", a, c);
+
+        Instant jan1 = Instant.parse("2024-01-01T00:00:00Z");
+        Instant jun15 = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dec31 = Instant.parse("2024-12-31T00:00:00Z");
+        FolderRangePredicate ends = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.IN, jan1, dec31))
+        );
+        FolderRangePredicate withMid = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.IN, jan1, jun15, dec31))
+        );
+        assertNotEquals(
+            "IN lists that share a hull must not share a listing cache entry",
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, ends),
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, withMid)
+        );
+    }
+
     /**
      * A non-integral equality leaves {@code price=*} in place and drops folders afterwards. {@code price=*} is
      * walk-eligible, so that hint and a one-sided range each join the cache key. Sharing either with the unfiltered
@@ -1744,6 +1795,23 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/b.parquet", result.path(1).toString());
     }
 
+    /**
+     * An object found by an existence probe, and so never read, is listed under the version the probe saw. A provider that
+     * reports a version only from a read would list every probed file unversioned, and its footer would never be cached.
+     */
+    public void testEnumeratedGlobEntriesCarryTheProbedVersion() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/a.parquet");
+        provider.existingPaths.add("s3://bucket/b.parquet");
+        provider.probedVersions.put("s3://bucket/a.parquet", "etag-a");
+        provider.probedVersions.put("s3://bucket/b.parquet", "etag-b");
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
+        assertEquals(2, result.fileCount());
+        assertEquals("etag-a", result.version(0));
+        assertEquals("etag-b", result.version(1));
+    }
+
     public void testExpandGlobBraceOnlyMissingFileSkipped() throws IOException {
         StubProvider provider = new StubProvider(List.of());
         provider.existingPaths.add("s3://bucket/a.parquet");
@@ -2022,7 +2090,7 @@ public class GlobExpanderTests extends ESTestCase {
      * A single glob with an IN-list mixing single- and multi-digit values on a zero-padded partition. `month=11`
      * matches the rewrite so the listing is non-empty and the empty-fallback never fires; without the zero-padded
      * spelling in the brace, `month=06` is silently dropped even though the row filter would keep it. (Same wrong-data
-     * class as the human-reviewed comma bug, single-glob form; esql-planning#1176.)
+     * class as the human-reviewed comma bug, single-glob form.)
      */
     public void testInListMixedDigitValuesMatchZeroPaddedFolders() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -3052,6 +3120,32 @@ public class GlobExpanderTests extends ESTestCase {
         return config;
     }
 
+    /**
+     * The extent is part of the listing's address. Sharing a bounded listing is only safe because of this: a query
+     * that wants the whole pattern cannot be served a prefix of it, and two different bounds are two different
+     * answers. Before the extent joined the key, a bound had to bypass the cache entirely for want of a way to say
+     * which of the two values a holder had.
+     */
+    public void testTheListingCacheKeyDistinguishesTheExtentAsked() {
+        String pattern = "s3://bucket/data/year=*/month=*/*.parquet";
+        String unbounded = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, ListingExtents.UNBOUNDED);
+        String thousand = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(1000));
+        String ten = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(10));
+
+        assertNotEquals("a prefix of the pattern is not the pattern", unbounded, thousand);
+        assertNotEquals("and two different prefixes are two different answers", thousand, ten);
+        assertEquals(
+            "while the same bound on the same pattern is the same question",
+            thousand,
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(1000))
+        );
+        assertEquals(
+            "and the no-extent overload means the unbounded ask",
+            unbounded,
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON)
+        );
+    }
+
     private static StorageEntry entry(String path, long length) {
         return new StorageEntry(StoragePath.of(path), length, Instant.EPOCH);
     }
@@ -3064,6 +3158,8 @@ public class GlobExpanderTests extends ESTestCase {
 
         private final List<StorageEntry> listing;
         private final List<String> existingPaths = new ArrayList<>();
+        /** The version each path's existence probe reports, by path string. Absent paths report none. */
+        private final Map<String, String> probedVersions = new HashMap<>();
 
         StubProvider(List<StorageEntry> listing) {
             this.listing = listing;
@@ -3071,7 +3167,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath path) {
-            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()));
+            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()), probedVersions.get(path.toString()));
         }
 
         @Override
@@ -3125,11 +3221,23 @@ public class GlobExpanderTests extends ESTestCase {
         private final StoragePath path;
         private final long length;
         private final boolean exists;
+        private final String probedVersion;
 
         StubStorageObject(StoragePath path, long length, boolean exists) {
+            this(path, length, exists, null);
+        }
+
+        StubStorageObject(StoragePath path, long length, boolean exists, String probedVersion) {
             this.path = path;
             this.length = length;
             this.exists = exists;
+            this.probedVersion = probedVersion;
+        }
+
+        /** No pin is ever set here, so this is the only version the stub reports: the one its probe saw. */
+        @Override
+        public String probedVersion() {
+            return probedVersion;
         }
 
         @Override
@@ -3632,7 +3740,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    // -- `**` glob: partition-pruned listing walk (esql-planning#1173) --
+    // -- `**` glob: partition-pruned listing walk --
 
     /** The 4-file {@code year=/month=/} Hive tree under {@code s3://bucket/data/}, years x months = {2024,2025} x {01,06}. */
     private static TreeStubProvider hiveTree() {
@@ -3940,7 +4048,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The headline case of esql-planning#1173: on a bare {@code **} glob a partition-column filter must narrow the
+     * The headline case: on a bare {@code **} glob a partition-column filter must narrow the
      * enumeration itself — non-matching folders are never listed, not merely left unread.
      */
     public void testGlobstarPartitionHintNarrowsTheListing() throws IOException {
@@ -4163,7 +4271,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    /** The LIST request counts esql-planning#1173 asks for: equality prunes with one probe and one survivor chain. */
+    /** The LIST request counts asks for: equality prunes with one probe and one survivor chain. */
     public void testGlobstarEqualityHintListRequestCount() throws IOException {
         TreeStubProvider provider = hiveTree();
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
@@ -4580,7 +4688,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * The walk is a new hint channel into the listing: on a walk-eligible pattern, partition hints change which files
-     * a path lists and must join the cache key, or a filtered query poisons the cache (the esql-planning#1174 class).
+    * a path lists and must join the cache key, or a filtered query poisons the cache (the class).
      */
     public void testListingCacheDiscriminatorReflectsPartitionHintsOnGlobstar() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
@@ -5000,6 +5108,152 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The fan-out must not spend a request on a folder the pattern cannot match.
+     * <p>
+     * One slot is one {@code listObjects}, and the slot list was built from every directory under the pattern
+     * prefix. Because {@code patternPrefix} cuts at the last {@code /} before the first metacharacter, a selective
+     * glob roots at the parent of every sibling partition the dataset has, so the enumeration cost was a property
+     * of the dataset rather than of the query: twelve years listed to answer about one.
+     * <p>
+     * Pinned as the exact set of prefixes, so a failure names the folders that were read.
+     */
+    public void testFanOutDoesNotListAFolderTheGlobCannotMatch() throws Exception {
+        // The wildcard sits INSIDE a segment, so patternPrefix cuts above every date folder and the slot list is
+        // built from all of them. A pattern whose own prefix is the matched folder would not discriminate: every
+        // child then satisfies the rest of it and the filter is never asked to exclude anything, so the test would
+        // pass with the filter deleted.
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int d = 0; d < 1200; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2023-%06d/part.parquet", d), 100));
+        }
+        for (int d = 1; d <= 9; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/part.parquet", d), 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/date=2024-01-0*/*.parquet";
+        FileList result = expandSync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+
+        assertEquals(9, result.fileCount());
+        // The count is the assertion: one listObjects per slot, so slots must follow the matching set. Without the
+        // filter this is 1209.
+        // The set, so a failure prints the folders that were read rather than only how many. A count would be
+        // satisfied by nine listings of one folder, and would not name the 1200 when it regressed.
+        Set<String> expected = new LinkedHashSet<>();
+        for (int d = 1; d <= 9; d++) {
+            expected.add(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/", d));
+        }
+        assertEquals(
+            "one listing per matching folder and none for the 1200 it cannot match",
+            expected,
+            Set.copyOf(provider.listedPrefixes)
+        );
+        assertEquals("and none of them listed twice", 9, provider.listedPrefixes.size());
+    }
+
+    /**
+     * Pruning survives a provider that reports a child directory with the separator still on it.
+     * <p>
+     * Every provider in this repo removes it — S3, GCS and Azure each strip the common prefix's trailing separator
+     * before building the path, and the local one builds from a {@code Path} that never carries one — so this
+     * spelling is one the interface permits and none of them currently returns. It is pinned because the
+     * consequence is not a wasted request: the separator becomes a trailing empty segment, no pattern segment
+     * matches it, and every directory is excluded, so the answer would be no files at all.
+     */
+    public void testFanOutPrunesWhenTheProviderKeepsTheDirectorySeparator() throws Exception {
+        List<StorageEntry> entries = new ArrayList<>();
+        // Twenty is enough: the property is that a sibling the pattern excludes keeps no slot, and the 1200-folder
+        // fixture above already pins that the cost does not follow the dataset.
+        for (int d = 0; d < 20; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2023-%06d/part.parquet", d), 100));
+        }
+        for (int d = 1; d <= 9; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/part.parquet", d), 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        provider.trailingSlashDirectories = true;
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/date=2024-01-0*/*.parquet";
+        FileList result = expandSync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+
+        assertEquals("the separator must not cost the listing its files", 9, result.fileCount());
+        Set<String> expected = new LinkedHashSet<>();
+        for (int d = 1; d <= 9; d++) {
+            expected.add(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/", d));
+        }
+        assertEquals("and the twenty the pattern excludes keep no slot", expected, Set.copyOf(provider.listedPrefixes));
+    }
+
+    /**
+     * A bound is not reached by keys the glob cannot match, and a listing that drained its prefix without reaching
+     * it is not truncated.
+     * <p>
+     * Both halves are the same defect seen from the two sides that matter. The count: a bound spent on non-matching
+     * keys returns fewer matches than the dataset holds, or none. The flag: {@code isTruncated()} decides whether
+     * an empty result can be believed and whether the listing may be cached, so a complete listing reporting itself
+     * as a prefix forfeits both. The fixture makes the two populations differ by construction — one matching file
+     * among eight hundred keys under the same prefix, with a bound far below the key count and far above the match
+     * count.
+     */
+    public void testABoundCountsMatchesSoAFullDrainIsNotTruncated() throws Exception {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int y = 0; y < 8; y++) {
+            for (int f = 0; f < 100; f++) {
+                entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=%04d/f%04d.csv", 2016 + y, f), 100));
+            }
+        }
+        entries.add(entry("s3://bucket/data/year=2024/only.parquet", 100));
+        TreeStubProvider provider = new TreeStubProvider(entries);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList result = expandSync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            10,
+            1,
+            () -> false
+        );
+
+        assertEquals("the one matching file, found past 800 keys the bound must not have counted", 1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/only.parquet", result.path(0).toString());
+        assertFalse("a drain that exhausted its prefix below the bound is the whole pattern, not a prefix of it", result.isTruncated());
+        // The load-bearing assertion. A bound counting keys returns empty-truncated here, and the expander then
+        // re-lists unbounded and produces the same three answers above from the retry - so without this the test
+        // passes against the defect it is named for. One pass means the first, bounded listing answered.
+        assertEquals("the bounded listing must answer, not be thrown away and retried", 1, provider.listedPrefixes.size());
+    }
+
+    /**
      * Verifies that the fan-out drains each derived prefix independently (sequentially). Each prefix issues its
      * own {@code listObjects} call; the total across all prefixes is greater than one.
      */
@@ -5148,6 +5402,194 @@ public class GlobExpanderTests extends ESTestCase {
         expectThrows(TaskCancelledException.class, future::actionGet);
     }
 
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * A concurrency above the folder count never exhausts the permits, so no release dispatches a continuation onto the
+     * fan-out executor, whose threads a test may hold.
+     */
+    private static void expandTwoFolders(TreeStubProvider provider, Executor fanOutExecutor, ActionListener<FileList> listener) {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        GlobExpander.expandAsync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            16,
+            () -> false,
+            fanOutExecutor,
+            listener
+        );
+    }
+
+    /**
+     * The calling thread lists the slots, dispatches the drains and only then unwinds out of its planning CPU
+     * measurement, so the listing can complete and planning finish first. The slot listing CPU must be committed
+     * before the drains are dispatched, or it is dropped from the frozen total. The drains run unmetered, so the
+     * total is the calling thread's alone.
+     */
+    public void testFanOutCommitsSlotListingPlanningCpuBeforeDispatchingDrains() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/d1/a.parquet", 10), entry("s3://bucket/data/d2/b.parquet", 10))
+        ) {
+            @Override
+            public StorageChildren listChildren(StoragePath prefix, int limit) {
+                burnCpu(burnNanos);
+                return super.listChildren(prefix, limit);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+            expandTwoFolders(provider, pool::execute, future);
+            // Holds the measurement open, as a slow unwind would, until planning has finished.
+            safeAwait(finished);
+        }));
+        caller.start();
+        try {
+            assertEquals(2, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat(tracker.finish(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            finished.countDown();
+            caller.join();
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A folder drain releases its permit while its planning CPU measurement is still open, so the listing can complete
+     * and planning finish before that measurement settles. Each drain's listing CPU must be committed before the
+     * release, or it is dropped from the frozen total.
+     */
+    public void testFolderDrainCommitsPlanningCpuBeforeReleasingItsPermit() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/d1/a.parquet", 10), entry("s3://bucket/data/d2/b.parquet", 10))
+        ) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+                burnCpu(burnNanos);
+                return super.listObjects(prefix, recursive);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            expandTwoFolders(provider, command -> pool.execute(() -> tracker.meteredCpu(() -> {
+                command.run();
+                // Holds the measurement open past the permit release, as a slow unwind would, until planning has finished.
+                safeAwait(finished);
+            })), future);
+            assertEquals(2, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat(tracker.finish(), greaterThanOrEqualTo(2 * burnNanos));
+        } finally {
+            finished.countDown();
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A root-level file is matched inline on the calling thread, and a drain can complete the listing and finish planning
+     * before that thread's measurement settles. Here the file comes before two folders and two slots run at a time, so
+     * the slot loop on the calling thread usually ends when the permits run out after the second folder dispatch: the
+     * file's planning CPU must be committed by then, or it is dropped from the frozen total.
+     */
+    public void testFileSlotBeforeFoldersCommitsPlanningCpuBeforeTheLoopEnds() {
+        assertFileSlotPlanningCpuCommitted(
+            2,
+            List.of(
+                entry("s3://bucket/data/c.parquet", 10),
+                entry("s3://bucket/data/d1/a.parquet", 10),
+                entry("s3://bucket/data/d2/b.parquet", 10)
+            )
+        );
+    }
+
+    /**
+     * As {@link #testFileSlotBeforeFoldersCommitsPlanningCpuBeforeTheLoopEnds}, but the file comes after the folders, so
+     * the slot loop ends when the slots run out.
+     */
+    public void testFileSlotAfterFoldersCommitsPlanningCpuBeforeTheLoopEnds() {
+        assertFileSlotPlanningCpuCommitted(
+            16,
+            List.of(
+                entry("s3://bucket/data/d1/a.parquet", 10),
+                entry("s3://bucket/data/d2/b.parquet", 10),
+                entry("s3://bucket/data/e.parquet", 10)
+            )
+        );
+    }
+
+    private void assertFileSlotPlanningCpuCommitted(int concurrency, List<StorageEntry> entries) {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        AtomicReference<Thread> callerThread = new AtomicReference<>();
+        AtomicInteger callerReserves = new AtomicInteger();
+        AtomicLong committedBeforeBurn = new AtomicLong();
+        // Building the slots reserves nothing, so the calling thread's first reserve is the file slot's.
+        PlanningMemory memory = bytes -> {
+            if (Thread.currentThread() == callerThread.get() && callerReserves.getAndIncrement() == 0) {
+                committedBeforeBurn.set(tracker.cpuNanos());
+                burnCpu(burnNanos);
+            }
+        };
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+            GlobExpander.expandAsync(
+                pattern,
+                provider,
+                null,
+                HIVE_ON,
+                MAX,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                memory,
+                concurrency,
+                () -> false,
+                pool::execute,
+                future
+            );
+            // Holds the measurement open, as a slow unwind would, until planning has finished.
+            safeAwait(finished);
+        }));
+        callerThread.set(caller);
+        caller.start();
+        try {
+            assertEquals(3, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat("the file slot must be matched on the calling thread", callerReserves.get(), greaterThan(0));
+            assertThat(tracker.finish() - committedBeforeBurn.get(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            finished.countDown();
+            safeJoin(caller);
+            terminate(pool);
+        }
+    }
+
     /**
      * The folder drain applies no partition value filter, so a glob with an active filter must keep the flat listing:
      * fanning out would keep every {@code year=} the query excludes.
@@ -5282,8 +5724,14 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("only month=07 survives, in both years", 4, result.fileCount());
     }
 
-    /** A bound that lists only litter must not decide the dataset is empty, on either path. */
-    public void testAsyncRetryAfterABoundThatListsOnlyLitterMatchesSync() throws Exception {
+    /**
+     * A bound must not be spent on litter, on either path. {@code _a.parquet} matches the glob and is then dropped
+     * by the name filter, so it is not one of the files the bound counts: the drain walks past it and stops at the
+     * first file it keeps. This used to return two files, because the one key the bound allowed was the excluded
+     * one, the page came back empty, and an empty page could not be told from an empty dataset — so the whole glob
+     * was listed again. The answer no longer depends on how much litter sits in front of the data.
+     */
+    public void testABoundIsNotSpentOnLitter() throws Exception {
         List<StorageEntry> tree = List.of(
             entry("s3://bucket/data/_a.parquet", 10),
             entry("s3://bucket/data/b/x.parquet", 10),
@@ -5293,7 +5741,10 @@ public class GlobExpanderTests extends ESTestCase {
         @SuppressWarnings("RegexpMultiline")
         String pattern = "s3://bucket/data/**/*.parquet";
         TreeStubProvider provider = assertAsyncMatchesSync(pattern, tree, null, 1);
-        assertEquals(2, expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, 1, 4, () -> false).fileCount());
+        FileList result = expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, 1, 4, () -> false);
+        assertEquals("the first file the bound counts, not an empty listing", 1, result.fileCount());
+        assertEquals("s3://bucket/data/b/x.parquet", result.path(0).toString());
+        assertTrue("one of the two matching files, so the listing is a prefix of the dataset", result.isTruncated());
     }
 
     /**
@@ -6255,6 +6706,12 @@ public class GlobExpanderTests extends ESTestCase {
         final List<String> enumeratedFiles = Collections.synchronizedList(new ArrayList<>());
         final Map<String, Integer> keysPulled = Collections.synchronizedMap(new LinkedHashMap<>());
         boolean childrenUnsupported = false;
+        /**
+         * Renders a child directory with the separator the store's own listing carries. Every provider in this repo
+         * strips it before building the path, so the default is off and matches them; this spelling is what the
+         * interface permits rather than what any of them returns.
+         */
+        boolean trailingSlashDirectories = false;
 
         TreeStubProvider(List<StorageEntry> allEntries) {
             // Sort entries by path so listChildren and listObjects return results in key order,
@@ -6323,7 +6780,8 @@ public class GlobExpanderTests extends ESTestCase {
                     files.add(e);
                     enumeratedFiles.add(path);
                 } else {
-                    dirs.add(p + rest.substring(0, slash));
+                    String dir = p + rest.substring(0, slash);
+                    dirs.add(trailingSlashDirectories ? dir + "/" : dir);
                 }
                 if (files.size() + dirs.size() > limit) {
                     return null;
@@ -6485,6 +6943,68 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * A bounded pattern that matches nothing, and that nothing narrowed, lists once.
+     *
+     * <p>The retry is for a listing that stopped short: a rewrite that missed a folder's spelling, or a bound
+     * reached before the first match. A listing that read to the end of the pattern and found nothing has neither,
+     * so the dataset really holds no match and a second, unbounded pass buys the same empty answer twice. Counted
+     * in keys pulled rather than in calls, because a second pass over the same prefix pulls the same keys again —
+     * which is also what a page costs on a paging store.
+     */
+    public void testABoundedPatternMatchingNothingListsOnce() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
+        }
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1000),
+            PlanningMemory.NONE
+        );
+
+        assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
+        assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
+        assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
+    }
+
+    /**
+     * The async twin of the test above. The short-circuit is implemented once per code path, so a pin on one says
+     * nothing about the other: deleting the async one left every unit and integration suite green.
+     */
+    public void testABoundedPatternMatchingNothingListsOnceAsync() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
+        }
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = expandSync(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000,
+            4,
+            () -> false
+        );
+
+        assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
+        assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
+        assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
+    }
+
+    /**
      * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
      * query into "matched no files" for any dataset whose first keys happen to be another format.
      */
@@ -6510,7 +7030,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals("the file past the bound is still found", 1, result.fileCount());
         assertEquals("s3://bucket/data/zzz.parquet", result.path(0).toString());
-        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+        assertFalse("the listing read to the end of the pattern, so its answer is complete", result.isTruncated());
     }
 
     /**
@@ -6539,25 +7059,30 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals("the matching file past the bound must still be found", 1, result.fileCount());
         assertEquals("s3://bucket/data/year=2025/b.parquet", result.path(0).toString());
-        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+        assertFalse("the listing read to the end of the pattern, so its answer is complete", result.isTruncated());
     }
 
     /**
-     * The re-list after a bounded page matched nothing is the whole glob, so partition detection folds over all of
-     * it. Keeping the partition sample across that retry would type a column from the front of a listing that
-     * shipped every file, and leave every file past the sample with no partition values at all.
+     * The re-list after a narrowing matched nothing is the whole glob, so partition detection folds over all of it.
+     * Keeping the partition sample across that retry would type a column from the front of a listing that shipped
+     * every file, and leave every file past the sample with no partition values at all.
+     * <p>
+     * The narrowing here is the glob rewrite, which is the one that can still come back empty from a non-empty
+     * dataset: it spells {@code month == 7} as {@code month=7} and the folders are {@code month=07}, so it lists a
+     * prefix that does not exist. A bound can no longer do this — it counts matching files, so a drain that
+     * exhausted the prefix without reaching it has seen every key and its empty answer is the dataset's.
      */
-    public void testRelistAfterAnEmptyBoundedPageTypesPartitionsFromEveryFile() throws IOException {
+    public void testRelistAfterANarrowingThatMatchedNothingTypesPartitionsFromEveryFile() throws IOException {
         List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/skip.csv", 50),
-            entry("s3://bucket/data/year=2024/a.parquet", 100),
-            entry("s3://bucket/data/year=abc/b.parquet", 100)
+            entry("s3://bucket/data/year=2024/month=07/a.parquet", 100),
+            entry("s3://bucket/data/year=abc/month=07/b.parquet", 100)
         );
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 7));
 
         FileList result = GlobExpander.expand(
-            "s3://bucket/data/" + "**/*.parquet",
+            "s3://bucket/data/year=*/month=*/*.parquet",
             new CountingStubProvider(listing),
-            null,
+            hints,
             HIVE_ON,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,

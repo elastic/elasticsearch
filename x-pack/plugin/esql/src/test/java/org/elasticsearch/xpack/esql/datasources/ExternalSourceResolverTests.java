@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -39,6 +40,8 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -76,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredEx
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -99,11 +103,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -133,8 +139,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntPredicate;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -496,6 +504,72 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Boolean.TRUE,
             resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
         );
+    }
+
+    /**
+     * A declared-mapping (non-comma, {@code dynamic: false}) dataset resolved twice through the same cache
+     * service lists only once: the second resolve gets the same {@link FileList} object by identity.
+     * <p>
+     * Pins that the declared rail's listing-cache key is distinctive enough that a warm second resolve does
+     * not list again, and that the entries are shared by object identity rather than copied — a copy-per-query
+     * holds the listing in memory once per concurrent query, which multiplied a 1 GiB search node into OOM.
+     * <p>
+     * Two details make this the bounded rail rather than the unbounded one, which shared already:
+     * {@code pathsRequiringStats} is {@code Set.of()} and not {@code null}, since {@link ResolutionDemand#of}
+     * reads null as every path wanting stats and the extent is then UNBOUNDED; and the file count is over
+     * {@link PartitionConfig#DEFAULT_PARTITION_SAMPLE_SIZE}, so the bound bites. The truncation assert proves both.
+     */
+    public void testDeclaredMappingListingIsSharedBetweenResolves() throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("event_ts", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
+
+        // Over the sample size, or the listing comes back whole and the bounded rail never runs.
+        int fileCount = PartitionConfig.DEFAULT_PARTITION_SAMPLE_SIZE + 500;
+        List<StorageEntry> files = new ArrayList<>(fileCount);
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < fileCount; i++) {
+            String file = String.format(Locale.ROOT, "s3://bucket/data/file%05d.parquet", i);
+            files.add(entry(file, 100));
+            schemasByPath.put(file, fileSchema);
+        }
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemasByPath);
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> future1 = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(DECLARED_GLOB),
+                Map.of(DECLARED_GLOB, new HashMap<>()),
+                null,
+                Map.of(DECLARED_GLOB, mapping),
+                Set.of(),
+                future1
+            );
+            ExternalSourceResolution.ResolvedSource first = future1.actionGet().resolvedSource(DECLARED_GLOB);
+            assertNotNull(first);
+            // Without this the test passes on the unbounded rail, which shared before this change.
+            assertTrue("resolution must have listed a bounded prefix, or this pins the wrong rail", first.fileList().isTruncated());
+            int listsAfterFirst = provider.listCallCount.get();
+
+            PlainActionFuture<ExternalSourceResolution> future2 = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(DECLARED_GLOB),
+                Map.of(DECLARED_GLOB, new HashMap<>()),
+                null,
+                Map.of(DECLARED_GLOB, mapping),
+                Set.of(),
+                future2
+            );
+            ExternalSourceResolution.ResolvedSource second = future2.actionGet().resolvedSource(DECLARED_GLOB);
+            assertNotNull(second);
+
+            assertEquals("second resolve does not list again", listsAfterFirst, provider.listCallCount.get());
+            assertSame("and holds the same listing, not a copy", first.fileList(), second.fileList());
+        }
     }
 
     /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
@@ -2495,15 +2569,25 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("and opens no more files for it", opensForNoRows, readingProvider.schemaCallCount.get());
             assertEquals("one file defines the schema under first_file_wins", 1, opensForNoRows);
 
-            // And the bounded listing never reached the shared cache. This is the invariant with no downstream
-            // catch: a prefix served from the cache to a later query would have it read a fraction of the dataset
-            // and report success. A second resolve through the same cache has to list again.
-            resolveWithNoRowPaths(resolver, Set.of(GLOB));
-            assertThat(
-                "a truncated listing must never be served from the listing cache",
-                provider.listCallCount.get(),
-                greaterThan(listsForNoRows)
+            // And the bounded listing is shared with the next query that asks the same question. The hazard this
+            // guards - a prefix served to a query that wanted the dataset, which would read a fraction of it and
+            // report success - is held by the key rather than by refusing the cache: the extent is part of the
+            // address, so only a query asking for the same bound can be served this entry. Asking for the same
+            // bound is asking the same question, and the answer is the same listing.
+            ExternalSourceResolution.ResolvedSource second = resolveWithNoRowPaths(resolver, Set.of(GLOB)).resolvedSource(GLOB);
+            assertNotNull(second);
+            assertEquals(
+                "a second resolve asking for the same bound is served the cached prefix",
+                listsForNoRows,
+                provider.listCallCount.get()
             );
+            // Identity, not equality, and this is the assertion the incident is about. What killed a 1 GiB search
+            // node was not the cost of listing twice - it was holding the listing twice: every concurrent query
+            // kept its own 1,000-entry copy, charged to the request breaker until the query closed, and a few
+            // hundred of those is the whole heap. Two resolutions reaching the same object is what makes the
+            // resident cost one listing instead of one per query, and equality would pass while each query still
+            // held a copy of its own.
+            assertSame("and holds the same listing, not a copy of it", bounded.fileList(), second.fileList());
         }
     }
 
@@ -2814,6 +2898,138 @@ public class ExternalSourceResolverTests extends ESTestCase {
             24,
             boundedFuture.actionGet().resolvedSource(glob).fileList().fileCount()
         );
+    }
+
+    /**
+     * The same dashboard filters as {@link #testVpcHourlyHiveFoldedHintsListTwentyFourFilesOnDefaultFfw}, written the
+     * way a dashboard actually sends them: the timestamp is {@code TO_DATETIME("...")} rather than an already-folded
+     * {@code DATETIME} literal. That sibling fixture models the plan after conversion, so it never exercised the
+     * nested call, and the listing fold refuses an argument that is not yet a literal - so
+     * the outer {@code DATE_EXTRACT} could not fold, no hint was emitted, and the listing ran to its bound over the
+     * whole glob instead of the one matching day.
+     */
+    public void testVpcDashboardHintsFoldThroughToDatetime() {
+        String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> nested = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlanViaToDatetime(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = nested.get(glob);
+        assertNotNull("TO_DATETIME of a literal must fold so the DATE_EXTRACT above it can", pathHints);
+        assertEquals(3, pathHints.size());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertEquals(List.of(7L), pathHints.get(1).values());
+        assertEquals(List.of(13L), pathHints.get(2).values());
+
+        // The nested form must narrow exactly as the pre-folded form does; a hint set that differs between the two
+        // would prune a different set of folders for the same query.
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> preFolded = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlan(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> expected = preFolded.get(glob);
+        assertNotNull("the pre-folded sibling fixture must still yield hints, or this comparison proves nothing", expected);
+        assertEquals(expected, pathHints);
+    }
+
+    /** {@link #vpcDashboardFilterPlan} with the timestamp left as the {@code TO_DATETIME} call a dashboard sends. */
+    private static LogicalPlan vpcDashboardFilterPlanViaToDatetime(String path) {
+        Source src = Source.EMPTY;
+        Expression ts = new UnresolvedFunction(src, "TO_DATETIME", List.of(Literal.keyword(src, "2026-07-13T00:00:00.000Z")));
+        Expression condition = new And(
+            src,
+            new And(
+                src,
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "year"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "YEAR"), ts))
+                ),
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "month"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "MONTH_OF_YEAR"), ts))
+                )
+            ),
+            new Equals(
+                src,
+                new UnresolvedAttribute(src, "day"),
+                new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "DAY_OF_MONTH"), ts))
+            )
+        );
+        return new Filter(src, new UnresolvedExternalRelation(src, Literal.keyword(src, path), Map.of()), condition);
+    }
+
+    /**
+     * The third spelling of the same filter: the timestamp is an inline {@code "..."::datetime} cast rather than a
+     * {@code TO_DATETIME(...)} call. The parser does not leave a cast unresolved - it builds the conversion function
+     * itself - so the node reaching the listing fold is a {@link ToDatetime} and never an {@code UnresolvedFunction}.
+     * A fold dispatching only on the name therefore folded the call form and silently skipped the cast form: no hint
+     * was emitted, no error was raised, and the listing ran over the whole glob.
+     * <p>
+     * Asserted against {@link #vpcDashboardFilterPlan}, the pre-folded fixture, so the two spellings are pinned to
+     * prune the same folders rather than merely to produce some hint each.
+     */
+    public void testVpcDashboardHintsFoldThroughInlineDatetimeCast() {
+        String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> cast = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlanViaInlineCast(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = cast.get(glob);
+        assertNotNull("an inline ::datetime cast must fold so the DATE_EXTRACT above it can", pathHints);
+        assertEquals(3, pathHints.size());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertEquals(List.of(7L), pathHints.get(1).values());
+        assertEquals(List.of(13L), pathHints.get(2).values());
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> preFolded = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlan(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> expected = preFolded.get(glob);
+        assertNotNull("the pre-folded sibling fixture must still yield hints, or this comparison proves nothing", expected);
+        assertEquals(expected, pathHints);
+    }
+
+    /**
+     * {@link #vpcDashboardFilterPlan} with the timestamp left as the inline cast a query can write.
+     * <p>
+     * Built through the same factory and configuration marker the parser's {@code castToType} uses, rather than by
+     * calling the constructor directly: a test that minted the node itself would keep passing if the parser were
+     * changed to build some other node for {@code ::datetime}, which is the only thing this fixture is here to pin.
+     */
+    private static LogicalPlan vpcDashboardFilterPlanViaInlineCast(String path) {
+        Source src = Source.EMPTY;
+        Expression ts = EsqlDataTypeConverter.converterFunctionFactory(DataType.DATETIME)
+            .apply(src, Literal.keyword(src, "2026-07-13T00:00:00.000Z"), ConfigurationAware.CONFIGURATION_MARKER);
+        assertThat(
+            "the parser builds ::datetime as a ToDatetime; this fixture is void if it stops doing so",
+            ts,
+            instanceOf(ToDatetime.class)
+        );
+        Expression condition = new And(
+            src,
+            new And(
+                src,
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "year"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "YEAR"), ts))
+                ),
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "month"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "MONTH_OF_YEAR"), ts))
+                )
+            ),
+            new Equals(
+                src,
+                new UnresolvedAttribute(src, "day"),
+                new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "DAY_OF_MONTH"), ts))
+            )
+        );
+        return new Filter(src, new UnresolvedExternalRelation(src, Literal.keyword(src, path), Map.of()), condition);
     }
 
     private static LogicalPlan vpcDashboardFilterPlan(String path) {
@@ -6647,6 +6863,74 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    private record ChangedDuringResolution(ExternalSourceResolution resolution, Exception failure, int listings) {}
+
+    /**
+     * Resolves the two-file union-by-name glob through a reader that finds the object rewritten since its listing was cached
+     * for as long as {@code changedWhileListings} holds for the number of listings so far. Returns the outcome and how many
+     * times the store was listed.
+     */
+    private ChangedDuringResolution resolveWithChangedReads(IntPredicate changedWhileListings, RuntimeException otherFailure)
+        throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                if (otherFailure != null) {
+                    throw otherFailure;
+                }
+                if (changedWhileListings.test(provider.listCallCount.get())) {
+                    throw new ExternalObjectChangedException(object.path());
+                }
+                return super.metadata(object);
+            }
+        };
+        String glob = "s3://bucket/data/*.parquet";
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithReader(provider, reader, cacheService);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), future);
+            try {
+                return new ChangedDuringResolution(future.actionGet(30, TimeUnit.SECONDS), null, provider.listCallCount.get());
+            } catch (Exception e) {
+                return new ChangedDuringResolution(null, e, provider.listCallCount.get());
+            }
+        }
+    }
+
+    /**
+     * A read during resolution finds the object rewritten since its listing was cached. Nothing has run yet, so resolution
+     * drops the cached listing and resolves once more: it lists the store again and succeeds.
+     */
+    public void testObjectChangedDuringResolutionListsAgainAndSucceeds() throws Exception {
+        // Changed until the store is listed again, which is what a rewrite looks like through a cached listing.
+        ChangedDuringResolution outcome = resolveWithChangedReads(listings -> listings < 2, null);
+        assertNull(outcome.failure());
+        assertEquals(2, outcome.resolution().resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+        assertEquals("the failure dropped the cached listing, so the second pass listed again", 2, outcome.listings());
+    }
+
+    /** The retry runs once: an object that is still changed on the second pass fails the resolution with the condition. */
+    public void testObjectChangedTwiceDuringResolutionIsReturned() throws Exception {
+        ChangedDuringResolution outcome = resolveWithChangedReads(listings -> true, null);
+        assertNotNull(outcome.failure());
+        assertTrue(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_CHANGED));
+        assertEquals("two passes, no third", 2, outcome.listings());
+    }
+
+    /** Only the object-changed condition is retried: any other failure during resolution is returned after one pass. */
+    public void testOtherFailureDuringResolutionIsNotRetried() throws Exception {
+        ChangedDuringResolution outcome = resolveWithChangedReads(listings -> false, new IllegalStateException("not an object change"));
+        assertNotNull(outcome.failure());
+        assertFalse(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_CHANGED));
+        assertEquals(1, outcome.listings());
+    }
+
     /**
      * Concurrent UNION_BY_NAME resolves of the same glob (no hints) must issue one LIST.
      * {@code Cache.computeIfAbsent} single-flights that key. Different WHERE clauses still
@@ -8126,7 +8410,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    /** esql-planning#2143: the retained per-file schema is charged by its column names, not only by its column count. */
+    /** The retained per-file schema is charged by its column names, not only by its column count. */
     public void testGatheredFileBytesChargesColumnNames() {
         String location = "s3://bucket/data/f0.ndjson";
         SourceMetadata shortNamed = new SimpleSourceMetadata(
@@ -8962,6 +9246,284 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     // ===== Async fan-out tests =====
+
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * Planning CPU, executor path: a synchronous reader's {@code metadata} runs on the resolver's metadata-read
+     * executor through the task hook, so every call sees an open measurement of the bound tracker, CPU burned there is
+     * counted, and time slept there is not.
+     */
+    public void testPlanningCpuMetersExecutorTasksAndSkipsWaits() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        int fileCount = 8;
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(2);
+        long sleepMillis = 50;
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger unmetered = new AtomicInteger();
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        for (int i = 0; i < fileCount; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i);
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                calls.incrementAndGet();
+                if (tracker.isMeteringCurrentThread() == false) {
+                    unmetered.incrementAndGet();
+                }
+                burnCpu(burnNanos);
+                try {
+                    Thread.sleep(sleepMillis);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                return super.metadata(object);
+            }
+        };
+        ExecutorService resolverExecutor = Executors.newFixedThreadPool(4);
+        try {
+            String glob = "s3://bucket/data/*.parquet";
+            Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+            listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), listing);
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, 4);
+            resolver.planningCpu(tracker);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+            assertNotNull(resolution.resolvedSource(glob));
+            assertEquals(fileCount, calls.get());
+            assertEquals("every metadata read must run inside a planning CPU measurement", 0, unmetered.get());
+            assertThat(tracker.cpuNanos(), greaterThanOrEqualTo(fileCount * burnNanos));
+            assertThat(tracker.cpuNanos(), lessThan(fileCount * TimeUnit.MILLISECONDS.toNanos(sleepMillis)));
+        } finally {
+            resolverExecutor.shutdownNow();
+        }
+    }
+
+    /**
+     * Planning CPU, initial dispatch: {@code resolve} hands the whole resolution to the metadata-read executor, which can
+     * complete it and finish planning while the calling thread's measurement is still open. The CPU the caller spent
+     * before the dispatch must be committed by then, or it is dropped from the frozen total.
+     */
+    public void testPlanningCpuCommittedBeforeInitialDispatch() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        String path = "s3://bucket/data/file00.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("emp_no", DataType.INTEGER)));
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(glob).patternPrefix().toString(),
+            List.of(entry(path, 100))
+        );
+        ExecutorService resolverExecutor = Executors.newFixedThreadPool(2);
+        CountDownLatch finished = new CountDownLatch(1);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                new StubFormatReader(schemasByPath),
+                resolverExecutor,
+                2
+            );
+            resolver.planningCpu(tracker);
+            Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+                burnCpu(burnNanos);
+                resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+                // Holds the measurement open, as a slow unwind would, until planning has finished.
+                safeAwait(finished);
+            }));
+            caller.start();
+            try {
+                assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+                assertThat(tracker.finish(), greaterThanOrEqualTo(burnNanos));
+            } finally {
+                finished.countDown();
+                safeJoin(caller);
+            }
+        } finally {
+            resolverExecutor.shutdownNow();
+        }
+    }
+
+    /**
+     * Planning CPU, foreign-thread path: the reader completes on its own pool, never on the resolver executor. The
+     * resolver's continuation (where it collects the metadata warnings) runs there inside the factory listener's
+     * measurement, so the probe in {@code warnings()} must see an open measurement on every read-pool thread and the
+     * CPU it burns there must be counted. The read-pool threads are named so the probe ignores calls on other threads.
+     * <p>
+     * Reads complete only once the initial dispatch loop has used up its permits, so the remaining files are dispatched
+     * by fan-out continuations on the resolver executor. The probe in {@code metadataAsync} checks that those
+     * dispatches run inside a measurement too.
+     */
+    public void testPlanningCpuMetersForeignCompletionThreads() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        int permits = 4;
+        int fileCount = 8;
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(2);
+        String readPoolThreadName = "planning-cpu-read-pool";
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        AtomicInteger meteredOnReadPool = new AtomicInteger();
+        AtomicInteger unmeteredOnReadPool = new AtomicInteger();
+        AtomicInteger dispatches = new AtomicInteger();
+        AtomicInteger dispatchedByInitialLoop = new AtomicInteger();
+        AtomicInteger unmeteredDispatches = new AtomicInteger();
+        CountDownLatch initialLoopDone = new CountDownLatch(1);
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        for (int i = 0; i < fileCount; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i);
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        ExecutorService readPool = Executors.newFixedThreadPool(permits, r -> new Thread(r, readPoolThreadName));
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, readPool, null, 0, null) {
+            @Override
+            public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+                if (dispatches.getAndIncrement() == 0) {
+                    // The single resolver thread is running the initial dispatch loop, so this runs once that loop is done.
+                    resolverExecutor.execute(() -> {
+                        dispatchedByInitialLoop.set(dispatches.get());
+                        initialLoopDone.countDown();
+                    });
+                }
+                if (tracker.isMeteringCurrentThread() == false) {
+                    unmeteredDispatches.incrementAndGet();
+                }
+                super.metadataAsync(object, executor, ActionListener.runBefore(listener, () -> safeAwait(initialLoopDone)));
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                SourceMetadata base = super.metadata(object);
+                return new StubSourceMetadata(base.location(), base.schema()) {
+                    @Override
+                    public List<String> warnings() {
+                        if (Thread.currentThread().getName().equals(readPoolThreadName)) {
+                            if (tracker.isMeteringCurrentThread()) {
+                                meteredOnReadPool.incrementAndGet();
+                            } else {
+                                unmeteredOnReadPool.incrementAndGet();
+                            }
+                            burnCpu(burnNanos);
+                        }
+                        return super.warnings();
+                    }
+                };
+            }
+        };
+        try {
+            String glob = "s3://bucket/data/*.parquet";
+            Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+            listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), listing);
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                permits
+            );
+            resolver.planningCpu(tracker);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+            assertNotNull(resolution.resolvedSource(glob));
+            assertEquals(fileCount, reader.totalReads.get());
+            assertEquals("the initial dispatch loop must use up its permits", permits, dispatchedByInitialLoop.get());
+            assertEquals(fileCount, dispatches.get());
+            assertEquals(
+                "dispatches, including those from fan-out continuations, must run inside a planning CPU measurement",
+                0,
+                unmeteredDispatches.get()
+            );
+            assertEquals(
+                "resolver continuations on the read pool must run inside a planning CPU measurement",
+                0,
+                unmeteredOnReadPool.get()
+            );
+            assertThat(meteredOnReadPool.get(), greaterThanOrEqualTo(fileCount));
+            assertThat(tracker.cpuNanos(), greaterThanOrEqualTo(fileCount * burnNanos));
+        } finally {
+            resolverExecutor.shutdownNow();
+            readPool.shutdownNow();
+        }
+    }
+
+    /**
+     * Planning CPU, permit release: a release can complete the gather and let the rest of planning reach
+     * {@code finish()} on another thread, which drops a measurement still open here, so each read's CPU must be
+     * committed before its permit is released. Every executor task holds its measurement open past the release, as a
+     * slow unwind would, until planning has finished. The reads start burning together, after every dispatch has
+     * committed its CPU, so the total committed from then on is what the reads committed before their releases.
+     */
+    public void testPlanningCpuCommittedBeforePermitRelease() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        int fileCount = 4;
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(5);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        AtomicLong committedBeforeReads = new AtomicLong();
+        CyclicBarrier readsInFlight = new CyclicBarrier(fileCount, () -> committedBeforeReads.set(tracker.cpuNanos()));
+        CountDownLatch finished = new CountDownLatch(1);
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        for (int i = 0; i < fileCount; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i);
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                safeAwait(readsInFlight);
+                burnCpu(burnNanos);
+                return super.metadata(object);
+            }
+        };
+        // A held task keeps its thread, so the pool must grow past the tasks it holds.
+        ExecutorService resolverExecutor = Executors.newCachedThreadPool();
+        try {
+            String glob = "s3://bucket/data/*.parquet";
+            Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+            listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), listing);
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                command -> resolverExecutor.execute(() -> tracker.meteredCpu(() -> {
+                    command.run();
+                    // Holds the measurement open past the permit release, as a slow unwind would, until planning has finished.
+                    safeAwait(finished);
+                })),
+                fileCount
+            );
+            resolver.planningCpu(tracker);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+            assertThat(tracker.finish() - committedBeforeReads.get(), greaterThanOrEqualTo(fileCount * burnNanos));
+        } finally {
+            finished.countDown();
+            terminate(resolverExecutor);
+        }
+    }
 
     /**
      * The multi-file fan-out must overlap per-file metadata reads up to the configured permit count
@@ -10415,7 +10977,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#2236: reconciling reads every file, so a full sample from each would have planning read the whole
+     * Reconciling reads every file, so a full sample from each would have planning read the whole
      * dataset when files are small. Each file contributes its share of {@code schema_sample_size} instead, while
      * {@code first_file_wins} still reads its one file in full.
      */
@@ -10539,7 +11101,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The listing shape of esql-planning#2236: far more files than the sample has floor-sized shares, each file longer
+     * The listing shape: far more files than the sample has floor-sized shares, each file longer
      * than the floor but shorter than the sample. Every file is sampled for the floor and no more, so planning reads
      * {@code files x floor} rows: more than one sample, and a fraction of the dataset, where it used to read all of it.
      */

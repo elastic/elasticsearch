@@ -89,14 +89,14 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Guards the dictionary pre-warm floor on small row groups (esql-planning#2270).
+ * Guards the dictionary pre-warm floor on small row groups.
  * <p>
  * {@code PreloadedRowGroupMetadata} used to keep coalesced dictionary/bloom buffers force-added
  * until iterator end. After the row-group filter those buffers have no reader; {@code
  * releaseRawBuffers()} drops them. {@link #testForceAddedBytesAfterOpenByRowGroupSize} is the
  * call-site guard: after open, {@code used} stays below the index-span heap. The concurrent
  * test is a liveness guard for that release together with the waste-bounded merge and the
- * one-ticket group hold (PR-D).
+ * one-ticket group hold.
  * <p>
  * The fixture is a {@code category} dictionary column (16 values, the filter column), an
  * {@code id} column, and an unprojected random {@code pad} column that makes 16,384 rows about

@@ -15,10 +15,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -54,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
@@ -82,6 +85,93 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", ttl)
             .build();
+    }
+
+    /**
+     * A dataset is cached under one listing key per filter-hint set. A failed query drops every key of the datasets it read,
+     * including a hint-set key the query itself did not record. It leaves another dataset's listings alone, and those of another
+     * store that happens to use the same bucket and prefix.
+     */
+    public void testInvalidateDropsEveryHintVariantOfAUsedDataset() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger loads = new AtomicInteger();
+            ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(4, loads.get());
+
+            service.invalidateListings(List.of(recorded));
+
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(
+                "the recorded and the hinted listing of the used dataset are read again, the other dataset and store are not",
+                6,
+                loads.get()
+            );
+        }
+    }
+
+    /**
+     * A failed query drops only the listings and file-metadata entries it read. Another dataset's listing, which was not part of the
+     * failed query, stays cached, so one rewritten object does not cost every dataset a re-listing.
+     */
+    public void testInvalidateDropsOnlyTheGivenListingsAndFileMetadata() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey failed = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey failedFile = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+            FileMetadataCacheKey otherFile = new FileMetadataCacheKey("s3://other/data/file.parquet", "");
+            for (ListingCacheKey key : List.of(failed, other)) {
+                service.getOrComputeListing(key, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            for (FileMetadataCacheKey key : List.of(failedFile, otherFile)) {
+                service.getOrComputeFileMetadata(key, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L, "e1");
+                });
+            }
+
+            service.invalidateListings(List.of(failed));
+            service.invalidateFileMetadata(List.of(failedFile));
+
+            service.getOrComputeListing(failed, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeListing(other, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(failedFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            service.getOrComputeFileMetadata(otherFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            assertEquals("only the failed query's listing is read again", 3, listingLoads.get());
+            assertEquals("only the failed query's file metadata is read again", 3, metadataLoads.get());
+        }
     }
 
     /**
@@ -355,6 +445,89 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             expectThrows(TaskCancelledException.class, leader::actionGet);
             assertSame(followerResult, follower.actionGet());
             assertEquals(1, followerComputeCalls.get());
+        }
+    }
+
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * CPU a follower burns in the metering tests. Large relative to the leader's own cold-path CPU (exception stack trace, class
+     * init), which can reach tens of ms on slow CI, so a burn leaked onto the leader stays distinguishable from noise.
+     */
+    private static final long FOLLOWER_BURN_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
+
+    /**
+     * The leader's thread completes a coalesced follower, so the follower's continuation must be metered for the
+     * follower's own query rather than counted in the leader's planning CPU.
+     */
+    public void testAsyncListingFollowerContinuationIsMeteredForTheFollower() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = FOLLOWER_BURN_NANOS;
+        PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
+        PlanningCpuTracker followerCpu = new PlanningCpuTracker();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicBoolean meteredForFollower = new AtomicBoolean();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+
+            leaderCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, leaderCompletion::set, ActionListener.noop()));
+            followerCpu.meteredCpu(
+                () -> service.getOrComputeListingAsync(key, l -> fail("follower must not compute"), ActionListener.wrap(listing -> {
+                    meteredForFollower.set(followerCpu.isMeteringCurrentThread() && leaderCpu.isMeteringCurrentThread() == false);
+                    burnCpu(burnNanos);
+                    follower.onResponse(listing);
+                }, follower::onFailure))
+            );
+            long leaderBefore = leaderCpu.cpuNanos();
+            long followerBefore = followerCpu.cpuNanos();
+
+            FileList result = testCompactFileList();
+            leaderCpu.meteredCpu(() -> leaderCompletion.get().onResponse(result));
+
+            assertSame(result, follower.actionGet());
+            assertTrue("the follower's continuation must run in its own measurement", meteredForFollower.get());
+            assertThat(followerCpu.cpuNanos() - followerBefore, greaterThanOrEqualTo(burnNanos));
+            assertThat(leaderCpu.cpuNanos() - leaderBefore, lessThan(burnNanos));
+        }
+    }
+
+    /**
+     * A follower whose leader is cancelled computes the listing itself, on the leader's thread. That listing is the
+     * follower's planning CPU, not the cancelled leader's.
+     */
+    public void testAsyncListingFollowerRetryIsMeteredForTheFollower() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = FOLLOWER_BURN_NANOS;
+        PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
+        PlanningCpuTracker followerCpu = new PlanningCpuTracker();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicBoolean meteredForFollower = new AtomicBoolean();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+            FileList followerResult = testCompactFileList();
+
+            leaderCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, leaderCompletion::set, ActionListener.noop()));
+            followerCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, l -> {
+                meteredForFollower.set(followerCpu.isMeteringCurrentThread() && leaderCpu.isMeteringCurrentThread() == false);
+                burnCpu(burnNanos);
+                l.onResponse(followerResult);
+            }, follower));
+            long leaderBefore = leaderCpu.cpuNanos();
+            long followerBefore = followerCpu.cpuNanos();
+
+            leaderCpu.meteredCpu(() -> leaderCompletion.get().onFailure(new TaskCancelledException("leader cancelled")));
+
+            assertSame(followerResult, follower.actionGet());
+            assertTrue("the follower's retry must run in its own measurement", meteredForFollower.get());
+            assertThat(followerCpu.cpuNanos() - followerBefore, greaterThanOrEqualTo(burnNanos));
+            assertThat(leaderCpu.cpuNanos() - leaderBefore, lessThan(burnNanos));
         }
     }
 

@@ -133,6 +133,10 @@ public final class EscfEncoder implements SourceBatchEncoder {
             }
             parser.nextToken(); // START_OBJECT
             flattenObject(parser, parser.nextToken());
+            XContentParser.Token trailing = parser.nextToken();
+            if (trailing != null) {
+                throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + trailing);
+            }
         }
         return backend.finishRow();
     }

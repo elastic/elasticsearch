@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.ClassifiedAs;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -67,7 +65,7 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
         }
         ClassifiedAs classified = (ClassifiedAs) plan;
         List<Attribute> output = plan.output();
-        if (output.stream().noneMatch(MaterializeRelationClassAndName::isRelationColumn)) {
+        if (output.stream().noneMatch(a -> MetadataAttribute.isRelationColumn(a.name()))) {
             return plan;
         }
 
@@ -96,7 +94,7 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
             }
         }
 
-        List<Attribute> remaining = relation.output().stream().filter(a -> isRelationColumn(a) == false).toList();
+        List<Attribute> remaining = relation.output().stream().filter(a -> MetadataAttribute.isRelationColumn(a.name()) == false).toList();
         LeafPlan stripped = switch (relation) {
             case EsRelation esRelation -> esRelation.withAttributes(remaining);
             case ExternalRelation externalRelation -> externalRelation.withAttributes(remaining);
@@ -106,35 +104,21 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
         return new Project(plan.source(), new Eval(plan.source(), stripped, values), projections);
     }
 
-    /**
-     * The value the relation answers for this column, or null when the column is not one of ours.
-     * <p>
-     * {@link #isRelationColumn} decides membership, so the switch below covers a closed set and throws on
-     * anything else: a name added there and not here would otherwise be stripped from the relation and
-     * projected as a column nothing binds.
-     */
+    /** The value the relation answers for this column, or null when the column is not one of ours. */
     private static Expression valueOf(Attribute attr, ClassifiedAs classified, Attribute indexAttribute) {
-        if (isRelationColumn(attr) == false) {
+        if (MetadataAttribute.isRelationColumn(attr.name()) == false) {
             return null;
         }
-        return switch (attr.name()) {
-            case MetadataAttribute.RELATION_CLASS -> Literal.keyword(attr.source(), classified.relationClass().value());
-            case MetadataAttribute.RELATION_NAME -> relationName(attr, classified, indexAttribute);
-            default -> throw new IllegalStateException("unhandled relation column: " + attr.name());
-        };
+        Expression name = relationName(attr, classified, indexAttribute);
+        return MetadataAttribute.relationColumnValue(attr.name(), attr.source(), classified.relationClass(), name);
     }
 
     private static Expression relationName(Attribute attr, ClassifiedAs classified, Attribute indexAttribute) {
         // A dataset has one name, which is unknown when a bare glob named no dataset.
         if (classified instanceof ExternalRelation externalRelation) {
-            String datasetName = externalRelation.datasetName();
-            return datasetName == null ? new Literal(attr.source(), null, DataType.KEYWORD) : Literal.keyword(attr.source(), datasetName);
+            return MetadataAttribute.keywordOrNull(attr.source(), externalRelation.datasetName());
         }
         return indexAttribute;
-    }
-
-    private static boolean isRelationColumn(Attribute attr) {
-        return MetadataAttribute.RELATION_CLASS.equals(attr.name()) || MetadataAttribute.RELATION_NAME.equals(attr.name());
     }
 
     private static Attribute firstNamed(List<Attribute> attributes, String name) {

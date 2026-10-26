@@ -287,6 +287,18 @@ Both `logsdb` and the columnar modes default to synthetic `_source`, but they ma
 
 If a consumer of your data depends on an object array being returned faithfully, map that field as [`nested`](/reference/elasticsearch/mapping-reference/nested.md) before migrating to a columnar mode.
 
+## Searching text fields that are not indexed [columnar-text-not-indexed]
+```yaml {applies_to}
+stack: preview 9.6
+serverless: preview
+```
+
+A `text` or `match_only_text` field with `index: false` can still be searched: full-text queries such as `match`, `match_phrase`, `query_string` and the ES|QL `match` function read and analyze the field's values instead of an inverted index. Because they read every document, these queries count as expensive and are rejected when `search.allow_expensive_queries` is `false`.
+
+Term-level queries (`term`, `terms`, `prefix`, `wildcard` and `regexp`) match a token of the analyzed value, as they do on an indexed text field. Before 9.6 they matched the whole value.
+
+Without term statistics, a document scores one point for each query term it matches, and a phrase counts as one term.
+
 ## Limitations [columnar-limitations]
 
 The following features are not supported in columnar index modes:
@@ -294,7 +306,7 @@ The following features are not supported in columnar index modes:
 - **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
 - **Turning off doc values**: Mapped fields cannot turn off doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
-- **Multi-field independence from parent constraints**: A parent field's [`doc_values.multi_value: false` or `nullability: false`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-multi-fields) constraint is **not** inherited by its sub-fields. Each multi-field applies its own `doc_values` configuration independently. As a result, a value rejected (and redirected to `._on_failure`) by the parent may still be indexed by the multi-field, so the two can hold different value sets. Configure `doc_values: { multi_value: false }` on the sub-field itself if you need the same constraint there.
+- **Multi-field independence from parent constraints**: A parent field's [`multi_value: false` or `nullability: false`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-multi-fields) constraint is **not** inherited by its sub-fields. Each multi-field applies its own configuration independently. As a result, a value rejected (and redirected to `._on_failure`) by the parent may still be indexed by the multi-field, so the two can hold different value sets. Configure `multi_value: false` on the sub-field itself if you need the same constraint there.
 - **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (for example, `search_as_you_type`).
 - **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).

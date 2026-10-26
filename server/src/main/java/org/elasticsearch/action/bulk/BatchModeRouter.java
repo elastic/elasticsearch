@@ -19,7 +19,10 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchScatterer;
 import org.elasticsearch.escf.EscfColumn;
@@ -30,7 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -62,7 +64,7 @@ import java.util.function.BiConsumer;
  * <p>Use {@link BatchRouterSet} to coordinate multiple {@code BatchModeRouter} instances when a
  * bulk carries batches for more than one index abstraction.
  */
-final class BatchModeRouter {
+final class BatchModeRouter implements Releasable {
 
     /**
      * One concrete backing index plus its routing and its global partition base.
@@ -106,11 +108,16 @@ final class BatchModeRouter {
     private int lastRow = -1;
     private int routedCount;
     private boolean scattered;
+    private boolean routingFailed;
     private boolean groupingBuilt;
+    private boolean closed;
 
-    BatchModeRouter(String key, EscfBatch source) {
+    private final Recycler<BytesRef> recycler;
+
+    BatchModeRouter(String key, EscfBatch source, Recycler<BytesRef> recycler) {
         this.key = key;
         this.source = source;
+        this.recycler = recycler;
         int n = source.docCount();
         this.partitionIds = new int[n];
         Arrays.fill(this.partitionIds, -1);
@@ -460,7 +467,7 @@ final class BatchModeRouter {
         } catch (Exception e) {
             // The routing trio does not give us a row index, so we cannot isolate which row(s) caused
             // the problem. Fail every deferred item with the same exception.
-            scattered = true; // prevent shardBatches() from attempting a stale scatter
+            routingFailed = true; // no valid grouping exists, so shardBatches() must not attempt a scatter
             for (int i = 0; i < source.docCount(); i++) {
                 if (items[i] != null) {
                     onItemFailure.accept(items[i], e);
@@ -564,22 +571,26 @@ final class BatchModeRouter {
     }
 
     /**
-     * Returns the per-shard batches. Returns empty on any call after the first — the failure-store
-     * redirect pass must not re-scatter batches already in flight.
+     * Returns the per-shard batches, always scattered into new batches even for a single shard, so
+     * the router keeps ownership of its source batch and releases it in {@link #close()}. The caller
+     * owns every returned batch. May be called at most once per bulk. The failure-store redirect pass
+     * must not call it: redirected items are new requests carrying inline source.
+     *
+     * <p>Returns empty if {@link #buildGrouping} failed to route, since no valid grouping exists to
+     * scatter.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> shardBatches() {
-        if (scattered) {
+        if (routingFailed) {
             return Map.of();
+        }
+        if (scattered) {
+            throw new IllegalStateException("shard batches were already built for this bulk");
         }
         scattered = true;
         if (routedCount == 0) {
             return Map.of();
-        }
-        int n = source.docCount();
-        if (totalPartitions == 1 && routedCount == n) {
-            // Fast path: single target, single shard, no dropped rows — hand the original batch
-            // through untouched. Source rows were already set by the encoder or external producer.
-            return Map.of(new ShardId(targets[0].index(), 0), source);
         }
         return scatter();
     }
@@ -600,35 +611,42 @@ final class BatchModeRouter {
         }
 
         EscfBatch[] parts;
-        try (EscfBatchScatterer scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+        try (EscfBatchScatterer scatterer = new EscfBatchScatterer(recycler)) {
             parts = scatterer.scatter(source, partitionIds, totalPartitionsForScatter);
         }
-
-        // Immediately release the discard partition — it is the only copy of orphan rows and must
-        // not be mapped to any shard.
-        if (hasOrphans && parts[discardPartition] != null) {
-            parts[discardPartition].close();
-            parts[discardPartition] = null;
-        }
-
-        Map<ShardId, SourceBatch> result = new HashMap<>();
-        int[] nextRow = new int[totalPartitions];
-        for (int row = 0; row < n; row++) {
-            int globalPartition = partitionIds[row];
-            EscfBatch part = parts[globalPartition];
-            if (part == null) {
-                // Discard partition (released above) or a zero-row real partition — skip.
-                continue;
+        boolean success = false;
+        try {
+            // Immediately release the discard partition — it is the only copy of orphan rows and must
+            // not be mapped to any shard.
+            if (hasOrphans && parts[discardPartition] != null) {
+                parts[discardPartition].close();
+                parts[discardPartition] = null;
             }
 
-            IndexTarget target = targetForPartition(globalPartition);
-            int localShardId = globalPartition - target.partitionBase();
-            result.putIfAbsent(new ShardId(target.index(), localShardId), part);
+            Map<ShardId, SourceBatch> result = new HashMap<>();
+            int[] nextRow = new int[totalPartitions];
+            for (int row = 0; row < n; row++) {
+                int globalPartition = partitionIds[row];
+                EscfBatch part = parts[globalPartition];
+                if (part == null) {
+                    // Discard partition (released above) or a zero-row real partition — skip.
+                    continue;
+                }
 
-            IndexRequest req = (IndexRequest) items[row].request();
-            req.indexSource().setSourceRow(part, nextRow[globalPartition]++, req.indexSource().contentType());
+                IndexTarget target = targetForPartition(globalPartition);
+                int localShardId = globalPartition - target.partitionBase();
+                result.putIfAbsent(new ShardId(target.index(), localShardId), part);
+
+                IndexRequest req = (IndexRequest) items[row].request();
+                req.indexSource().setSourceRow(part, nextRow[globalPartition]++, req.indexSource().contentType());
+            }
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(parts);
+            }
         }
-        return result;
     }
 
     /** Returns the target that owns the given global partition id. Linear scan; N is typically 1–2. */
@@ -640,5 +658,15 @@ final class BatchModeRouter {
             }
         }
         throw new AssertionError("no target found for global partition " + globalPartition);
+    }
+
+    /** Releases the source batch. Safe to call more than once. */
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        Releasables.close(source);
     }
 }

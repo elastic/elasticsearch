@@ -361,7 +361,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 return super.newStream(position, length);
             }
         };
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
+        CsvFormatReader csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("multiline_fields", true));
 
         expectThrows(
             TaskCancelledException.class,
@@ -1273,7 +1273,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Pins the production wiring for elastic/esql-planning#836 on the parallel coordinator: a worker
+    * Pins the production wiring for on the parallel coordinator: a worker
      * IOException surfaces as a typed {@link ExternalClientException} at the iterator's {@code hasNext()}
      * boundary (mirroring {@code CsvFormatReader} / {@code NdJsonPageIterator}), the coordinator stores it
      * in {@code firstError}, and {@code checkError()}'s {@code surface()} passes it through unchanged so the

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.services.s3.model.ArchiveStatus;
 import software.amazon.awssdk.services.s3.model.IntelligentTieringAccessTier;
 import software.amazon.awssdk.services.s3.model.InvalidObjectStateException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -110,6 +111,51 @@ final class S3FailureDetail {
     }
 
     /**
+     * The remedy an archived object's refusal carries, shared by the refused-GET path and the HEAD path so one
+     * wording serves both. {@code tier} is {@link #archivedTier}'s rendering, or empty when none is known.
+     */
+    static String archivedRemedy(String tier) {
+        return tier.isEmpty()
+            ? "Restore it, or wait for a restore in progress to finish, before reading it."
+            : "It is in " + tier + "; restore it, or wait for a restore in progress to finish, before reading it.";
+    }
+
+    /**
+     * Storage classes whose objects must be restored before a GET will serve them. {@code GLACIER_IR} is not one:
+     * Instant Retrieval serves a GET without a restore.
+     */
+    private static final Set<StorageClass> ARCHIVE_STORAGE_CLASSES = Set.of(StorageClass.GLACIER, StorageClass.DEEP_ARCHIVE);
+
+    /** Intelligent-Tiering archive tiers that behave the same way, reported separately from the storage class. */
+    private static final Set<ArchiveStatus> ARCHIVE_ACCESS_TIERS = Set.of(ArchiveStatus.ARCHIVE_ACCESS, ArchiveStatus.DEEP_ARCHIVE_ACCESS);
+
+    /**
+     * Whether a HEAD response describes an object a GET would refuse with {@code InvalidObjectState}. Three
+     * headers decide it, and reading fewer gets it wrong in both directions: an Intelligent-Tiering object names
+     * {@code INTELLIGENT_TIERING} as its class and carries the archive state in {@code x-amz-archive-status}, and
+     * a restored object still names its archive class while {@code x-amz-restore} reports the restore finished.
+     */
+    static boolean isArchivedHeadResponse(@Nullable StorageClass storageClass, @Nullable ArchiveStatus archiveStatus, String restore) {
+        // Both are null for an object whose class S3 does not report, and Set.of().contains(null) throws.
+        boolean archived = (storageClass != null && ARCHIVE_STORAGE_CLASSES.contains(storageClass))
+            || (archiveStatus != null && ARCHIVE_ACCESS_TIERS.contains(archiveStatus));
+        return archived && restoreFinished(restore) == false;
+    }
+
+    /** {@code x-amz-restore} reports {@code ongoing-request="false"} once a restored copy is available. */
+    private static boolean restoreFinished(String restore) {
+        return restore != null && restore.contains("ongoing-request=\"false\"");
+    }
+
+    /** The class and tier a HEAD response reports, rendered as the refused-GET path below renders its own. */
+    static String archivedTier(@Nullable StorageClass storageClass, @Nullable ArchiveStatus archiveStatus) {
+        return renderTier(
+            knownName(storageClass, StorageClass.UNKNOWN_TO_SDK_VERSION),
+            knownName(archiveStatus, ArchiveStatus.UNKNOWN_TO_SDK_VERSION)
+        );
+    }
+
+    /**
      * True when S3 refused the read because the object is in an archive storage class or tier and is not restored. The
      * SDK builds an {@link InvalidObjectStateException} for that code whichever store sent it; the code is what is keyed
      * on, whatever the status, since no other condition shares it.
@@ -123,18 +169,44 @@ final class S3FailureDetail {
      * an empty string when it reports neither. Only values the SDK knows are rendered, never the store's raw text.
      */
     static String archivedTier(S3Exception s3) {
-        StringBuilder sb = new StringBuilder();
         if (s3 instanceof InvalidObjectStateException archived) {
-            StorageClass storageClass = archived.storageClass();
-            if (storageClass != null && storageClass != StorageClass.UNKNOWN_TO_SDK_VERSION) {
-                sb.append("storage class [").append(storageClass).append("]");
-            }
-            IntelligentTieringAccessTier accessTier = archived.accessTier();
-            if (accessTier != null && accessTier != IntelligentTieringAccessTier.UNKNOWN_TO_SDK_VERSION) {
-                sb.append(sb.isEmpty() ? "" : " and ").append("access tier [").append(accessTier).append("]");
-            }
+            return renderTier(
+                knownName(archived.storageClass(), StorageClass.UNKNOWN_TO_SDK_VERSION),
+                knownName(archived.accessTier(), IntelligentTieringAccessTier.UNKNOWN_TO_SDK_VERSION)
+            );
+        }
+        return "";
+    }
+
+    /**
+     * One rendering for both paths, so the same object reads the same way whichever request reported it. Either
+     * part may be absent: an archived object in a plain archive class reports no access tier, and an
+     * Intelligent-Tiering one reports a class that is not itself an archive class.
+     */
+    private static String renderTier(@Nullable String storageClass, @Nullable String accessTier) {
+        StringBuilder sb = new StringBuilder();
+        if (storageClass != null) {
+            sb.append("storage class [").append(storageClass).append(']');
+        }
+        if (accessTier != null) {
+            sb.append(sb.isEmpty() ? "" : " and ").append("access tier [").append(accessTier).append(']');
         }
         return sb.toString();
+    }
+
+    /**
+     * The SDK's name for a value it knows, or {@code null} for one it does not. A store may answer with a class or
+     * tier this SDK has never heard of, and echoing it would put the store's own text in our message.
+     */
+    @Nullable
+    private static <E extends Enum<E>> String knownName(@Nullable E value, E unknown) {
+        return value == null || value == unknown ? null : value.toString();
+    }
+
+    /** True when the response carried no error code, as a bodyless HEAD response cannot. */
+    static boolean lacksErrorCode(S3Exception s3) {
+        String code = errorCode(s3);
+        return code == null || code.isEmpty();
     }
 
     @Nullable

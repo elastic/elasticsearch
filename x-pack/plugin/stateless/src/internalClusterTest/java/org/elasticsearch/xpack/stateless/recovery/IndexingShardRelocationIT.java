@@ -56,6 +56,9 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
@@ -1273,7 +1276,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             if (clusterSettings.get(ENABLED_WARMING)) {
@@ -1282,7 +1284,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -1291,7 +1292,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -1300,6 +1300,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
@@ -1308,7 +1309,16 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, false, subscribableListener);
+                    super.warmCache(
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        warmingRatioProvider,
+                        endTargetsToWarm,
+                        false,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }
@@ -1350,12 +1360,17 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             };
         }
 
-        private static final class PrefetchCountingIndexInput extends FilterIndexInput {
+        private static final class PrefetchCountingIndexInput extends FilterIndexInput implements SelfAccountingIndexInput {
             private final boolean countPrefetch;
 
             PrefetchCountingIndexInput(IndexInput delegate, boolean countPrefetch) {
                 super(delegate.toString(), delegate);
                 this.countPrefetch = countPrefetch;
+            }
+
+            @Override
+            public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+                asInstanceOf(SelfAccountingIndexInput.class, in).accountBytesReadTo(holder);
             }
 
             @Override
@@ -1481,7 +1496,8 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
         // 2nd hollow BCC to be read.
         assertThat(cacheService.getStats().writeCount(), equalTo(1L));
-        assertThat(cacheService.getStats().missCount(), equalTo(1L));
+        // Region 0 prewarming races with the BCC header read to fill region 0, and only the read records a miss.
+        assertThat(cacheService.getStats().missCount(), lessThanOrEqualTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

@@ -51,6 +51,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -114,6 +115,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -1497,24 +1499,95 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     public void testScorePredicateInFilterSeesItsSearchScore() throws IOException {
-        ReferenceAttribute content = new ReferenceAttribute(Source.EMPTY, "content", DataType.TEXT);
-        MetadataAttribute score = new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false);
-        Match match = new Match(Source.EMPTY, content, Literal.keyword(Source.EMPTY, "fox"), null);
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
+        Expression condition = new And(
+            Source.EMPTY,
+            runtimeMatch("fox"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
+        );
+        List<Double> scores = scoresAfterFilter(condition, "quick fox", "lazy dog");
+        // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
+        assertThat(scores, contains(foxScore));
+    }
+
+    public void testScorePredicateInOrSeesOtherSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
+        Expression scoreInOr = new Or(
+            Source.EMPTY,
+            runtimeMatch("dog"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
+        );
+        List<Double> scores = scoresAfterFilter(new And(Source.EMPTY, runtimeMatch("fox"), scoreInOr), "quick fox", "lazy dog", "fox dog");
+        // "quick fox" passes on the score of the "fox" match, rather than the 0.0 from before it, and "fox dog" scores both.
+        assertThat(scores, contains(foxScore, matchScore("fox", "fox dog") + matchScore("dog", "fox dog")));
+    }
+
+    public void testConditionWithoutSearchBeforeScorePredicateIsNotScored() throws IOException {
+        Expression scoreInOr = new Or(
+            Source.EMPTY,
+            runtimeMatch("fox"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE))
+        );
+        var operation = planFilter(new And(Source.EMPTY, new IsNotNull(Source.EMPTY, CONTENT), scoreInOr), "quick fox");
+        // IS NOT NULL holds no search, so it is filtered without a scorer, and only the conjunct holding the match is scored.
+        assertThat(
+            operation.intermediateOperatorFactories.stream().map(Object::getClass).toList(),
+            contains(
+                FilterOperator.FilterOperatorFactory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ScoreOperator.ScoreOperatorFactory.class
+            )
+        );
+    }
+
+    private static final ReferenceAttribute CONTENT = new ReferenceAttribute(Source.EMPTY, "content", DataType.TEXT);
+    private static final MetadataAttribute SCORE = new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false);
+
+    private static Match runtimeMatch(String query) {
+        Match match = new Match(Source.EMPTY, CONTENT, Literal.keyword(Source.EMPTY, query), null);
         assertTrue(match.isRuntimeSearch());
-        Expression condition = new And(Source.EMPTY, match, greaterThanOf(score, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE)));
-        var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block contents;
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
-            contents = builder.appendBytesRef(new BytesRef("quick fox")).appendBytesRef(new BytesRef("lazy dog")).build();
+        return match;
+    }
+
+    /** The score a runtime match on {@code query} gives a row of {@code content}. */
+    private double matchScore(String query, String content) throws IOException {
+        List<Double> scores = scoresAfterFilter(runtimeMatch(query), content);
+        assertThat(scores, hasSize(1));
+        return scores.get(0);
+    }
+
+    /** The {@code _score} of each row of {@code contents}, all starting at 0.0, that passes a filter on {@code condition}. */
+    private List<Double> scoresAfterFilter(Expression condition, String... contents) throws IOException {
+        List<Double> scores = new ArrayList<>();
+        for (Page page : runPlanned(planFilter(condition, contents))) {
+            DoubleBlock scoreBlock = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                scores.add(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(p)));
+            }
         }
-        Page input = new Page(contents, blockFactory.newDoubleArrayVector(new double[] { 0.0, 0.0 }, 2).asBlock());
+        return scores;
+    }
+
+    /** Plans a filter on {@code condition} over a row for each of {@code contents}, each with a {@code _score} of 0.0. */
+    private LocalExecutionPlanner.PhysicalOperation planFilter(Expression condition, String... contents) throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Block contentBlock;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(contents.length)) {
+            for (String content : contents) {
+                builder.appendBytesRef(new BytesRef(content));
+            }
+            contentBlock = builder.build();
+        }
+        Page input = new Page(contentBlock, blockFactory.newDoubleArrayVector(new double[contents.length], contents.length).asBlock());
         PhysicalPlan plan = new FilterExec(
             Source.EMPTY,
-            new LocalSourceExec(Source.EMPTY, List.of(content, score), LocalSupplier.of(input)),
+            new LocalSourceExec(Source.EMPTY, List.of(CONTENT, SCORE), LocalSupplier.of(input)),
             condition
         );
 
-        var operation = planner().plan(
+        return planner().plan(
             "test",
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
@@ -1522,17 +1595,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EmptyIndexedByShardId.instance(),
             false
         ).driverFactories.get(0).driverSupplier().physicalOperation();
-        List<Page> results = runPlanned(operation);
-        List<Double> scores = new ArrayList<>();
-        for (Page page : results) {
-            DoubleBlock scoreBlock = page.getBlock(1);
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                scores.add(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(p)));
-            }
-        }
-        // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
-        assertThat(scores, hasSize(1));
-        assertThat(scores.get(0), greaterThan(0.5));
     }
 
     private Add add(Expression left, Expression right) {

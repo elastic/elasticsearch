@@ -1,0 +1,5 @@
+Project[[m{r}#0, languages{f}#1, x{r}#2]]
+\_TopN[[Order[languages{f}#1,ASC,LAST]],20[INTEGER],false]
+  \_Eval[[null[NULL] AS m#0, null[INTEGER] AS x#2]]
+    \_Aggregate[[languages{f}#1],[languages{f}#1]]
+      \_EsRelation[employees][avg_worked_seconds{f}#3, birth_date{f}#4, emp_no{f}#5, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#1, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#18, salary{f}#19, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]

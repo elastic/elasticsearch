@@ -181,6 +181,11 @@ public final class UnmappedFields {
         private boolean mayIncludeBelow(String path) {
             return aboveNames.contains(path) || (filter != null && filter.mayIncludeBelow(path));
         }
+
+        /** Whether this walk reads the unmapped field {@code name}. */
+        public boolean reads(String name) {
+            return names.contains(name);
+        }
     }
 
     /**

@@ -474,12 +474,48 @@ teardown:
             from: docs
             size: 10
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 20
+              rescore_vector:
+                oversample: 100
 
   - is_false: baseline.exact
   - match: { baseline.visit_percentage: 20.0 }
   - match: { baseline.rescore_vector.oversample: 100.0 }
   - match: { results.0.recall: 1.0 }
+
+---
+"A candidate deeper than the baseline is rejected":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 21
+
+  - match: { error.reason: "/.*searches\\sdeeper\\sthan\\sthe\\sbaseline.*/" }
+
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          baseline:
+            visit_percentage: 50
+          knn_settings:
+            - visit_percentage: 60
+
+  - match: { error.reason: "/.*searches\\sdeeper\\sthan\\sthe\\sbaseline.*/" }
 
 ---
 "An evaluation can store its result in the task API":
@@ -572,7 +608,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - do:
       cluster.put_settings:
@@ -590,7 +626,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - length: { results: 1 }
 
@@ -613,7 +649,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - do:
       indices.put_settings:
@@ -631,7 +667,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - length: { results: 1 }
 
@@ -653,7 +689,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
 ---
 "A disabled index whose mapping can't be read is still refused":

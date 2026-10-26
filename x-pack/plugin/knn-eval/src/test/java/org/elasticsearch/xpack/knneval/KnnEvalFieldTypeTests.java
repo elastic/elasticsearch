@@ -91,21 +91,29 @@ public class KnnEvalFieldTypeTests extends ESTestCase {
 
     public void testDefaultBaselineIsBoundedAndNeverExact() {
         boolean sampling = randomBoolean();
-        int maxCandidates = sampling ? KnnEvalFieldType.MAX_NUM_CANDIDATES - 1 : KnnEvalFieldType.MAX_NUM_CANDIDATES;
-        KnnEvalSettings disk = fieldTypeFor("bbq_disk").defaultBaseline(sampling);
+        int k = randomIntBetween(1, KnnEvalSpec.MAX_K);
+        int limit = sampling ? KnnEvalFieldType.MAX_NUM_CANDIDATES - 1 : KnnEvalFieldType.MAX_NUM_CANDIDATES;
+        int expectedNumCandidates = Math.clamp(100L * k, 1000, limit);
+        KnnEvalSettings disk = fieldTypeFor("bbq_disk").defaultBaseline(k, sampling);
         assertEquals(20.0f, disk.getVisitPercentage(), 0.0f);
         assertEquals(100.0f, disk.getRescoreOversample(), 0.0f);
         assertNull(disk.getNumCandidates());
         assertFalse(disk.isExact());
 
-        KnnEvalSettings hnsw = fieldTypeFor("hnsw").defaultBaseline(sampling);
-        assertEquals(maxCandidates, hnsw.getNumCandidates().intValue());
+        KnnEvalSettings hnsw = fieldTypeFor("hnsw").defaultBaseline(k, sampling);
+        assertEquals(expectedNumCandidates, hnsw.getNumCandidates().intValue());
         assertNull(hnsw.getRescoreOversample());
         assertNull(hnsw.getVisitPercentage());
         assertFalse(hnsw.isExact());
 
-        KnnEvalSettings quantized = fieldTypeFor(randomFrom(QUANTIZED_GRAPH_TYPES)).defaultBaseline(sampling);
-        assertEquals(maxCandidates, quantized.getNumCandidates().intValue());
+        KnnEvalSettings quantized = fieldTypeFor(randomFrom(QUANTIZED_GRAPH_TYPES)).defaultBaseline(k, sampling);
+        assertEquals(expectedNumCandidates, quantized.getNumCandidates().intValue());
+        // the beam and the rescore window are the same depth between the floor and the limit
+        assertEquals(1000, fieldTypeFor("hnsw").defaultBaseline(10, false).getNumCandidates().intValue());
+        assertEquals(5000, fieldTypeFor("hnsw").defaultBaseline(50, false).getNumCandidates().intValue());
+        assertEquals(10_000, fieldTypeFor("hnsw").defaultBaseline(100, false).getNumCandidates().intValue());
+        assertEquals(9999, fieldTypeFor("hnsw").defaultBaseline(100, true).getNumCandidates().intValue());
+        assertEquals(10_000, fieldTypeFor("hnsw").defaultBaseline(KnnEvalSpec.MAX_K, false).getNumCandidates().intValue());
         assertEquals(100.0f, quantized.getRescoreOversample(), 0.0f);
         assertNull(quantized.getVisitPercentage());
         assertFalse(quantized.isExact());
@@ -146,6 +154,85 @@ public class KnnEvalFieldTypeTests extends ESTestCase {
             new KnnEvalSettings(null, null, null, true),
             role
         );
+    }
+
+    public void testRejectsADiskCandidateDeeperThanTheBaseline() {
+        KnnEvalFieldType disk = fieldTypeFor("bbq_disk");
+        float baselineVisit = randomFloatBetween(1.0f, 99.0f, true);
+        KnnEvalSettings baseline = new KnnEvalSettings(baselineVisit, null, null, false);
+        disk.validateDepth(baseline, new KnnEvalSettings(baselineVisit, null, null, false), 10);
+        disk.validateDepth(baseline, new KnnEvalSettings(randomFloatBetween(0.0f, baselineVisit, true), null, null, false), 10);
+        KnnEvalSettings deeper = visit(randomFloatBetween(Math.nextUp(baselineVisit), 100.0f, true));
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> disk.validateDepth(baseline, deeper, 10)).getMessage(),
+            containsString("searches deeper than the baseline")
+        );
+        // the default baseline is checked too
+        expectThrows(IllegalArgumentException.class, () -> disk.validateDepth(disk.defaultBaseline(10, false), visit(20.5f), 10));
+        // depth picked per query can't be compared
+        disk.validateDepth(baseline, new KnnEvalSettings(null, randomNumCandidates(), null, false), 10);
+        disk.validateDepth(new KnnEvalSettings(null, randomNumCandidates(), null, false), deeper, 10);
+        disk.validateDepth(visit(0.0f), deeper, 10);
+        disk.validateDepth(new KnnEvalSettings(null, null, null, true), visit(100.0f), 10);
+    }
+
+    private static KnnEvalSettings visit(float visitPercentage) {
+        return new KnnEvalSettings(visitPercentage, null, null, false);
+    }
+
+    public void testRejectsAGraphCandidateWithAWiderBeamThanTheBaseline() {
+        KnnEvalFieldType graph = withoutMappingOversample(randomFrom(GRAPH_TYPES));
+        int k = 10;
+        KnnEvalSettings baseline = new KnnEvalSettings(null, 1000, null, false);
+        graph.validateDepth(baseline, new KnnEvalSettings(null, randomIntBetween(k, 1000), null, false), k);
+        // an unset num_candidates defaults to 1.5 * k
+        graph.validateDepth(baseline, new KnnEvalSettings(null, null, null, false), k);
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> graph.validateDepth(baseline, new KnnEvalSettings(null, randomIntBetween(1001, 10_000), null, false), k)
+            ).getMessage(),
+            containsString("searches deeper than the baseline")
+        );
+        // the default baseline is checked too: 100 * k, with the quantized rescore window never widening past it
+        KnnEvalSettings defaultBaseline = graph.defaultBaseline(k, false);
+        graph.validateDepth(defaultBaseline, new KnnEvalSettings(null, 1000, null, false), k);
+        graph.validateDepth(defaultBaseline, new KnnEvalSettings(null, null, 100.0f, false), k);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> graph.validateDepth(defaultBaseline, new KnnEvalSettings(null, 1001, null, false), k)
+        );
+        KnnEvalSettings wideDefault = graph.defaultBaseline(50, false);
+        graph.validateDepth(wideDefault, new KnnEvalSettings(null, 5000, null, false), 50);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> graph.validateDepth(wideDefault, new KnnEvalSettings(null, 5001, null, false), 50)
+        );
+        graph.validateDepth(new KnnEvalSettings(null, null, null, true), new KnnEvalSettings(null, 10_000, null, false), k);
+    }
+
+    public void testRescoringWidensAQuantizedGraphBeam() {
+        int k = 10;
+        KnnEvalSettings baseline = new KnnEvalSettings(null, 100, null, false);
+        // k * oversample = 200 > num_candidates
+        KnnEvalSettings oversampled = new KnnEvalSettings(null, 100, 20.0f, false);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> withoutMappingOversample(randomFrom(QUANTIZED_GRAPH_TYPES)).validateDepth(baseline, oversampled, k)
+        );
+        // the mapping's oversample applies to both, so neither is wider
+        KnnEvalFieldType mapped = KnnEvalFieldType.fromFieldMapping(
+            "emb",
+            Map.of(
+                "type",
+                "dense_vector",
+                "index_options",
+                Map.of("type", randomFrom(QUANTIZED_GRAPH_TYPES), "rescore_vector", Map.of("oversample", 20.0))
+            )
+        );
+        mapped.validateDepth(baseline, new KnnEvalSettings(null, 100, null, false), k);
+        // an unquantized graph never rescores
+        withoutMappingOversample("hnsw").validateDepth(baseline, new KnnEvalSettings(null, 100, null, false), k);
     }
 
     public void testAutoCalibrateAppliesOnlyToDiskBbq() {

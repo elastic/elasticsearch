@@ -86,7 +86,7 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
         }
     }
 
-    public void testOmittedBaselineIsTheDeepestBeamAndIndexInfoIsReported() throws IOException {
+    public void testOmittedBaselineIsBoundedAndIndexInfoIsReported() throws IOException {
         createIndex();
         int k = randomIntBetween(1, 5);
         List<String> entries = new ArrayList<>();
@@ -104,8 +104,11 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
         KnnEvalResponse response = evaluate(k, String.join(",", entries));
 
         assertThat(response.getFailures(), anEmptyMap());
-        // a sampled query also retrieves its own document, so the beam is one short of the limit
-        assertEquals(Integer.valueOf(KnnEvalFieldType.MAX_NUM_CANDIDATES - 1), response.getBaseline().knnSettings().getNumCandidates());
+        // 100 * k is below the floor for these k
+        assertEquals(
+            Integer.valueOf(KnnEvalFieldType.MIN_BASELINE_NUM_CANDIDATES),
+            response.getBaseline().knnSettings().getNumCandidates()
+        );
         assertEquals(quantized ? Float.valueOf(100.0f) : null, response.getBaseline().knnSettings().getRescoreOversample());
         assertFalse(response.getBaseline().knnSettings().isExact());
         assertEquals(Map.of(INDEX, new KnnEvalResponse.IndexInfo(earlyTermination)), response.getIndexInfo());

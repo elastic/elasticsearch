@@ -360,7 +360,13 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         if (spec.getBaseline() != null) {
             fieldType.validateSettings(spec.getBaseline(), "baseline");
         }
-        spec.getKnnSettings().forEach(candidate -> fieldType.validateSettings(candidate, "knn_settings entry"));
+        KnnEvalSettings baseline = spec.getBaseline() != null
+            ? spec.getBaseline()
+            : fieldType.defaultBaseline(spec.getK(), spec.getQuerySource() instanceof KnnEvalQuerySource.DocsSource);
+        for (KnnEvalSettings candidate : spec.getKnnSettings()) {
+            fieldType.validateSettings(candidate, "knn_settings entry");
+            fieldType.validateDepth(baseline, candidate, spec.getK());
+        }
         validateQueryDimensions(field, firstResolution.dims(), spec.getQueries());
         return fieldType;
     }
@@ -468,7 +474,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     ) {
         KnnEvalSpec requested = request.getKnnEvalSpec();
         KnnEvalSpec spec = requested.getBaseline() == null
-            ? requested.withBaseline(fieldType.defaultBaseline(requested.getQuerySource() instanceof KnnEvalQuerySource.DocsSource))
+            ? requested.withBaseline(
+                fieldType.defaultBaseline(requested.getK(), requested.getQuerySource() instanceof KnnEvalQuerySource.DocsSource)
+            )
             : requested;
         switch (spec.getQuerySource()) {
             case KnnEvalQuerySource.VectorsSource vs -> evaluate(

@@ -61,7 +61,7 @@ setup:
             - num_candidates: 5
             - num_candidates: 12
 
-  - match: { baseline.num_candidates: 9999 }
+  - match: { baseline.num_candidates: 1000 }
   - match: { baseline_vector_ops_kind: full_precision_visit }
   - match: { index_info.hnsw_plain.hnsw_early_termination: true }
   - is_false: baseline.exact
@@ -91,7 +91,7 @@ setup:
   - match: { error.reason: "/\\[visit_percentage\\]\\sapplies\\sonly\\sto\\sbbq_disk.*/" }
 
 ---
-"Caller supplied query vectors get the full-size default baseline":
+"Caller supplied query vectors get the same default baseline":
   - do:
       knn_eval:
         index: hnsw_plain
@@ -106,10 +106,59 @@ setup:
           knn_settings:
             - num_candidates: 12
 
-  # no sampled document to leave out, so the beam is not one short of the limit
-  - match: { baseline.num_candidates: 10000 }
+  - match: { baseline.num_candidates: 1000 }
   - length: { failures: 0 }
   - match: { results.0.recall: 1.0 }
+
+---
+"A candidate deeper than the default baseline needs an explicit baseline":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          knn_settings:
+            - num_candidates: 1001
+  - match: { error.reason: "/.*searches\\sdeeper\\sthan\\sthe\\sbaseline.*beam\\s\\[1001\\].*\\[1000\\].*/" }
+
+  - do:
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          baseline:
+            num_candidates: 2000
+          knn_settings:
+            - num_candidates: 1001
+  - length: { results: 1 }
+  - length: { failures: 0 }
+
+  # the default beam is 100 * k above the 1000 floor; k stays below the 12 documents less the sampled one
+  - do:
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 11
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          knn_settings:
+            - num_candidates: 1100
+  - match: { baseline.num_candidates: 1100 }
+  - length: { failures: 0 }
 
 ---
 "An explicit baseline on an hnsw field is used as given":
@@ -150,6 +199,25 @@ setup:
           knn_settings:
             - num_candidates: 5
   - match: { error.reason: "/.*applies\\sonly\\sto\\sbbq_disk.*in\\sthe\\sbaseline.*/" }
+
+---
+"A candidate with a wider beam than the baseline is rejected":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          baseline:
+            num_candidates: 10
+          knn_settings:
+            - num_candidates: 20
+  - match: { error.reason: "/.*searches\\sdeeper\\sthan\\sthe\\sbaseline.*beam\\s\\[20\\].*\\[10\\].*/" }
 
 ---
 "An empty settings entry searches with the default num_candidates":

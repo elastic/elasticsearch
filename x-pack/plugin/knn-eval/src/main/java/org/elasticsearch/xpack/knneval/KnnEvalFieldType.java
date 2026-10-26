@@ -40,9 +40,15 @@ record KnnEvalFieldType(VectorIndexType indexType, @Nullable Float mappingOversa
 
     private static final List<String> SUPPORTED_NAMES = SUPPORTED.stream().map(VectorIndexType::getName).toList();
 
-    /** Quantized baselines rescore deeply so their reference scores are full precision. */
-    private static final float BASELINE_OVERSAMPLE = 100.0f;
+    /**
+     * The baseline's depth as a multiple of k: graphs search this many times k, and quantized baselines rescore that same
+     * window, so the beam and the full-precision window are one number. DiskBBQ's visit is a percentage, so it shares only the rescore.
+     */
+    static final int BASELINE_DEPTH_FACTOR = 100;
+    private static final float BASELINE_OVERSAMPLE = BASELINE_DEPTH_FACTOR;
     private static final float BBQ_DISK_BASELINE_VISIT_PERCENTAGE = 20.0f;
+    /** The shallowest default beam, for small k. */
+    static final int MIN_BASELINE_NUM_CANDIDATES = 1000;
 
     static final int MAX_NUM_CANDIDATES = KnnSearchBuilder.NUM_CANDS_LIMIT;
 
@@ -91,15 +97,17 @@ record KnnEvalFieldType(VectorIndexType indexType, @Nullable Float mappingOversa
     }
 
     /**
-     * Bounded, never exact: the deepest beam for graphs, a fifth of the postings for DiskBBQ. DiskBBQ's baseline leaves
-     * {@code num_candidates} unset because an explicit {@code visit_percentage} makes it inert.
+     * Bounded, never exact: a beam of {@link #BASELINE_DEPTH_FACTOR} times k for graphs (1,000 to the search limit), a fifth of
+     * the postings for DiskBBQ. Deeper candidates are rejected by {@link #validateDepth}, so these need an explicit baseline.
+     * DiskBBQ's baseline leaves {@code num_candidates} unset because an explicit {@code visit_percentage} makes it inert.
      */
-    KnnEvalSettings defaultBaseline(boolean sampling) {
+    KnnEvalSettings defaultBaseline(int k, boolean sampling) {
         if (isGraph() == false) {
             return new KnnEvalSettings(BBQ_DISK_BASELINE_VISIT_PERCENTAGE, null, BASELINE_OVERSAMPLE, false);
         }
         // a sampled query also retrieves its own document: one extra candidate
-        int numCandidates = sampling ? MAX_NUM_CANDIDATES - 1 : MAX_NUM_CANDIDATES;
+        int limit = sampling ? MAX_NUM_CANDIDATES - 1 : MAX_NUM_CANDIDATES;
+        int numCandidates = Math.clamp((long) BASELINE_DEPTH_FACTOR * k, MIN_BASELINE_NUM_CANDIDATES, limit);
         return new KnnEvalSettings(null, numCandidates, isQuantized() ? BASELINE_OVERSAMPLE : null, false);
     }
 
@@ -117,6 +125,53 @@ record KnnEvalFieldType(VectorIndexType indexType, @Nullable Float mappingOversa
         if (problem != null) {
             throw new IllegalArgumentException(problem + ", in the " + role + " " + settings);
         }
+    }
+
+    /**
+     * Rejects a candidate that searches deeper than an approximate baseline: true neighbors only the candidate finds would
+     * count as its misses. A DiskBBQ search without {@code visit_percentage} picks its depth per query, so it can't be compared.
+     */
+    void validateDepth(KnnEvalSettings baseline, KnnEvalSettings candidate, int k) {
+        if (baseline.isExact()) {
+            return;
+        }
+        String problem = null;
+        if (isGraph()) {
+            int baselineBeam = graphBeam(baseline, k);
+            int candidateBeam = graphBeam(candidate, k);
+            if (candidateBeam > baselineBeam) {
+                problem = Strings.format("its search beam [%d] is wider than the baseline's [%d]", candidateBeam, baselineBeam);
+            }
+        } else if (hasFixedVisit(baseline) && hasFixedVisit(candidate) && candidate.getVisitPercentage() > baseline.getVisitPercentage()) {
+            problem = "its [visit_percentage] is higher than the baseline's";
+        }
+        if (problem != null) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "knn_settings entry %s searches deeper than the baseline %s: %s; deepen the baseline or use [exact]",
+                    candidate,
+                    baseline,
+                    problem
+                )
+            );
+        }
+    }
+
+    /** Unset or 0 lets DiskBBQ pick the visit ratio per query. */
+    private static boolean hasFixedVisit(KnnEvalSettings settings) {
+        return settings.getVisitPercentage() != null && settings.getVisitPercentage() > 0;
+    }
+
+    /** Per segment, the graph search collects {@code max(num_candidates, k * oversample)} when it rescores. */
+    private int graphBeam(KnnEvalSettings settings, int k) {
+        int numCandidates = settings.getNumCandidates() != null
+            ? settings.getNumCandidates()
+            : Math.round(Math.min(KnnSearchBuilder.NUM_CANDS_LIMIT, KnnSearchBuilder.NUM_CANDS_MULTIPLICATIVE_FACTOR * k));
+        Float oversample = effectiveOversample(settings.getRescoreOversample());
+        if (isQuantized() && oversample != null && oversample > 0) {
+            return Math.max(numCandidates, Math.min((int) Math.ceil(k * oversample), DenseVectorFieldMapper.OVERSAMPLE_LIMIT));
+        }
+        return numCandidates;
     }
 
     /** True if nothing rescores these hits, so their scores are estimates. Exact searches are always full precision. */

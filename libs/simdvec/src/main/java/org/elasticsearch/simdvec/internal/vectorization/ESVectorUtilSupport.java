@@ -168,6 +168,15 @@ public interface ESVectorUtilSupport {
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#mayContainIgnoringAsciiCase}. */
+    boolean mayContainIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfCandidateIgnoringAsciiCase}. */
+    int indexOfCandidateIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#anyNonAscii}. */
+    boolean anyNonAscii(byte[] value, int offset, int length);
+
     void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
 
     void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
@@ -187,4 +196,6 @@ public interface ESVectorUtilSupport {
     void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor);
 
     void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
+
+    void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result);
 }

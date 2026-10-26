@@ -2598,6 +2598,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
 
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
+                final IndexMetadata indexMetadata = projectState.metadata().index(shardId.getIndex());
+                // A deleted index has no target nodes, so this iterator is never sent and IRRELEVANT is never serialized.
+                final SplitShardCountSummary splitShardCountSummary = indexMetadata == null
+                    ? SplitShardCountSummary.IRRELEVANT
+                    : SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
                 iterators.add(
                     new SearchShardIterator(
                         localClusterAlias,
@@ -2614,10 +2619,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // In context of PIT the searcher is reused or can be recreated only in read-only scenarios.
                         // If a searcher is reused, this value won't be used
                         // (it was calculated and used when PIT was created).
-                        // If the searcher is recreated, which will happen when PITs are relocatable, then we should supply
-                        // the same summary when recreating the search that was first used in order to produce the same
-                        // filtering decision. See ES-13264 for the work needed when relocatable PITs land.
-                        SplitShardCountSummary.UNSET
+                        // If the search is recreated via PIT relocation, the summary is supplied through OpenPITReshardingState.
+                        splitShardCountSummary
                     )
                 );
             }
@@ -2643,6 +2646,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean shouldSort
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
+        concreteIndices = ignoreIndicesWithoutSlices(projectState, searchRequest, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
             projectState.metadata(),
             searchRequest.routing(),
@@ -2680,6 +2684,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
+    }
+
+    /**
+     * Indices without slices hold no document of any slice, so a request that names slices does not search them.
+     */
+    static String[] ignoreIndicesWithoutSlices(ProjectState projectState, SearchRequest searchRequest, String[] concreteIndices) {
+        if (searchRequest.isRoutingFromSlice() == false || searchRequest.routing() == null) {
+            return concreteIndices;
+        }
+        final ProjectMetadata project = projectState.metadata();
+        return Arrays.stream(concreteIndices)
+            .filter(index -> IndexSettings.SLICE_ENABLED.get(project.index(index).getSettings()))
+            .toArray(String[]::new);
     }
 
     static String[] ignoreBlockedIndices(ProjectState projectState, String[] concreteIndices) {

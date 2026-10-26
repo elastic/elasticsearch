@@ -27,10 +27,12 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -59,7 +61,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -74,6 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
@@ -139,7 +141,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -166,6 +168,9 @@ public class BooleanFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 meta,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 indexed,
                 nullValue,
                 stored,
@@ -252,6 +257,8 @@ public class BooleanFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
+
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value((Boolean) v);
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -361,7 +368,9 @@ public class BooleanFieldMapper extends FieldMapper {
             return switch (sValue) {
                 case "true" -> Values.TRUE;
                 case "false" -> Values.FALSE;
-                default -> throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
+                default -> throw new IllegalArgumentException(
+                    "Can't parse boolean value [" + truncateForError(sValue) + "], expected [true] or [false]"
+                );
             };
         }
 
@@ -652,7 +661,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                        FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                     }
                     return;
                 } else {
@@ -663,9 +672,9 @@ public class BooleanFieldMapper extends FieldMapper {
         indexValue(context, value);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }
@@ -778,20 +787,18 @@ public class BooleanFieldMapper extends FieldMapper {
                 )
             );
         }
-        EscfColumnData outData = booleansToLongs(source);
+        EscfColumnData outData = booleansToLongs(source, ctx.recycler());
+        // Register ownership before building the columns so that the buffers are released even if a later step throws.
+        ctx.addResource(outData);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(
-                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT),
-                outData
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
             );
         } else {
-            ctx.addColumn(
-                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT),
-                outData
-            );
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
         }
         if (indexed || stored) {
-            EscfColumnData termsData = booleansToTerms(outData);
+            EscfColumnData termsData = booleansToTerms(outData, ctx.recycler());
             ctx.addResource(termsData);
             if (indexed) {
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), StringField.TYPE_NOT_STORED));
@@ -802,13 +809,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    private EscfColumnData booleansToLongs(EscfColumn source) {
-        try (
-            EscfColumnBuilder builder = new EscfColumnBuilder(
-                EscfColumnBuilder.CollisionPolicy.MERGE,
-                BytesRefRecycler.NON_RECYCLING_INSTANCE
-            )
-        ) {
+    private EscfColumnData booleansToLongs(EscfColumn source, Recycler<BytesRef> recycler) {
+        try (EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler)) {
             builder.lockScalar(EscfColumnKind.LONG);
             if (source.kind() == EscfColumnKind.BOOL) {
                 FixedBitSet boolValues = source.columnData().values();
@@ -833,13 +835,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    private EscfColumnData booleansToTerms(EscfColumnData longData) {
-        try (
-            EscfColumnBuilder builder = new EscfColumnBuilder(
-                EscfColumnBuilder.CollisionPolicy.MERGE,
-                BytesRefRecycler.NON_RECYCLING_INSTANCE
-            )
-        ) {
+    private EscfColumnData booleansToTerms(EscfColumnData longData, Recycler<BytesRef> recycler) {
+        try (EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler)) {
             builder.lockScalar(EscfColumnKind.STRING);
             LongTupleCursor cursor = EscfColumn.from(longData).longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {

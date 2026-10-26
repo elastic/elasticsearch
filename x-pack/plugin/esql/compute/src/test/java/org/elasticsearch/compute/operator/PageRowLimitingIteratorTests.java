@@ -100,6 +100,53 @@ public class PageRowLimitingIteratorTests extends ComputeTestCase {
         }
     }
 
+    public void testIsExhaustedFalseUntilLocalLimitWithoutAskingHasNext() throws IOException {
+        AtomicBoolean hasNextOnDelegate = new AtomicBoolean();
+        AtomicBoolean exhaustedOnDelegate = new AtomicBoolean();
+        CloseableIterator<Page> delegate = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                hasNextOnDelegate.set(true);
+                throw new AssertionError("must not call hasNext");
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                return SubscribableListener.newSucceeded(null);
+            }
+
+            @Override
+            public Page tryAdvance() {
+                return page(10);
+            }
+
+            @Override
+            public boolean isExhausted() {
+                exhaustedOnDelegate.set(true);
+                return false;
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        try (var iter = new PageRowLimitingIterator(delegate, 50)) {
+            assertFalse("remaining budget is not EOF", iter.isExhausted());
+            assertTrue(exhaustedOnDelegate.get());
+            assertFalse(hasNextOnDelegate.get());
+            try (Page p = iter.tryAdvance()) {
+                assertEquals(10, p.getPositionCount());
+            }
+            assertFalse(iter.isExhausted());
+            assertFalse(hasNextOnDelegate.get());
+        }
+    }
+
     public void testWaitForReadyIsDoneAfterLocalLimitWithoutAskingDelegate() throws IOException {
         SubscribableListener<Void> blocked = new SubscribableListener<>();
         AtomicBoolean waitForReadyOnDelegate = new AtomicBoolean();
@@ -126,6 +173,11 @@ public class PageRowLimitingIteratorTests extends ComputeTestCase {
             }
 
             @Override
+            public boolean isExhausted() {
+                throw new AssertionError("local LIMIT must not ask delegate isExhausted");
+            }
+
+            @Override
             public void close() {}
         };
 
@@ -134,6 +186,7 @@ public class PageRowLimitingIteratorTests extends ComputeTestCase {
                 assertEquals(50, p.getPositionCount());
             }
             assertTrue("local LIMIT is EOF; drain must not park on the delegate GET", iter.waitForReady().isDone());
+            assertTrue("local LIMIT is exhausted without asking the delegate", iter.isExhausted());
             assertNull(iter.tryAdvance());
             assertFalse(waitForReadyOnDelegate.get());
             assertFalse(blocked.isDone());

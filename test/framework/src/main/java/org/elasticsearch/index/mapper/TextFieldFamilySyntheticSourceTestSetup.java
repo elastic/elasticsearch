@@ -195,9 +195,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
                 if (docValues.multiValue() == false) {
-                    b.startObject("doc_values");
                     b.field("multi_value", false);
-                    b.endObject();
                 } else {
                     b.field("doc_values", true);
                 }

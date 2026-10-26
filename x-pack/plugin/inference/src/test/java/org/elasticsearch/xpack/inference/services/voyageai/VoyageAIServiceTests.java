@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettingsTests;
@@ -1400,8 +1401,15 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testDefaultSimilarity() {
-        assertEquals(SimilarityMeasure.DOT_PRODUCT, VoyageAIService.defaultSimilarity());
+    public void testDefaultSimilarity_FloatEmbedding() {
+        assertEquals(SimilarityMeasure.COSINE, VoyageAIService.defaultSimilarity(VoyageAIEmbeddingType.FLOAT));
+    }
+
+    public void testDefaultSimilarity_NonFloatEmbedding() {
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, VoyageAIService.defaultSimilarity(VoyageAIEmbeddingType.INT8));
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, VoyageAIService.defaultSimilarity(VoyageAIEmbeddingType.BYTE));
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, VoyageAIService.defaultSimilarity(VoyageAIEmbeddingType.BIT));
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, VoyageAIService.defaultSimilarity(VoyageAIEmbeddingType.BINARY));
     }
 
     @SuppressWarnings("checkstyle:LineLength")

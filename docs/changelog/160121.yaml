@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 159328
+pr: 160121
+summary: Charge the request circuit breaker for document field memory
+type: enhancement

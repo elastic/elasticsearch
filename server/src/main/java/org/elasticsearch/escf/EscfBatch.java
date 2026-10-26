@@ -36,6 +36,7 @@ public final class EscfBatch implements SourceBatch {
     private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
+    private boolean closed;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
@@ -87,6 +88,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        assert closed == false : "batch already closed";
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -105,6 +107,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
+        assert closed == false : "batch already closed";
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
@@ -113,6 +116,7 @@ public final class EscfBatch implements SourceBatch {
 
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
+        assert closed == false : "batch already closed";
         return columns[columnIndex];
     }
 
@@ -123,6 +127,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
+        assert closed == false : "batch already closed";
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -139,6 +144,8 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
+        assert closed == false : "batch already closed";
+        closed = true;
         releasable.close();
     }
 

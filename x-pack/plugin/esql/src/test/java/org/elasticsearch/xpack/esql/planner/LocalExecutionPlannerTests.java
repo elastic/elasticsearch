@@ -17,13 +17,23 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -38,9 +48,12 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -49,12 +62,16 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -64,9 +81,11 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -75,27 +94,44 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.Connector;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -104,7 +140,9 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -117,19 +155,26 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
@@ -447,6 +492,147 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
+     * The credential backstop: a source with no registered dataset behind it cannot be bound to this node's definitions,
+     * and on a release build nothing honest plans one, so the operator build refuses it. The same exec passes on a
+     * snapshot build, where the inline {@code EXTERNAL} command legitimately has no dataset.
+     */
+    public void testExternalSourceWithoutDatasetRefusedOnReleaseBuild() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", capturingProvider(captured)),
+            Runnable::run
+        );
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of("auth", "federated_identity", "role_arn", "arn:aws:iam::123456789012:role/attacker"),
+            Map.of(),
+            null,
+            10
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> planner(operatorFactoryRegistry, true, null, false).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external dataset [] is not registered on this node"));
+        assertNull("no operator must be built for a refused source", captured.get());
+
+        planner(operatorFactoryRegistry, true, null, true).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        assertNotNull("a snapshot build plans the inline-EXTERNAL shape", captured.get());
+    }
+
+    /**
+     * A plan-carried source type must not dispatch a registered dataset's file settings through another source factory.
+     */
+    public void testRegisteredDatasetRefusedThroughConnectorSourceType() throws IOException {
+        AtomicReference<Map<String, Object>> opened = new AtomicReference<>();
+        ConnectorFactory connector = new ConnectorFactory() {
+            @Override
+            public String type() {
+                return "flight";
+            }
+
+            @Override
+            public boolean canHandle(String location) {
+                return true;
+            }
+
+            @Override
+            public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public Connector open(Map<String, Object> config) {
+                opened.set(config);
+                throw new AssertionError("a registered dataset must never reach a connector");
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "flight");
+        assertNull(opened.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughTableCatalogSourceType() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        TableCatalog catalog = new TableCatalog() {
+            @Override
+            public String catalogType() {
+                return "catalog";
+            }
+
+            @Override
+            public boolean canHandle(String path) {
+                return true;
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public SourceMetadata metadata(String tablePath, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<TableCatalog.DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public SourceOperatorFactoryProvider operatorFactory() {
+                return capturingProvider(captured);
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("catalog", catalog), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "catalog");
+        assertNull(captured.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughLegacyPluginFactory() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("legacy", capturingProvider(captured)),
+            Runnable::run
+        );
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "legacy");
+        assertNull(captured.get());
+    }
+
+    /**
      * {@link LocalExecutionPlanner} must pass {@link OperatorFactoryRegistry#executor()} and
      * {@link OperatorFactoryRegistry#fileReadExecutor()} into {@link SourceOperatorContext} separately.
      * Production wires the main executor to external-source work and {@code fileReadExecutor} to
@@ -619,20 +805,71 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * The planner passes the partition stamp through and does not classify {@code _file.*} by name.
+     * Ownership of those names is decided from the attributes at the operator factory.
+     */
+    public void testExternalSourceDoesNotAddFileMetadataNamesToPartitionStamp() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                FileMetadataColumns.PATH,
+                new EsField(FileMetadataColumns.PATH, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/data/*.parquet",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withSplits(
+            List.of(new FileSplit("file", StoragePath.of("s3://test-bucket/data/f.parquet"), 0, 10, ".parquet", Map.of(), Map.of()))
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().partitionColumnNames(), equalTo(Set.of()));
+    }
+
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
+        mappingKeepsUnmappedFields = true;
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
+        assertThat(blockLoader.loader().toString(), startsWith("UnmappedFields.Named["));
     }
 
-    public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
+    /**
+     * A shard whose mapping maps every field, and that skipped none, holds no unmapped field to read.
+     */
+    public void testPlanUnmappedFieldExtractStoredSourceWithoutUnmappedFields() throws Exception {
+        var blockLoader = constructBlockLoader();
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A synthetic {@code _source} keeps unmapped fields in {@code _ignored_source}, which no segment of these shards has.
+     */
+    public void testPlanUnmappedFieldExtractSyntheticSourceWithoutUnmappedFields() throws Exception {
         settings = Settings.builder().put(settings).put("index.mapping.source.mode", "synthetic").build();
+        mappingKeepsUnmappedFields = true;
 
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
-    }
-
-    private static void assertUnmappedFieldLoader(BlockLoader loader) {
-        assertThat(loader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
     }
 
     public void testTimeSeries() throws IOException {
@@ -680,7 +917,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
-            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold()
+            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
+            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -783,6 +1021,38 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             sourceFactory,
             instanceOf(LocalSourceOperator.LocalSourceFactory.class)
         );
+    }
+
+    public void testStreamingOutput() throws IOException {
+        int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
+        EsQueryExec esQueryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            estimatedRowSize,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            streamingOutput,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        var physicalOperation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(physicalOperation.sourceOperatorFactory, instanceOf(LuceneSourceOperator.Factory.class));
+        var sinkFactory = (StreamingPageOperator.Factory) physicalOperation.sinkOperatorFactory;
+        assertThat(sinkFactory.stream(), sameInstance(pageStream));
+        assertThat(sinkFactory.alignment(), notNullValue());
     }
 
     private static List<Attribute> buildMetricsInfoAttributes() {
@@ -1128,12 +1398,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * Plans then runs a Mapper-shaped InnerJoin physical plan end to end.
      */
     private List<Page> runInnerJoin(PhysicalPlan innerJoin) throws IOException {
-        var op = planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation();
-        var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        var runner = new TestDriverRunner().builder(driverContext);
-        runner.input(op.sourceOperatorFactory.get(driverContext));
-        return runner.run(op.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
+        return runPlanned(planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation());
     }
 
     /** Asserts single-key InnerJoin pages in InnerJoin.output() order: build value, then left key. */
@@ -1157,18 +1422,410 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * columns, in InnerJoin.output() order (added build columns, then left join keys).
      */
     private void assertInnerJoinRows(List<Page> results, List<List<Long>> expectedRows) {
+        assertThat(longRows(results), equalTo(expectedRows));
+    }
+
+    /**
+     * Aliases of one {@code Eval} that read aliases defined earlier in the same {@code Eval} (a chain, an alias reading
+     * only the input between them, one reading two earlier ones, a bare copy of an earlier one, and a last one named like
+     * the input column) read the right channels.
+     */
+    public void testEvalAliasesReadingEarlierAliases() throws IOException {
+        ReferenceAttribute x = new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG);
+        Alias a = new Alias(Source.EMPTY, "a", add(x, literal(1)));
+        Alias b = new Alias(Source.EMPTY, "b", add(a.toAttribute(), literal(10)));
+        Alias c = new Alias(Source.EMPTY, "c", add(x, literal(100)));
+        Alias d = new Alias(Source.EMPTY, "d", add(b.toAttribute(), c.toAttribute()));
+        Alias copy = new Alias(Source.EMPTY, "copy", d.toAttribute());
+        Alias shadow = new Alias(Source.EMPTY, "x", add(copy.toAttribute(), literal(1000)));
+        List<Alias> aliases = List.of(a, b, c, d, copy, shadow);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Page input = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
+
+        var operation = planEval(List.of(x), input, aliases);
+        assertThat(operation.intermediateOperatorFactories, hasSize(aliases.size()));
+        assertThat(operation.layout().numberOfChannels(), equalTo(1 + aliases.size()));
+        assertThat(operation.layout().get(x.id()).channel(), equalTo(0));
+        for (int i = 0; i < aliases.size(); i++) {
+            assertThat(operation.layout().get(aliases.get(i).id()).channel(), equalTo(1 + i));
+        }
+
         List<List<Long>> rows = new ArrayList<>();
-        for (Page page : results) {
+        for (long v : new long[] { 1, 2, 3 }) {
+            long av = v + 1;
+            long bv = av + 10;
+            long cv = v + 100;
+            long dv = bv + cv;
+            rows.add(List.of(v, av, bv, cv, dv, dv, dv + 1000));
+        }
+        assertThat(longRows(runPlanned(operation)), equalTo(rows));
+    }
+
+    /**
+     * Simulating a {@code FILLNULL <value> ON *} command: many aliases that each read only their own input column.
+     * EVAL f1 = COALESCE(f1, -1), f2 = COALESCE(f2, -1), f3 = COALESCE(f3, -1).....
+     */
+    public void testEvalManyAliasesReadingOnlyInputs() throws IOException {
+        int columns = between(50, 200);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<Attribute> inputs = new ArrayList<>(columns);
+        List<Alias> aliases = new ArrayList<>(columns);
+        Block[] blocks = new Block[columns];
+        for (int i = 0; i < columns; i++) {
+            ReferenceAttribute f = new ReferenceAttribute(Source.EMPTY, "f" + i, DataType.LONG);
+            inputs.add(f);
+            aliases.add(new Alias(Source.EMPTY, "f" + i, new Coalesce(Source.EMPTY, f, List.of(literal(-1)))));
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+                blocks[i] = builder.appendLong(i).appendNull().appendLong(2L * i).build();
+            }
+        }
+
+        var operation = planEval(inputs, new Page(blocks), aliases);
+        assertThat(operation.intermediateOperatorFactories, hasSize(columns));
+        // EVAL never overwrites a channel; it always adds a new one, and the old column is only hidden later by a projection
+        // thus the twice the number of channels here at this point
+        assertThat(operation.layout().numberOfChannels(), equalTo(2 * columns));
+        for (int i = 0; i < columns; i++) {
+            assertThat(operation.layout().get(aliases.get(i).id()).channel(), equalTo(columns + i));
+        }
+
+        List<List<Long>> rows = longRows(runPlanned(operation));
+        assertThat(rows, hasSize(3));
+        for (int i = 0; i < columns; i++) {
+            assertThat(rows.get(0).get(columns + i), equalTo((long) i));
+            assertThat(rows.get(1).get(columns + i), equalTo(-1L));
+            assertThat(rows.get(2).get(columns + i), equalTo(2L * i));
+        }
+    }
+
+    public void testScorePredicateInFilterSeesItsSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
+        Expression condition = new And(
+            Source.EMPTY,
+            runtimeMatch("fox"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
+        );
+        List<Double> scores = scoresAfterFilter(condition, "quick fox", "lazy dog");
+        // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
+        assertThat(scores, contains(foxScore));
+    }
+
+    public void testScorePredicateInOrSeesOtherSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
+        Expression scoreInOr = new Or(
+            Source.EMPTY,
+            runtimeMatch("dog"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
+        );
+        List<Double> scores = scoresAfterFilter(new And(Source.EMPTY, runtimeMatch("fox"), scoreInOr), "quick fox", "lazy dog", "fox dog");
+        // "quick fox" passes on the score of the "fox" match, rather than the 0.0 from before it, and "fox dog" scores both.
+        assertThat(scores, contains(foxScore, matchScore("fox", "fox dog") + matchScore("dog", "fox dog")));
+    }
+
+    public void testConditionWithoutSearchBeforeScorePredicateIsNotScored() throws IOException {
+        Expression scoreInOr = new Or(
+            Source.EMPTY,
+            runtimeMatch("fox"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE))
+        );
+        var operation = planFilter(new And(Source.EMPTY, new IsNotNull(Source.EMPTY, CONTENT), scoreInOr), "quick fox");
+        // IS NOT NULL holds no search, so it is filtered without a scorer, and only the conjunct holding the match is scored.
+        assertThat(
+            operation.intermediateOperatorFactories.stream().map(Object::getClass).toList(),
+            contains(
+                FilterOperator.FilterOperatorFactory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ScoreOperator.ScoreOperatorFactory.class
+            )
+        );
+    }
+
+    private static final ReferenceAttribute CONTENT = new ReferenceAttribute(Source.EMPTY, "content", DataType.TEXT);
+    private static final MetadataAttribute SCORE = new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false);
+
+    private static Match runtimeMatch(String query) {
+        Match match = new Match(Source.EMPTY, CONTENT, Literal.keyword(Source.EMPTY, query), null);
+        assertTrue(match.isRuntimeSearch());
+        return match;
+    }
+
+    /** The score a runtime match on {@code query} gives a row of {@code content}. */
+    private double matchScore(String query, String content) throws IOException {
+        List<Double> scores = scoresAfterFilter(runtimeMatch(query), content);
+        assertThat(scores, hasSize(1));
+        return scores.get(0);
+    }
+
+    /** The {@code _score} of each row of {@code contents}, all starting at 0.0, that passes a filter on {@code condition}. */
+    private List<Double> scoresAfterFilter(Expression condition, String... contents) throws IOException {
+        List<Double> scores = new ArrayList<>();
+        for (Page page : runPlanned(planFilter(condition, contents))) {
+            DoubleBlock scoreBlock = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                scores.add(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(p)));
+            }
+        }
+        return scores;
+    }
+
+    /** Plans a filter on {@code condition} over a row for each of {@code contents}, each with a {@code _score} of 0.0. */
+    private LocalExecutionPlanner.PhysicalOperation planFilter(Expression condition, String... contents) throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Block contentBlock;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(contents.length)) {
+            for (String content : contents) {
+                builder.appendBytesRef(new BytesRef(content));
+            }
+            contentBlock = builder.build();
+        }
+        Page input = new Page(contentBlock, blockFactory.newDoubleArrayVector(new double[contents.length], contents.length).asBlock());
+        PhysicalPlan plan = new FilterExec(
+            Source.EMPTY,
+            new LocalSourceExec(Source.EMPTY, List.of(CONTENT, SCORE), LocalSupplier.of(input)),
+            condition
+        );
+
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            EmptyIndexedByShardId.instance(),
+            false
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private Add add(Expression left, Expression right) {
+        return new Add(Source.EMPTY, left, right, config());
+    }
+
+    private static Literal literal(long value) {
+        return new Literal(Source.EMPTY, value, DataType.LONG);
+    }
+
+    private LocalExecutionPlanner.PhysicalOperation planEval(List<Attribute> inputs, Page input, List<Alias> aliases) throws IOException {
+        PhysicalPlan plan = new EvalExec(Source.EMPTY, new LocalSourceExec(Source.EMPTY, inputs, LocalSupplier.of(input)), aliases);
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private static List<Page> runPlanned(LocalExecutionPlanner.PhysicalOperation operation) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(operation.sourceOperatorFactory.get(driverContext));
+        return runner.run(operation.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
+    }
+
+    /** Every row of {@code pages} as a list of its {@code long} values, {@code null} where the position is null. */
+    private static List<List<Long>> longRows(List<Page> pages) {
+        List<List<Long>> rows = new ArrayList<>();
+        for (Page page : pages) {
             for (int p = 0; p < page.getPositionCount(); p++) {
                 List<Long> row = new ArrayList<>();
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     LongBlock block = page.getBlock(b);
-                    row.add(block.getLong(block.getFirstValueIndex(p)));
+                    row.add(block.isNull(p) ? null : block.getLong(block.getFirstValueIndex(p)));
                 }
                 rows.add(row);
             }
         }
-        assertThat(rows, equalTo(expectedRows));
+        return rows;
+    }
+
+    /** Only membership in the selected project determines the parent data stream, regardless of the index name. */
+    public void testResolveDataStreamName() {
+        List<String> backingNames = List.of(
+            "custom-backing-index",
+            ".ds-misleading-name-2024.01.15-000001",
+            "partial-.ds-metrics-2024.01.15-000002",
+            "restored-.ds-metrics-2024.01.15-000003",
+            "shrink-abc123-.ds-metrics-2024.01.15-000004",
+            "downsample-1h-.ds-metrics-2024.01.15-000005",
+            "partial-restored-shrink-abc123-downsample-1h-.ds-metrics-2024.01.15-000006"
+        );
+        List<Index> backingIndices = new ArrayList<>();
+        var builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (String name : backingNames) {
+            var index = IndexMetadata.builder(name)
+                .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            builder.put(index, false);
+            backingIndices.add(index.getIndex());
+        }
+        String standaloneIndex = "partial-.ds-metrics-2024.01.15-000007";
+        builder.put(
+            IndexMetadata.builder(standaloneIndex).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
+        );
+        builder.put(DataStreamTestHelper.newInstance("metrics", backingIndices));
+        ProjectMetadata metadata = builder.build();
+        for (String prefix : List.of("", "remote:")) {
+            for (String name : backingNames) {
+                assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + name), equalTo(prefix + "metrics"));
+            }
+            assertNull(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + standaloneIndex));
+            String missingIndex = prefix + ".ds-deleted-2024.01.15-000001";
+            assertNull(LocalExecutionPlanner.resolveDataStreamName(metadata, missingIndex));
+            assertNull(
+                LocalExecutionPlanner.resolveDataStreamName(
+                    ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+                    prefix + backingNames.getFirst()
+                )
+            );
+        }
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForEisJina() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, null, DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE);
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForTheDefaultEndpoint() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.DEFAULT_INFERENCE_ID, null, DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE);
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheUnnamedSizeForAUserEndpoint() throws IOException {
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", null, DenseVector.UNNAMED_ENDPOINT_BATCH_SIZE);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeIsUsedForAUserEndpoint() throws IOException {
+        int configured = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", configured, configured);
+    }
+
+    /** A configured size is used even where it exceeds what {@link DenseVector#defaultBatchSizeFor} would have chosen. */
+    public void testConfiguredDenseVectorBatchSizeOverridesTheEndpointSize() throws IOException {
+        int configured = DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE + between(1, 100);
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, configured, configured);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeBelowTheEndpointSizeIsUsed() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 4, 4);
+    }
+
+    public void testDenseVectorEmbeddingUsesInternalIngestInputType() throws IOException {
+        EmbeddingOperator.Factory embedding = (EmbeddingOperator.Factory) denseVectorOperatorFactory(
+            "my-own-embedding-endpoint",
+            null,
+            TaskType.EMBEDDING
+        );
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    /**
+     * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
+     * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
+     */
+    private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize) throws IOException {
+        TextEmbeddingOperator.Factory embedding = (TextEmbeddingOperator.Factory) denseVectorOperatorFactory(
+            inferenceId,
+            configuredBatchSize,
+            TaskType.TEXT_EMBEDDING
+        );
+        assertThat(embedding.inferenceId(), equalTo(inferenceId));
+        assertThat(embedding.batchSize(), equalTo(expectedBatchSize));
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    private Operator.OperatorFactory denseVectorOperatorFactory(String inferenceId, Integer configuredBatchSize, TaskType endpointTaskType)
+        throws IOException {
+        ReferenceAttribute input = new ReferenceAttribute(Source.EMPTY, "input", DataType.KEYWORD);
+        ReferenceAttribute generated = new ReferenceAttribute(Source.EMPTY, "input_dense_vector", DataType.DENSE_VECTOR);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        LocalSourceExec source = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(input),
+            LocalSupplier.of(new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("a book title"), 1)))
+        );
+        DenseVectorExec denseVector = new DenseVectorExec(
+            Source.EMPTY,
+            source,
+            Literal.keyword(Source.EMPTY, inferenceId),
+            List.of(input),
+            List.of(generated),
+            null,
+            org.elasticsearch.inference.DataType.TEXT,
+            endpointTaskType
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, inferenceService(configuredBatchSize)).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            denseVector,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        List<Operator.OperatorFactory> factories = plan.driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories;
+        Class<?> expectedFactory = endpointTaskType == TaskType.EMBEDDING
+            ? EmbeddingOperator.Factory.class
+            : TextEmbeddingOperator.Factory.class;
+        return factories.stream()
+            .filter(expectedFactory::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no embedding operator factory in " + factories));
+    }
+
+    /**
+     * An {@link InferenceService} carrying the given dense vector batch size, or none when {@code denseVectorBatchSize} is null.
+     * {@link Client} and {@link ClusterService} are mocked because planning reads nothing from them beyond
+     * {@link InferenceService#inferenceSettings()}; standing either up for real would pull in a transport and a cluster state this
+     * test never touches.
+     */
+    private InferenceService inferenceService(Integer denseVectorBatchSize) {
+        Settings.Builder builder = Settings.builder();
+        if (denseVectorBatchSize != null) {
+            builder.put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), denseVectorBatchSize);
+        }
+        Settings inferenceSettings = builder.build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(inferenceSettings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(inferenceSettings, new HashSet<>(InferenceSettings.getSettings()))
+        );
+        return new InferenceService(mock(Client.class), clusterService);
+    }
+
+    private void assertRegisteredDatasetRefusedForNonFileSourceType(OperatorFactoryRegistry operatorFactoryRegistry, String sourceType)
+        throws IOException {
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data/*.parquet",
+            sourceType,
+            attrs,
+            Map.of("endpoint", "https://s3.example"),
+            Map.of(),
+            null,
+            10
+        ).withDatasetName("logs");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> planner(operatorFactoryRegistry, true, null, randomBoolean()).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through non-file source type [" + sourceType + "]"));
     }
 
     private LocalExecutionPlanner planner() throws IOException {
@@ -1180,6 +1837,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry, boolean federationEnabled) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, null);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService
+    ) throws IOException {
+        // Most tests here plan a bare ExternalSourceExec with no dataset behind it, which only a snapshot build allows.
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, true);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1198,16 +1873,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            inferenceService,
             null,
             null,
             null,
-            null,
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
-            null, // RemoteFetchService - not needed for these tests
+            snapshotBuild,
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
-            MatcherWatchdog.noop()
+            MatcherWatchdog.noop(),
+            TransportVersion.current()
         );
     }
 
@@ -1243,6 +1920,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
+    /** Whether the mapping of the shards is one under which documents keep the fields it does not declare. */
+    private boolean mappingKeepsUnmappedFields = false;
+
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {
         int numShards = randomIntBetween(1, 1000);
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = new ArrayList<>(numShards);
@@ -1254,8 +1934,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             true
         );
         for (int i = 0; i < numShards; i++) {
-            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(mapping(b -> {
-                b.startObject("point").field("type", "geo_point").endObject();
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(topMapping(b -> {
+                if (mappingKeepsUnmappedFields) {
+                    b.field("dynamic", false);
+                }
+                b.startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject();
             })), searcher);
             shardContexts.add(
                 new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)

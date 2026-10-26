@@ -376,14 +376,12 @@ public class QueryTranslatorTests extends ESTestCase {
             esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
             "2025-01-01T00:00:00.000Z","boost":0.0.*"""));
 
-        // == or ==
+        // == or == --> combined into a single IN, which pushes down as one terms query under one
+        // esql_single_value wrapper, rather than a bool/should of two individually-wrapped term queries.
         assertQueryTranslationDateDateNanosUnionTypes("""
-            FROM index* | WHERE date_and_date_nanos == "2020-01-01" or date_and_date_nanos == "2025-01-01\"""", stats, matchesRegex("""
-            .*bool.*should.*""" + """
-            esql_single_value":\\{"field":"date_and_date_nanos".*"term":\\{"date_and_date_nanos":\\{"value":"2020-01-01T00:00:00.000Z",\
-            "boost":0.0.*""" + """
-            esql_single_value":\\{"field":"date_and_date_nanos".*"term":\\{"date_and_date_nanos":\\{"value":"2025-01-01T00:00:00.000Z",\
-            "boost":0.0.*"""));
+            FROM index* | WHERE date_and_date_nanos == "2020-01-01" or date_and_date_nanos == "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"terms":{"date_and_date_nanos":["2020-01-01T00:00:00.000Z","2025-01-01T00:00:00.000Z"],"boost":0.0}}"""));
 
         // != or !=
         assertQueryTranslationDateDateNanosUnionTypes("""

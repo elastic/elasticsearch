@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
@@ -334,16 +335,31 @@ public class Mapper {
         // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
         int childSize = merge.children().size();
 
+        // BranchPlan carries metadata about which branches are view subplans vs bare index relations. View-branch
+        // fragments must not receive the raw Lucene esFilter (integrateEsFilterIntoFragment skips them); we mark
+        // them here so the distinction survives into the physical plan.
+        boolean isBranchPlan = merge instanceof BranchPlan;
+
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
+        List<LogicalPlan> logicalChildren = merge.children();
+        BranchPlan vua = isBranchPlan ? (BranchPlan) merge : null;
+        // Use a positional list of keys so we can look up isViewBranch per child index.
+        List<String> viewKeys = isBranchPlan ? vua.namedSubqueries().keySet().stream().toList() : null;
+
         for (int i = 0; i < childSize; i++) {
-            PhysicalPlan child = mapInner(merge.children().get(i));
+            PhysicalPlan child = mapInner(logicalChildren.get(i));
+            if (isBranchPlan && vua.isViewBranch(viewKeys.get(i))) {
+                // Actual view branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+                // Bare-index branches (key "main") and literal-subquery branches ("unnamed_view_<hash>") are excluded.
+                child = child.transformDown(FragmentExec.class, FragmentExec::asFromViewBranch);
+            }
             if (child instanceof FragmentExec) {
                 child = new ExchangeExec(child.source(), child);
             }
             newChildren.add(child);
         }
 
-        // ViewUnionAll extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
+        // BranchPlan extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
         // instead of inheriting UNION placement.
         MergeExec.Kind kind = switch (merge) {
             case Fork ignored -> MergeExec.Kind.FORK;

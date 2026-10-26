@@ -13,26 +13,13 @@ import org.apache.lucene.index.FieldInfo;
 
 /**
  * Implemented by {@link org.apache.lucene.codecs.KnnVectorsReader} implementations that
- * expose calibration-derived values stored in segment metadata.
+ * expose calibration-derived parameters stored in segment metadata.
  */
 public interface CalibrationAwareReader {
 
     /**
-     * Returns the calibration-derived oversample factor for the given field, or
-     * {@link IvfAutoCalibration#NO_CALIBRATED_OVERSAMPLE} if no calibration data is available.
+     * Returns the calibration parameters for the given field.
      */
-    float getOversampleFactor(FieldInfo fieldInfo);
-
-    /**
-     * Returns whether calibration determined that preconditioning should be applied
-     * for the given field. Returns {@code false} if no calibration data is available.
-     */
-    boolean shouldPrecondition(FieldInfo fieldInfo);
-
-    /**
-     * Returns the quantization encoding selected by calibration for the given field,
-     * or {@code null} if no calibration data is available.
-     */
-    QuantEncoding getQuantEncoding(FieldInfo fieldInfo);
+    SegmentCalibrationParameters getCalibrationParameters(FieldInfo fieldInfo);
 
 }

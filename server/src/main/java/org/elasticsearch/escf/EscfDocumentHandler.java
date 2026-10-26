@@ -67,6 +67,15 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int kvInlineArrayDepth;
     /** Field name for a deferred {@link KeyValueWriter#writeArrayField} call. */
     private String pendingKvArrayFieldName;
+    /**
+     * Stack for nested inline-array-within-KV states. When a second {@link #writeKvStartArray}
+     * fires while {@link #kvInlineArrayBuild} is already true (e.g. a {@code values:[...]} field
+     * inside a {@code criteria:[{...}]} element that is itself inside a top-level array), the outer
+     * state must be saved so it can be restored after the inner {@link #writeKvEndArray}.
+     */
+    private String[] kvInlineArrayFieldNameStack;
+    private int[] kvInlineArrayDepthStack;
+    private int kvInlineArrayStackDepth;
 
     EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
         this.row = row;
@@ -113,9 +122,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, buf, off, len);
             return;
         }
-        int colIdx = row.stringField(fieldName, buf, off, len);
+        var text = new XContentString.UTF8Bytes(buf, off, len);
+        int colIdx = row.stringField(fieldName, text);
         if (firePathSink) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, new XContentString.UTF8Bytes(buf, off, len));
+            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
         }
     }
 
@@ -144,14 +154,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, srcBuf, srcOff, srcLen);
             return;
         }
-        int colIdx = row.stringField(fieldName, srcBuf, srcOff, srcLen);
+        var text = new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
+        int colIdx = row.stringField(fieldName, text);
         if (firePathSink) {
-            sink.onTextPrimitive(
-                colIdx,
-                backend.columnPath(colIdx),
-                SourceValueType.STRING,
-                new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen)
-            );
+            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
         }
     }
 
@@ -401,6 +407,22 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     }
 
     private void writeKvStartArray(String fieldName) {
+        if (kvInlineArrayBuild) {
+            // A nested array-field appears inside an already-active kv-inline-array (e.g. a "values"
+            // field inside a "criteria" element). Save the outer depth so it can be restored after
+            // the inner writeKvEndArray.
+            if (kvInlineArrayFieldNameStack == null) {
+                kvInlineArrayFieldNameStack = new String[4];
+                kvInlineArrayDepthStack = new int[4];
+            } else if (kvInlineArrayStackDepth >= kvInlineArrayFieldNameStack.length) {
+                int newCap = kvInlineArrayFieldNameStack.length * 2;
+                kvInlineArrayFieldNameStack = Arrays.copyOf(kvInlineArrayFieldNameStack, newCap);
+                kvInlineArrayDepthStack = Arrays.copyOf(kvInlineArrayDepthStack, newCap);
+            }
+            kvInlineArrayFieldNameStack[kvInlineArrayStackDepth] = pendingKvArrayFieldName;
+            kvInlineArrayDepthStack[kvInlineArrayStackDepth] = kvInlineArrayDepth;
+            kvInlineArrayStackDepth++;
+        }
         pendingKvArrayFieldName = fieldName;
         pushArrayState();
         initArrayAccumulators();
@@ -417,9 +439,19 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         popArrayState();
 
         kvWriter.writeArrayField(pendingKvArrayFieldName, packed);
-        pendingKvArrayFieldName = null;
-        kvInlineArrayBuild = false;
-        kvInlineArrayDepth = 0;
+
+        if (kvInlineArrayStackDepth > 0) {
+            // Restore the enclosing kv-inline-array state that was pushed by writeKvStartArray.
+            kvInlineArrayStackDepth--;
+            pendingKvArrayFieldName = kvInlineArrayFieldNameStack[kvInlineArrayStackDepth];
+            kvInlineArrayDepth = kvInlineArrayDepthStack[kvInlineArrayStackDepth];
+            kvInlineArrayFieldNameStack[kvInlineArrayStackDepth] = null;
+            // kvInlineArrayBuild stays true — we are still inside the outer inline array.
+        } else {
+            pendingKvArrayFieldName = null;
+            kvInlineArrayBuild = false;
+            kvInlineArrayDepth = 0;
+        }
     }
 
     private void ensureKvWriterStackCapacity() {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.orc;
 
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
+
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,7 +20,7 @@ import java.util.concurrent.atomic.LongAdder;
  * exposed by the Reader API, so selectivity must be inferred from {@code rows_emitted} vs.
  * {@code stripes_total}.
  */
-public final class OrcReaderCounters {
+public final class OrcReaderCounters implements FormatReadCounters {
 
     private final LongAdder footerReadNanos = new LongAdder();
     private final LongAdder footerSizeBytes = new LongAdder();
@@ -97,6 +99,7 @@ public final class OrcReaderCounters {
         }
     }
 
+    @Override
     public OrcReaderStatus snapshot() {
         List<String> sortedPredicates = predicateColumns.stream().sorted().toList();
         return new OrcReaderStatus(

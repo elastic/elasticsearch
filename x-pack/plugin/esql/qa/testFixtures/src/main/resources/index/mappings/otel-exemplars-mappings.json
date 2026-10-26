@@ -1,0 +1,33 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "attributes": {
+      "type": "passthrough",
+      "priority": 20,
+      "time_series_dimension": true,
+      "properties": {
+        "cpu": {
+          "type": "keyword"
+        },
+        "state": {
+          "type": "keyword"
+        }
+      }
+    },
+    "metric_name": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "value": {
+      "type": "double"
+    },
+    "trace_id": {
+      "type": "keyword"
+    },
+    "span_id": {
+      "type": "keyword"
+    }
+  }
+}

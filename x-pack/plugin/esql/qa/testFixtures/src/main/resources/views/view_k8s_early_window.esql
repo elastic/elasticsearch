@@ -1,2 +1,2 @@
-TS k8s
+FROM k8s
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"

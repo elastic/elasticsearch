@@ -9,31 +9,14 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
-
 public class SystemMetricsTests extends ESTestCase {
-
-    @Before
-    @SuppressForbidden(reason = "sets system property for test setup")
-    public void setup() {
-        System.setProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
-    }
-
-    @After
-    @SuppressForbidden(reason = "clears system property for test teardown")
-    public void teardown() {
-        System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
-    }
 
     public void testOTelMetricsRegisteredWhenEnabled() {
         testSystemMetrics(true);

@@ -36,6 +36,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
@@ -300,6 +302,30 @@ public class JobResultsPersisterTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testPersistEsqlDatafeedSourceCheckpointShouldWriteThroughResultsWriteAlias() {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(JOB_ID, "foo-df", 3_600_000L, "fp");
+        persister.persistEsqlDatafeedSourceCheckpoint(
+            checkpoint,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        IndexRequest indexRequest = (IndexRequest) bulkRequestCaptor.getValue().requests().get(0);
+        assertThat(indexRequest.index(), equalTo(AnomalyDetectorsIndex.resultsWriteAlias(JOB_ID)));
+        assertThat(indexRequest.id(), equalTo(EsqlDatafeedSourceCheckpoint.documentId(JOB_ID)));
+        assertThat(indexRequest.sourceAsMap().get("result_type"), equalTo(EsqlDatafeedSourceCheckpoint.TYPE.getPreferredName()));
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+    }
+
+    public void testPersistEsqlDatafeedSourceCheckpointSyncShouldUseRefreshNone() {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(JOB_ID, "foo-df", 3_600_000L, "fp");
+        persister.persistEsqlDatafeedSourceCheckpoint(checkpoint);
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.NONE));
     }
 
     public void testPersistDatafeedTimingStats() {

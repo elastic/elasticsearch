@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -54,6 +56,10 @@ final class ByteArrayStorageObject implements StorageObject {
         this.lastModified = lastModified;
     }
 
+    /** In-memory bytes produce no storage I/O, so there are no counters to attach. */
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
     @Override
     public InputStream newStream() {
         return new ByteArrayInputStream(data, offset, length);
@@ -92,6 +98,17 @@ final class ByteArrayStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    /**
+     * Equal only to itself: chunks reuse the source file's path, so any shared identity would let two
+     * equal-length chunks of one file collide on the same footer-cache key.
+     */
+    private final StorageIdentity identity = StorageIdentity.unique();
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return identity;
     }
 
     @Override

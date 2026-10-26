@@ -44,6 +44,7 @@ import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,7 +53,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -477,7 +478,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     // upload UUID changes with every retry.
                     long gen = Long.parseLong(
                         request.substring(
-                            request.indexOf(StatelessCompoundCommit.PREFIX) + StatelessCompoundCommit.PREFIX.length(),
+                            request.indexOf(BatchedCompoundCommit.PREFIX) + BatchedCompoundCommit.PREFIX.length(),
                             request.lastIndexOf('?')
                         )
                     );
@@ -879,9 +880,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
     }
 
@@ -892,9 +894,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
 
         @Override

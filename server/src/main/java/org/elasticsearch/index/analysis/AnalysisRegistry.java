@@ -384,14 +384,21 @@ public final class AnalysisRegistry implements Closeable {
             // shared underlying alone.
             List<Closeable> toClose = new ArrayList<>(cachedAnalyzer.values());
             for (Map<AnalyzerKey, CacheEntry> cache : List.of(analyzerCache, normalizerCache, whitespaceNormalizerCache)) {
-                for (CacheEntry entry : cache.values()) {
-                    // Use the eagerly-stored evictable rather than join()ing the future, to avoid
-                    // blocking on an in-flight build during shutdown — if a builder is mid-flight
-                    // here something is misbehaving and we'd rather not wedge the shutdown. A slot
-                    // reserved but not yet built has a null evictable and is GC-collectible anyway.
-                    NamedAnalyzer a = entry.evictable;
-                    if (a != null) {
-                        toClose.add(a);
+                for (Map.Entry<AnalyzerKey, CacheEntry> mapEntry : cache.entrySet()) {
+                    CacheEntry entry = mapEntry.getValue();
+                    // Atomically claim this entry by removing it from the cache. If the remove
+                    // succeeds we own the close; if releaseFromCache already removed it (refcount
+                    // reached 0 concurrently), the remove returns false and we skip — the evictable
+                    // was already closed by that path.
+                    if (cache.remove(mapEntry.getKey(), entry)) {
+                        // Use the eagerly-stored evictable rather than join()ing the future, to avoid
+                        // blocking on an in-flight build during shutdown — if a builder is mid-flight
+                        // here something is misbehaving and we'd rather not wedge the shutdown. A slot
+                        // reserved but not yet built has a null evictable and is GC-collectible anyway.
+                        NamedAnalyzer a = entry.evictable;
+                        if (a != null) {
+                            toClose.add(a);
+                        }
                     }
                 }
             }
@@ -1193,6 +1200,7 @@ public final class AnalysisRegistry implements Closeable {
      * cache. If a different entry now occupies {@code key} — a concurrent release retired this one
      * and a fresh build re-interned the same recipe — we still close this (now superseded) entry
      * but leave the current mapping untouched.
+     * If the current value is null it has already been removed from the map by and closed by {@link #close()}
      */
     private static void releaseFromCache(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         cache.compute(key, (k, current) -> {
@@ -1200,6 +1208,15 @@ public final class AnalysisRegistry implements Closeable {
             if (after > 0) {
                 return current;
             }
+
+            // Only close if current != null. A null value indicates AnalysisRegistry.close()
+            // atomically removed this entry during concurrent shutdown and has claimed
+            // ownership of the evictable close. Closing here too creates a race that can throw
+            // an NPE in NamedAnalyzer.close()
+            if (current == null) {
+                return null;
+            }
+
             // The future MUST be complete-with-value here: a refcount can only reach zero through
             // releases of materialize()-returned handles, which only exist after a successful
             // join(). Close the original-scoped wrapper (CacheEntry#evictable) so the underlying

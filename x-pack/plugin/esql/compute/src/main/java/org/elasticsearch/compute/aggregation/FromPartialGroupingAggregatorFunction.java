@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -41,33 +40,8 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        return new AddInput() {
-            @Override
-            public void add(int positionOffset, IntBlock groupIds) {
-                assert false : "Intermediate group id must not have nulls";
-                throw new IllegalStateException("Intermediate group id must not have nulls");
-            }
-
-            @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                assert false : "Intermediate group id must not have nulls";
-                throw new IllegalStateException("Intermediate group id must not have nulls");
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                assert false : "Intermediate group id must not have nulls";
-                throw new IllegalStateException("Intermediate group id must not have nulls");
-            }
-
-            @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                addIntermediateInput(positionOffset, groupIds, page);
-            }
-
-            @Override
-            public void close() {}
-        };
+        // Input is ToPartial composite state, not original values.
+        return prepareProcessIntermediateInputPage(seenGroupIds, page);
     }
 
     @Override
@@ -77,7 +51,8 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
 
     @Override
     public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
-        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+        final CompositeBlock inputBlock = page.getBlock(inputChannel);
+        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, inputBlock.asPage());
     }
 
     @Override

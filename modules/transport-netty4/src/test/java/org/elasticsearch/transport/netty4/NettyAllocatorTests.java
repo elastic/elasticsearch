@@ -12,6 +12,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.util.IllegalReferenceCountException;
 
 import org.apache.lucene.util.BytesRef;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -97,8 +99,8 @@ public class NettyAllocatorTests extends ESTestCase {
 
     /**
      * Components are always buffers whose ownership is fully transferred to the composite, never views onto a buffer
-     * the caller still holds: a composite trashes everything it spans when it is released, so a component that aliases
-     * a live buffer would zero content that buffer's owner can still legitimately read.
+     * the caller still holds. Storage shared between live buffers is exercised by
+     * {@link #testFlattenedContentSurvivesUntilLastReferenceReleased}.
      */
     private static ByteBuf randomComposite(TrashingByteBufAllocator alloc, StringBuilder desc, int depth) {
         var composite = alloc.compositeHeapBuffer();
@@ -125,7 +127,7 @@ public class NettyAllocatorTests extends ESTestCase {
         };
     }
 
-    public void testTrashingZeroesExactlyTheWrittenRegion() throws IOException {
+    public void testTrashingZeroesExactlyTheCapacity() throws IOException {
         var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
         var size = between(64, 512);
         var before = alloc.heapBuffer(size, size).writeBytes(randomByteArrayOfLength(size));
@@ -147,23 +149,19 @@ public class NettyAllocatorTests extends ESTestCase {
 
         var written = between(1, size - 1);
         victim.writerIndex(written);
-        var victimRef = Netty4Utils.toBytesReference(victim);
         victim.skipBytes(between(1, written));
 
         var chunk = victim.array();
-        var tailFrom = victim.arrayOffset() + written;
-        var tailTo = victim.arrayOffset() + size;
-        var tail = Arrays.copyOfRange(chunk, tailFrom, tailTo);
+        var from = victim.arrayOffset();
         var beforeContent = ByteBufUtil.getBytes(before);
         var afterContent = ByteBufUtil.getBytes(after);
 
         victim.release();
 
-        assertBufferTrashed("written=" + written, victimRef);
         assertArrayEquals(
-            "bytes past the writer index must not be trashed, written=" + written,
-            tail,
-            Arrays.copyOfRange(chunk, tailFrom, tailTo)
+            "the whole capacity must be trashed whatever the indices, written=" + written,
+            new byte[size],
+            Arrays.copyOfRange(chunk, from, from + size)
         );
         assertArrayEquals("preceding pooled buffer must not be trashed", beforeContent, ByteBufUtil.getBytes(before));
         assertArrayEquals("following pooled buffer must not be trashed", afterContent, ByteBufUtil.getBytes(after));
@@ -199,6 +197,29 @@ public class NettyAllocatorTests extends ESTestCase {
 
         handles.forEach(handle -> assertEquals(target.description(), 0, handle.refCnt()));
         assertBufferTrashed(target.description(), ref);
+    }
+
+    public void testFlattenedContentSurvivesUntilLastReferenceReleased() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var desc = new StringBuilder();
+        var cumulation = randomRoot(alloc, desc);
+        var held = cumulation.readRetainedSlice(between(1, cumulation.readableBytes() - 1));
+        desc.append(" holding ").append(held.readableBytes()).append(" cumulating ");
+        var in = randomRoot(alloc, desc);
+        var content = ByteBuffer.allocate(cumulation.readableBytes() + in.readableBytes())
+            .put(ByteBufUtil.getBytes(cumulation))
+            .put(ByteBufUtil.getBytes(in))
+            .array();
+
+        var cumulated = ByteToMessageDecoder.COMPOSITE_CUMULATOR.cumulate(alloc, cumulation, in);
+        var ref = Netty4Utils.toBytesReference(cumulated);
+        assertArrayEquals("content must be intact once flattened, " + desc, content, BytesReference.toBytes(ref));
+
+        held.release();
+        assertArrayEquals("content must be intact once the held slice is released, " + desc, content, BytesReference.toBytes(ref));
+
+        cumulated.release();
+        assertBufferTrashed(desc.toString(), ref);
     }
 
     public void testEveryDerivedBufferIsTrashing() throws IOException {

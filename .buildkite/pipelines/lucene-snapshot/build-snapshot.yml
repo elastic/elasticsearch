@@ -3,6 +3,10 @@ steps:
     label: Trigger pipeline to build lucene snapshot
     key: lucene-build
     if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
+    build:
+      branch: "${LUCENE_BRANCH:-branch_10x}"
+      env:
+        JDK_VERSION: "${LUCENE_JDK_VERSION:-21}"
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh

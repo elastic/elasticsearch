@@ -256,22 +256,14 @@ final class PageColumnReader implements Releasable {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
-                if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
-                    if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                        // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
-                        yield readInt32AsLongBatch(maxRows, blockFactory, true);
-                    }
-                    yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time), false);
-                }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
-                    // A plain INT32 with no logical-type annotation is historically "signed"
-                    yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
+                    // The same shared predicate the baseline arm and the list arm ask; see isUnsignedInt32.
+                    yield readInt32AsLongBatch(maxRows, blockFactory, ParquetColumnDecoding.isUnsignedInt32(info.logicalType()) == false);
                 }
                 // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
                 // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always
                 // decodes UNSIGNED_LONG blocks, so the read path must emit the encoded form here.
-                yield readLongBatch(maxRows, blockFactory, 1L, type == DataType.UNSIGNED_LONG);
+                yield readLongBatch(maxRows, blockFactory, type == DataType.UNSIGNED_LONG);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
@@ -392,7 +384,12 @@ final class PageColumnReader implements Releasable {
             Block result = readBatch(survivorCount, blockFactory);
             int trailing = sourceRows - survivorPositions[survivorCount - 1] - 1;
             if (trailing > 0) {
-                skipRows(trailing);
+                try {
+                    skipRows(trailing);
+                } catch (Throwable skipEx) {
+                    ParquetReadFailures.closePreservingCause(skipEx, result);
+                    throw skipEx;
+                }
             }
             return result;
         }
@@ -873,26 +870,21 @@ final class PageColumnReader implements Releasable {
     // --- Long ---
 
     /**
-     * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block.
+     * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block. No unit conversion, for the
+     * reason given on {@link ParquetFormatReader}'s {@code readLongColumn}: {@code TIME} was the only annotation
+     * that scaled here and it renders {@code DATE_NANOS} now.
      *
-     * @param multiplier     factor applied to each value, used to normalize Parquet TIME_* units to nanoseconds
-     *                       ({@code 1L} when no conversion is needed).
      * @param encodeUnsigned when {@code true} the column is an {@code unsigned_long}; the decoded values are sign-flip-encoded
      *                       ({@code value ^ 2^63}) in place before constant detection and block creation, mirroring the indexing
      *                       path so the always-decoding output edge produces the true unsigned value. Encoding before constant
-     *                       detection keeps a constant {@code unsigned_long} column correctly encoded. Mutually exclusive with a
-     *                       non-unit {@code multiplier} (a column is either a TIME type or {@code unsigned_long}).
+     *                       detection keeps a constant {@code unsigned_long} column correctly encoded.
      */
-    private Block readLongBatch(int maxRows, BlockFactory blockFactory, long multiplier, boolean encodeUnsigned) {
+    private Block readLongBatch(int maxRows, BlockFactory blockFactory, boolean encodeUnsigned) {
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
             if (encodeUnsigned) {
                 ParquetColumnDecoding.encodeUnsignedLongInPlace(values, produced);
-            } else if (multiplier != 1) {
-                for (int i = 0; i < produced; i++) {
-                    values[i] *= multiplier;
-                }
             }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
@@ -912,10 +904,6 @@ final class PageColumnReader implements Releasable {
         }
         if (encodeUnsigned) {
             ParquetColumnDecoding.encodeUnsignedLongInPlace(values, produced);
-        } else if (multiplier != 1) {
-            for (int i = 0; i < produced; i++) {
-                values[i] *= multiplier;
-            }
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
@@ -1706,10 +1694,11 @@ final class PageColumnReader implements Releasable {
     // --- Datetime ---
 
     private Block readDatetimeBatch(int maxRows, BlockFactory blockFactory) {
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+        ParquetColumnDecoding.DatetimeDecode decode = ParquetColumnDecoding.datetimeDecodeFor(info);
+        if (decode == ParquetColumnDecoding.DatetimeDecode.INT96) {
             return readInt96Batch(maxRows, blockFactory);
         }
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
+        if (decode == ParquetColumnDecoding.DatetimeDecode.STRING_PARSE) {
             // Declared string->datetime coercion: decode the column natively as bytes (dictionary and plain paths
             // both reused as-is), then parse each value with the column's declared format (ISO default) via the
             // shared scalar. An unparseable value follows the read's error policy through onCoercionFailure:
@@ -1728,14 +1717,13 @@ final class PageColumnReader implements Releasable {
                 bytes.close();
             }
         }
-        boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
-                readDatetimeValues(values, produced, fromPage, isDate);
+                readDatetimeValues(values, produced, fromPage, decode);
                 advancePosition(fromPage);
                 produced += fromPage;
                 remaining -= fromPage;
@@ -1753,10 +1741,10 @@ final class PageColumnReader implements Releasable {
             int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
             if (nonNull > 0) {
                 if (nonNull == fromPage) {
-                    readDatetimeValues(values, produced, nonNull, isDate);
+                    readDatetimeValues(values, produced, nonNull, decode);
                 } else {
                     long[] packed = UninitializedArrays.newLongArray(nonNull);
-                    readDatetimeValues(packed, 0, nonNull, isDate);
+                    readDatetimeValues(packed, 0, nonNull, decode);
                     scatter(packed, values, nulls, produced, fromPage);
                 }
             }
@@ -1778,34 +1766,48 @@ final class PageColumnReader implements Releasable {
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
-    private void readDatetimeValues(long[] values, int offset, int count, boolean isDate) {
-        if (isDate) {
-            int[] intValues = buffers.ints(count);
-            readIntsDispatch(intValues, 0, count);
-            for (int i = 0; i < count; i++) {
-                values[offset + i] = ParquetColumnDecoding.dateDaysToMillis(intValues[i]);
-            }
-        } else {
-            readLongsDispatch(values, offset, count);
-            LogicalTypeAnnotation logicalType = info.logicalType();
-            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-                for (int i = 0; i < count; i++) {
-                    values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
+    private void readDatetimeValues(long[] values, int offset, int count, ParquetColumnDecoding.DatetimeDecode decode) {
+        LogicalTypeAnnotation logicalType = info.logicalType();
+        // Switched rather than tested so a new DatetimeDecode constant breaks this engine's compilation too. Keying
+        // it on "anything that is not INT64" would read a new 64-bit case with the 32-bit accessor and say nothing.
+        switch (decode) {
+            case INT64_EPOCH_MILLIS -> {
+                readLongsDispatch(values, offset, count);
+                // A bare INT64 already holds epoch millis, and so does any annotation this arm does not scale --
+                // TIME renders a temporal type now, so TIMESTAMP is the only one left that needs normalizing. The
+                // test is hoisted out of the loop deliberately: calling through a helper that re-tests it per value
+                // turns a skipped loop into a per-row no-op for, say, an INT64 carrying intType(64, true).
+                if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                    for (int i = 0; i < count; i++) {
+                        values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
+                    }
                 }
             }
+            case DATE_DAYS, INT32_EPOCH_MILLIS -> {
+                int[] intValues = buffers.ints(count);
+                readIntsDispatch(intValues, 0, count);
+                boolean dateDays = decode == ParquetColumnDecoding.DatetimeDecode.DATE_DAYS;
+                for (int i = 0; i < count; i++) {
+                    values[offset + i] = dateDays
+                        ? ParquetColumnDecoding.dateDaysToMillis(intValues[i])
+                        : ParquetColumnDecoding.int32AsInferredLong(intValues[i], logicalType);
+                }
+            }
+            case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
         }
     }
 
     /**
      * Optimized-path counterpart of {@link ParquetFormatReader}'s {@code readDateNanosColumn}: decodes an INT64
-     * {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds. {@code NANOS}
+     * {@code TIMESTAMP(MICROS|NANOS)} column -- or a {@code TIME(MICROS|NANOS)}, whose value is a nanosecond of day --
+     * into a {@code DATE_NANOS} block. {@code NANOS}
      * passes through; {@code MICROS} is scaled ×1_000. {@code MICROS} values whose scaled instant falls outside the
      * representable {@code date_nanos} range (~1677-2262) are emitted as null (with one deduplicated warning) rather
      * than silently wrapping. The common in-range case keeps the existing no-null fast vector path; a null mask is
      * only materialised when a value actually overflows.
      */
     private Block readDateNanosBatch(int maxRows, BlockFactory blockFactory) {
-        boolean micros = ParquetColumnDecoding.isMicrosTimestamp(info.logicalType());
+        boolean micros = ParquetColumnDecoding.isMicrosTemporal(info.logicalType());
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
@@ -1870,8 +1872,9 @@ final class PageColumnReader implements Releasable {
     }
 
     /**
-     * Scales a dense (no definition-level nulls) {@code MICROS} timestamp array to epoch-nanoseconds in place. A
-     * {@code NANOS} column is already in its final unit and is left untouched. Returns a mask of positions that
+     * Scales a dense (no definition-level nulls) {@code MICROS} array -- a {@code TIMESTAMP} or a {@code TIME} -- to
+     * nanoseconds in place, the same x1_000 {@code ParquetColumnDecoding.convertTemporalToNanos} applies on the
+     * row-at-a-time path. A {@code NANOS} column is already in its final unit and is left untouched. Returns a mask of positions that
      * overflowed the representable {@code date_nanos} range (for the caller to null out), or {@code null} when
      * nothing overflowed (the common case, which keeps the no-null fast path).
      */
@@ -1895,7 +1898,7 @@ final class PageColumnReader implements Releasable {
     }
 
     /**
-     * Scales the non-null {@code MICROS} timestamp positions to epoch-nanoseconds in place, extending {@code nulls}
+     * Scales the non-null {@code MICROS} positions ({@code TIMESTAMP} or {@code TIME}) to nanoseconds in place, extending {@code nulls}
      * with any positions that overflow the representable {@code date_nanos} range. A {@code NANOS} column needs no
      * scaling. Returns whether any overflow occurred.
      */

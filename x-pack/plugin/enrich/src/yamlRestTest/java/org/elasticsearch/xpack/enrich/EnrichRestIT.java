@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -29,7 +30,7 @@ public class EnrichRestIT extends ESClientYamlSuiteTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public EnrichRestIT(final ClientYamlTestCandidate testCandidate) {
+    public EnrichRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

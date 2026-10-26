@@ -77,6 +77,9 @@ multi_match default_field resolves to indexed fields only in columnar mode:
 ---
 
 query_string is lenient about unparseable literals in columnar mode:
+  - requires:
+      cluster_features: [ "search.query.columnar_default_field_leniency" ]
+      reason: "query_string leniency was silently disabled after columnar mode expanded the all-fields wildcard"
   - do:
       indices.create:
         index: coerce
@@ -163,6 +166,9 @@ query_string is lenient about unparseable literals in columnar mode:
 ---
 
 field-less query over a numeric and a keyword field in columnar mode:
+  - requires:
+      cluster_features: [ "search.query.columnar_default_field_leniency" ]
+      reason: "query_string leniency was silently disabled after columnar mode expanded the all-fields wildcard"
   - do:
       indices.create:
         index: mixed

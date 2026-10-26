@@ -2,7 +2,7 @@
 navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -17,8 +17,11 @@ You can query data stored in compatible external data sources, using the same sy
 
 ## Requirements
 
-- This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
+Before using {{esql}} Data Federation, review the following requirements and limitations:
+
+- This feature is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+- To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
 - Currently, this feature is not supported on Windows.
 
 ## Enable the feature
@@ -33,15 +36,40 @@ Add the following to your {{es}} configuration:
 esql.federation.enabled: true
 ```
 
+To learn how to configure this setting on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+
 **{{kib}}**
 
+The {{kib}} UI lets you connect data sources and add datasets without using the API. How you enable it depends on your version.
+
+:::::{applies-switch}
+
+::::{applies-item} stack: experimental 9.6+
+Turn on the UI with an advanced setting:
+
+1. Find **Advanced settings** in the navigation menu or use the global search field, then select the **Global Settings** tab.
+2. Turn on **{{esql}} Data Federation**:
+
+   ![The ES|QL Data Federation advanced setting turned on in the Global Settings tab](images/data-federation/advanced-setting.png)
+3. Click **Save changes**, then reload the page.
+
+:::{note}
+The setting applies to all spaces. Turning it off hides the UI only. Existing data sources and datasets keep working, and you can still manage them with the API. To learn more, refer to [global advanced settings](kibana://reference/advanced-settings.md#kibana-global-settings-reference).
+:::
+
+::::
+
+::::{applies-item} stack: experimental =9.5
 Add the following to your {{kib}} configuration:
 
 ```yaml
 xpack.dataFederation.enabled: true
 ```
 
-To learn how to configure these settings on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+To learn how to configure this setting on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+::::
+
+:::::
 
 ## Why use federated data
 
@@ -69,7 +97,7 @@ A [data source](esql-data-federation-sources.md) tells {{es}} where the storage 
 ::::::
 
 ::::::{step} You create datasets (what to read)
-Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. Datasets should be scoped to a single [file format](esql-data-federation-datasets.md#supported-file-formats) and ideally share one schema. One data source can serve many datasets.
+Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. Datasets should be scoped to a single [file format](esql-data-federation-file-formats.md) and ideally share one schema. One data source can serve many datasets.
 
 Datasets are designed to work like indices for queries. They share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so a dataset cannot have the same name as any of them.
 ::::::
@@ -102,24 +130,24 @@ Amazon S3 is the first supported data source type. Support for additional storag
 
 ## Supported file formats
 
-Federated data sources can read the following file formats:
-
-:::{include} _snippets/data-federation/supported-file-formats.md
-:::
-
-The format is inferred from the resource pattern when that pattern implies exactly one registered format. Extensionless or mixed patterns require an explicit `format` in the dataset settings.
-
-For details on type-specific settings and format options, refer to [](esql-data-federation-datasets.md).
+Federated data sources support Parquet, NDJSON, CSV, and TSV files. Each dataset reads one format, inferred from its resource pattern or set explicitly in its settings. Refer to [supported file formats](esql-data-federation-file-formats.md) for extensions, compression support, and schema sources.
 
 ## Capabilities and limitations
 
 Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
-The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata. Relevance scoring returns `_score` as null, and `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+
+Relevance scoring works differently for datasets:
+
+- {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
 {{esql}} Data Federation is not currently supported on Windows.
 
 ## Get started
+
+Use the following pages to configure, query, and administer federated data:
 
 [Quickstart](esql-data-federation-quickstart.md)
 :   Register a data source, create a dataset, and run your first query against external data.
@@ -127,8 +155,17 @@ The exceptions are operations that need structures only an {{es}} index has, suc
 [Connect data sources](esql-data-federation-sources.md)
 :   Connect to external storage, configure S3 settings, and set up authentication.
 
-[Add datasets](esql-data-federation-datasets.md)
-:   Select which files to query, configure format settings, and control schema inference.
+[Datasets](esql-data-federation-datasets.md)
+:   Design datasets, select which files to query, and make them available to {{esql}}.
+
+[Supported file formats](esql-data-federation-file-formats.md)
+:   Review supported extensions, compression codecs, and schema sources.
+
+[Dataset settings](esql-data-federation-dataset-settings.md)
+:   Configure file discovery, parsing, error handling, and reader behavior.
+
+[Schema inference](esql-data-federation-schema.md)
+:   Learn how {{es}} discovers and reconciles schemas across files.
 
 [Query datasets](esql-data-federation-querying.md)
 :   Learn how the engine reduces storage reads, query external and indexed data together, review current limitations, and troubleshoot common issues.

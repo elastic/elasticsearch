@@ -17,6 +17,7 @@ steps:
               - sles-15
               - ubuntu-2204
               - ubuntu-2404
+              - ubuntu-2604
               - rocky-8
               - rocky-9
               - rocky-10
@@ -31,8 +32,6 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: n1-standard-8
-        env:
-          USE_PROD_DOCKER_CREDENTIALS: "true"
   - group: packaging-tests-upgrade
     steps:
       - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"
@@ -339,8 +338,8 @@ steps:
         env:
           BWC_VERSION: 8.18.8
 
-      - label: "{{matrix.image}} / 8.19.22 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.22
+      - label: "{{matrix.image}} / 8.19.24 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.24
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -353,7 +352,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.19.22
+          BWC_VERSION: 8.19.24
 
       - label: "{{matrix.image}} / 9.0.8 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.8
@@ -419,8 +418,8 @@ steps:
         env:
           BWC_VERSION: 9.3.8
 
-      - label: "{{matrix.image}} / 9.4.8 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.4.8
+      - label: "{{matrix.image}} / 9.4.9 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.4.9
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -433,10 +432,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.4.8
+          BWC_VERSION: 9.4.9
 
-      - label: "{{matrix.image}} / 9.5.5 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.5.5
+      - label: "{{matrix.image}} / 9.5.6 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.5.6
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -449,7 +448,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.5.5
+          BWC_VERSION: 9.5.6
 
       - label: "{{matrix.image}} / 9.6.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.6.0
@@ -466,6 +465,22 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 9.6.0
+
+      - label: "{{matrix.image}} / 9.7.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.7.0
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 9.7.0
 
   - group: packaging-tests-windows
     steps:

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
+import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -758,7 +758,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(query, request.query());
         assertFalse(request.keepOnCompletion());
         assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
-        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+        // null means "use the async_search.default_keep_alive cluster setting"
+        assertNull(request.keepAlive());
     }
 
     public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {
@@ -826,6 +827,28 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
         assertNotNull(request.get(QuerySettings.APPROXIMATION));
         assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
+    }
+
+    public void testSettingsBlockExemplarsBoolean() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": true
+                }
+            }""");
+        assertEquals(ExemplarsSettings.ENABLED, request.get(QuerySettings.EXEMPLARS));
+    }
+
+    public void testSettingsBlockExemplarsObject() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": {"limit": 1234}
+                }
+            }""");
+        assertEquals(new ExemplarsSettings(true, 1234), request.get(QuerySettings.EXEMPLARS));
     }
 
     public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {
@@ -1416,6 +1439,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 }

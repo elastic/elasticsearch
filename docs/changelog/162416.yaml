@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162416
+summary: Allow SET settings inside view definitions
+type: enhancement

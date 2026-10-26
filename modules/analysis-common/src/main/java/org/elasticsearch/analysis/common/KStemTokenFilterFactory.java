@@ -26,4 +26,9 @@ public class KStemTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new KStemFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

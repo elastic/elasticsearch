@@ -11,16 +11,23 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for subquery batch execution in ComputeService.
@@ -28,6 +35,8 @@ import static org.hamcrest.Matchers.containsString;
  * produces correct results across different batch sizes and query shapes.
  */
 public class SubqueryIT extends AbstractEsqlIntegTestCase {
+
+    private int testShards;
 
     @Before
     public void checkPragma() {
@@ -49,7 +58,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -62,6 +71,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
         }
     }
 
@@ -77,7 +87,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | KEEP id, content
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -88,6 +98,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 5 * testShards, 5 * testShards, 0);
         }
     }
 
@@ -100,13 +111,14 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT x NULLS LAST
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("x", "y", "id"));
             Iterable<Iterable<Object>> expectedValues = List.of(
                 Arrays.stream(new Object[] { 6L, List.of(1, 2, 3, 4, 5, 6), null }).toList(),
                 Arrays.stream(new Object[] { null, null, 2 }).toList()
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 2 * testShards, 2 * testShards, 0);
         }
     }
 
@@ -121,7 +133,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -132,6 +144,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
         }
     }
 
@@ -147,11 +160,12 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 8).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(List.of(1, "This is a brown fox"), List.of(2, "This is a brown dog"));
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 2 * testShards, 2 * testShards, 0);
         }
     }
 
@@ -168,7 +182,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 3).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -178,6 +192,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
         }
     }
 
@@ -192,7 +207,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -200,6 +215,30 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, testShards, testShards, 0);
+        }
+    }
+
+    /**
+     * A coordinator-only {@code ROW} leaf must not finalize the shared {@code EsqlExecutionInfo}. The following {@code FROM} branch still
+     * records shard counts, and the local cluster stays {@code SUCCESSFUL}.
+     */
+    public void testRowThenFromKeepsShardCounts() {
+        assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var query = """
+            FROM
+               ( ROW id = 1 ),
+               ( FROM test | WHERE id == 1 | KEEP id )
+            | KEEP id
+            | SORT id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(1), List.of(1));
+            assertValues(resp.values(), expectedValues);
+            // ROW adds no shards; FROM test is searched once
+            assertLocalShardCounts(resp, testShards, testShards, 0);
+            assertLocalClusterStatus(resp, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
         }
     }
 
@@ -218,7 +257,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT cnt NULLS LAST, id NULLS LAST
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("cnt", "id", "mx"));
             Iterable<Iterable<Object>> expectedValues = List.of(
                 Arrays.stream(new Object[] { 6L, null, null }).toList(),
@@ -226,6 +265,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 Arrays.stream(new Object[] { null, null, 6 }).toList()
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
         }
     }
 
@@ -242,11 +282,12 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of();
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
         }
     }
 
@@ -264,7 +305,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -273,6 +314,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(1, "This is a brown fox")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
         }
     }
 
@@ -289,7 +331,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | KEEP id, content
             | SORT id
             """;
-        try (var resp = run(query)) {
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -302,6 +344,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
         }
     }
 
@@ -320,11 +363,12 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(List.of(1, "This is a brown fox"), List.of(2, "This is a brown dog"));
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
         }
     }
 
@@ -343,11 +387,12 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(List.of(1, "This is a brown fox"), List.of(2, "This is a brown dog"));
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
         }
     }
 
@@ -368,7 +413,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -381,6 +426,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 7 * testShards, 7 * testShards, 0);
         }
     }
 
@@ -411,7 +457,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | KEEP id, content
             | SORT id
             """;
-        try (var resp = run(syncEsqlQueryRequest(query))) {
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -423,14 +469,333 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertLocalShardCounts(resp, 2 * testShards, 2 * testShards, 0);
         }
+    }
+
+    public void testThreeLevelNestedSubqueriesAtDifferentParallelDegrees() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    )
+               ),
+               ( FROM test | WHERE id == 5 )
+            | KEEP id
+            | SORT id
+            """;
+        for (int degree : List.of(1, 2, 8)) {
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(degree)).includeExecutionMetadata(true))) {
+                assertColumnNames(resp.columns(), List.of("id"));
+                assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5)));
+                assertLocalShardCounts(resp, 5 * testShards, 5 * testShards, 0);
+            }
+        }
+    }
+
+    /**
+     * The inner {@code LIMIT}s apply across each inner union's combined output, so compaction cannot flatten the
+     * nesting away — without them the analyzer compacts filter-only nested subqueries into a single flat union (see
+     * {@link #testFilterOnlyNestedSubqueryProfileIsFlat}) and no hierarchical names appear. The limits are high
+     * enough to let every row through.
+     */
+    public void testNestedSubqueryProfileUsesHierarchicalNames() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    | LIMIT 1000
+                    )
+               | LIMIT 1000
+               )
+            | SORT id
+            | KEEP id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)).profile(true).includeExecutionMetadata(true))) {
+            assertNotNull(resp.profile());
+            Set<String> descriptions = resp.profile().drivers().stream().map(DriverProfile::description).collect(Collectors.toSet());
+            assertTrue(descriptions.contains("main.final"));
+            assertTrue(descriptions.contains("subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-1.final"));
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    /**
+     * Filter-only nested subqueries compact into a single flat union during analysis, so the profile shows one level
+     * of subplan names — the syntactic nesting leaves no trace in the drivers.
+     */
+    public void testFilterOnlyNestedSubqueryProfileIsFlat() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    )
+               )
+            | SORT id
+            | KEEP id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)).profile(true).includeExecutionMetadata(true))) {
+            assertNotNull(resp.profile());
+            Set<String> descriptions = resp.profile().drivers().stream().map(DriverProfile::description).collect(Collectors.toSet());
+            assertTrue(descriptions.contains("main.final"));
+            assertTrue(descriptions.contains("subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.final"));
+            assertTrue(descriptions.contains("subplan-2.final"));
+            assertTrue(descriptions.contains("subplan-3.final"));
+            assertTrue(descriptions.stream().noneMatch(d -> d.contains("subplan-1.subplan")));
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    public void testNestedSubqueryOuterLimitWithQueuedLeaves() {
+        var query = """
+            FROM
+               ( FROM test ),
+               ( FROM
+                    ( FROM test ),
+                    ( FROM
+                         ( FROM test ),
+                         ( FROM test )
+                    )
+               )
+            | LIMIT 1
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)).includeExecutionMetadata(true))) {
+            var values = resp.values();
+            assertTrue(values.hasNext());
+            values.next();
+            assertFalse(values.hasNext());
+            // LIMIT 1 finishes the root exchange after the first leaf, so queued siblings skip executePlan
+            assertLocalShardCounts(resp, testShards, testShards, 0);
+        }
+    }
+
+    // subquery and fork
+
+    public void testForkInsideSubquery() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | FORK (WHERE id > 2) (WHERE id <= 2))
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(12));
+            // fork1: id 3, 4, 5, 5, 6, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(4));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(5));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(3).get(1), equalTo(5));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(4).get(1), equalTo(6));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(5).get(1), equalTo(6));
+
+            // fork2: id 1, 1, 2, 2, 3, 4
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(1));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(1));
+            assertThat(rows.get(8).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(8).get(1), equalTo(2));
+            assertThat(rows.get(9).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(9).get(1), equalTo(2));
+            assertThat(rows.get(10).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(10).get(1), equalTo(3));
+            assertThat(rows.get(11).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(11).get(1), equalTo(4));
+            // each subquery FORKs after FROM, so test is searched four times
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    public void testForkAfterSubquery() {
+        var query = """
+            FROM (FROM test | WHERE id > 4),
+                 (FROM test | WHERE id <= 2)
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(4));
+            // fork1: id 5, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(5));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(6));
+
+            // fork2: id 1, 2
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(2).get(1), equalTo(1));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(2));
+            // FORK after the union copies both FROM test leaves into each branch
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    public void testForkInsideAndAfterSubquery() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | WHERE id <= 2 | EVAL _fork = "fork1")
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(8));
+
+            // fork1: id 4, 5, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(4));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(5));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(6));
+
+            // fork2: id 1, 1, 2, 2, 3
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(1));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(4).get(1), equalTo(1));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(5).get(1), equalTo(2));
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(2));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(3));
+            // outer FORK copies the inner FORK (2 scans) plus the sibling FROM test, twice
+            assertLocalShardCounts(resp, 6 * testShards, 6 * testShards, 0);
+        }
+    }
+
+    public void testNestedSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | WHERE id <= 4),
+                 (FROM (FROM test | WHERE id >= 3), (FROM test | WHERE id == 6))
+            | KEEP id
+            | SORT id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).includeExecutionMetadata(true))) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(3), List.of(4), List.of(4), List.of(5), List.of(6), List.of(6)))
+            );
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
+        }
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(4)).includeExecutionMetadata(true))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(4), List.of(4), List.of(5), List.of(6), List.of(6))));
+            assertLocalShardCounts(resp, 3 * testShards, 3 * testShards, 0);
+        }
+    }
+
+    public void testForkInsideSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | FORK (WHERE id > 2) (WHERE id <= 2))
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(3)).includeExecutionMetadata(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(8));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(4));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(5));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(3).get(1), equalTo(5));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(4).get(1), equalTo(6));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(5).get(1), equalTo(6));
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(3));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(4));
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    public void testForkAfterSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | WHERE id > 4),
+                 (FROM test | WHERE id <= 2)
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(3)).includeExecutionMetadata(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(5));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(6));
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    public void testForkInsideAndAfterSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | WHERE id <= 2 | EVAL _fork = "fork1")
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(3)).includeExecutionMetadata(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(4));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(4));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(5));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(6));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(3));
+            assertLocalShardCounts(resp, 6 * testShards, 6 * testShards, 0);
+        }
+    }
+
+    private static QueryPragmas branchPragmas(int degree) {
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), degree).build());
     }
 
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
+        testShards = randomIntBetween(1, 6);
         var createRequest = client.prepareCreate(indexName)
-            .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 6)))
+            .setSettings(Settings.builder().put("index.number_of_shards", testShards))
             .setMapping("id", "type=integer", "content", "type=text");
         assertAcked(createRequest);
         client().prepareBulk()

@@ -38,15 +38,23 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -57,9 +65,12 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 
@@ -70,6 +81,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -79,6 +91,9 @@ import static org.hamcrest.Matchers.nullValue;
  * index UUID and stays {@link IndexMetadata.State#OPEN} but receives a new history UUID, so every data node holding a copy must remove and
  * recreate its index service with reopened-index semantics rather than update it in place, while keeping the shard store on disk so that
  * the restore file diff can reuse identical local Lucene files.
+ * <p>
+ * It also tests that the restore entry points that open a restore over an open index only record, on the restore's
+ * {@link RestoreInProgress.Entry}, that its shards are to be reported as {@link ShardRestoringException} when their caller asks for it.
  * <p>
  * {@link #initializeRestoreOverOpenIndex} drives this through the public {@link RestoreService#restoreSnapshot} API, opting in via
  * {@link RestoreSnapshotRequest#restoreOverExisting()}, except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore},
@@ -92,6 +107,153 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     private static final String REPOSITORY_NAME = "test-repo";
     private static final String SNAPSHOT_NAME = "test-snap";
     private static final String INDEX_NAME = "test-idx";
+    private static final String SECOND_INDEX_NAME = "test-idx-2";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), BlockingRemovedShardDeletionPlugin.class);
+    }
+
+    /** Allows a test to stall filesystem cleanup after the shard lock and metadata validation have completed. */
+    public static class BlockingRemovedShardDeletionPlugin extends Plugin implements IndexStorePlugin {
+        volatile Runnable beforeDeletion = () -> {};
+
+        @Override
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Map.of();
+        }
+
+        @Override
+        public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+            return List.of(new IndexFoldersDeletionListener() {
+                @Override
+                public void beforeIndexFoldersDeleted(Index index, IndexSettings settings, Path[] paths, IndexRemovalReason reason) {}
+
+                @Override
+                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings settings, Path[] paths, IndexRemovalReason reason) {
+                    if (shardId.getIndexName().equals(INDEX_NAME) && shardId.id() == 2 && reason == IndexRemovalReason.NO_LONGER_ASSIGNED) {
+                        beforeDeletion.run();
+                    }
+                }
+            });
+        }
+    }
+
+    public void testSlowRemovedShardDeletionDoesNotBlockClusterApplier() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepository(REPOSITORY_NAME, "mock");
+        createIndex(INDEX_NAME, indexSettings(1, 0).build());
+        prepareIndex(INDEX_NAME).setId("small").setSource("field", "small").get();
+        createFullSnapshot(REPOSITORY_NAME, "small");
+        assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
+        createIndex(INDEX_NAME, indexSettings(3, 0).build());
+        prepareIndex(INDEX_NAME).setId("large").setSource("field", "large").get();
+        createFullSnapshot(REPOSITORY_NAME, "large");
+        final var plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(BlockingRemovedShardDeletionPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        final CountDownLatch deleting = new CountDownLatch(1);
+        final CountDownLatch allowDelete = new CountDownLatch(1);
+        plugin.beforeDeletion = () -> {
+            deleting.countDown();
+            safeAwait(allowDelete);
+        };
+        try {
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> smallRestore = new PlainActionFuture<>();
+            restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, "small").indices(INDEX_NAME).restoreOverExisting(true),
+                smallRestore
+            );
+            safeGet(smallRestore);
+            safeAwait(deleting);
+            final PlainActionFuture<Void> applierResponsive = new PlainActionFuture<>();
+            internalCluster().getInstance(ClusterService.class, dataNode)
+                .getClusterApplierService()
+                .runOnApplierThread("verify applier progresses during slow deletion", Priority.NORMAL, state -> {}, applierResponsive);
+            safeGet(applierResponsive);
+            awaitRestoreCompleted();
+            // Reintroduce shard 2 while deletion holds its lock. The new store waits for cleanup without blocking the applier.
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> largeRestore = new PlainActionFuture<>();
+            restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, "large").indices(INDEX_NAME).restoreOverExisting(true),
+                largeRestore
+            );
+            safeGet(largeRestore);
+        } finally {
+            allowDelete.countDown();
+            plugin.beforeDeletion = () -> {};
+        }
+        awaitRestoreCompleted();
+        assertTrue(client().prepareGet(INDEX_NAME, "large").get().isExists());
+        assertFalse(client().prepareGet(INDEX_NAME, "small").get().isExists());
+    }
+
+    public void testRestoreOverOpenIndexChangesShardCount() throws Exception {
+        restoreWithDifferentShardCounts(false);
+    }
+
+    public void testRestoreOverClosedIndexChangesShardCount() throws Exception {
+        restoreWithDifferentShardCounts(true);
+    }
+
+    private void restoreWithDifferentShardCounts(boolean closeBeforeRestore) throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepository(REPOSITORY_NAME, "mock");
+        createIndex(INDEX_NAME, indexSettings(1, 0).build());
+        prepareIndex(INDEX_NAME).setId("small").setSource("field", "small").get();
+        createFullSnapshot(REPOSITORY_NAME, "small");
+        assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
+        createIndex(INDEX_NAME, indexSettings(3, 0).build());
+        prepareIndex(INDEX_NAME).setId("large").setSource("field", "large").get();
+        createFullSnapshot(REPOSITORY_NAME, "large");
+        final var identity = resolveIndex(INDEX_NAME);
+        for (String snapshot : List.of("small", "large", "small")) {
+            final var before = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index(INDEX_NAME);
+            long maxTerm = 0;
+            for (int shard = 0; shard < before.getNumberOfShards(); shard++) {
+                maxTerm = Math.max(maxTerm, before.primaryTerm(shard));
+            }
+            if (closeBeforeRestore) {
+                assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
+            }
+            final var request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, snapshot).indices(INDEX_NAME)
+                .restoreOverExisting(closeBeforeRestore == false);
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            restoreService().restoreSnapshot(ProjectId.DEFAULT, request, future);
+            safeGet(future);
+            awaitRestoreCompleted();
+            final int shardCount = snapshot.equals("small") ? 1 : 3;
+            final var restored = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .index(INDEX_NAME);
+            assertEquals(identity, restored.getIndex());
+            assertEquals(shardCount, restored.getNumberOfShards());
+            for (int shard = 0; shard < shardCount; shard++) {
+                assertThat(restored.primaryTerm(shard), greaterThan(maxTerm));
+            }
+            assertTrue(client().prepareGet(INDEX_NAME, snapshot).get().isExists());
+            assertFalse(client().prepareGet(INDEX_NAME, snapshot.equals("small") ? "large" : "small").get().isExists());
+            assertHitCount(prepareSearch(INDEX_NAME).setSize(0), 1);
+            assertBusy(() -> {
+                for (var shard : internalCluster().getInstance(NodeEnvironment.class, dataNode).findAllShardIds(identity)) {
+                    assertThat(shard.id(), lessThan(shardCount));
+                }
+            });
+            prepareIndex(INDEX_NAME).setId("after-restore").setSource("field", "new").get();
+        }
+        internalCluster().restartNode(dataNode);
+        ensureGreen(INDEX_NAME);
+        assertTrue(client().prepareGet(INDEX_NAME, "small").get().isExists());
+        assertTrue(client().prepareGet(INDEX_NAME, "after-restore").get().isExists());
+    }
 
     public void testRestoreOverOpenIndexReusesLocalFiles() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -951,6 +1113,260 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 .index(INDEX_NAME),
             nullValue()
         );
+    }
+
+    public void testRestoreSnapshotReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                restoreUuid,
+                true,
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), INDEX_NAME, restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(INDEX_NAME), nullValue());
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for {@link ShardRestoringException}, so the
+     * {@link RestoreService#restoreSnapshot} overload without the parameter never sets
+     * {@link RestoreInProgress.Entry#reportShardRestoring()} on the restore's entry, and the lookup reports nothing while the restore is
+     * in flight.
+     */
+    public void testRestoreSnapshotDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                UUIDs.randomBase64UUID(),
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    /**
+     * The overloads that choose a random restore UUID never ask for the restore to be reported.
+     */
+    public void testRestoreSnapshotWithoutRestoreUuidDoesNotReportShardRestoring() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+
+        final List<Boolean> withoutUpdater = whileRestoresInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> {},
+            future -> restoreService().restoreSnapshot(ProjectId.DEFAULT, restoreOverOpenIndexRequest(), future)
+        );
+        final List<Boolean> withUpdater = whileRestoresInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> {},
+            future -> restoreService().restoreSnapshot(ProjectId.DEFAULT, restoreOverOpenIndexRequest(), future, (state, builder) -> {})
+        );
+
+        assertEveryRestoreEntryReports(withoutUpdater, false);
+        assertEveryRestoreEntryReports(withUpdater, false);
+    }
+
+    public void testRestoreSnapshotOverOpenIndicesReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                restoreUuid,
+                true,
+                List.of(target),
+                future
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), INDEX_NAME, restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(INDEX_NAME), nullValue());
+    }
+
+    public void testRestoreSnapshotOverOpenIndicesDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(target),
+                future
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    /**
+     * A restore into a brand new index is the most common shape of restore. It is reported just like a restore over an open index.
+     */
+    public void testRestoreIntoANewIndexReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final String restoredIndex = INDEX_NAME + "-restored";
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(restoredIndex),
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME)
+                    .renamePattern("(.+)")
+                    .renameReplacement("$1-restored"),
+                restoreUuid,
+                true,
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), restoredIndex, restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("the original index is not being restored", reportableRestoreException(INDEX_NAME), nullValue());
+    }
+
+    /**
+     * Two restores of different indices run at once, one through each flag-setting entry point. Each index is reported with the UUID of its
+     * own restore.
+     */
+    public void testTwoConcurrentRestoresThatReportEachReportTheirOwnUuid() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createSecondIndex();
+        createRepositoryAndSnapshottedIndex();
+        final String firstUuid = UUIDs.randomBase64UUID();
+        final String secondUuid = UUIDs.randomBase64UUID();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget secondTarget = openIndexTarget(SECOND_INDEX_NAME);
+
+        whileRestoresInFlight(REPOSITORY_NAME, dataNode, () -> {
+            assertReportsShardRestoring(reportableRestoreException(INDEX_NAME), INDEX_NAME, firstUuid);
+            assertReportsShardRestoring(reportableRestoreException(SECOND_INDEX_NAME), SECOND_INDEX_NAME, secondUuid);
+        },
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                firstUuid,
+                true,
+                future,
+                (state, builder) -> {}
+            ),
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                secondUuid,
+                true,
+                List.of(secondTarget),
+                future
+            )
+        );
+    }
+
+    /**
+     * Deleting one of the indices a restore is restoring rebuilds the restore's entry. The restore must still report the index that is
+     * left, with the same UUID.
+     */
+    public void testRestoreThatReportsStillReportsAfterAnIndexOfTheRestoreIsDeleted() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createSecondIndex();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final RestoreSnapshotRequest bothIndices = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(
+            INDEX_NAME,
+            SECOND_INDEX_NAME
+        ).restoreOverExisting(true);
+
+        whileRestoresInFlight(REPOSITORY_NAME, dataNode, () -> {
+            assertReportsShardRestoring(reportableRestoreException(INDEX_NAME), INDEX_NAME, restoreUuid);
+
+            assertAcked(indicesAdmin().prepareDelete(SECOND_INDEX_NAME));
+
+            // the entry is rebuilt when the index is deleted, so wait for the master to apply the state that has the rebuilt entry
+            awaitClusterState(state -> {
+                final RestoreInProgress.Entry rebuilt = RestoreInProgress.get(state).get(restoreUuid);
+                return rebuilt != null
+                    && rebuilt.shards().values().stream().anyMatch(status -> "index was deleted".equals(status.reason()));
+            });
+            assertReportsShardRestoring(reportableRestoreException(INDEX_NAME), INDEX_NAME, restoreUuid);
+        }, future -> restoreService().restoreSnapshot(ProjectId.DEFAULT, bothIndices, restoreUuid, true, future, (state, builder) -> {}));
+    }
+
+    private static RestoreSnapshotRequest restoreOverOpenIndexRequest() {
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME)
+            .restoreOverExisting(true);
+    }
+
+    private ShardRestoringException reportableRestoreException(String indexName) {
+        return reportableRestoreExceptionOnMaster(state -> state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getIndex());
+    }
+
+    private void createSecondIndex() {
+        createIndex(SECOND_INDEX_NAME, indexSettings(1, 0).build());
+        for (int i = 0; i < 10; i++) {
+            prepareIndex(SECOND_INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).get();
+        }
+        indicesAdmin().prepareFlush(SECOND_INDEX_NAME).get();
+        ensureGreen(SECOND_INDEX_NAME);
     }
 
     /**

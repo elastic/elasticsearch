@@ -202,3 +202,26 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
     * reducing the grouping key cardinality, by filtering out values before STATS
 
 * Repository analyses of snapshot repositories based on AWS S3 include some checks that the APIs which relate to multipart uploads have linearizable (strongly-consistent) semantics, based on guarantees offered by representatives from AWS on this subject. Further investigation has determined that these guarantees do not hold under all conditions as previously claimed. If you are analyzing a snapshot repository based on AWS S3 using a version of {{es}} prior to 9.3.0 and you encounter a failure related to linearizable register operations, you may work around the issue and suppress these checks by setting the query parameter `?register_operation_count=1` and running the analysis using a one-node cluster. This issue is fixed in {{es}} version 9.3.0 by [#138663](https://github.com/elastic/elasticsearch/pull/138663).
+
+* Vector search performance can degrade on Linux systems running kernel 6.1 or later when Multi-Gen LRU (MGLRU) is enabled.
+  Affected {{es}} versions can experience significant vector search slowdowns and delayed Lucene index merges.
+  MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04.
+  An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
+  To determine whether MGLRU is enabled, run:
+  
+  ```bash
+  cat /sys/kernel/mm/lru_gen/enabled
+  ```
+  
+  A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+  This issue is fixed in {{es}} 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
+  It does not affect {{es}} 8.19.
+  For more information, refer to [elasticsearch#124499](https://github.com/elastic/elasticsearch/issues/124499).
+
+* A `double`, `float`, `half_float`, or `scaled_float` field can be indexed with the wrong value on indices that use stored `_source` with [`index.mapping.total_fields.ignore_dynamic_beyond_limit`](/reference/elasticsearch/index-settings/mapping-limit.md) set to `true`. This happens when the field's value is sent as an integer literal (for example `2` rather than `2.0`) after a floating-point dynamic field in the same document that was dropped for exceeding `index.mapping.total_fields.limit`. The field's doc values and points then hold the dropped field's value instead, while `_source` keeps the original value, so queries, aggregations, and sorting disagree with `_source`. No error or warning is logged. Indices that use synthetic `_source` are not affected.
+
+  The cause is a bug in jackson-core 2.15.0 ([FasterXML/jackson-core#1391](https://github.com/FasterXML/jackson-core/pull/1391)). It affects {{es}} 8.13.0 through 8.19.18, 9.0.0 through 9.2.x, 9.3.0 through 9.3.7, and 9.4.0 through 9.4.3, and is fixed by the Jackson upgrade in [#152163](https://github.com/elastic/elasticsearch/pull/152163), included in 8.19.19, 9.3.8, 9.4.4, and 9.5.0. Documents indexed on an affected version keep the wrong values until they are reindexed.
+
+  To avoid the issue on an affected version, send floating-point values with a decimal point (for example `2.0`), or raise `index.mapping.total_fields.limit` so that dynamic fields are not dropped.
+
+  Refer to [#162209](https://github.com/elastic/elasticsearch/issues/162209) for further details.

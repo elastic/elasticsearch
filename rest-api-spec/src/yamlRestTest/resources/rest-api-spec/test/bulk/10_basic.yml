@@ -100,6 +100,47 @@
 
   - match: { count: 4 }
 
+---
+"Missing required _routing only fails that item":
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _routing:
+              required: true
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id: '1'
+          - f: 1
+          - index:
+              _index: test
+              _id: '2'
+              routing: r
+          - f: 2
+          - index:
+              _index: test
+              _id: '3'
+              routing: r
+          - f: 3
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: routing_missing_exception }
+  - match: { items.1.index.result: created }
+  - match: { items.2.index.result: created }
+
+  - do:
+      count:
+        index: test
+
+  - match: { count: 2 }
+
 
 ---
 "empty action":

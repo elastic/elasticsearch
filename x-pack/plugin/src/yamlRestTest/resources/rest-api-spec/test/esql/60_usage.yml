@@ -69,6 +69,7 @@ setup:
             - dedup_command
             - highlight_v6
             - dense_vector_command
+            - fillnull
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -110,6 +111,7 @@ setup:
   - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
   - length: { esql.queries: 3 }
@@ -164,6 +166,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
@@ -223,6 +226,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
@@ -265,6 +269,19 @@ setup:
 
   - do: { xpack.usage: { } }
   - gt: { esql.features.dedup: $dedup_counter }
+
+  - set: { esql.features.fillnull: fillnull_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | fillnull "n/a" ON *
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.fillnull: $fillnull_counter }
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -315,6 +332,7 @@ setup:
   - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
   - length: { esql.queries: 3 }
@@ -369,6 +387,7 @@ setup:
   - match: { esql.features.ts: $ts_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
@@ -426,6 +445,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
@@ -440,6 +460,7 @@ setup:
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
   - exists: esql.functions.json_extract
+  - exists: esql.functions.json_string
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
@@ -570,6 +591,130 @@ took:
   # and by_type keys are absent (they only appear when at least one datasource is registered).
   - match: { esql.datasources.config.datasources.count: 0 }
   - match: { esql.datasources.config.datasets.count: 0 }
+
+---
+"Datasource query CPU telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_cpu ]
+      reason: "Datasource per-component CPU counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-component CPU counters (ns); always emitted, values are 0 if no external-source queries ran
+  - exists: esql.datasources.queries.cpu_nanos.execution
+  - exists: esql.datasources.queries.cpu_nanos.read
+  - exists: esql.datasources.queries.cpu_nanos.planning
+  - exists: esql.datasources.queries.cpu_nanos.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.total
+
+---
+"Datasource failure reason telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_failure_reasons ]
+      reason: "Datasource failure-reason counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # failed external-source queries by error_type (always emitted, 0 when no query failed)
+  - exists: esql.datasources.queries.failures.by_error_type.verification
+  - exists: esql.datasources.queries.failures.by_error_type.storage_auth
+  - exists: esql.datasources.queries.failures.by_error_type.storage_not_found
+  - exists: esql.datasources.queries.failures.by_error_type.storage_throttled
+  - exists: esql.datasources.queries.failures.by_error_type.storage_unavailable
+  - exists: esql.datasources.queries.failures.by_error_type.format
+  - exists: esql.datasources.queries.failures.by_error_type.discovery
+  - exists: esql.datasources.queries.failures.by_error_type.circuit_breaker
+  - exists: esql.datasources.queries.failures.by_error_type.timeout
+  - exists: esql.datasources.queries.failures.by_error_type.resource_limit
+  - exists: esql.datasources.queries.failures.by_error_type.other
+  # failed discovery attempts by error_type
+  - exists: esql.datasources.discovery.failures.by_error_type.storage_auth
+  - exists: esql.datasources.discovery.failures.by_error_type.discovery
+  - exists: esql.datasources.discovery.failures.by_error_type.other
+  # rejected data source / dataset changes by reason
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.validation
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.not_found
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.already_exists
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.max_count
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.unknown_type
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.unavailable
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.has_dependents
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.other
+  - exists: esql.datasources.config.datasets.changes.rejected.by_reason.validation
+  - exists: esql.datasources.config.datasets.changes.rejected.by_reason.other
+  # data source / dataset changes by storage type
+  - exists: esql.datasources.config.datasources.changes.by_type.s3
+  - exists: esql.datasources.config.datasources.changes.by_type.gcs
+  - exists: esql.datasources.config.datasources.changes.by_type.azure
+  - exists: esql.datasources.config.datasources.changes.by_type.http
+  - exists: esql.datasources.config.datasources.changes.by_type.local
+  - exists: esql.datasources.config.datasources.changes.by_type.unknown
+  - exists: esql.datasources.config.datasets.changes.by_type.s3
+  - exists: esql.datasources.config.datasets.changes.by_type.unknown
+
+---
+"Datasource client telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_client ]
+      reason: "Datasource per-client query counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # external-source queries by client (always emitted, 0 when no query came from that client)
+  - exists: esql.datasources.queries.by_client.kibana
+  - exists: esql.datasources.queries.by_client.none
+  - exists: esql.datasources.queries.by_client.other
+
+---
+"Datasource query type and format telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_by_type_format ]
+      reason: "Datasource per-storage-type and per-format query counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # external-source queries by storage type and by format, split by outcome (always emitted, 0 when none ran)
+  - exists: esql.datasources.queries.by_type.s3.by_outcome.success
+  - exists: esql.datasources.queries.by_type.local.by_outcome.failure
+  - exists: esql.datasources.queries.by_type.unknown.by_outcome.cancelled
+  - exists: esql.datasources.queries.by_type.mixed.by_outcome.success
+  - exists: esql.datasources.queries.by_format.parquet.by_outcome.success
+  - exists: esql.datasources.queries.by_format.csv.by_outcome.failure
+  - exists: esql.datasources.queries.by_format.unresolved.by_outcome.success
+  - exists: esql.datasources.queries.by_format.mixed.by_outcome.success
+
+---
+"Datasource storage error types":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_storage_error_types ]
+      reason: "Datasource storage give-up counters by error type present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # terminal object-store give-ups by failure category (always emitted, 0 when none gave up)
+  - exists: esql.datasources.storage.errors.by_error_type.storage_unavailable
+  - exists: esql.datasources.storage.errors.by_error_type.storage_throttled
+  - exists: esql.datasources.storage.errors.by_error_type.other
 
 ---
 "Datasource inventory marginals":

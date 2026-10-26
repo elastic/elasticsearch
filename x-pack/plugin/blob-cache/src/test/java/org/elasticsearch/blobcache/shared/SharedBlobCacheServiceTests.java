@@ -26,8 +26,10 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
@@ -37,6 +39,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -65,6 +68,8 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -80,9 +85,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_MISS_AGE;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_READ_AGE;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.AllFrequencies;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.LowestFrequency;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Evicted;
@@ -97,6 +105,7 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Lowes
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.telemetry.InstrumentType.DOUBLE_HISTOGRAM;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_HISTOGRAM;
@@ -140,7 +149,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<TestCacheKey>(
@@ -167,6 +176,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(tryEvict(region1));
             }
             assertEquals(3, cacheService.freeRegionCount());
+            assertThat(region1.maxReachedFreq(), is(1));
             // one eviction should be reflected in the telemetry for total count of evicted regions
             assertThat(
                 recordingMeterRegistry.getRecorder()
@@ -174,6 +184,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     .size(),
                 is(1)
             );
+            // LFU-style tryEvict also records the evicted region's max freq
+            var evictedMaxFreq = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(evictedMaxFreq, hasSize(1));
+            assertThat(evictedMaxFreq.getFirst().getLong(), is(1L));
             synchronized (cacheService) {
                 assertFalse(tryEvict(region1));
             }
@@ -212,6 +227,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     .size(),
                 is(3)
             );
+            // and the LFU max-freq histogram to 3 recordings, all at the initial freq
+            evictedMaxFreq = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(evictedMaxFreq, hasSize(3));
+            assertThat(evictedMaxFreq.stream().map(Measurement::getLong).toList(), equalTo(List.of(1L, 1L, 1L)));
+            assertThat(region0.maxReachedFreq(), is(1));
+            assertThat(region2.maxReachedFreq(), is(1));
 
             assertTrue(bytesReadFuture.isDone());
             assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
@@ -234,7 +256,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(new RecordingMeterRegistry())
+                new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -271,7 +293,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(new RecordingMeterRegistry())
+                new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -303,6 +325,44 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // backfilling an already-resolved region is a no-op (transition only from BACKFILL_IN_PROGRESS)
             cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill + 1 : null);
             assertEquals(backfill, region0.timestampMillis());
+        }
+    }
+
+    public void testRegionStartOffsetIsRegionTimesRegionSize() throws IOException {
+        final long regionSize = size(4L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            // At least two regions, so an implementation that always returns 0 cannot pass.
+            final int regions = randomIntBetween(2, 10);
+            final long exactBlobLength = regionSize * regions;
+            for (int region = 0; region < regions; region++) {
+                assertEquals(region * regionSize, cacheService.get(cacheKey, exactBlobLength, region, irrelevantTimestamp()).startOffset());
+            }
+
+            // A short final region still starts on the region boundary, not at the blob length.
+            final long shortTail = randomLongBetween(1, regionSize - 1);
+            final long shortBlobLength = regionSize + shortTail;
+            final var shortKey = generateCacheKey();
+            assertEquals(0L, cacheService.get(shortKey, shortBlobLength, 0, irrelevantTimestamp()).startOffset());
+            assertEquals(regionSize, cacheService.get(shortKey, shortBlobLength, 1, irrelevantTimestamp()).startOffset());
         }
     }
 
@@ -459,7 +519,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(new RecordingMeterRegistry())
+                new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -505,7 +565,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         ExecutorService ioExecutor = Executors.newCachedThreadPool();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -698,7 +758,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recordingMeterRegistry)
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
             )
         ) {
             final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> activeRegions = new HashMap<>();
@@ -744,6 +804,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final List<Measurement> measurements = recordingMeterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL);
             assertEquals(expectedPressureEvictions, measurements.stream().mapToLong(Measurement::getLong).sum());
+
+            // Total eviction counter includes force and LFU-pressure evictions.
+            final List<Measurement> totalEvicted = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL);
+            assertEquals(operationCount, totalEvicted.stream().mapToLong(Measurement::getLong).sum());
+
+            // Max-freq histogram is LFU-pressure only (including freq 0), not force evictions.
+            final List<Measurement> maxFreqMeasurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(maxFreqMeasurements, hasSize((int) expectedPressureEvictions));
+            assertTrue(
+                "never-promoted regions record the insertion frequency",
+                maxFreqMeasurements.stream().allMatch(m -> m.getLong() == 1L)
+            );
         }
     }
 
@@ -1083,7 +1157,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     public void testDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         // we have 8 regions
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1192,13 +1266,92 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     /**
+     * Eviction records the lifetime peak frequency, not the current (possibly decayed) frequency.
+     * The peak is retained after eviction; CacheFileRegion is not reused.
+     */
+    public void testEvictedRegionRecordsPeakFreq() throws IOException {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(400)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                metrics
+            )
+        ) {
+            cacheService.get(generateCacheKey(), size(250), 0, irrelevantTimestamp());
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
+            final var cacheKey3 = generateCacheKey();
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
+            assertEquals(0, cacheService.freeRegionCount());
+            assertThat(region0.maxReachedFreq(), is(1));
+
+            AtomicLong expectedEpoch = new AtomicLong();
+            Runnable triggerDecay = () -> {
+                assertThat(taskQueue.hasRunnableTasks(), is(false));
+                cacheService.get(generateCacheKey(), size(250), 0, irrelevantTimestamp());
+                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                taskQueue.runAllRunnableTasks();
+                assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
+            };
+
+            // decay freq 1 → 0, then access to promote to 2, decay, access to promote to 3, decay, access to peak 4
+            triggerDecay.run();
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
+            triggerDecay.run();
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            assertEquals(3, cacheService.getFreq(region0));
+            triggerDecay.run();
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            assertEquals(4, cacheService.getFreq(region0));
+            assertThat(region0.maxReachedFreq(), is(4));
+
+            // keep freq0 empty so further decays run, then decay current freq below the peak
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
+            triggerDecay.run();
+            triggerDecay.run();
+            assertEquals(2, cacheService.getFreq(region0));
+            assertThat("decay must not lower the lifetime peak", region0.maxReachedFreq(), is(4));
+
+            final int measurementsBefore = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ)
+                .size();
+            synchronized (cacheService) {
+                assertTrue(tryEvict(region0));
+            }
+            var evictedMaxFreq = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(evictedMaxFreq, hasSize(measurementsBefore + 1));
+            assertThat(evictedMaxFreq.getLast().getLong(), is(4L));
+            assertThat("eviction must not reset the lifetime peak", region0.maxReachedFreq(), is(4));
+        }
+    }
+
+    /**
      * Verifies that the blob cache free list is partitioned into {@code initial_decays} regions and that
      * a decay is imposed as specified: every {@code numRegions / initial_decays} polls from the initial
      * free list schedule a decay.
      */
     public void testInitialDecaysPartitionsFreeList() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         final int numRegions = between(10, 100);
         final int initialDecays = between(1, 10);
         int initialDecayPollCount = Math.max(numRegions / initialDecays, 1);
@@ -1270,7 +1423,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * With initial_decays=0 no decay is imposed when consuming the initial free list; epoch stays 0 until eviction triggers decay.
      */
     public void testInitialDecaysZeroDisablesFreeListDecay() throws IOException {
-        BlobCacheMetrics metrics = new BlobCacheMetrics(new RecordingMeterRegistry());
+        BlobCacheMetrics metrics = new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER);
         final int numRegions = between(10, 100);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1483,7 +1636,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      */
     public void testMassiveDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         int regions = 1024; // to measure decay time, increase to 1024*1024 and disable assertions.
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1976,7 +2129,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 new DefaultEvictionPolicy<>()
             )
@@ -2073,7 +2226,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recordingEvicted)
+                new BlobCacheMetrics(recordingEvicted, NOOP_TIME_PROVIDER)
             )
         ) {
             // fill the cache: every entry lands at frequency 1, leaving the lowest-frequency (0) list empty
@@ -2131,7 +2284,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recordingNone),
+                new BlobCacheMetrics(recordingNone, NOOP_TIME_PROVIDER),
                 neverEvict
             )
         ) {
@@ -2221,7 +2374,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 freeingPolicy
             )
@@ -2320,7 +2473,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 protectFirstSkip
             )
@@ -2434,7 +2587,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 protectByKey
             )
@@ -2729,7 +2882,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(clockStepNanos),
                 new DefaultEvictionPolicy<>()
             )
@@ -3659,6 +3812,275 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(future1.get(10L, TimeUnit.SECONDS) && future2.get(10L, TimeUnit.SECONDS), is(false));
             assertThat(bytesWritten.get(), equalTo(regionSize - 1));
         }
+    }
+
+    /**
+     * A read that defers its claim registers its listener and queues a task without claiming, so a populate for the same range queued
+     * afterwards (e.g. a region warming task on another pool) still sees the gaps. Whichever task runs first claims and fills; the other
+     * finds nothing to claim, and the read completes from either fill.
+     */
+    public void testPopulateAndReadDeferredClaimWhenThePopulateRunsFirst() throws Exception {
+        assertDeferredClaimRacesWithPopulate(true);
+    }
+
+    public void testPopulateAndReadDeferredClaimWhenTheClaimTaskRunsFirst() throws Exception {
+        assertDeferredClaimRacesWithPopulate(false);
+    }
+
+    private void assertDeferredClaimRacesWithPopulate(boolean populateRunsFirst) throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final List<Runnable> readTasks = new ArrayList<>();
+            final List<Runnable> populateTasks = new ArrayList<>();
+            final AtomicInteger fills = new AtomicInteger();
+            final RangeMissingHandler writer = fillingWriter(fills);
+
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            entry.populateAndRead(range, range, READ_ALL, writer, EsExecutors.DIRECT_EXECUTOR_SERVICE, readTasks::add, readFuture);
+            assertThat(readTasks, hasSize(1));
+            assertThat(readFuture.isDone(), is(false));
+
+            // the range is pending but unclaimed, so the populate still has gaps to claim and queues its own task
+            final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
+            entry.populate(range, writer, populateTasks::add, populateFuture);
+            assertThat(populateTasks, hasSize(1));
+            assertThat(populateFuture.isDone(), is(false));
+
+            if (populateRunsFirst) {
+                // If populate runs first, it'll complete the gaps needed by populateAndRead and notify the executor
+                populateTasks.get(0).run();
+                assertThat(safeGet(populateFuture), is(true));
+                assertThat(safeGet(readFuture), equalTo(Math.toIntExact(range.length())));
+                readTasks.get(0).run();
+            } else {
+                // In this case, the populateAndRead will claim the gaps first, and it'll notify the populateTask future once the gaps
+                // are filled
+                readTasks.get(0).run();
+                assertThat(safeGet(readFuture), equalTo(Math.toIntExact(range.length())));
+                populateTasks.get(0).run();
+                assertThat(safeGet(populateFuture), is(false));
+            }
+            assertThat(fills.get(), equalTo(1));
+            assertThat(entry.tracker.checkAvailable(range.end()), is(true));
+        });
+    }
+
+    public void testPopulateAndReadDeferredClaimFailsWhenTheOtherClaimerFails() throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final List<Runnable> readTasks = new ArrayList<>();
+            final List<Runnable> warmTasks = new ArrayList<>();
+            final IOException failure = new IOException("simulated");
+
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                fillingWriter(new AtomicInteger()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                readTasks::add,
+                readFuture
+            );
+            final PlainActionFuture<Boolean> warmFuture = new PlainActionFuture<>();
+            entry.populate(range, failingWriter(failure), warmTasks::add, warmFuture);
+
+            warmTasks.get(0).run();
+            assertThat(warmFuture.isDone(), is(true));
+            assertThat(expectThrows(ExecutionException.class, warmFuture::get).getCause(), sameInstance(failure));
+            // the failure of the claimer propagates through the tracker to the read that was waiting on the same range
+            assertThat(readFuture.isDone(), is(true));
+            assertThat(expectThrows(ExecutionException.class, readFuture::get).getCause(), sameInstance(failure));
+            // the failed range was removed, so the read's task has nothing to claim and a later read can fill the range again
+            readTasks.get(0).run();
+            assertThat(entry.tracker.waitForRangeIfPending(range, ActionListener.noop()), is(false));
+
+            final PlainActionFuture<Integer> retryFuture = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                fillingWriter(new AtomicInteger()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                retryFuture
+            );
+            assertThat(safeGet(retryFuture), equalTo(Math.toIntExact(range.length())));
+        });
+    }
+
+    /**
+     * When the executor rejects the claiming task, the read is failed with the rejection. The task never claimed the gaps, so they are left
+     * for whoever reads or warms the range next. (Even though, if the executor starts rejecting tasks, it means that the node is shutting
+     * down, and the node will stop using the cache at that point.)
+     */
+    public void testPopulateAndReadDeferredClaimRejected() throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final EsRejectedExecutionException rejection = new EsRejectedExecutionException("simulated", true);
+            // EsThreadPoolExecutor hands rejections to the AbstractRunnable instead of throwing out of execute()
+            final Executor rejectingExecutor = r -> {
+                final AbstractRunnable task = asInstanceOf(AbstractRunnable.class, r);
+                task.onRejection(rejection);
+                task.onAfter();
+            };
+
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                unreachableWriter(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                rejectingExecutor,
+                readFuture
+            );
+            assertThat(readFuture.isDone(), is(true));
+            assertThat(expectThrows(ExecutionException.class, readFuture::get).getCause(), sameInstance(rejection));
+        });
+    }
+
+    /**
+     * The claimed gaps are filled through the executor given for the fills: here it runs tasks inline, so the claim task fills them itself.
+     */
+    public void testPopulateAndReadClaimTaskFillsTheGapsInlineWhenTheFillExecutorRunsInline() throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final List<Runnable> claimTasks = new ArrayList<>();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                fillingWriter(fills),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                claimTasks::add,
+                future
+            );
+            assertThat(claimTasks, hasSize(1));
+            claimTasks.get(0).run();
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fills.get(), equalTo(1));
+        });
+    }
+
+    /**
+     * The claimed gaps are filled through the executor given for the fills, as they are for an inline claim, so the claim task dispatches
+     * them to it when it is not the same executor.
+     */
+    public void testPopulateAndReadClaimTaskDispatchesTheGapsToTheFillExecutor() throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final List<Runnable> claimTasks = new ArrayList<>();
+            final List<Runnable> fillTasks = new ArrayList<>();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            entry.populateAndRead(range, range, READ_ALL, fillingWriter(fills), fillTasks::add, claimTasks::add, future);
+            assertThat(claimTasks, hasSize(1));
+            assertThat(fillTasks, hasSize(0));
+            claimTasks.get(0).run();
+            assertThat(fillTasks, hasSize(1));
+            assertThat(future.isDone(), is(false));
+            fillTasks.get(0).run();
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fills.get(), equalTo(1));
+        });
+    }
+
+    /**
+     * Without a claim executor the gaps are claimed by the calling thread, and the fills are dispatched once to the fill executor.
+     */
+    public void testPopulateAndReadWithoutClaimExecutorClaimsOnTheCallingThread() throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final List<Runnable> fillTasks = new ArrayList<>();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            entry.populateAndRead(range, range, READ_ALL, fillingWriter(fills), fillTasks::add, future);
+            assertThat(fillTasks, hasSize(1));
+            fillTasks.get(0).run();
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fillTasks, hasSize(1));
+            assertThat(fills.get(), equalTo(1));
+        });
+    }
+
+    /**
+     * A read spanning several regions claims each region in its own task on the claim executor of the cache file, including on a copy of
+     * the cache file.
+     */
+    public void testCacheFileClaimsEveryRegionOfAReadThroughItsClaimExecutor() throws Exception {
+        withCacheServiceOnDirectExecutor(cacheService -> {
+            final List<Runnable> claimTasks = new ArrayList<>();
+            final var original = cacheService.getCacheFile(
+                generateCacheKey(),
+                size(12L),
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp(),
+                claimTasks::add
+            );
+            final var cacheFile = randomBoolean() ? original : original.copy();
+            final ByteRange range = ByteRange.of(0, 2 * size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            cacheFile.populate(range, range, READ_ALL, fillingWriter(fills), "test", future);
+            assertThat(claimTasks, hasSize(2));
+            assertThat(future.isDone(), is(false));
+            claimTasks.forEach(Runnable::run);
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fills.get(), equalTo(2));
+        });
+    }
+
+    private static final SharedBlobCacheService.RangeAvailableHandler READ_ALL = (channel, channelPos, relativePos, length) -> length;
+
+    private void withCacheServiceOnDirectExecutor(CheckedConsumer<SharedBlobCacheService<TestCacheKey>, Exception> test) throws Exception {
+        final Settings settings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1L)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                new DeterministicTaskQueue().getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            test.accept(cacheService);
+        }
+    }
+
+    private RangeMissingHandler fillingWriter(AtomicInteger fills) {
+        return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+            completionListener,
+            () -> {
+                fills.incrementAndGet();
+                progressUpdater.accept(length);
+            }
+        );
+    }
+
+    private static RangeMissingHandler failingWriter(Exception failure) {
+        return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completionListener
+            .onFailure(failure);
+    }
+
+    private static RangeMissingHandler unreachableWriter() {
+        return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
+            throw new AssertionError("should not fill");
+        };
     }
 
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
@@ -4718,6 +5140,84 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(slicesAvailable);
                 assertArrayEquals(expected, actual);
             }
+        }
+    }
+
+    public void testBackfillTimestampIsUsedForAgeHistograms() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 10));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+            );
+            cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+
+            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
+            assertEquals(
+                backfill,
+                cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP).timestampMillis()
+            );
+
+            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a negative age.
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+
+            // Cache-miss path (populateAndRead on empty region): both read and miss ages are recorded
+            recording.getRecorder().resetCalls();
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+            List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges, hasSize(1));
+            assertEquals(0.0, readAges.getFirst().getDouble(), 0.0);
+            List<Measurement> missAges = recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_MISS_AGE);
+            assertThat(missAges, hasSize(1));
+            assertEquals(0.0, missAges.getFirst().getDouble(), 0.0);
+
+            // Cache-hit path (tryRead on now-populated region): only a read age is recorded
+            recording.getRecorder().resetCalls();
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
+            List<Measurement> readAges2 = recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_READ_AGE);
+            assertThat(readAges2, hasSize(1));
+            assertEquals(0.0, readAges2.getFirst().getDouble(), 0.0);
+            assertThat(recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_MISS_AGE), empty());
         }
     }
 

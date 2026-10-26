@@ -14,6 +14,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -183,6 +184,53 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         try {
             bytes.append(value.bytes, value.offset, value.length);
             appendOffset(newOffset, value.length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
+        ++size;
+    }
+
+    /**
+     * Appends two {@link BytesRef} values as one entry, allowing callers to avoid an intermediate copy.
+     */
+    public void append(BytesRef v1, BytesRef v2) {
+        final int length = Math.toIntExact(v1.length + v2.length);
+        final long newOffset = lastOffset + length;
+        try {
+            bytes.append(v1.bytes, v1.offset, v1.length);
+            bytes.append(v2.bytes, v2.offset, v2.length);
+            appendOffset(newOffset, length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
+        ++size;
+    }
+
+    /**
+     * Appends a potentially fragmented reference as one entry, copying its chunks directly into the array's storage.
+     */
+    public void append(BytesReference value) {
+        final int length = value.length();
+        final long newOffset = lastOffset + length;
+        try {
+            if (value.hasArray()) {
+                bytes.append(value.array(), value.arrayOffset(), length);
+            } else {
+                bytes.ensureCapacity(newOffset);
+                var iterator = value.iterator();
+                BytesRef chunk;
+                while ((chunk = iterator.next()) != null) {
+                    bytes.append(chunk.bytes, chunk.offset, chunk.length);
+                }
+            }
+            appendOffset(newOffset, length);
+        } catch (IOException e) {
+            // BytesReference iterators do not perform I/O.
+            throw new AssertionError("won't happen", e);
         } catch (CircuitBreakingException e) {
             bytes.truncateTo(lastOffset);
             throw e;
@@ -648,6 +696,17 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             pages = Arrays.copyOf(pages, newSize);
             caches = Arrays.copyOf(caches, newSize);
             bigArrays.adjustBreaker(-estimateUseByPagesArray(oldSize), true);
+        }
+
+        // Prepare for a chunked append without allocating subsequent byte pages until they are needed.
+        private void ensureCapacity(long minSize) {
+            if (currentPage.length < PAGE_SIZE && minSize > currentPage.length) {
+                growFirstPage(minSize);
+            }
+            int numPages = Math.toIntExact((minSize + PAGE_SIZE - 1) >> PAGE_SHIFT);
+            if (numPages > pages.length) {
+                grow(numPages);
+            }
         }
 
         private byte[] grabNextPage() {

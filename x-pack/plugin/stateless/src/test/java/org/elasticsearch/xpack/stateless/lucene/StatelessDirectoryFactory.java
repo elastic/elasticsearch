@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -30,7 +31,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.StoreMetricsDirectory;
@@ -42,12 +42,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.Closeable;
@@ -61,6 +62,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MMAP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
@@ -72,9 +75,11 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
  * named after the node role whose <em>read</em> path they reproduce:
  *
  * <ul>
- *   <li>{@link #newSearchDirectory(Path)} and its overloads reproduce {@link SearchDirectory}: reads of committed files
- *       flow through the stateless blob cache, as on a search node. Writes go to a local NIOFSDirectory, and each file
- *       becomes readable through the cache as soon as it is closed, so nothing is ever read from the local copy.</li>
+ *   <li>{@link #newSearchDirectory(Path)} and its overloads approximate a search node's read path: committed files are
+ *       read through a lightweight {@link BlobStoreCacheDirectory} and the stateless blob cache, as {@link SearchDirectory}
+ *       does, but without {@link SearchDirectory}'s commit tracking, generational file pinning or timestamp handling.
+ *       Writes go to a local NIOFSDirectory, and each file becomes readable through the cache as soon as it is closed, so
+ *       nothing is ever read from the local copy.</li>
  *   <li>{@link #newIndexDirectory(Path, Path)} reproduces {@link IndexDirectory}: files are read from the local copy for as
  *       long as they have not been uploaded to the object store, as on an indexing node. Nothing is ever uploaded here, so
  *       reads stay on the local path for the lifetime of the directory. Just like in production code, the index path is
@@ -263,9 +268,13 @@ public final class StatelessDirectoryFactory {
     }
 
     /**
-     * A read-write directory reproducing the read path of a stateless <em>search</em> node. Writes go to a local
-     * NIOFSDirectory; reads for committed files flow through the {@link SearchDirectory} /
+     * A read-write directory approximating the read path of a stateless <em>search</em> node. Writes go to a local
+     * NIOFSDirectory; reads for committed files flow through a lightweight {@link BlobStoreCacheDirectory} and the
      * {@link StatelessSharedBlobCacheService}. Uncommitted files (temp files, lock files) are read directly from disk.
+     * <p>
+     * This is a stand-in for {@link SearchDirectory}, not an instance of it. Every file is treated as already uploaded
+     * and published as soon as it is written. Commit updates, generational file pins and timestamp-based region
+     * stamping are not exercised.
      */
     private static class SearchNodeDirectory extends FilterDirectory {
 
@@ -294,15 +303,8 @@ public final class StatelessDirectoryFactory {
                 TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
             );
             var shardId = new ShardId(new Index("index", "_na_"), 0);
-
-            var searchDirectory = new SearchDirectory(
-                cacheService,
-                cacheBlobReaderService,
-                MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                shardId,
-                false,
-                IndexVersion.current()
-            );
+            var metadata = new ConcurrentHashMap<String, BlobFileRanges>();
+            var dataSetSizeInBytes = new AtomicLong();
 
             var blobStore = new FsBlobStore(8192, dataPath, true);
             var fakeBlobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, dataPath) {
@@ -326,42 +328,102 @@ public final class StatelessDirectoryFactory {
                     return fileName;
                 }
             };
-            searchDirectory.setBlobContainer(primaryTerm -> fakeBlobContainer);
+            var cacheDirectory = new BlobStoreCacheDirectory(
+                cacheService,
+                shardId,
+                new LongAdder(),
+                new LongAdder(),
+                primaryTerm -> fakeBlobContainer
+            ) {
+                @Override
+                protected Map<String, BlobFileRanges> getCurrentMetadata() {
+                    return metadata;
+                }
 
-            return new SearchNodeDirectory(searchDirectory, fakeBlobStoreDirectory, blobNameToFileName, infra);
+                @Override
+                public long estimateDataSetSizeInBytes() {
+                    return dataSetSizeInBytes.get();
+                }
+
+                @Override
+                protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                    return cacheBlobReaderService.getCacheBlobReader(
+                        shardId,
+                        this::getBlobContainer,
+                        blobFile,
+                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+                        totalBytesReadFromObjectStore::add,
+                        bytesRead -> {},
+                        BlobCacheMetrics.CachePopulationReason.CacheMiss,
+                        cacheService.getShardReadThreadPoolExecutor(),
+                        fileName,
+                        false
+                    );
+                }
+
+                @Override
+                public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
+                    throw new UnsupportedOperationException("search-node benchmark directory does not warm [" + blobFile.blobName() + "]");
+                }
+
+                @Override
+                public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
+                    throw new UnsupportedOperationException("search-node benchmark directory does not support warming clones");
+                }
+
+                @Override
+                public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                    Map<String, BlobFileRanges> readMetadata,
+                    long readDataSetSizeInBytes
+                ) {
+                    throw new UnsupportedOperationException(
+                        "search-node benchmark directory does not support per-BCC metadata reads for "
+                            + readMetadata.size()
+                            + " files totaling "
+                            + readDataSetSizeInBytes
+                            + " bytes"
+                    );
+                }
+            };
+
+            return new SearchNodeDirectory(cacheDirectory, fakeBlobStoreDirectory, blobNameToFileName, infra, metadata, dataSetSizeInBytes);
         }
 
-        private final SearchDirectory searchDirectory;
+        private final BlobStoreCacheDirectory cacheDirectory;
         private final Directory fakeBlobStoreDirectory;
         private final Map<String, String> blobNameToFileName;
         private final Infra infra;
-        private final Map<String, BlobFileRanges> metadata = new ConcurrentHashMap<>();
+        private final Map<String, BlobFileRanges> metadata;
+        private final AtomicLong dataSetSizeInBytes;
         private final AtomicInteger blobFileGenerationGenerator = new AtomicInteger();
 
         private SearchNodeDirectory(
-            SearchDirectory searchDirectory,
+            BlobStoreCacheDirectory cacheDirectory,
             Directory fakeBlobStoreDirectory,
             Map<String, String> blobNameToFileName,
-            Infra infra
+            Infra infra,
+            Map<String, BlobFileRanges> metadata,
+            AtomicLong dataSetSizeInBytes
         ) {
-            super(searchDirectory);
-            this.searchDirectory = searchDirectory;
+            super(cacheDirectory);
+            this.cacheDirectory = cacheDirectory;
             this.fakeBlobStoreDirectory = fakeBlobStoreDirectory;
             this.blobNameToFileName = blobNameToFileName;
             this.infra = infra;
+            this.metadata = metadata;
+            this.dataSetSizeInBytes = dataSetSizeInBytes;
         }
 
         private BlobFileRanges newBlobFileRanges(String name) throws IOException {
             long fileLength = fakeBlobStoreDirectory.fileLength(name);
             int generation = blobFileGenerationGenerator.incrementAndGet();
-            var blobName = StatelessCompoundCommit.PREFIX + generation;
+            var blobName = BatchedCompoundCommit.PREFIX + generation;
             blobNameToFileName.put(blobName, name);
             return new BlobFileRanges(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, generation)), 0, fileLength));
         }
 
         private void refreshMetadata() {
-            long total = metadata.values().stream().mapToLong(BlobFileRanges::fileLength).sum();
-            searchDirectory.updateMetadata(Map.copyOf(metadata), total);
+            dataSetSizeInBytes.set(metadata.values().stream().mapToLong(BlobFileRanges::fileLength).sum());
         }
 
         @Override
@@ -402,8 +464,8 @@ public final class StatelessDirectoryFactory {
         @Override
         public void rename(String source, String dest) throws IOException {
             fakeBlobStoreDirectory.rename(source, dest);
-            metadata.remove(source);
             metadata.put(dest, newBlobFileRanges(dest));
+            metadata.remove(source);
             refreshMetadata();
         }
 
@@ -438,7 +500,7 @@ public final class StatelessDirectoryFactory {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(searchDirectory, fakeBlobStoreDirectory, infra);
+            IOUtils.close(cacheDirectory, fakeBlobStoreDirectory, infra);
         }
 
         /**

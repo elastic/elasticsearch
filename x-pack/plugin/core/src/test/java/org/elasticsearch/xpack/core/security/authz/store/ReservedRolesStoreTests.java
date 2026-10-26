@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -174,11 +175,23 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesActio
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -261,6 +274,350 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private static final String READ_CROSS_CLUSTER_NAME = "internal:transport/proxy/indices:data/read/query";
 
+    private static final Map<String, Map<String, Set<String>>> ALERTZERO_WORKER_INDEX_PRIVILEGES = Map.ofEntries(
+        Map.entry(
+            "alertzero_alert_triage",
+            Map.ofEntries(
+                Map.entry(".adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read")),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
+                Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry("apm-sample-transactionsample", Set.of()),
+                Map.entry("auditbeat-sample", Set.of()),
+                Map.entry("endgame-sample", Set.of()),
+                Map.entry("entities-latest-sample", Set.of()),
+                Map.entry("filebeat-sample", Set.of()),
+                Map.entry("logs-endpoint.events.file-sample", Set.of()),
+                Map.entry("logs-endpoint.events.network-sample", Set.of()),
+                Map.entry("logs-endpoint.events.process-sample", Set.of()),
+                Map.entry("logs-endpoint.events.registry-sample", Set.of()),
+                Map.entry("logs-endpoint.events.sample", Set.of()),
+                Map.entry("logs-sample", Set.of()),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
+                Map.entry("packetbeat-sample", Set.of()),
+                Map.entry("traces-apmsample", Set.of()),
+                Map.entry("winlogbeat-sample", Set.of()),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of()),
+                Map.entry(".alerts-observability.logs.alerts-default", Set.of())
+            )
+        ),
+        Map.entry(
+            "alertzero_attack_discovery",
+            Map.ofEntries(
+                Map.entry(
+                    ".adhoc.alerts-security.attack.discovery.alerts-sample",
+                    Set.of("index", "maintenance", "read", "view_index_metadata")
+                ),
+                Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of("read")),
+                Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("apm-sample-transactionsample", Set.of("read")),
+                Map.entry("auditbeat-sample", Set.of("read")),
+                Map.entry("endgame-sample", Set.of("read")),
+                Map.entry("entities-latest-sample", Set.of("read")),
+                Map.entry("filebeat-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.file-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.network-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.process-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.registry-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.sample", Set.of("read")),
+                Map.entry("logs-sample", Set.of("read")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
+                Map.entry("packetbeat-sample", Set.of("read")),
+                Map.entry("traces-apmsample", Set.of("read")),
+                Map.entry("winlogbeat-sample", Set.of("read")),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of()),
+                Map.entry(".alerts-observability.logs.alerts-default", Set.of())
+            )
+        ),
+        Map.entry(
+            "alertzero_endpoint_analysis",
+            Map.ofEntries(
+                Map.entry(
+                    ".adhoc.alerts-security.attack.discovery.alerts-sample",
+                    Set.of("index", "maintenance", "read", "view_index_metadata")
+                ),
+                Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
+                Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry("apm-sample-transactionsample", Set.of()),
+                Map.entry("auditbeat-sample", Set.of()),
+                Map.entry("endgame-sample", Set.of()),
+                Map.entry("entities-latest-sample", Set.of()),
+                Map.entry("filebeat-sample", Set.of()),
+                Map.entry("logs-endpoint.events.file-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.network-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.process-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.registry-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.sample", Set.of()),
+                Map.entry("logs-sample", Set.of()),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
+                Map.entry("packetbeat-sample", Set.of()),
+                Map.entry("traces-apmsample", Set.of()),
+                Map.entry("winlogbeat-sample", Set.of()),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of()),
+                Map.entry(".alerts-observability.logs.alerts-default", Set.of())
+            )
+        ),
+        Map.entry(
+            "alertzero_threat_hunt",
+            Map.ofEntries(
+                Map.entry(".adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of()),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
+                Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry("apm-sample-transactionsample", Set.of("read")),
+                Map.entry("auditbeat-sample", Set.of("read")),
+                Map.entry("endgame-sample", Set.of("read")),
+                Map.entry("entities-latest-sample", Set.of()),
+                Map.entry("filebeat-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.file-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.network-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.process-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.registry-sample", Set.of("read")),
+                Map.entry("logs-endpoint.events.sample", Set.of("read")),
+                Map.entry("logs-sample", Set.of("read")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of("read")),
+                Map.entry("packetbeat-sample", Set.of("read")),
+                Map.entry("traces-apmsample", Set.of("read")),
+                Map.entry("winlogbeat-sample", Set.of("read")),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of()),
+                Map.entry(".alerts-observability.logs.alerts-default", Set.of())
+            )
+        ),
+        Map.entry(
+            "alertzero_rule_tuning",
+            Map.ofEntries(
+                Map.entry(".adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of("read")),
+                Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
+                Map.entry(".preview.alerts-security.alerts-sample", Set.of("read")),
+                Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry("apm-sample-transactionsample", Set.of("read", "view_index_metadata")),
+                Map.entry("auditbeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("endgame-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("entities-latest-sample", Set.of()),
+                Map.entry("filebeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.file-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.network-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.process-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.registry-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
+                Map.entry("packetbeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("traces-apmsample", Set.of("read", "view_index_metadata")),
+                Map.entry("winlogbeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of()),
+                Map.entry(".alerts-observability.logs.alerts-default", Set.of())
+            )
+        ),
+        Map.entry(
+            "alertzero_rule_coverage",
+            Map.ofEntries(
+                Map.entry(".adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of()),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of("read")),
+                Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
+                Map.entry(".preview.alerts-security.alerts-sample", Set.of("read")),
+                Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry("apm-sample-transactionsample", Set.of("read", "view_index_metadata")),
+                Map.entry("auditbeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("endgame-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("entities-latest-sample", Set.of()),
+                Map.entry("filebeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.file-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.network-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.process-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.registry-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-endpoint.events.sample", Set.of("read", "view_index_metadata")),
+                Map.entry("logs-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
+                Map.entry("packetbeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("traces-apmsample", Set.of("read", "view_index_metadata")),
+                Map.entry("winlogbeat-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of()),
+                Map.entry(".alerts-observability.logs.alerts-default", Set.of())
+            )
+        )
+    );
+
+    private static final Map<String, Set<String>> ALERTZERO_WORKER_FEATURE_PRIVILEGES = Map.ofEntries(
+        Map.entry(
+            "alertzero_alert_triage",
+            Set.of(
+                "feature_actions.read",
+                "feature_agentBuilder.read",
+                "feature_alertzero.all",
+                "feature_contextEngine.all",
+                "feature_proposals.all",
+                "feature_securitySolutionAlertsV1.all",
+                "feature_securitySolutionNotes.all",
+                "feature_securitySolutionRulesV4.minimal_read",
+                "feature_workflowsManagement.minimal_read",
+                "feature_workflowsManagement.workflow_execute",
+                "feature_workflowsManagement.workflow_execution_cancel",
+                "feature_workflowsManagement.workflow_execution_read",
+                "feature_workflowsManagement.workflow_execution_read_managed",
+                "feature_workflowsManagement.workflow_read",
+                "feature_workflowsManagement.workflow_read_managed"
+            )
+        ),
+        Map.entry(
+            "alertzero_attack_discovery",
+            Set.of(
+                "feature_actions.read",
+                "feature_agentBuilder.read",
+                "feature_alertzero.all",
+                "feature_contextEngine.all",
+                "feature_proposals.all",
+                "feature_securitySolutionAlertsV1.all",
+                "feature_securitySolutionAttackDiscovery.all",
+                "feature_workflowsManagement.minimal_read",
+                "feature_workflowsManagement.workflow_execute",
+                "feature_workflowsManagement.workflow_execution_read",
+                "feature_workflowsManagement.workflow_execution_read_managed",
+                "feature_workflowsManagement.workflow_read",
+                "feature_workflowsManagement.workflow_read_managed"
+            )
+        ),
+        Map.entry(
+            "alertzero_endpoint_analysis",
+            Set.of(
+                "feature_actions.read",
+                "feature_agentBuilder.read",
+                "feature_alertzero.all",
+                "feature_contextEngine.all",
+                "feature_proposals.all",
+                "feature_securitySolutionAlertsV1.all",
+                "feature_siemV5.actions_log_management_read",
+                "feature_siemV5.host_isolation_all",
+                "feature_siemV5.minimal_read",
+                "feature_siemV5.process_operations_all"
+            )
+        ),
+        Map.entry(
+            "alertzero_threat_hunt",
+            Set.of(
+                "feature_actions.read",
+                "feature_agentBuilder.read",
+                "feature_alertzero.all",
+                "feature_contextEngine.all",
+                "feature_proposals.all",
+                "feature_siemV5.actions_log_management_read",
+                "feature_siemV5.host_isolation_all",
+                "feature_siemV5.minimal_read",
+                "feature_siemV5.process_operations_all"
+            )
+        ),
+        Map.entry(
+            "alertzero_rule_tuning",
+            Set.of(
+                "feature_actions.read",
+                "feature_agentBuilder.read",
+                "feature_alertzero.all",
+                "feature_contextEngine.all",
+                "feature_proposals.all",
+                "feature_securitySolutionAlertsV1.all",
+                "feature_securitySolutionRulesV4.read",
+                "feature_workflowsManagement.read"
+            )
+        ),
+        Map.entry(
+            "alertzero_rule_coverage",
+            Set.of(
+                "feature_actions.read",
+                "feature_agentBuilder.read",
+                "feature_alertzero.all",
+                "feature_contextEngine.all",
+                "feature_fleet.read",
+                "feature_proposals.all",
+                "feature_securitySolutionRulesV4.all",
+                "feature_workflowsManagement.read"
+            )
+        )
+    );
+
+    private static final Set<String> ALERTZERO_ALL_FEATURE_PRIVILEGES = Set.of(
+        "feature_actions.read",
+        "feature_agentBuilder.read",
+        "feature_alertzero.all",
+        "feature_alertzero.read",
+        "feature_contextEngine.all",
+        "feature_fleet.read",
+        "feature_proposals.all",
+        "feature_securitySolutionAlertsV1.all",
+        "feature_securitySolutionAttackDiscovery.all",
+        "feature_securitySolutionNotes.all",
+        "feature_securitySolutionRulesV4.all",
+        "feature_securitySolutionRulesV4.minimal_read",
+        "feature_securitySolutionRulesV4.read",
+        "feature_siemV5.actions_log_management_read",
+        "feature_siemV5.all",
+        "feature_siemV5.host_isolation_all",
+        "feature_siemV5.minimal_read",
+        "feature_siemV5.process_operations_all",
+        "feature_workflowsManagement.minimal_read",
+        "feature_workflowsManagement.read",
+        "feature_workflowsManagement.workflow_execute",
+        "feature_workflowsManagement.workflow_execution_cancel",
+        "feature_workflowsManagement.workflow_execution_read",
+        "feature_workflowsManagement.workflow_execution_read_managed",
+        "feature_workflowsManagement.workflow_read",
+        "feature_workflowsManagement.workflow_read_managed"
+    );
+
     public void testIsReserved() {
         assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
         assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
@@ -295,6 +652,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("code_user"), is(false));
         assertThat(ReservedRolesStore.isReserved("viewer"), is(true));
         assertThat(ReservedRolesStore.isReserved("editor"), is(true));
+        assertThat(ReservedRolesStore.isReserved("alertzero_alert_triage"), is(true));
+        assertThat(ReservedRolesStore.isReserved("alertzero_attack_discovery"), is(true));
+        assertThat(ReservedRolesStore.isReserved("alertzero_endpoint_analysis"), is(true));
+        assertThat(ReservedRolesStore.isReserved("alertzero_threat_hunt"), is(true));
+        assertThat(ReservedRolesStore.isReserved("alertzero_rule_tuning"), is(true));
+        assertThat(ReservedRolesStore.isReserved("alertzero_rule_coverage"), is(true));
     }
 
     public void testSnapshotUserRole() {
@@ -483,6 +846,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
         queryApiKeyRequest.setFilterForCurrentUser();
         assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
 
+        // Service accounts: read only
+        assertThat(kibanaRole.cluster().check(QueryServiceAccountAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(GetServiceAccountAction.NAME, request, authentication), is(true));
+        // Token names are not needed to name an account
+        assertThat(kibanaRole.cluster().check(GetServiceAccountCredentialsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetServiceAccountNodesCredentialsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(PutUserManagedServiceAccountAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteUserManagedServiceAccountAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateUserManagedServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteUserManagedServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(ClearSecurityCacheAction.NAME, request, authentication), is(false));
+        assertThat(
+            kibanaRole.cluster()
+                .check("cluster:admin/xpack/security/service_account/" + randomAlphaOfLengthBetween(3, 8), request, authentication),
+            is(false)
+        );
+        // The read grant is not a stand-in for read_security
+        assertThat(kibanaRole.cluster().check(GetUsersAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetRolesAction.NAME, request, authentication), is(false));
+
         // ML
         assertRoleHasManageMl(kibanaRole);
 
@@ -654,6 +1039,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(true)
             );
         });
+
+        // Nightshift source views: Kibana system user can create, update and delete them, nothing more, and only under the prefix
+        final IndexAbstraction nightshiftView = mockIndexAbstraction(
+            "$.nightshift.sources." + randomAlphaOfLength(randomIntBetween(1, 8)) + "." + randomAlphaOfLength(randomIntBetween(1, 8))
+        );
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(nightshiftView),
+            is(true)
+        );
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(nightshiftView),
+            is(true)
+        );
+        final IndexAbstraction otherView = mockIndexAbstraction("$.nightshift." + randomAlphaOfLength(randomIntBetween(1, 8)));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(otherView), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(otherView), is(false));
 
         Arrays.asList(
             ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1282,6 +1683,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // creates and manages itself, including its alias.
         Arrays.asList(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Context Engine AI index backing stores, read by the Kibana usage collector.
+        Arrays.asList(
+            "ai-index-idx-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".ai-index-idx-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13))
+        ).forEach(index -> assertOnlyReadAllowed(kibanaRole, index));
 
         // Context Engine feedback-loop signals: per-space, regular (non-system)
         // user indices that Kibana creates and manages via the storage adapter.
@@ -2142,7 +2551,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera,
-        // IRONSCALES, Axonius, JupiterOne and PingDirectory) that
+        // IRONSCALES, Axonius, JupiterOne, PingDirectory and XM Cyber) that
         // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
@@ -2170,7 +2579,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.product-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.vulnerability_instance-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 
@@ -4296,6 +4708,95 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     hasItem("read_cross_cluster")
                 );
             });
+    }
+
+    public void testAlertZeroWorkerRoles() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final String applicationName = "kibana-.kibana";
+        // One action per feature privilege, so a grant can only come from that exact privilege.
+        final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = ALERTZERO_ALL_FEATURE_PRIVILEGES.stream()
+            .map(privilege -> new ApplicationPrivilegeDescriptor(applicationName, privilege, Set.of("action:" + privilege), Map.of()))
+            .toList();
+
+        assertThat(ALERTZERO_WORKER_FEATURE_PRIVILEGES.size(), is(6));
+        for (String roleName : ALERTZERO_WORKER_FEATURE_PRIVILEGES.keySet()) {
+            assertThat(ReservedRolesStore.isReserved(roleName), is(true));
+            final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
+            assertNotNull(roleDescriptor);
+            assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+            assertThat(roleDescriptor.getDescription(), containsString("AlertZero"));
+            assertThat(roleDescriptor.getRunAs().length, is(0));
+
+            final Role role = Role.buildFromRoleDescriptor(
+                roleDescriptor,
+                new FieldPermissionsCache(Settings.EMPTY),
+                RESTRICTED_INDICES,
+                applicationPrivilegeDescriptors
+            );
+
+            // Only monitor_inference cluster privilege
+            assertThat(role.cluster().check(GetInferenceModelAction.NAME, request, authentication), is(true));
+            assertThat(role.cluster().check(PutInferenceModelAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(PutRoleAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
+            assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
+
+            // Index privileges
+            ALERTZERO_WORKER_INDEX_PRIVILEGES.get(roleName).forEach((index, privileges) -> {
+                final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+                final String reason = roleName + " on " + index;
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction),
+                    is(privileges.contains("read"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("view_index_metadata"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("index"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher("indices:admin/refresh").test(indexAbstraction),
+                    is(privileges.contains("maintenance"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("auto_configure"))
+                );
+                assertThat(reason, role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                    is(false)
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
+                    is(false)
+                );
+            });
+            assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
+            assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+
+            // Kibana feature privileges, in every space
+            final String space = "space:" + randomAlphaOfLengthBetween(1, 8);
+            for (String privilege : ALERTZERO_ALL_FEATURE_PRIVILEGES) {
+                assertThat(
+                    roleName + " " + privilege,
+                    role.application()
+                        .grants(ApplicationPrivilegeTests.createPrivilege(applicationName, privilege, "action:" + privilege), space),
+                    is(ALERTZERO_WORKER_FEATURE_PRIVILEGES.get(roleName).contains(privilege))
+                );
+            }
+        }
     }
 
     /**

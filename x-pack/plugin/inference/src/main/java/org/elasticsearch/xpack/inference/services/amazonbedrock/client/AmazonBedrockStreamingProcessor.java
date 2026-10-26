@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,6 +40,18 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     final AtomicLong demand = new AtomicLong(0);
     final AtomicBoolean isDone = new AtomicBoolean(false);
     final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
+    /**
+     * Set once {@link Flow.Subscriber#onSubscribe} has returned for the downstream, so that terminal signals are never sent before it.
+     */
+    private final AtomicBoolean downstreamReady = new AtomicBoolean(false);
+    private final AtomicBoolean downstreamCancelled = new AtomicBoolean(false);
+    /**
+     * The number of items the downstream has requested that have not been answered by {@link #emitNext} yet. Unlike {@link #demand}, which
+     * is reset whenever an event starts being processed, this is only decremented when an item is really sent downstream. Terminal errors
+     * are only signalled while this is positive, because downstream subscribers (e.g. the REST SSE subscriber) only expect signals in
+     * response to a request. An error that arrives with no outstanding request is parked and delivered by the next request.
+     */
+    private final AtomicLong downstreamDemand = new AtomicLong(0);
 
     volatile Flow.Subscription upstream;
 
@@ -63,6 +75,9 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
         if (downstream == null) {
             downstream = subscriber;
             downstream.onSubscribe(new StreamSubscription());
+            downstreamReady.set(true);
+            // the upstream may have failed before the downstream was ready, and errors do not require demand
+            deliverErrorIfPending();
         } else {
             subscriber.onError(new IllegalStateException("Subscriber already set."));
         }
@@ -71,15 +86,37 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     @Override
     public void onError(Throwable amazonBedrockRuntimeException) {
         ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
-        error.set(
-            new ElasticsearchException(
-                Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
-                amazonBedrockRuntimeException
-            )
+        var wrappedException = AmazonBedrockExceptions.wrap(
+            Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
+            amazonBedrockRuntimeException
         );
-        if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
-            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
+        error.set(wrappedException);
+        isDone.set(true);
+        deliverErrorIfPending();
+    }
+
+    /**
+     * Sends the stored error downstream if there is one and the downstream is able to receive it: it has returned from onSubscribe, has
+     * not cancelled, has an outstanding request and has not been completed. Otherwise the error stays stored and this is retried when the
+     * downstream subscribes or requests. Safe to call repeatedly, the error is only ever delivered once.
+     */
+    private void deliverErrorIfPending() {
+        if (downstreamReady.get()
+            && downstreamCancelled.get() == false
+            && error.get() != null
+            && downstreamDemand.get() > 0
+            && onCompleteCalled.get() == false
+            && onErrorCalled.compareAndSet(false, true)) {
+            runOnUtilityThreadPool(() -> downstream.onError(error.get()));
         }
+    }
+
+    /**
+     * Sends an item downstream, consuming one of the downstream's outstanding requests.
+     */
+    void emitNext(T item) {
+        downstreamDemand.updateAndGet(i -> i > 0 ? i - 1 : 0);
+        downstream.onNext(item);
     }
 
     private boolean checkAndResetDemand() {
@@ -113,14 +150,21 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
                     var sum = i + n;
                     return sum >= 0 ? sum : Long.MAX_VALUE;
                 });
+                downstreamDemand.updateAndGet(i -> {
+                    var sum = i + n;
+                    return sum >= 0 ? sum : Long.MAX_VALUE;
+                });
+                if (error.get() != null) {
+                    // a stored error always wins over completion, even if its delivery has already been queued
+                    deliverErrorIfPending();
+                    return;
+                }
                 if (upstream == null) {
                     // wait for upstream to subscribe before forwarding request
                     return;
                 }
                 if (upstreamIsRunning()) {
                     requestOnMlThread(n);
-                } else if (error.get() != null && onErrorCalled.compareAndSet(false, true)) {
-                    downstream.onError(error.get());
                 } else if (onCompleteCalled.compareAndSet(false, true)) {
                     downstream.onComplete();
                 }
@@ -145,6 +189,7 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
 
         @Override
         public void cancel() {
+            downstreamCancelled.set(true);
             if (upstream != null && upstreamIsRunning()) {
                 upstream.cancel();
             }

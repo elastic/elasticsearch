@@ -9,6 +9,8 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Map;
+
 /**
  * End-to-end tests for allocation charging on a {@code def}-dispatched {@code +} that resolves to a string concatenation. The
  * operand types are unknown at compile time, so the charge is emitted at the def {@code +} site and applied at runtime only when
@@ -43,9 +45,44 @@ public class AllocationDefConcatTests extends AllocationTestCase {
         assertEquals(concatBytes("x", "yy"), allocatedBytes("String a = \"x\"; def b = \"yy\"; def c = a + b; return \"z\";"));
     }
 
+    private static long concatWithPrimitiveBytes(String operand, Class<?> primitiveType) {
+        return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.stringConcatOperandBytes(operand) + AllocSizes
+            .stringConcatPrimitiveBytes(primitiveType);
+    }
+
     public void testDefConcatWithPrimitiveOperandCharged() {
-        // A primitive operand is boxed before the runtime check; a non-String operand contributes the conservative constant.
-        assertEquals(concatBytes("n=", Integer.valueOf(5)), allocatedBytes("def a = \"n=\"; def c = a + 5; return \"z\";"));
+        // Each primitive type is charged its own fixed bound, on either side of the def operand. The check never boxes it.
+        Map<Class<?>, String> literals = Map.of(
+            boolean.class,
+            "true",
+            byte.class,
+            "(byte)5",
+            short.class,
+            "(short)5",
+            char.class,
+            "(char)'c'",
+            int.class,
+            "5",
+            long.class,
+            "5L",
+            float.class,
+            "5.0f",
+            double.class,
+            "5.0"
+        );
+        for (Map.Entry<Class<?>, String> literal : literals.entrySet()) {
+            String type = literal.getKey().getName();
+            long expected = concatWithPrimitiveBytes("n=", literal.getKey());
+            assertEquals(type, expected, allocatedBytes("def a = \"n=\"; def c = a + " + literal.getValue() + "; return \"z\";"));
+            assertEquals(type, expected, allocatedBytes("def a = \"n=\"; def c = " + literal.getValue() + " + a; return \"z\";"));
+        }
+    }
+
+    public void testDefNumericPlusPrimitiveNotCharged() {
+        // The primitive form must also charge nothing when the def operand is not a String.
+        long withoutAdd = allocatedBytes("def a = 5; return \"x\";");
+        long withAdd = allocatedBytes("def a = 5; def c = a + 6; return \"x\";");
+        assertEquals(withoutAdd, withAdd);
     }
 
     public void testDefConcatNullOperandCharged() {

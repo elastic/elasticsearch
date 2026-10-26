@@ -536,6 +536,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } finally {
             DatasetRegistry.clearCaches();
             declaredSchemaSupported = null;
+            renameFromSupported = null;
             clearBwcReaderProfileGuardStateForTests();
         }
     }
@@ -567,6 +568,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * per call. Both answers are fixed for a test instance -- the directives do not change mid-test.
      */
     private Boolean declaresMappingsMemo;
+    private Boolean declaresRenameFromMemo;
     private final Map<DatasetSource, String> withJsonMemo = new IdentityHashMap<>();
 
     protected AbstractExternalSourceSpecTestCase(
@@ -1006,6 +1008,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 "a declared schema requires the [" + EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA + "] capability",
                 clusterSupportsDeclaredSchema()
             );
+            // `rename_from` is the current spelling and `path` the older one, both accepted. Only the current one
+            // needs gating: a node that predates it rejects the key as unknown, so the PUT answers 400 rather than
+            // reading the column differently.
+            if (declaresRenameFrom()) {
+                assumeTrue(
+                    "a [rename_from] declaration requires the [" + EsqlDataSourcesCapabilities.DATASET_RENAME_FROM + "] capability",
+                    clusterSupportsRenameFrom()
+                );
+            }
         }
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
@@ -1106,6 +1117,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Whether any declaration in this case names its source column with {@code rename_from} rather than the older
+     * {@code path}. Answered from the directive's parse rather than its text, like {@link #declaresMappings()}, so an
+     * unrelated key or value spelled the same way does not skip the case.
+     */
+    private boolean declaresRenameFrom() {
+        if (declaresRenameFromMemo == null) {
+            declaresRenameFromMemo = testCase.datasetSources.stream()
+                .anyMatch(source -> DatasetRegistry.declaresRenameFrom(source.withJson()));
+        }
+        return declaresRenameFromMemo;
+    }
+
+    /**
      * Memoized support for a declared schema on {@code PUT /_query/dataset/<name>}.
      * <p>
      * The declared-schema capability is advertised on the dataset PUT/GET routes, NOT on {@code POST /_query}, so a
@@ -1118,6 +1142,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * fork cannot inherit a verdict about a cluster it is not talking to.
      */
     private static volatile Boolean declaredSchemaSupported;
+    private static volatile Boolean renameFromSupported;
 
     private static boolean clusterSupportsDeclaredSchema() throws IOException {
         // Racy single-check: read the volatile field ONCE into a local. Reading it twice would let the
@@ -1133,6 +1158,22 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 List.of(EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA)
             ).orElse(false);
             declaredSchemaSupported = supported;
+        }
+        return supported;
+    }
+
+    /** As {@link #clusterSupportsDeclaredSchema()}, for the {@code rename_from} spelling of the rename setting. */
+    private static boolean clusterSupportsRenameFrom() throws IOException {
+        Boolean supported = renameFromSupported;
+        if (supported == null) {
+            supported = clusterHasCapability(
+                client(),
+                "PUT",
+                "/_query/dataset/{name}",
+                List.of(),
+                List.of(EsqlDataSourcesCapabilities.DATASET_RENAME_FROM)
+            ).orElse(false);
+            renameFromSupported = supported;
         }
         return supported;
     }

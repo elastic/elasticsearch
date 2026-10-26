@@ -29,7 +29,7 @@ import java.util.TreeSet;
  * </ul>
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
- * I/O and the files may not exist yet): that a declared {@code path}/type matches the physical file; per-format
+ * I/O and the files may not exist yet): that a declared {@code rename_from}/type matches the physical file; per-format
  * narrowing, should a format ever be unable to read a declarable type — the producing format is authoritative at
  * read time.
  */
@@ -89,16 +89,16 @@ public final class DeclaredSchemaValidator {
             if (mappings.dynamic() == DatasetMapping.Dynamic.FALSE && mappings.properties().isEmpty()) {
                 throw new IllegalArgumentException("[dynamic: false] requires at least one declared column under [properties]");
             }
-            // Physical-name uniqueness for the read (move) columns: a column's physical name is its `path`, or its
+            // Physical-name uniqueness for the read (move) columns: a column's physical name is its `rename_from`, or its
             // logical name. Two columns resolving to one physical break the 1:1 read-path rename, so reject.
             Map<String, String> physicalToLogical = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 requireNonBlank(e.getKey(), "column name");
-                requireNonBlank(e.getValue().path(), "path of column [" + e.getKey() + "]");
+                requireNonBlank(e.getValue().renameFrom(), "the file column that column [" + e.getKey() + "] is renamed from");
                 validateType(e.getKey(), e.getValue().type());
                 validateFormat(e.getKey(), e.getValue().type(), e.getValue().format());
                 String logical = e.getKey();
-                String physical = e.getValue().path() != null ? e.getValue().path() : logical;
+                String physical = e.getValue().renameFrom() != null ? e.getValue().renameFrom() : logical;
                 String clash = physicalToLogical.putIfAbsent(physical, logical);
                 if (clash != null) {
                     throw new IllegalArgumentException(

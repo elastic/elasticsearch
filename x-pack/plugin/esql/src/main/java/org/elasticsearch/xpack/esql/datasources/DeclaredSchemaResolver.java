@@ -43,15 +43,15 @@ public final class DeclaredSchemaResolver {
 
     /**
      * Expand a {@code mappings} block into its declared <b>base</b> logical columns, keyed by logical name in
-     * declaration order. A property contributes exactly one column ({@code path} is a <em>move</em>: physical =
-     * path, or the logical name when unset), so this is a 1:1 physical↔logical mapping.
+     * declaration order. A property contributes exactly one column ({@code rename_from} is a <em>move</em>: physical =
+     * the name it renames from, or the logical name when unset), so this is a 1:1 physical↔logical mapping.
      */
     private static LinkedHashMap<String, ColSpec> declaredLogicalColumns(DatasetMapping.Mappings mappings) {
         LinkedHashMap<String, ColSpec> cols = new LinkedHashMap<>();
         for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
             String logical = e.getKey();
             DatasetFieldMapping f = e.getValue();
-            String physical = f.path() != null ? f.path() : logical;
+            String physical = f.renameFrom() != null ? f.renameFrom() : logical;
             cols.put(logical, new ColSpec(physical, resolveType(logical, f.type())));
         }
         return cols;
@@ -95,7 +95,7 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * Logical&rarr;physical name map for the columns that declare a {@code path} move (logical name &ne; physical
+     * Logical&rarr;physical name map for the columns that declare a {@code rename_from} move (logical name &ne; physical
      * name). Empty when nothing renames. The map is 1:1 (a physical is claimed by at most one logical — validation
      * enforces it), so its {@link PhysicalNames#inverse} is well-defined. {@link PhysicalNames} uses this at the
      * last-mile reader-facing boundaries; the reader and {@code ColumnMapping} stay rename-agnostic.
@@ -118,7 +118,7 @@ public final class DeclaredSchemaResolver {
      * Result of a non-strict overlay: the user-facing {@code output} (declared columns renamed to their logical
      * name and retyped, undeclared columns untouched) and the per-file {@code fileSchema} the reader resolves against
      * the file. Both carry <b>logical</b> names — the operator's projection/column-mapping code stays in logical names
-     * and never sees the physical names; a {@code path} rename is applied at the reader-facing boundary via
+     * and never sees the physical names; a {@code rename_from} is applied at the reader-facing boundary via
      * {@link PhysicalNames} (physical names then reach by-name readers; text readers read positionally). The two lists
      * pair position-for-position.
      * <p>
@@ -198,7 +198,7 @@ public final class DeclaredSchemaResolver {
         }
         output.addAll(absent);
         // A move whose logical name collides with a surviving (undeclared) inferred column would produce two output
-        // columns with the same name (declare logical `y` with path `x` when the file also has an undeclared `y`).
+        // columns with the same name (declare logical `y` renamed from `x` when the file also has an undeclared `y`).
         // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
         if (lenient == false) {
             Set<String> seen = new HashSet<>(output.size());
@@ -210,7 +210,7 @@ public final class DeclaredSchemaResolver {
                 }
             }
         }
-        // Both lists carry LOGICAL names; a `path` move is physicalized at the reader boundary via PhysicalNames, so
+        // Both lists carry LOGICAL names; a `rename_from` move is physicalized at the reader boundary via PhysicalNames, so
         // the operator and reconciliation never see physical names.
         return new Overlaid(List.copyOf(output), List.copyOf(output), List.copyOf(absent));
     }

@@ -159,7 +159,7 @@ By default, a dataset's schema is inferred from its files. To control column nam
 
 {applies_to}`stack: experimental 9.6+` You can also declare columns in the **Mapping** step when you add a dataset in {{kib}}.
 
-The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, and supplies its date format:
+The following example declares the complete schema, renames the `event_time` column to `@timestamp`, and supplies its date format:
 
 ```console
 PUT /_query/dataset/access_logs
@@ -171,7 +171,7 @@ PUT /_query/dataset/access_logs
     "properties": {
       "@timestamp": {
         "type": "date",
-        "path": "event_time",
+        "rename_from": "event_time",
         "format": "yyyy-MM-dd HH:mm:ss"
       },
       "request_id": { "type": "keyword" },
@@ -185,8 +185,9 @@ PUT /_query/dataset/access_logs
 The `mappings` block supports the following properties:
 
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
-  - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
-    - {applies_to}`stack: experimental 9.6+` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
+  - `rename_from`: Optional name of the file column to read from, when it differs from the declared column name. The file column is renamed, so its own name is no longer part of the schema. A common use is renaming a timestamp column to `@timestamp`.
+    - {applies_to}`stack: experimental =9.5` This key is named `path`. A request that uses `path` is still accepted in 9.6 and later, and means the same thing.
+    - {applies_to}`stack: experimental 9.6` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
     - {applies_to}`stack: experimental 9.6+` A plain number in a `date_nanos` column without a `format` is also read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, can't be represented and is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). There is no `format` for epoch nanoseconds: to read epoch-nanoseconds values, declare the column as `long` and convert it with `TO_DATE_NANOS` in the query.
     - {applies_to}`stack: experimental =9.5` A plain number in a `date_nanos` column without a `format` is read as epoch nanoseconds.
@@ -198,12 +199,12 @@ The `mappings` block supports the following properties:
 
 Each declared column is read from one file column:
 
-- **With `path`:** The file column named by `path`.
-- **Without `path`:** The file column with the same name as the declared column.
+- **With `rename_from`:** The file column named by `rename_from`.
+- **Without `rename_from`:** The file column with the same name as the declared column.
 
 Matching is exact and case-sensitive, and it works the same way whether `dynamic` is `true` or `false`. File columns are named as described in [Schema sources by file format](#schema-sources-by-file-format). Two formats need extra care:
 
-- **CSV and TSV without a header row:** Columns are named by position. To read the third field as `status_code`, set its `path` to `col2`.
+- **CSV and TSV without a header row:** Columns are named by position. To read the third field as `status_code`, set its `rename_from` to `col2`.
 - **NDJSON:** A dotted name such as `user.id` matches either a nested key or a flat key with that name.
 
 When a declared column can't be found, it reads as null for each file that lacks it, and the response includes a warning. This applies whether `dynamic` is `true` or `false`.

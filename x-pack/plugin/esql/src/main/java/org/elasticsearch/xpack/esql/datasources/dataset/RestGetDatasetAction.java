@@ -53,6 +53,7 @@ public class RestGetDatasetAction extends BaseRestHandler {
         return Set.of(
             EsqlDataSourcesCapabilities.DATA_SOURCES,
             EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA,
+            EsqlDataSourcesCapabilities.DATASET_RENAME_FROM,
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE
         );
     }

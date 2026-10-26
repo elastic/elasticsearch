@@ -12,7 +12,7 @@ public final class EsqlDataSourcesCapabilities {
     /** Advertises that this node exposes the data_sources + datasets CRUD endpoints. */
     public static final String DATA_SOURCES = "data_sources";
 
-    /** The dataset PUT body accepts a declared `mappings` block (types, path renames, format). */
+    /** The dataset PUT body accepts a declared `mappings` block (types, renames, format). */
     public static final String DATASET_DECLARED_SCHEMA = "dataset_declared_schema";
 
     /**
@@ -60,6 +60,14 @@ public final class EsqlDataSourcesCapabilities {
      * runs mixed-cluster, where a node without this capability parses the block and answers on the data source instead.
      */
     public static final String DATASET_ID_NOT_DECLARABLE = "dataset_id_not_declarable";
+
+    /**
+     * A declared column names the file column it reads from with {@code rename_from}. {@code path}, the former
+     * spelling, is still accepted, so this gates only the cases written in the current one — a node without this
+     * capability rejects {@code rename_from} as an unknown field, which in a mixed cluster is a 400 rather than a
+     * different answer.
+     */
+    public static final String DATASET_RENAME_FROM = "dataset_rename_from";
 
     /**
      * Data source and dataset PUTs reject a {@code description} longer than {@link DataSourceLimits#MAX_DESCRIPTION_LENGTH}.

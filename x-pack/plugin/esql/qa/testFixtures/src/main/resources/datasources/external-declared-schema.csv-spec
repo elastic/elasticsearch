@@ -27,7 +27,7 @@
 // pinned id:long/pay:long will not match the inferred integer.
 sharedStrictDeclaredSchemaRenamesAndRetypes
 required_capability: dataset_in_from_command
-dataset: shared_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}, "pay": {"type": "long", "path": "salary"}}}}
+dataset: shared_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "name": {"type": "keyword", "rename_from": "first_name"}, "pay": {"type": "long", "rename_from": "salary"}}}}
 
 FROM shared_declared_strict
 | SORT id
@@ -39,8 +39,27 @@ id:long | name:keyword | pay:long
 10003   | "Parto"      | 61805
 ;
 
-// A declaration binds BY NAME even with no `path` on any column, on every format: binding is keyed on schema
-// provenance, not on whether a path was written . The declaration is deliberately NOT in file
+// The same read declared with `path`, the former spelling of `rename_from`. Both are accepted and mean the same
+// thing, so this case and the one above must agree column for column -- a divergence means one spelling started
+// binding differently. Deliberately NOT gated on the rename_from capability: `path` is understood by every version,
+// which is the point of keeping it, and gating it would stop a mixed cluster from checking the half that has to
+// keep working. Its own dataset name because a name carries its declaration.
+sharedStrictDeclaredSchemaRenamesWithFormerSpelling
+required_capability: dataset_in_from_command
+dataset: shared_declared_strict_former: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}, "pay": {"type": "long", "path": "salary"}}}}
+
+FROM shared_declared_strict_former
+| SORT id
+| LIMIT 3;
+
+id:long | name:keyword | pay:long
+10001   | "Georgi"     | 57305
+10002   | "Bezalel"    | 56371
+10003   | "Parto"      | 61805
+;
+
+// A declaration binds BY NAME even with no `rename_from` on any column, on every format: binding is keyed on schema
+// provenance, not on whether a rename was written (esql-planning#1307). The declaration is deliberately NOT in file
 // order -- the file leads with birth_date -- so binding by declaration POSITION would serve the wrong column's
 // values. It also pins that declared property order survives into the PUT body, since output order is declared
 // order.
@@ -58,7 +77,7 @@ first_name:keyword | emp_no:long
 "Parto"            | 10003
 ;
 
-// A declared `path` naming a DOTTED physical column, on every format. A dot is an ordinary character in a column
+// A declared `rename_from` naming a DOTTED physical column, on every format. A dot is an ordinary character in a column
 // name: a text header, a columnar footer and a JSON key all carry "languages.long" and "salary_change.keyword"
 // literally, so the declaration binds to each one directly. Neither prefix ("languages", "salary_change") is
 // declared, so the binding cannot lean on a sibling column being present. NDJSON is the discriminating format
@@ -66,7 +85,7 @@ first_name:keyword | emp_no:long
 sharedStrictDeclaredSchemaBindsDottedColumnName
 required_capability: dataset_in_from_command
 required_capability: external_ndjson_dotted_field_resolution
-dataset: shared_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}, "change": {"type": "keyword", "path": "salary_change.keyword"}}}}
+dataset: shared_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "langs": {"type": "long", "rename_from": "languages.long"}, "change": {"type": "keyword", "rename_from": "salary_change.keyword"}}}}
 
 FROM shared_declared_dotted
 | SORT id
@@ -83,7 +102,7 @@ id:long | langs:long | change:keyword
 // identity. Two logical columns may not share one physical column, so each reads its own.
 sharedStrictDeclaredCoercionToDoubleAndKeyword
 required_capability: dataset_in_from_command
-dataset: shared_declared_coerce: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_double": {"type": "double", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+dataset: shared_declared_coerce: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "pay_double": {"type": "double", "rename_from": "salary"}, "hired_text": {"type": "keyword", "rename_from": "still_hired"}}}}
 
 FROM shared_declared_coerce
 | SORT id
@@ -100,7 +119,7 @@ id:long | pay_double:double | hired_text:keyword
 // integer-to-keyword path is exercised uniformly.
 sharedStrictDeclaredCoercionIntegerToKeyword
 required_capability: dataset_in_from_command
-dataset: shared_declared_i2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "lang_text": {"type": "keyword", "path": "languages"}}}}
+dataset: shared_declared_i2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "lang_text": {"type": "keyword", "rename_from": "languages"}}}}
 
 FROM shared_declared_i2k
 | SORT id
@@ -117,7 +136,7 @@ id:long | lang_text:keyword
 // the shortest round-trip decimal, so 2.03 → "2.03" uniformly across all formats.
 sharedStrictDeclaredCoercionDoubleToKeyword
 required_capability: dataset_in_from_command
-dataset: shared_declared_d2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "height_text": {"type": "keyword", "path": "height"}}}}
+dataset: shared_declared_d2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "height_text": {"type": "keyword", "rename_from": "height"}}}}
 
 FROM shared_declared_d2k
 | SORT id
@@ -136,7 +155,7 @@ id:long | height_text:keyword
 // readers emit none -- so the null values, not the warning, are what this pins.
 sharedStrictDeclaredSchemaAbsentColumnReadsNull
 required_capability: dataset_in_from_command
-dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
+dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "dept": {"type": "keyword", "rename_from": "department"}}}}
 
 FROM shared_declared_absent
 | SORT id
@@ -155,7 +174,7 @@ id:long | dept:keyword
 sharedOverlayDeclaredSchemaAbsentColumnReadsNull
 required_capability: dataset_in_from_command
 required_capability: fix_non_strict_overlay_absent_cols
-dataset: shared_overlay_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
+dataset: shared_overlay_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "dept": {"type": "keyword", "rename_from": "department"}}}}
 
 FROM shared_overlay_absent
 | KEEP id, dept

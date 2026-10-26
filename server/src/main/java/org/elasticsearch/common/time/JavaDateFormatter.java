@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.truncateForError;
 
 class JavaDateFormatter implements DateFormatter {
     @SuppressWarnings("unchecked")
@@ -213,7 +214,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, roundupParsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 
@@ -226,7 +230,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, parsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 

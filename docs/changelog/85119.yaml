@@ -1,0 +1,5 @@
+pr: 85119
+summary: Change the format of Kibana certificate to PKCS#12
+area: Security
+type: enhancement, TLS
+issues: []

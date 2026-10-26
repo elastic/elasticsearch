@@ -77,17 +77,17 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
     /**
      * A {@link DocBlock} whose rows left the node that read them: they reference random documents of {@code originCount}
      * random origins. Rows repeat a document only if the block says it {@link DocVector#mayContainDuplicates()}. The
-     * dictionary may hold origins no row references. Each value is a {@link BlockUtils.DocRef}.
+     * dictionary may hold origins no row references. Each value is a {@link BlockUtils.DetachedDoc}.
      */
     public static RandomBlock randomDetachedDocBlock(BlockFactory blockFactory, int positionCount, int originCount) {
         List<DocOrigin> origins = randomDocOrigins(originCount);
         boolean mayContainDuplicates = ESTestCase.randomBoolean();
-        Set<BlockUtils.DocRef> seen = new HashSet<>();
+        Set<BlockUtils.DetachedDoc> seen = new HashSet<>();
         List<List<Object>> values = new ArrayList<>(positionCount);
         try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, positionCount)) {
             while (values.size() < positionCount) {
                 int ordinal = ESTestCase.between(0, originCount - 1);
-                BlockUtils.DocRef doc = new BlockUtils.DocRef(
+                BlockUtils.DetachedDoc doc = new BlockUtils.DetachedDoc(
                     origins.get(ordinal),
                     ESTestCase.between(0, 10),
                     ESTestCase.between(0, 10_000)

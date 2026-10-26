@@ -295,7 +295,7 @@ public final class BlockUtils {
     /**
      * Returned by {@link #toJavaObject} for "doc" type blocks whose rows left the node that read them.
      */
-    public record DocRef(DocOrigin origin, int segment, int doc) {}
+    public record DetachedDoc(DocOrigin origin, int segment, int doc) {}
 
     /**
      * Read all values from a positions into a java object. This is not fast
@@ -331,7 +331,7 @@ public final class BlockUtils {
                 DocVector v = ((DocBlock) block).asVector();
                 yield v.origins() == null
                     ? new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset))
-                    : new DocRef(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+                    : new DetachedDoc(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
             case AGGREGATE_METRIC_DOUBLE -> {

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -95,6 +97,16 @@ public class ExemplarsSettingsTests extends AbstractWireSerializingTestCase<Exem
         assertThat(fromJson("{}"), equalTo(ExemplarsSettings.ENABLED));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromJson("{\"unknown_key\": 42}"));
         assertThat(e.getMessage(), containsString("unknown key [unknown_key]"));
+    }
+
+    /**
+     * A peer that predates the parameter is written the setting without it and reads it as off. The configuration of every query
+     * carries this setting, not only that of an exemplars query, so a mismatch in its format fails all of them.
+     */
+    public void testIncludeTimeseriesDroppedBeforeItsTransportVersion() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_exemplars_include_timeseries"));
+        ExemplarsSettings roundTripped = copyInstance(new ExemplarsSettings(true, 1234, true), before);
+        assertThat(roundTripped, equalTo(new ExemplarsSettings(true, 1234, false)));
     }
 
     private ExemplarsSettings fromJson(String json) throws IOException {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,6 +36,12 @@ public record ExemplarsSettings(boolean enabled, @Nullable Integer limit, boolea
     private static final String LIMIT = "limit";
     private static final String INCLUDE_TIMESERIES = "include_timeseries";
 
+    /**
+     * The setting is written with the configuration of every query, not only of an exemplars one, so an ungated field here fails all
+     * of them against a peer that predates it. The development capability of the setting does not cover its wire format.
+     */
+    private static final TransportVersion EXEMPLARS_INCLUDE_TIMESERIES = TransportVersion.fromName("esql_exemplars_include_timeseries");
+
     public ExemplarsSettings {
         if (limit != null && limit <= 0) {
             throw new IllegalArgumentException("Exemplars configuration [" + LIMIT + "] must be positive, got [" + limit + "]");
@@ -42,14 +49,20 @@ public record ExemplarsSettings(boolean enabled, @Nullable Integer limit, boolea
     }
 
     public ExemplarsSettings(StreamInput in) throws IOException {
-        this(in.readBoolean(), in.readOptionalVInt(), in.readBoolean());
+        this(
+            in.readBoolean(),
+            in.readOptionalVInt(),
+            in.getTransportVersion().supports(EXEMPLARS_INCLUDE_TIMESERIES) ? in.readBoolean() : false
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(enabled);
         out.writeOptionalVInt(limit);
-        out.writeBoolean(includeTimeseries);
+        if (out.getTransportVersion().supports(EXEMPLARS_INCLUDE_TIMESERIES)) {
+            out.writeBoolean(includeTimeseries);
+        }
     }
 
     /** Reads the setting from a {@code SET}: a boolean, or a map with an optional {@code limit} and {@code include_timeseries}. */

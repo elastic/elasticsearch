@@ -110,7 +110,7 @@ public class ExemplarsRewriterTests extends ESTestCase {
         assertEquals(esIndex.mapping(), filtered.mapping());
         assertWarnings(
             "[exemplars] skipped [.ds-exemplars-cpu-2026.10.01-000001, remote:.ds-exemplars-memory-2026.10.08-000001]: "
-                + "exemplars are only read from time series indices"
+                + "exemplars indices must be time series indices"
         );
     }
 
@@ -118,7 +118,7 @@ public class ExemplarsRewriterTests extends ESTestCase {
         EsIndex esIndex = exemplarsIndex(Map.of(".ds-exemplars-cpu-2026.10.08-000001", IndexMode.STANDARD));
 
         assertNull(ExemplarsRewriter.timeSeriesIndicesOnly(esIndex));
-        assertWarnings("[exemplars] skipped [.ds-exemplars-cpu-2026.10.08-000001]: exemplars are only read from time series indices");
+        assertWarnings("[exemplars] skipped [.ds-exemplars-cpu-2026.10.08-000001]: exemplars indices must be time series indices");
     }
 
     /**

@@ -77,7 +77,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             }
 
             public ModuleDependency doCall(ModuleDependency dep, String name) {
-                return dep.capabilities(caps -> caps.requireCapability(dep.getGroup() + ":" + dep.getName() + "-" + name + "-artifacts"));
+                return dep.capabilities(caps -> caps.requireFeature(name + "-artifacts"));
             }
         });
     }

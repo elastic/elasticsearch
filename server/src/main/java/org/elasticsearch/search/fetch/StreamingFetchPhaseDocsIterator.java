@@ -62,6 +62,9 @@ import java.util.function.Supplier;
  * memory growth. Pages are released (and the breaker decremented) when the
  * {@link ReleasableBytesReference} from {@link RecyclerBytesStreamOutput#moveToBytesReference()}
  * is closed -- either on ACK for intermediate chunks or when the last chunk is consumed.
+ * For a coordinator on the same node, the pages are not charged as they are written: the coordinator
+ * reads the hits as slices of them and charges the hits itself, so the writer passes no breaker and
+ * charges only the held last chunk (see {@link FetchPhaseResponseChunk.Writer#holdLastChunk}).
  * <p>
  * <b>Backpressure:</b> {@link ThrottledIterator}'s {@code maxConcurrency} limits concurrent
  * in-flight sends to {@code maxInFlightChunks}. The circuit breaker provides the memory limit.
@@ -189,6 +192,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         return (releasable, chunk) -> {
             try {
                 if (chunk.isLast) {
+                    chunk.bytes = chunkWriter.holdLastChunk(chunk.bytes);
                     lastChunkHolder.set(chunk);
                     releasable.close();
                     return;

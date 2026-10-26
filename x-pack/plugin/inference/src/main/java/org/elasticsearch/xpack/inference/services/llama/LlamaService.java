@@ -137,7 +137,7 @@ public class LlamaService extends SenderService<LlamaModel> {
         if (model instanceof LlamaEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new LlamaEmbeddingsServiceSettings(
                 serviceSettings.modelId(),

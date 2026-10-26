@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AddTopNPreFilterToAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SelectSlicesFromFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
@@ -92,6 +94,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -126,6 +129,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        // After operators() has pushed the filters down to the relations, and before the relations are wrapped below.
+        selectSlices(),
         // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
         // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, and
         // that Eval stops the gate matching, which would switch those pushdowns off for the rest of a batch.
@@ -137,7 +142,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // projection the query already had. operators() has converged by now, so combine them here.
             new CombineProjections()
         ),
-        new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
+        new Batch<>("Skip Compute", new SkipQueryOnLimitZero(), new AddTopNPreFilterToAggregate()),
         cleanup(),
         warnings(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
@@ -152,7 +157,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, verified.output(), context().configuration().pragmas());
+        Failures failures = verifier.verify(
+            optimized,
+            verified.output(),
+            context().configuration().pragmas(),
+            context().flags(),
+            context().minimumVersion()
+        );
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
@@ -169,6 +180,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new WarnUnfillableFillNull(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
@@ -208,6 +220,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
             new SubstituteApproximationPlan()
         );
+    }
+
+    protected static Batch<LogicalPlan> selectSlices() {
+        return new Batch<>("Select Slices", Limiter.ONCE, new SelectSlicesFromFilter());
     }
 
     protected static Batch<LogicalPlan> operators() {

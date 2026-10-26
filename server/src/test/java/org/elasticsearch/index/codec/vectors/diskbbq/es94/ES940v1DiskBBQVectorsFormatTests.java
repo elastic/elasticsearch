@@ -74,7 +74,8 @@ public class ES940v1DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTest
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_START
+                ES940DiskBBQVectorsFormat.VERSION_START,
+                false
             );
         }
         return TestUtil.alwaysKnnVectorsFormat(format);

@@ -338,8 +338,10 @@ employee_id:integer | given_name:keyword | last_name:keyword | salary:integer
 ;
 
 // Renaming an external column, deriving a value from it, then grouping by both used to fail optimization with a 500
-// (PruneRedundantAggregateGroupings rebuilt the pruned derived grouping referencing the pre-rename column).
-// Runs against both EXTERNAL and FROM <dataset> (same read path) via the dataset directive.
+// (PruneRedundantAggregateGroupings rebuilt the pruned derived grouping referencing the pre-rename column). Derived
+// groupings are no longer pruned at all (see external-multivalue.csv-spec derivedGroupingKeyOverMultivalueColumn);
+// this stays as a regression guard. Runs against both EXTERNAL and FROM <dataset> (same read path) via the dataset
+// directive.
 renameDerivedGroupingPrune
 required_capability: fix_prune_renamed_derived_external_grouping
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1075,25 +1077,25 @@ groups:long | total:long
 1           | 100
 ;
 
-// -- Wildcard / pattern interaction with virtual columns --
-// `KEEP *` and implicit projections do NOT expand virtual `_file.*` columns: users must request
-// them by name or via an explicit pattern. `KEEP _file*` *does* match through pattern resolution
-// (ExternalMetadataAttribute.synthetic == false), so the user can opt in pattern-style.
+// -- Wildcard / pattern interaction with METADATA columns --
+// KEEP * keeps a _file.* column the user named in METADATA. A name that was not named is
+// not in the schema. KEEP _file* matches the METADATA-requested _file.* columns
+// (ExternalMetadataAttribute.synthetic == false).
 
-fileMetadataWildcardKeepExcludesVirtualColumns
+fileMetadataKeepStarKeepsRequestedMetadata
 required_capability: external_source_file_metadata_columns
+required_capability: external_source_keep_star_keeps_file_metadata
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
-// `KEEP *` does not expand the _file.* metadata columns brought into scope via METADATA — metadata
-// columns must be named explicitly — so the wildcard returns data columns only. Demonstrated
-// indirectly: the query still returns 100 rows with the data columns present.
+// _file.size was named in METADATA, so KEEP * leaves it in scope and the aggregate can read it.
 FROM employees_no_mv METADATA _file.size
 | KEEP *
-| WHERE salary > 0
+| STATS min_size = MIN(`_file.size`)
+| WHERE min_size > 0
 | STATS count = COUNT(*);
 
 count:long
-100
+1
 ;
 
 fileMetadataKeepExplicitPatternMatches
@@ -1117,7 +1119,7 @@ distinct_paths:long
 // Authored as FROM <dataset> so it runs verbatim on every storage backend, like the rest of this file.
 
 matchOnExternalKeyword
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1133,7 +1135,7 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalKeywordAsText
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1151,7 +1153,7 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalInteger
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1167,7 +1169,7 @@ emp_no:integer | salary:integer
 ;
 
 matchOnExternalIntegerWithStringQuery
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1180,4 +1182,415 @@ FROM employees_no_mv
 
 emp_no:integer | salary:integer
 10001          | 57305
+;
+
+matchOnExternalKeywordIsExact
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// A keyword column matches by exact equality, so a sub-phrase of "Senior Team Lead" matches nothing.
+FROM employees_no_mv
+| WHERE match(job_positions, "Team Lead")
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+;
+
+matchOnExternalKeywordAsTextIsAnalyzed
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// Any analyzed term matches, so both "Senior Team Lead" and "Tech Lead" qualify.
+FROM employees_no_mv
+| EVAL t = to_text(job_positions)
+| WHERE match(t, "team lead")
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10006          | Tech Lead
+10020          | Tech Lead
+10028          | Tech Lead
+10030          | Tech Lead
+10044          | Tech Lead
+10056          | Senior Team Lead
+10067          | Tech Lead
+;
+
+matchOnExternalWithOperatorAnd
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_options
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| EVAL t = to_text(job_positions)
+| WHERE match(t, "analyst business", {"operator": "AND"})
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10034          | Business Analyst
+10039          | Business Analyst
+10051          | Business Analyst
+10060          | Business Analyst
+10065          | Business Analyst
+10069          | Business Analyst
+10071          | Business Analyst
+;
+
+matchOnExternalWithMinimumShouldMatch
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_options
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// "Purchase Manager" shares only one of the four terms, so it falls short of three.
+FROM employees_no_mv
+| EVAL t = to_text(job_positions)
+| WHERE match(t, "head human resources manager", {"minimum_should_match": 3})
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10012          | Head Human Resources
+10083          | Head Human Resources
+;
+
+matchOnExternalWithFuzziness
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_options
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| EVAL n = to_text(first_name)
+| WHERE match(n, "bezalal", {"fuzziness": 1})
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalWithValuesAnalyzer
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// The whitespace analyzer does not lowercase, and the query is analyzed the same way, so "lead" matches nothing
+// and only "Team" survives; the standard analyzer would also match every "Tech Lead".
+FROM employees_no_mv
+| EVAL t = to_text(job_positions, {"analyzer": "whitespace"})
+| WHERE match(t, "Team lead")
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10056          | Senior Team Lead
+;
+
+matchPhraseOnExternalKeyword
+required_capability: dataset_in_from_command
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match_phrase(job_positions, "Head Human Resources")
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10012          | Head Human Resources
+10083          | Head Human Resources
+;
+
+matchPhraseOnExternalKeywordAsText
+required_capability: dataset_in_from_command
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// Unlike match, the phrase needs both terms adjacent, so "Tech Lead" does not qualify.
+FROM employees_no_mv
+| EVAL t = to_text(job_positions)
+| WHERE match_phrase(t, "team lead")
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10056          | Senior Team Lead
+;
+
+matchPhraseOnExternalWithSlop
+required_capability: dataset_in_from_command
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| EVAL t = to_text(job_positions)
+| WHERE match_phrase(t, "senior lead", {"slop": 1})
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10056          | Senior Team Lead
+;
+
+matchPhraseOnExternalWithValuesAnalyzer
+required_capability: dataset_in_from_command
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// The whitespace analyzer does not lowercase, so the lowercase "tech lead" phrase matches nothing.
+FROM employees_no_mv
+| EVAL t = to_text(job_positions, {"analyzer": "whitespace"})
+| WHERE match_phrase(t, "Team Lead") OR match_phrase(t, "tech lead")
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10056          | Senior Team Lead
+;
+
+matchOperatorOnExternalKeyword
+required_capability: dataset_in_from_command
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE job_positions : "Architect" AND emp_no > 10090
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10096          | Architect
+10098          | Architect
+;
+
+matchOperatorOnExternalKeywordAsText
+required_capability: dataset_in_from_command
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| EVAL t = to_text(job_positions)
+| WHERE t : "lead" AND emp_no < 10010
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10006          | Tech Lead
+;
+
+matchOnExternalLong
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(avg_worked_seconds, 268728049)
+| KEEP emp_no, avg_worked_seconds
+;
+
+emp_no:integer | avg_worked_seconds:long
+10001          | 268728049
+;
+
+matchOnExternalDouble
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(height, 2.08)
+| KEEP emp_no, height
+| SORT emp_no
+;
+
+emp_no:integer | height:double
+10002          | 2.08
+10024          | 2.08
+;
+
+matchOnExternalBoolean
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(still_hired, false) AND emp_no < 10005
+| KEEP emp_no, still_hired
+;
+
+emp_no:integer | still_hired:boolean
+10003          | false
+;
+
+matchOnExternalDatetime
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(hire_date, "1985-11-21")
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:datetime
+10002          | 1985-11-21T00:00:00.000Z
+;
+
+matchOnExternalWithReaderPushablePredicate
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE emp_no > 10050 AND match(job_positions, "Architect")
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10059          | Architect
+10068          | Architect
+10072          | Architect
+10076          | Architect
+10078          | Architect
+10096          | Architect
+10098          | Architect
+;
+
+matchOnExternalThenTopN
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(job_positions, "Architect")
+| SORT emp_no DESC
+| LIMIT 2
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10098          | Sreekrishna
+10096          | Jayson
+;
+
+matchOnExternalThenCount
+required_capability: dataset_in_from_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// The count comes from the result of the match, not the file's row-count metadata.
+FROM employees_no_mv
+| WHERE match(job_positions, "Architect")
+| STATS c = COUNT(*)
+;
+
+c:long
+13
+;
+
+matchOnFileMetadataKeyword
+required_capability: external_source_file_metadata_columns
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// _file.name is a keyword, so match compares the whole name: a word of it matches nothing.
+FROM employees_no_mv METADATA _file.name
+| WHERE match(`_file.name`, "employees")
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+matchOnFileMetadataAsText
+required_capability: external_source_file_metadata_columns
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+required_capability: fn_match_runtime_analyzer
+required_capability: fn_to_text_analyzer
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// The simple analyzer splits the name on non-letters, whatever the format's extension.
+FROM employees_no_mv METADATA _file.name
+| EVAL name = to_text(`_file.name`, {"analyzer": "simple"})
+| WHERE match(name, "employees")
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+matchPhraseOnFileMetadataAsText
+required_capability: external_source_file_metadata_columns
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_to_text_analyzer
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv METADATA _file.name
+| EVAL name = to_text(`_file.name`, {"analyzer": "simple"})
+| WHERE match_phrase(name, "employees no mv")
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+
+query approximation
+required_capability: approximation_v7
+required_capability: external_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+SET approximation=true\;
+FROM employees_no_mv
+| STATS avg_emp_no=AVG(emp_no)
+;
+
+warning:line 2:1: approximation not supported: query with [FROM employees_no_mv] cannot be approximated
+
+avg_emp_no:double
+10050.5
 ;

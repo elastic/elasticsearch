@@ -13,6 +13,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
+import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQIVFIndexOptions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -79,10 +81,15 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         DiversifyingChildrenIVFKnnByteVectorQuery.class
     );
 
-    private static DenseVectorFieldType bbqIvfField(ElementSpec spec, boolean autoCalibrate, float postFilterThreshold) {
+    private static DenseVectorFieldType bbqIvfField(ElementSpec spec, boolean autoCalibrateEnabled) {
+        IndexVersion indexVersion = IndexVersion.current();
+        DenseVectorAutoCalibrate autoCalibrate = autoCalibrateEnabled
+            ? new DenseVectorAutoCalibrate(null, DenseVectorAutoCalibrate.defaultEnabledProfile(indexVersion))
+            : new DenseVectorAutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+
         return new DenseVectorFieldType(
             "f",
-            IndexVersion.current(),
+            indexVersion,
             spec.elementType(),
             DIMS,
             true,
@@ -94,20 +101,26 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
                 0.0d,
                 false,
                 new RescoreVector(OVERSAMPLE),
-                IndexVersion.current(),
+                indexVersion,
                 false,
                 1,
                 false,
                 autoCalibrate,
-                BBQIVFIndexOptions.QuantizationType.OSQ
+                BBQIVFIndexOptions.QuantizationType.OSQ,
+                false
             ),
             Collections.emptyMap(),
-            false,
-            postFilterThreshold
+            false
         );
     }
 
-    private static Query knnQuery(ElementSpec spec, DenseVectorFieldType field, Query filter, Float queryOversample) {
+    private static Query knnQuery(
+        ElementSpec spec,
+        DenseVectorFieldType field,
+        Query filter,
+        Float queryOversample,
+        float postFilterThreshold
+    ) {
         return field.createKnnQuery(
             spec.queryVector().get(),
             K,
@@ -118,7 +131,9 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
             null,
             null,
             DenseVectorFieldMapper.FilterHeuristic.ACORN,
-            false
+            false,
+            postFilterThreshold,
+            null
         );
     }
 
@@ -127,7 +142,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * {@code k}. {@code numCands} is widened to at least the rescore pool so the pool is reachable.
      */
     private void assertBbqIvfKeepsFinalKUnderMappingOversample(ElementSpec spec) throws IOException {
-        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_OFF), null, null);
+        Query query = knnQuery(spec, bbqIvfField(spec, false), null, null, POST_FILTER_OFF);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
@@ -154,7 +169,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     /** A query-time oversample overrides the mapping's, and still must not reach IVF's {@code k}. */
     private void assertBbqIvfKeepsFinalKUnderQueryOversample(ElementSpec spec) throws IOException {
-        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_OFF), null, 5.0f);
+        Query query = knnQuery(spec, bbqIvfField(spec, false), null, 5.0f, POST_FILTER_OFF);
 
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
         AbstractIVFKnnVectorQuery ivf = (AbstractIVFKnnVectorQuery) rescore.innerQuery();
@@ -178,7 +193,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * that value is what {@code numCands/k} is calibrated against.
      */
     private void assertBbqIvfAutoCalibrateHasNoOuterRescore(ElementSpec spec) {
-        Query query = knnQuery(spec, bbqIvfField(spec, true, POST_FILTER_OFF), null, null);
+        Query query = knnQuery(spec, bbqIvfField(spec, true), null, null, POST_FILTER_OFF);
 
         assertThat(query, instanceOf(spec.ivfClass()));
         AbstractIVFKnnVectorQuery ivf = (AbstractIVFKnnVectorQuery) query;
@@ -201,7 +216,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * most queries down the fallback path.
      */
     private void assertPostFilterWrapperTargetsFinalK(ElementSpec spec) {
-        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_ENABLED), new TermQuery(new Term("tag", "a")), null);
+        Query query = knnQuery(spec, bbqIvfField(spec, false), new TermQuery(new Term("tag", "a")), null, POST_FILTER_ENABLED);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
@@ -226,7 +241,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * post-filter wrapper is built for them.
      */
     private void assertNestedFieldsArePostFiltered(ElementSpec spec) {
-        Query query = bbqIvfField(spec, false, POST_FILTER_ENABLED).createKnnQuery(
+        Query query = bbqIvfField(spec, false).createKnnQuery(
             spec.queryVector().get(),
             K,
             NUM_CANDS,
@@ -236,7 +251,9 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
             null,
             context -> null,
             DenseVectorFieldMapper.FilterHeuristic.ACORN,
-            false
+            false,
+            POST_FILTER_ENABLED,
+            null
         );
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
@@ -257,7 +274,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     /** A dormant threshold (the default 1.0) must not build a wrapper even with a filter present. */
     private void assertDormantThresholdBuildsNoWrapper(ElementSpec spec) {
-        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_OFF), new TermQuery(new Term("tag", "a")), null);
+        Query query = knnQuery(spec, bbqIvfField(spec, false), new TermQuery(new Term("tag", "a")), null, POST_FILTER_OFF);
 
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
         assertThat(inner, instanceOf(spec.ivfClass()));

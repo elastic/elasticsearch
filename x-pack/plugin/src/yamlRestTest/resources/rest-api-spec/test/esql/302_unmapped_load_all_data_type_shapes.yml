@@ -1,0 +1,264 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
+      reason: >
+        Every Elasticsearch data type accepts a particular JSON shape in _source. When the field is unmapped,
+        LOAD_ALL sees only that shape - so an object-shaped type (geo_point's lat/lon form, a range, an
+        aggregate_metric_double, a histogram, a sparse_vector, a percolator query, a join field) FLATTENS into
+        one dotted leaf per component in the _unmapped_fields object, an array-shaped type (a dense_vector, a geo_point coordinate
+        pair, a counted_keyword) becomes a JSON array, and a string-shaped type passes through untouched with
+        no mapper normalisation at all. That last point is the sharp edge: an unmapped "ip" keeps the exact
+        text it was written with, and an unmapped date keeps its epoch-millis or ISO form, because no ip or
+        date mapper ever ran. This file pins the shape-to-column mapping for the whole type surface.
+        The document is deliberately a single row holding one field per type, so this costs two indices.
+        Every KEEP here uses wildcards, never bare names. An all-literal KEEP makes UnmappedFieldsPattern
+        NONE (UnmappedFieldsPattern#forKeep), which switches discovery off and leaves the values to the LOAD
+        demand path that unmapped_fields="load" shares - so the flattening this file is about would never
+        run. The patterns are listed alphabetically so the column order is the same whether it is grouped
+        per pattern or globally lexicographic.
+
+  - do:
+      indices.create:
+        index: la_types_stored
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: la_types_synth
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_types_stored", "_id": "1" } }
+          - {
+              "id": "1",
+              "gp_obj": { "lat": 41.12, "lon": -71.34 },
+              "gp_arr": [ -71.34, 41.12 ],
+              "gp_wkt": "POINT (-71.34 41.12)",
+              "gp_hash": "drm3btev3e86",
+              "gs_geojson": { "type": "Point", "coordinates": [ -77.03, 38.89 ] },
+              "gs_wkt": "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+              "int_range": { "gte": 10, "lt": 20 },
+              "date_range": { "gte": "2024-01-01", "lt": "2024-02-01" },
+              "agg_metric": { "min": 1.0, "max": 9.0, "sum": 10.0, "value_count": 2 },
+              "histo": { "values": [ 0.1, 0.2 ], "counts": [ 3, 7 ] },
+              "vector": [ 0.5, -0.25, 0.75 ],
+              "sparse": { "tok_a": 1.5, "tok_b": 0.25 },
+              "query": { "match": { "field": "value" } },
+              "relation": { "name": "answer", "parent": "1" },
+              "blob": "U29tZSBiaW5hcnk=",
+              "semver": "1.2.3-alpha",
+              "addr": "::ffff:7f00:1",
+              "when_epoch": 1704067200000,
+              "when_iso": "2024-01-01T00:00:00.000Z",
+              "dupes": [ "a", "b", "a" ]
+            }
+          - { "index": { "_index": "la_types_synth", "_id": "1" } }
+          - {
+              "id": "1",
+              "gp_obj": { "lat": 41.12, "lon": -71.34 },
+              "gp_arr": [ -71.34, 41.12 ],
+              "gp_wkt": "POINT (-71.34 41.12)",
+              "gp_hash": "drm3btev3e86",
+              "gs_geojson": { "type": "Point", "coordinates": [ -77.03, 38.89 ] },
+              "gs_wkt": "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+              "int_range": { "gte": 10, "lt": 20 },
+              "date_range": { "gte": "2024-01-01", "lt": "2024-02-01" },
+              "agg_metric": { "min": 1.0, "max": 9.0, "sum": 10.0, "value_count": 2 },
+              "histo": { "values": [ 0.1, 0.2 ], "counts": [ 3, 7 ] },
+              "vector": [ 0.5, -0.25, 0.75 ],
+              "sparse": { "tok_a": 1.5, "tok_b": 0.25 },
+              "query": { "match": { "field": "value" } },
+              "relation": { "name": "answer", "parent": "1" },
+              "blob": "U29tZSBiaW5hcnk=",
+              "semver": "1.2.3-alpha",
+              "addr": "::ffff:7f00:1",
+              "when_epoch": 1704067200000,
+              "when_iso": "2024-01-01T00:00:00.000Z",
+              "dupes": [ "a", "b", "a" ]
+            }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_types_stored,la_types_synth
+        ignore_unavailable: true
+
+---
+'spatial shapes: the geo_point object form flattens to lat/lon while its other three forms stay whole':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_stored | KEEP gp_* | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match: { columns.0.type: _source }
+  - match:
+      values.0.0:
+        gp_arr: [ -71.34, 41.12 ]
+        gp_hash: "drm3btev3e86"
+        gp_obj.lat: 41.12
+        gp_obj.lon: -71.34
+        gp_wkt: "POINT (-71.34 41.12)"
+
+---
+'spatial shapes: GeoJSON flattens to type and coordinates, WKT stays a single string':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_stored | KEEP gs_* | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match:
+      values.0.0:
+        gs_geojson.coordinates: [ -77.03, 38.89 ]
+        gs_geojson.type: "Point"
+        gs_wkt: "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"
+
+---
+'object-shaped types flatten into one leaf per component: ranges, aggregate_metric_double, histogram':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_stored | KEEP agg_metric.*, date_range.*, histo.*, int_range.* | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match:
+      values.0.0:
+        agg_metric.max: 9.0
+        agg_metric.min: 1.0
+        agg_metric.sum: 10.0
+        agg_metric.value_count: 2
+        date_range.gte: "2024-01-01"
+        date_range.lt: "2024-02-01"
+        histo.counts: [ 3, 7 ]
+        histo.values: [ 0.1, 0.2 ]
+        int_range.gte: 10
+        int_range.lt: 20
+
+---
+'dynamic-key objects become one leaf per key: sparse_vector, percolator query, join field':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_stored | KEEP query.*, relation.*, sparse.* | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match:
+      values.0.0:
+        query.match.field: "value"
+        relation.name: "answer"
+        relation.parent: "1"
+        sparse.tok_a: 1.5
+        sparse.tok_b: 0.25
+
+---
+'string- and array-shaped types pass through with no mapper normalisation':
+  # This is what separates an unmapped field from a mapped one of the same type. A mapped ip would render
+  # ::ffff:7f00:1 as 127.0.0.1 and a mapped date would reformat the epoch-millis number; unmapped, both keep
+  # exactly the value that was indexed, in its original JSON type. The dense_vector array keeps source order,
+  # and "dupes" keeps its repeated "a" - a mapped keyword's doc values would have deduplicated and sorted it.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_stored | KEEP addr*, blob*, dupes*, semver*, vector*, when_* | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match:
+      values.0.0:
+        addr: "::ffff:7f00:1"
+        blob: "U29tZSBiaW5hcnk="
+        dupes: [ "a", "b", "a" ]
+        semver: "1.2.3-alpha"
+        vector: [ 0.5, -0.25, 0.75 ]
+        when_epoch: 1704067200000
+        when_iso: "2024-01-01T00:00:00.000Z"
+
+---
+'synthetic source reproduces every shape, including array order and duplicates':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_synth | KEEP addr*, dupes*, gp_arr*, gp_obj.*, histo.counts*, vector*, when_epoch* | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match:
+      values.0.0:
+        addr: "::ffff:7f00:1"
+        dupes: [ "a", "b", "a" ]
+        gp_arr: [ -71.34, 41.12 ]
+        gp_obj.lat: 41.12
+        gp_obj.lon: -71.34
+        histo.counts: [ 3, 7 ]
+        vector: [ 0.5, -0.25, 0.75 ]
+        when_epoch: 1704067200000
+
+---
+'the full leaf set discovered from one type-sweep document':
+  # Guards the flattening contract end to end: every object key becomes a dotted leaf and no object
+  # contributes a member of its own, so the discovered set is exactly the leaves.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_types_stored | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0.0: "1" }
+  - match:
+      values.0.1:
+        addr: "::ffff:7f00:1"
+        agg_metric.max: 9.0
+        agg_metric.min: 1.0
+        agg_metric.sum: 10.0
+        agg_metric.value_count: 2
+        blob: "U29tZSBiaW5hcnk="
+        date_range.gte: "2024-01-01"
+        date_range.lt: "2024-02-01"
+        dupes: [ "a", "b", "a" ]
+        gp_arr: [ -71.34, 41.12 ]
+        gp_hash: "drm3btev3e86"
+        gp_obj.lat: 41.12
+        gp_obj.lon: -71.34
+        gp_wkt: "POINT (-71.34 41.12)"
+        gs_geojson.coordinates: [ -77.03, 38.89 ]
+        gs_geojson.type: "Point"
+        gs_wkt: "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"
+        histo.counts: [ 3, 7 ]
+        histo.values: [ 0.1, 0.2 ]
+        int_range.gte: 10
+        int_range.lt: 20
+        query.match.field: "value"
+        relation.name: "answer"
+        relation.parent: "1"
+        semver: "1.2.3-alpha"
+        sparse.tok_a: 1.5
+        sparse.tok_b: 0.25
+        vector: [ 0.5, -0.25, 0.75 ]
+        when_epoch: 1704067200000
+        when_iso: "2024-01-01T00:00:00.000Z"

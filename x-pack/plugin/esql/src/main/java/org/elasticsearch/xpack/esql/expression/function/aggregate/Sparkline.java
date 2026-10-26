@@ -101,7 +101,8 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             "nested", // Fix for more SPARKLINE nested in another expression
             "from_partial_null_keys", // Enable group-id tracking when FromPartial merges nullable keys
             "from_partial_empty_input", // Ungrouped FromPartial emits one row when SPARKLINE's companion aggs saw no input
-            "inline_stats_foldable_agg" // Fix INLINE STATS with SPARKLINE and foldable companion agg (e.g. ABSENT(null))
+            "inline_stats_foldable_agg", // Fix INLINE STATS with SPARKLINE and foldable companion agg (e.g. ABSENT(null))
+            "companion_agg_named_timestamp" // Fix SPARKLINE for companion agg named `timestamp`
         )
         .name("sparkline");
 

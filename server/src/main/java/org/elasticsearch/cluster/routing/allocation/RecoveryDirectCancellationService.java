@@ -86,6 +86,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// entries are eventually evicted in clusters where the size bound is rarely reached.
     private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
 
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations",
         false,
@@ -98,6 +101,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     ///
     /// Takes effect only when [ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING] is also enabled. Both settings must be
     /// enabled for direct cancellation of snapshot-blocking recoveries to occur.
+    ///
+    /// Currently only registered by the stateless plugin.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Boolean> ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations_for_snapshots",
         settings -> DiscoveryNode.isStateless(settings) ? "false" : "true",
@@ -221,8 +228,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
     /// shards on that node that are no longer heading to a desired location according to `desiredBalance` and for
     /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
-    /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
-    /// interrupted even after it has started work.
+    /// flag, determined by recovery type, the shutdown status of the relocation source node (if any) and allocation
+    /// decider result, indicating whether the recovery should be interrupted even after it has started work.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeUndesiredRecoveryCancellations(
         DesiredBalance desiredBalance,
         RoutingAllocation allocation
@@ -244,7 +251,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
                 }
 
                 boolean cancelIfRecoveryStarted = false;
-                if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
+                if (recoveryCanBeCancelledIfStarted(shardRouting, allocation)) {
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
                     cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
                 }
@@ -259,17 +266,28 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         return cancellationRequests;
     }
 
-    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert shardRouting.initializing() : "calling recoveryCanBeCancelledIfStarted for non-initializing shard " + shardRouting;
+
+        // Some shard relocations can take a long time (e.g. stateless search shards due to offline warming, or stateful
+        // peer recoveries). If the source node is being removed, don't delay its evacuation by discarding a started
+        // recovery, even if the target node is also shutting down. The target's shutdown was most likely registered after
+        // the relocation began, since the shutdown decider would not have picked it as a target otherwise. Prioritize the
+        // source's evacuation, even if this means doing duplicate work.
+        final NodesShutdownMetadata nodeShutdowns = allocation.metadata().nodeShutdowns();
+        if (shardRouting.relocatingNodeId() != null && nodeShutdowns.isNodeMarkedForRemoval(shardRouting.relocatingNodeId())) {
+            return false;
+        }
         if (shardRouting.primary()) {
             return shardRouting.relocatingNodeId() != null;
         }
         if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
             return true;
         }
-        return routingNodes.assignedShards(shardRouting.shardId())
+        return allocation.routingNodes()
+            .assignedShards(shardRouting.shardId())
             .stream()
-            .filter(ShardRouting::started)
+            .filter(ShardRouting::active)
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 

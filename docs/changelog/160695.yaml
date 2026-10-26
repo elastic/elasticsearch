@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160694
+pr: 160695
+summary: Write `_source` values as raw bytes
+type: enhancement

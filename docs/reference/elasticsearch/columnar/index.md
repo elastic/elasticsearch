@@ -16,7 +16,9 @@ For a conceptual introduction to when and why to use it, go to [Columnar index m
 
 You activate a set of changes that collectively align the {{es}} storage model with dedicated columnar stores:
 
-- Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields remain indexed by default to support full-text search.
+- Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields (e.g. `text` and `match_only_text`) remain indexed by default to support full-text search.
+- {applies_to}`stack: preview 9.6+` The `text` field type defaults to `index_options: docs`, so it doesn't store positions or frequencies unless you set `index_phrases` or `position_increment_gap`.
+- {applies_to}`stack: preview =9.5` The `text` field type uses the standard default of `index_options: positions`.
 - For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (for example, minimum and maximum values) to avoid scanning large blocks of data when executing a query.
 - Mappings are always flat, and object and passthrough fields in mappings are always auto-flattened. Nested fields are not auto flattened.
 - Depending on your license, you can choose between two [`_source` modes](#columnar-source). If using synthetic source, a flattened or columnar representation of the source is generated automatically when it's requested at query time. Alternatively, this columnar source can be generated at index time and stored to the disk as doc values.
@@ -285,6 +287,18 @@ Both `logsdb` and the columnar modes default to synthetic `_source`, but they ma
 
 If a consumer of your data depends on an object array being returned faithfully, map that field as [`nested`](/reference/elasticsearch/mapping-reference/nested.md) before migrating to a columnar mode.
 
+## Searching text fields that are not indexed [columnar-text-not-indexed]
+```yaml {applies_to}
+stack: preview 9.6
+serverless: preview
+```
+
+A `text` or `match_only_text` field with `index: false` can still be searched: full-text queries such as `match`, `match_phrase`, `query_string` and the ES|QL `match` function read and analyze the field's values instead of an inverted index. Because they read every document, these queries count as expensive and are rejected when `search.allow_expensive_queries` is `false`.
+
+Term-level queries (`term`, `terms`, `prefix`, `wildcard` and `regexp`) match a token of the analyzed value, as they do on an indexed text field. Before 9.6 they matched the whole value.
+
+Without term statistics, a document scores one point for each query term it matches, and a phrase counts as one term.
+
 ## Limitations [columnar-limitations]
 
 The following features are not supported in columnar index modes:
@@ -292,10 +306,12 @@ The following features are not supported in columnar index modes:
 - **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
 - **Turning off doc values**: Mapped fields cannot turn off doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
-- **Multi-field independence from parent constraints**: A parent field's [`doc_values.multi_value: false` or `nullability: false`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-multi-fields) constraint is **not** inherited by its sub-fields. Each multi-field applies its own `doc_values` configuration independently. As a result, a value rejected (and redirected to `._on_failure`) by the parent may still be indexed by the multi-field, so the two can hold different value sets. Configure `doc_values: { multi_value: false }` on the sub-field itself if you need the same constraint there.
+- **Multi-field independence from parent constraints**: A parent field's [`multi_value: false` or `nullability: false`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-multi-fields) constraint is **not** inherited by its sub-fields. Each multi-field applies its own configuration independently. As a result, a value rejected (and redirected to `._on_failure`) by the parent may still be indexed by the multi-field, so the two can hold different value sets. Configure `multi_value: false` on the sub-field itself if you need the same constraint there.
 - **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (for example, `search_as_you_type`).
 - **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).
 - **`dynamic: false` and `enabled: false`** are lossy: Setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost. Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
 - **Per-field source retention**: The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are rejected. A field or object can't opt into keeping its original source, so the flattening described in [What columnar `_source` preserves](#columnar-source-fidelity) can't be avoided for individual fields.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).
+- **[`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md) has no effect**: {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` Because `_source` is reconstructed from doc values, every value is stored regardless of length, whether or not the field is indexed. The parameter is accepted rather than rejected and is echoed back by `GET _mapping`, but nothing is dropped and nothing is added to `_ignored`. Consequently `ignore_above` no longer guards Lucene's term byte-length limit: a value longer than `32766` bytes fails the indexing request. Indices created before 9.6 keep the previous behavior.
+- **[`ignore_malformed`](/reference/elasticsearch/mapping-reference/ignore-malformed.md) shares the failure column**: {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` Malformed values go to the field's hidden `<field>._on_failure` column rather than a separate `._ignore_malformed` column, alongside [`doc_values` constraint violations](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-ignore). Indices created before 9.6 keep using `._ignore_malformed`.

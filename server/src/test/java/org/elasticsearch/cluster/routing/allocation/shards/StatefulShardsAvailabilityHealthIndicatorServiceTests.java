@@ -383,7 +383,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    public void testAllReplicasUnassigned() {
+    public void testShardsWithNoActiveReplicas() {
         {
             ProjectId projectId = randomProjectIdOrDefault();
             var clusterState = createClusterStateWith(
@@ -413,7 +413,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertFalse(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -444,7 +444,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertFalse(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -475,7 +475,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertTrue(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -508,7 +508,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertTrue(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -555,9 +555,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             );
             // Here because the replica is unassigned due to the primary being created, it's treated as though the replica can be ignored.
             assertFalse(
-                "an unassigned replica from a newly created and initializing primary "
-                    + "should not be treated as an index with all replicas unassigned",
-                status.replicas.doAnyIndicesHaveAllUnassigned()
+                "an inactive replica from a newly created and initializing primary "
+                    + "should not be treated as an index with all replicas inactive",
+                status.replicas.doAnyIndicesHaveShardWithNoActiveCopy()
             );
         }
 
@@ -587,7 +587,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0)
             );
             var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertTrue(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
+            assertTrue(service.hasNoActiveCopyOfThisType(projectId, shardRouting, clusterState));
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -619,7 +619,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0)
             );
             var shardRouting = clusterState.routingTable(projectId).index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertFalse(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
+            assertFalse(service.hasNoActiveCopyOfThisType(projectId, shardRouting, clusterState));
         }
     }
 

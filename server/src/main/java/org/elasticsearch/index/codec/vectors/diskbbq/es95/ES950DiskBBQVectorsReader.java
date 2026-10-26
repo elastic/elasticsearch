@@ -37,9 +37,11 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -73,6 +75,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             ES950DiskBBQVectorsFormat.VERSION_START,
             ES950DiskBBQVectorsFormat.VERSION_CURRENT,
             ES950DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES950DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE,
             ES950DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }
@@ -115,25 +118,16 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     }
 
     @Override
-    public float getOversampleFactor(FieldInfo fieldInfo) {
+    public SegmentCalibrationParameters getCalibrationParameters(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
-        if (e == null) {
-            return IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
+        if (e == null || e.quantEncoding() == null) {
+            return new SegmentCalibrationParameters.Osq(null, false, IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE);
         }
-        float r = e.rescoreOversample();
-        return Float.isFinite(r) ? r : IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
-    }
-
-    @Override
-    public boolean shouldPrecondition(FieldInfo fieldInfo) {
-        final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e != null && e.preconditionerLength() > 0;
-    }
-
-    @Override
-    public QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
-        final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e == null ? null : e.quantEncoding();
+        float oversample = e.rescoreOversample();
+        if (Float.isFinite(oversample) == false) {
+            oversample = IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
+        }
+        return new SegmentCalibrationParameters.Osq(e.quantEncoding(), e.preconditionerLength() > 0, oversample);
     }
 
     @Override
@@ -611,17 +605,20 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         }
 
         @Override
-        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
-            int docToScore = 0;
+        protected int docsToBulkScoreMask(int[] docIds, Bits acceptDocs, int bulkSize) {
+            assert bulkSize <= Integer.SIZE
+                : "bulk size "
+                    + bulkSize
+                    + " exceeds the mask width; split the block into Integer.SIZE-sized parts and call scoreBulkMasked once per part";
+            int mask = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || (acceptDocs != null && acceptDocs.get(docIds[i]) == false)) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    mask = BulkMask.select(mask, i);
                 }
             }
-            return docToScore;
+            return mask;
         }
 
         @Override
@@ -650,7 +647,6 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         final int[] correctionsSum = new int[BULK_SIZE];
         final float[] correctionsAdd = new float[BULK_SIZE];
         final int[] docIdsScratch = new int[BULK_SIZE];
-        final int[] offsetsScratch = new int[BULK_SIZE];
         byte docEncoding;
         int docBase = 0;
 
@@ -758,30 +754,34 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             return maxScore;
         }
 
-        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+        protected int docsToBulkScoreMask(int[] docIds, Bits acceptDocs, int bulkSize) {
+            assert bulkSize <= Integer.SIZE
+                : "bulk size "
+                    + bulkSize
+                    + " exceeds the mask width; split the block into Integer.SIZE-sized parts and call scoreBulkMasked once per part";
             if (acceptDocs == null) {
-                return bulkSize;
+                return BulkMask.all(bulkSize);
             }
-            int docToScore = 0;
+            int mask = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || acceptDocs.get(docIds[i]) == false) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    mask = BulkMask.select(mask, i);
                 }
             }
-            return docToScore;
+            return mask;
         }
 
-        protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize, int docsToBulkScore, float maxScore) {
+        protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize, int mask, int docsToBulkScore, float maxScore) {
             if (knnCollector instanceof BulkKnnCollector bulkCollector) {
                 if (docsToBulkScore == bulkSize) {
                     bulkCollector.bulkCollect(docIdsScratch, scores, bulkSize, maxScore);
                     return;
                 }
-                for (int i = 0; i < docsToBulkScore; i++) {
-                    int offset = offsetsScratch[i];
+                int i = 0;
+                for (int m = mask; m != 0; m = BulkMask.deselectFirst(m), i++) {
+                    int offset = BulkMask.first(m);
                     docIdsScratch[i] = docIdsScratch[offset];
                     scores[i] = scores[offset];
                 }
@@ -816,7 +816,8 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
+                final int mask = docsToBulkScoreMask(docIdsScratch, acceptDocs, BULK_SIZE);
+                final int docsToBulkScore = Integer.bitCount(mask);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -826,7 +827,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                 if (docsToBulkScore == 1) {
                     maxScore = scoreIndividually(BULK_SIZE);
                 } else if (docsToBulkScore < BULK_SIZE) {
-                    maxScore = osqVectorsScorer.scoreBulkOffsets(
+                    maxScore = osqVectorsScorer.scoreBulkMasked(
                         queryQuantizer.getQuantizedTarget(),
                         queryQuantizer.getQueryCorrections().lowerInterval(),
                         queryQuantizer.getQueryCorrections().upperInterval(),
@@ -834,8 +835,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                         centroidDistance,
                         fieldInfo.getVectorSimilarityFunction(),
                         0f,
-                        offsetsScratch,
-                        docsToBulkScore,
+                        mask,
                         scores,
                         BULK_SIZE
                     );
@@ -852,7 +852,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                     );
                 }
                 if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                    collectBulk(knnCollector, scores, BULK_SIZE, docsToBulkScore, maxScore);
+                    collectBulk(knnCollector, scores, BULK_SIZE, mask, docsToBulkScore, maxScore);
                 }
                 scoredDocs += docsToBulkScore;
             }
@@ -860,7 +860,8 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             if (i < vectors) {
                 int tailSize = vectors - i;
                 readDocIds(tailSize);
-                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
+                final int mask = docsToBulkScoreMask(docIdsScratch, acceptDocs, tailSize);
+                final int docsToBulkScore = Integer.bitCount(mask);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * tailSize);
                 } else {
@@ -869,7 +870,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                     if (docsToBulkScore == 1) {
                         maxScore = scoreIndividually(tailSize);
                     } else if (docsToBulkScore < tailSize) {
-                        maxScore = osqVectorsScorer.scoreBulkOffsets(
+                        maxScore = osqVectorsScorer.scoreBulkMasked(
                             queryQuantizer.getQuantizedTarget(),
                             queryQuantizer.getQueryCorrections().lowerInterval(),
                             queryQuantizer.getQueryCorrections().upperInterval(),
@@ -877,8 +878,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                             centroidDistance,
                             fieldInfo.getVectorSimilarityFunction(),
                             0f,
-                            offsetsScratch,
-                            docsToBulkScore,
+                            mask,
                             scores,
                             tailSize
                         );
@@ -896,7 +896,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                         );
                     }
                     if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                        collectBulk(knnCollector, scores, tailSize, docsToBulkScore, maxScore);
+                        collectBulk(knnCollector, scores, tailSize, mask, docsToBulkScore, maxScore);
                     }
                     scoredDocs += docsToBulkScore;
                 }

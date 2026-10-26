@@ -20,8 +20,8 @@ import java.io.IOException;
 public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
 
     public BlobFile {
-        assert (StatelessCompoundCommit.startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
-            || termAndGeneration.generation() == StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
+        assert (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
+            || termAndGeneration.generation() == BatchedCompoundCommit.parseGenerationFromBlobName(blobName)
             : "generation mismatch: " + termAndGeneration + " vs " + blobName;
     }
 

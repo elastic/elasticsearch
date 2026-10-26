@@ -10,11 +10,13 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -96,6 +98,20 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     public static void absorb(DocumentParserContext context, String name) throws IOException {
         UnmappedSinkFieldMapper sink = context.mappingLookup().getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
         sink.delegate.indexValueAtPath(context, context.path().pathAsText(name));
+    }
+
+    /**
+     * The field type of the unmapped field {@code name}, the key of that full dotted path in the sink, or {@code null} if
+     * {@code lookup} has no sink or {@code name} is below a nested object, whose values are in the sinks of the object's elements.
+     * It is not resolvable by name, so a query reaches it only by asking for it here.
+     */
+    @Nullable
+    public static MappedFieldType unmappedFieldType(MappingLookup lookup, String name) {
+        UnmappedSinkFieldMapper sink = lookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
+        if (sink == null || lookup.nestedLookup().getNestedParent(name) != null) {
+            return null;
+        }
+        return sink.delegate.fieldType().getChildFieldType(name);
     }
 
     /**

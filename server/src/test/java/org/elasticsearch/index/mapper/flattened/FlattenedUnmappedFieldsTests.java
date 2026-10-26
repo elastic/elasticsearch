@@ -481,6 +481,19 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
+     * An absorbed field is the key of its name in the sink, unless it is below a nested object, where it is read from {@code _source}.
+     */
+    public void testSinkFieldType() throws IOException {
+        MapperService mapperService = columnarService(b -> b.startObject("n").field("type", "nested").endObject());
+        assertThat(
+            UnmappedSinkFieldMapper.unmappedFieldType(mapperService.mappingLookup(), randomFrom("absorbed", "obj.absorbed")),
+            instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class)
+        );
+        assertNull(UnmappedSinkFieldMapper.unmappedFieldType(mapperService.mappingLookup(), "n.u"));
+        assertNull(UnmappedSinkFieldMapper.unmappedFieldType(createMapperService(mapping(b -> {})).mappingLookup(), "absorbed"));
+    }
+
+    /**
      * A columnar_stored root is written from the {@code _source} precomputed at index time, which holds the absorbed fields, so it doesn't
      * load the sink: with no mapped field, nothing reads doc values. The absorbed fields still come back from the precomputed
      * {@code _source}.

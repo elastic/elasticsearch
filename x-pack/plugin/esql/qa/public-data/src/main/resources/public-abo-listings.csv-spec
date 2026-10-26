@@ -1,0 +1,220 @@
+// Amazon Berkeley Objects product listings: 16 gzip NDJSON shards, 147,702 records, frozen since
+// 2021-06 (the most stable pins in the suite). The value is the EXTREME per-attribute nesting -
+// most fields are arrays of {language_tag, value} objects - surrounding five flat scalars
+// (item_id, main_image_id, country, marketplace, domain_name) that the workload queries. The
+// nested attributes ride along unprojected: reading records whose bulk is deeply nested IS the
+// case. Deviation from the source plan, recorded: ABO listings are NDJSON, not "CSV+gz".
+// Expected tables derived at authoring time by clickhouse local over the scratch copy.
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q01_countListings
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | STATS count = COUNT(*);
+
+count:long
+147702
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(item_id) FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q05_distinctItems
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | STATS BY item_id | STATS u = COUNT(*);
+
+u:long
+145615
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(country) FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q06_distinctCountries
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | STATS BY country | STATS u = COUNT(*);
+
+u:long
+20
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT countIf(main_image_id IS NOT NULL) FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q02_countWithMainImage
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | WHERE main_image_id IS NOT NULL | STATS count = COUNT(*);
+
+count:long
+147127
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, country FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') GROUP BY country ORDER BY c DESC, country ASC LIMIT 10 SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q08_listingsByCountry
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | STATS c = COUNT(*) BY country | SORT c DESC, country ASC | LIMIT 10;
+
+c:long | country:keyword
+76442  | IN
+24799  | US
+6758   | CA
+5438   | GB
+4847   | DE
+4831   | MX
+4523   | ES
+4154   | FR
+3938   | IT
+3727   | JP
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, marketplace, domain_name FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') GROUP BY marketplace, domain_name ORDER BY c DESC, marketplace ASC, domain_name ASC LIMIT 10 SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q15_marketplaceDomainCross
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | STATS c = COUNT(*) BY marketplace, domain_name | SORT c DESC, marketplace ASC, domain_name ASC | LIMIT 10;
+
+c:long | marketplace:keyword | domain_name:keyword
+76433  | Amazon              | amazon.in
+19616  | Amazon              | amazon.com
+6720   | Amazon              | amazon.ca
+5438   | Amazon              | amazon.co.uk
+4831   | Amazon              | amazon.com.mx
+4749   | Amazon              | amazon.de
+4443   | Amazon              | amazon.es
+4073   | Amazon              | amazon.fr
+3861   | Amazon              | amazon.it
+3651   | Amazon              | amazon.co.jp
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT item_id FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') WHERE item_id = 'B06X9STHNG' SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q20_scanNeedleItem
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | WHERE item_id == "B06X9STHNG" | KEEP item_id;
+
+item_id:keyword
+B06X9STHNG
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT item_id FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') ORDER BY item_id DESC LIMIT 10 SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: lexical descending over the projected column itself; boundary ties identical
+q24_topItemsDesc
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | SORT item_id DESC | KEEP item_id | LIMIT 10;
+
+item_id:keyword
+B08HMNN9MS
+B08HMLKVWH
+B08HMGXGH3
+B08HMFBF93
+B08HMF6T6W
+B08HMBQ2SB
+B08HMBBPTJ
+B08HMB3N5L
+B08HM9W3FY
+B08HM8B3NB
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT item_id FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') ORDER BY item_id ASC LIMIT 10 SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: lexical ascending over the projected column itself; boundary ties identical
+q26_sortItemsAsc
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | SORT item_id ASC | KEEP item_id | LIMIT 10;
+
+item_id:keyword
+0615916821
+B00004SD6V
+B00004TBMT
+B00004W42A
+B000050415
+B000050419
+B00005041B
+B00005041G
+B00005041J
+B00005041K
+;
+
+// corpus: abo-listings
+// reference-variant: abo-listings-s3-ndjson-gzip-shards
+// pinned: 16 objects, 87437341 bytes, listings/metadata/listings_*.json.gz, frozen since 2021-06
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT country FROM file('*.json.gz', JSONEachRow, 'item_id String, main_image_id Nullable(String), country String, marketplace String, domain_name String') WHERE country = 'BR' LIMIT 10 SETTINGS input_format_skip_unknown_fields=1
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+// note: BR is the rarest country (3 records), picked deterministically
+q44_limitNeedleBrazil
+required_capability: dataset_in_from_command
+dataset: abo_listings: "{{corpus}}"
+FROM abo_listings | WHERE country == "BR" | KEEP country | LIMIT 10;
+
+country:keyword
+BR
+BR
+BR
+;

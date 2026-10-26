@@ -246,7 +246,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
                 "input": {"type":"%s", "value":"%s"},
                 "query": "%s"
             }
-            """, unsupportedDataType, TEST_DATA_URI, QUERY_TEXT);
+            """, unsupportedDataType, InferenceStringTests.convertToDataURIIfNeeded(unsupportedDataType, null, "abcd"), QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var exception = expectThrows(XContentParseException.class, () -> RerankRequest.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), containsString("[RerankRequest] failed to parse field [input]"));
@@ -269,7 +269,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
                 "input": "%s",
                 "query": {"type":"%s", "value":"%s"}
             }
-            """, INPUT_TEXT, unsupportedDataType, TEST_DATA_URI);
+            """, INPUT_TEXT, unsupportedDataType, InferenceStringTests.convertToDataURIIfNeeded(unsupportedDataType, null, "abcd"));
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var exception = expectThrows(XContentParseException.class, () -> RerankRequest.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), containsString("[RerankRequest] failed to parse field [query]"));

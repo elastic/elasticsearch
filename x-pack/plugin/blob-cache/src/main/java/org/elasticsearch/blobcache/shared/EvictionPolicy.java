@@ -81,6 +81,15 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
     }
 
     /**
+     * Whether the policy protects cache regions based on each region's content timestamp.
+     * When {@code true}, the cache stamps those timestamps so the policy can use them.
+     * Defaults to {@code false}.
+     */
+    default boolean hasRegionTimestampProtection() {
+        return false;
+    }
+
+    /**
      * Called when the policy is closed so that it has a chance to perform any cleanup if needed. This is needed
      * because policy can be dynamically configured at runtime so that the old policy must be closed.
      * This method must not perform I/O.

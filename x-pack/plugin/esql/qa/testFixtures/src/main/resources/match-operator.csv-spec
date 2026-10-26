@@ -294,7 +294,7 @@ required_capability: match_operator_colon
 required_capability: qstr_function
 
 from employees 
-| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) and gender: F")
+| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) OR gender: F")
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 
@@ -1150,6 +1150,71 @@ content:text
 [This is a brown dog, extra]
 ;
 
+matchOnTextWithRowNegated
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE NOT content:"dog"
+;
+
+content:text
+This is a brown fox
+;
+
+matchOnRuntimeTextAfterRename
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog"])
+| MV_EXPAND content
+| RENAME content AS renamed
+| WHERE renamed:"fox"
+;
+
+renamed:text
+This is a brown fox
+;
+
+matchOnRuntimeTextAfterStats
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| STATS max_year = max(year) BY book_no
+| EVAL b = to_text(book_no)
+| WHERE b:"2130"
+| KEEP book_no, max_year
+;
+
+book_no:keyword | max_year:integer
+2130            | 2002
+;
+
+matchOnRuntimeTextAfterFork
+
+required_capability: match_operator_colon
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog"])
+| MV_EXPAND content
+| FORK (WHERE true)
+       (WHERE true)
+| WHERE content:"fox"
+| KEEP content, _fork
+| SORT _fork
+;
+
+content:text        | _fork:keyword
+This is a brown fox | fork1
+This is a brown fox | fork2
+;
+
 matchOnRuntimeKeyword
 
 required_capability: match_operator_colon
@@ -1165,6 +1230,26 @@ FROM employees
 emp_no:integer | full_name:keyword
 10006          | Anneke Preusig
 10014          | Berni Genin
+;
+
+matchOnMvMinOfKeyword
+required_capability: match_operator_colon
+required_capability: fn_match_fused_field_load_fix
+
+// MV_MIN is fused into the field load on the data node; that load has no indexed Lucene field behind it, so the
+// match still has to run at runtime
+FROM employees
+| WHERE emp_no <= 10025 AND MV_MIN(job_positions):"Accountant"
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10012          | [Accountant, Head Human Resources]
+10016          | [Accountant, Purchase Manager, Python Developer, Reporting Analyst]
+10023          | [Accountant, Purchase Manager, Support Engineer]
+10025          | Accountant
 ;
 
 matchOnRuntimeKeywordWithRow

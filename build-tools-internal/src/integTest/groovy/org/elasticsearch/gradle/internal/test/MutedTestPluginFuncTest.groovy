@@ -22,7 +22,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             apply plugin: 'java'
             repositories { mavenCentral() }
             dependencies { testImplementation 'junit:junit:4.13.2' }
-            tasks.named("test").configure {
+            tasks.withType(Test).configureEach {
                 testLogging { events "started" }
             }
         """
@@ -85,12 +85,113 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result.output.contains("someUnmutedTest STARTED")
     }
 
-    private void muteTest(String className, String method) {
+    def "task scoped mutes only apply to listed tasks"() {
+        given:
+        addOtherTestSourceSet()
+        muteTest("org.acme.ScopedTest", "someMutedTest", [":otherTest"])
+        testClazz("org.acme.ScopedTest") {
+            """
+            @org.junit.Test public void someMutedTest() {}
+            """
+        }
+        clazz(file("src/otherTest/java"), "org.acme.ScopedTest", null) {
+            """
+            @org.junit.Test public void someMutedTest() {}
+            @org.junit.Test public void someUnmutedTest() {}
+            """
+        }
+
+        when:
+        def mainTaskResult = gradleRunner("test").build()
+        def scopedTaskResult = gradleRunner("otherTest").build()
+
+        then:
+        mainTaskResult.task(":test").outcome == TaskOutcome.SUCCESS
+        mainTaskResult.output.contains("someMutedTest STARTED")
+        scopedTaskResult.task(":otherTest").outcome == TaskOutcome.SUCCESS
+        scopedTaskResult.output.contains("someMutedTest STARTED") == false
+        scopedTaskResult.output.contains("someUnmutedTest STARTED")
+    }
+
+    def "adding a scoped mute only reexecutes the affected test task"() {
+        given:
+        addOtherTestSourceSet()
+        testClazz("org.acme.UnaffectedTest") {
+            """
+            @org.junit.Test public void unaffectedTest() {}
+            """
+        }
+        clazz(file("src/otherTest/java"), "org.acme.ScopedTest", null) {
+            """
+            @org.junit.Test public void someMutedTest() {}
+            @org.junit.Test public void someUnmutedTest() {}
+            """
+        }
+
+        when:
+        def initialResult = gradleRunner("test", "otherTest").build()
+        muteTest("org.acme.ScopedTest", "someMutedTest", [":otherTest"])
+        def secondResult = gradleRunner("test", "otherTest").build()
+
+        then:
+        initialResult.task(":test").outcome == TaskOutcome.SUCCESS
+        initialResult.task(":otherTest").outcome == TaskOutcome.SUCCESS
+
+        secondResult.task(":test").outcome == TaskOutcome.UP_TO_DATE
+        secondResult.task(":otherTest").outcome == TaskOutcome.SUCCESS
+        secondResult.output.contains("someMutedTest STARTED") == false
+        secondResult.output.contains("someUnmutedTest STARTED")
+        secondResult.output.contains("unaffectedTest STARTED") == false
+    }
+
+    def "invalid task scoped mute schema fails the build"() {
+        given:
         file("muted-tests.yml").text = """
-tests:
+            tests:
+            - class: org.acme.SomeTest
+              method: someMutedTest
+              tasks: []
+              issue: https://github.com/elastic/elasticsearch/issues/1
+        """.stripIndent()
+        testClazz("org.acme.SomeTest") {
+            """
+            @org.junit.Test public void someMutedTest() {}
+            """
+        }
+
+        when:
+        def result = gradleRunner("test").buildAndFail()
+
+        then:
+        result.output.contains("muted test tasks must not be empty")
+    }
+
+    private void addOtherTestSourceSet() {
+        buildFile << """
+            sourceSets {
+                otherTest {
+                    java.srcDir 'src/otherTest/java'
+                    compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+                    runtimeClasspath += output + compileClasspath
+                }
+            }
+            configurations {
+                otherTestImplementation.extendsFrom testImplementation
+                otherTestRuntimeOnly.extendsFrom testRuntimeOnly
+            }
+            tasks.register('otherTest', Test) {
+                testClassesDirs = sourceSets.otherTest.output.classesDirs
+                classpath = sourceSets.otherTest.runtimeClasspath
+            }
+        """
+    }
+
+    private void muteTest(String className, String method, List<String> tasks = null) {
+        String tasksBlock = tasks == null ? "" : "\n  tasks:\n" + tasks.collect { "  - ${it}" }.join("\n")
+        file("muted-tests.yml").text = """tests:
 - class: ${className}
   method: ${method}
-  issue: https://github.com/elastic/elasticsearch/issues/1
+  issue: https://github.com/elastic/elasticsearch/issues/1${tasksBlock}
 """
     }
 }

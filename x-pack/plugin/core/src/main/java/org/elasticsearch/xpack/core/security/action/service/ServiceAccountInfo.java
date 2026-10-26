@@ -11,11 +11,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,6 +34,21 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      * directly by a role descriptor, which is what {@link BuiltIn} still writes to such a node.
      */
     TransportVersion USER_MANAGED_SERVICE_ACCOUNT_INFO = TransportVersion.fromName("user_managed_service_account_info");
+
+    /**
+     * Gates the optional description of a user-managed account, which is written after the older fields both in this
+     * wire form and in that of the request that writes an account. A node before this version is sent the account
+     * without its description rather than being refused it: the description carries no meaning, so the account is
+     * still whole without it.
+     */
+    TransportVersion USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION = TransportVersion.fromName("user_managed_service_account_description");
+
+    /**
+     * Gates who created and last changed a user-managed account and when, written after the description. As with the
+     * description, a node before this version is sent the account without them: they describe the account's history,
+     * not what it may do.
+     */
+    TransportVersion USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION = TransportVersion.fromName("user_managed_service_account_attribution");
 
     String principal();
 
@@ -55,13 +72,74 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
 
     /**
      * An account created through the API, whose privileges are the named roles resolved when it authenticates. The
-     * roles are reported as the caller gave them.
+     * roles are reported as the caller gave them. The description is free text that means nothing to Elasticsearch,
+     * carried for the caller's benefit, and is {@code null} when the account has none.
+     * <p>
+     * The two authors record who created the account and who last replaced it, and the two timestamps when. Each is
+     * {@code null} when unknown: the updating author and its timestamp until the account is first replaced, and the
+     * creating author and its timestamp for an account written before they were recorded.
+     * <p>
+     * The two profile uids are not stored with the account. They are looked up when a caller asks for them with
+     * {@code with_profile_uid}, and are {@code null} otherwise, or when the author has no profile.
      */
-    record UserManaged(String principal, List<String> roles, boolean enabled) implements ServiceAccountInfo {
+    record UserManaged(
+        String principal,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable ServiceAccountAuthor createdBy,
+        @Nullable Instant createdAt,
+        @Nullable ServiceAccountAuthor updatedBy,
+        @Nullable Instant updatedAt,
+        @Nullable String createdByProfileUid,
+        @Nullable String updatedByProfileUid
+    ) implements ServiceAccountInfo {
 
         public UserManaged {
             Objects.requireNonNull(principal, "service account principal cannot be null");
             roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
+        }
+
+        /**
+         * An account with no attribution, as one written before attribution was recorded reads back.
+         */
+        public UserManaged(String principal, List<String> roles, boolean enabled, @Nullable String description) {
+            this(principal, roles, enabled, description, null, null, null, null);
+        }
+
+        /**
+         * An account as it is read from the store, with no profile uids resolved.
+         */
+        public UserManaged(
+            String principal,
+            List<String> roles,
+            boolean enabled,
+            @Nullable String description,
+            @Nullable ServiceAccountAuthor createdBy,
+            @Nullable Instant createdAt,
+            @Nullable ServiceAccountAuthor updatedBy,
+            @Nullable Instant updatedAt
+        ) {
+            this(principal, roles, enabled, description, createdBy, createdAt, updatedBy, updatedAt, null, null);
+        }
+
+        /**
+         * The same account with the profile uids of its two authors filled in. A uid given for an author the
+         * account does not have is dropped, since there is no one it could belong to.
+         */
+        public UserManaged withProfileUids(@Nullable String createdByProfileUid, @Nullable String updatedByProfileUid) {
+            return new UserManaged(
+                principal,
+                roles,
+                enabled,
+                description,
+                createdBy,
+                createdAt,
+                updatedBy,
+                updatedAt,
+                createdBy == null ? null : createdByProfileUid,
+                updatedBy == null ? null : updatedByProfileUid
+            );
         }
 
         @Override
@@ -77,8 +155,31 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
         return switch (in.readEnum(ServiceAccountType.class)) {
             case BUILT_IN -> new BuiltIn(principal, new RoleDescriptor(in));
-            case USER_MANAGED -> new UserManaged(principal, in.readStringCollectionAsImmutableList(), in.readBoolean());
+            case USER_MANAGED -> readUserManaged(principal, in);
         };
+    }
+
+    private static UserManaged readUserManaged(String principal, StreamInput in) throws IOException {
+        final List<String> roles = in.readStringCollectionAsImmutableList();
+        final boolean enabled = in.readBoolean();
+        final String description = in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION)
+            ? in.readOptionalString()
+            : null;
+        if (in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION) == false) {
+            return new UserManaged(principal, roles, enabled, description);
+        }
+        return new UserManaged(
+            principal,
+            roles,
+            enabled,
+            description,
+            in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
+            in.readOptionalInstant(),
+            in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
+            in.readOptionalInstant(),
+            in.readOptionalString(),
+            in.readOptionalString()
+        );
     }
 
     @Override
@@ -103,6 +204,17 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             case UserManaged userManaged -> {
                 out.writeStringCollection(userManaged.roles());
                 out.writeBoolean(userManaged.enabled());
+                if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION)) {
+                    out.writeOptionalString(userManaged.description());
+                }
+                if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION)) {
+                    out.writeOptionalWriteable(userManaged.createdBy());
+                    out.writeOptionalInstant(userManaged.createdAt());
+                    out.writeOptionalWriteable(userManaged.updatedBy());
+                    out.writeOptionalInstant(userManaged.updatedAt());
+                    out.writeOptionalString(userManaged.createdByProfileUid());
+                    out.writeOptionalString(userManaged.updatedByProfileUid());
+                }
             }
         }
     }
@@ -132,6 +244,27 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             case UserManaged userManaged -> {
                 builder.stringListField("roles", userManaged.roles());
                 builder.field("enabled", userManaged.enabled());
+                if (userManaged.description() != null) {
+                    builder.field("description", userManaged.description());
+                }
+                if (userManaged.createdBy() != null) {
+                    builder.field("created_by", userManaged.createdBy());
+                }
+                if (userManaged.createdAt() != null) {
+                    builder.field("created_at", userManaged.createdAt().toEpochMilli());
+                }
+                if (userManaged.createdByProfileUid() != null) {
+                    builder.field("created_by_profile_uid", userManaged.createdByProfileUid());
+                }
+                if (userManaged.updatedBy() != null) {
+                    builder.field("updated_by", userManaged.updatedBy());
+                }
+                if (userManaged.updatedAt() != null) {
+                    builder.field("updated_at", userManaged.updatedAt().toEpochMilli());
+                }
+                if (userManaged.updatedByProfileUid() != null) {
+                    builder.field("updated_by_profile_uid", userManaged.updatedByProfileUid());
+                }
             }
         }
         return builder;

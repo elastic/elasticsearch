@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
+import org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGates;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -96,7 +98,7 @@ import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSe
  * <li>updating</li>
  * </ul>
  */
-public final class DatafeedManager {
+public class DatafeedManager {
 
     private static final Logger logger = LogManager.getLogger(DatafeedManager.class);
 
@@ -176,6 +178,19 @@ public final class DatafeedManager {
             () -> callerCredential.set(credentialManagerSupplier.get().extractCloudManagedCredential(threadPool.getThreadContext()))
         );
         return callerCredential.get();
+    }
+
+    /**
+     * Extracts the caller's cloud credential on the coordinating node (see {@link #currentCallerCredential}) and hands it to
+     * {@code carrier}, which stores it on the request that is about to be forwarded to the master. The carrier is not invoked when there
+     * is no credential: a master-node action's {@code doExecute} runs again on the master, where the transient headers are gone and
+     * extraction yields {@code null}, and that must not overwrite the credential carried from the coordinator.
+     */
+    public void carryCallerCredential(ThreadPool threadPool, @Nullable SecurityContext securityContext, Consumer<CloudCredential> carrier) {
+        CloudCredential callerCredential = currentCallerCredential(threadPool, securityContext);
+        if (callerCredential != null) {
+            carrier.accept(callerCredential);
+        }
     }
 
     private static boolean hasCallerCloudCredential(
@@ -321,6 +336,12 @@ public final class DatafeedManager {
             datafeedConfigProvider.getDatafeedConfig(datafeedId, null, listener.delegateFailureAndWrap((l, configBuilder) -> {
                 try {
                     final DatafeedConfig current = configBuilder.build();
+                    try {
+                        DatafeedEsqlGates.validateDatafeedUpdate(current, update, state);
+                    } catch (ElasticsearchStatusException e) {
+                        l.onFailure(e);
+                        return;
+                    }
                     CredentialTransitions.TransitionContext ctx = new CredentialTransitions.TransitionContext(
                         crossProjectMlEnabled(),
                         hasCpsCredential,

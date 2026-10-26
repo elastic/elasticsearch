@@ -295,4 +295,76 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         builder.setIndices(Collections.singletonList("myIndex"));
         return builder;
     }
+
+    public void testVerifyEsqlQueryWithDelayedDataEnabledAndNoSummaryCountFieldShouldThrow() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName(null);
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
+
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
+        assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+    }
+
+    public void testVerifyEsqlQueryWithDelayedDataEnabledAndEmptySummaryCountFieldShouldThrow() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName("");
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
+
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
+        assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+    }
+
+    public void testVerifyEsqlQueryWithDelayedDataEnabledAndSummaryCountFieldSetShouldSucceed() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName("event_count");
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
+        DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
+    }
+
+    public void testVerifyEsqlQueryWithDelayedDataDisabledAndNoSummaryCountFieldShouldSucceed() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName(null);
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
+        builder.setEsqlQuery("FROM logs");
+        builder.setSourceTimeField("@timestamp");
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
+        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        DatafeedConfig datafeedConfig = builder.build();
+        DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
+    }
+
+    private static DatafeedConfig createEsqlDatafeedWithDelayedData() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
+        builder.setEsqlQuery("FROM logs");
+        builder.setSourceTimeField("@timestamp");
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
+        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
+        return builder.build();
+    }
 }

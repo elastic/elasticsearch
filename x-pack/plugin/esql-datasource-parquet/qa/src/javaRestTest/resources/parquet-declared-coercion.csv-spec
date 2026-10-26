@@ -15,13 +15,14 @@
 // the error policy are therefore not independent, and this pins the pair.
 strictDeclaredStringReadsAsDoubleOnParquetUnderNullFieldPolicy
 required_capability: dataset_in_from_command
+required_capability: external_dataset_messages
 dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "change": {"type": "double", "path": "salary_change.keyword"}}}}
 
 FROM employees_declared_parse
 | SORT id
 | LIMIT 3;
-warningRegex:Column \[salary_change.keyword\]: cannot coerce value from \[keyword\] to declared type \[double\]: empty String; returning null
-warningRegex:.* has values that could not be coerced to the declared column type; they are returned as null
+warningRegex:column \[salary_change.keyword\]: cannot read \[keyword\] as \[double\]: empty String
+warningRegex:Some values in \[.*\] cannot be read as their declared type; returning null
 warningRegex:\.\.\. further warnings suppressed .*
 
 id:long | change:double
@@ -63,4 +64,70 @@ id:long | worked:date
 10001   | 1970-01-04T02:38:48.049Z
 10002   | 1970-01-04T19:22:02.887Z
 10003   | 1970-01-03T07:38:16.405Z
+;
+
+// Declaring `date` on an INT32 column is an epoch-millis reinterpret unless the file itself says DATE. uint32 is
+// physically INT32 and renders ESQL long, so it reaches the same long->datetime coercion a bare INT64 reaches, and
+// reads the same way; the reader used to scale every INT32 by 86_400_000 as if the annotation had been DATE. That
+// put the three small rows here in 2106, 2243 and 2517, and -- because the same arm read the INT32 signed -- threw
+// the two rows above Integer.MAX_VALUE to the ISO years -3543531 and -805624. {{uint32_pushdown}}'s u32 column
+// straddles Integer.MAX_VALUE on purpose, so the case pins the unsigned widening as well as the scale.
+declaredDatetimeOverUint32ReadsEpochMillis
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_datetime_is_epoch_millis_unless_date
+dataset: uint32_declared_date: "{{uint32_pushdown}}" WITH {"mappings": {"dynamic": "false", "properties": {"ts": {"type": "date", "path": "u32"}}}}
+
+FROM uint32_declared_date
+| SORT ts
+;
+
+ts:date
+1970-01-01T00:00:50.000Z
+1970-01-01T00:01:40.000Z
+1970-01-01T00:03:20.000Z
+1970-02-04T17:20:00.000Z
+1970-02-16T07:06:40.000Z
+;
+// A TIMESTAMP(NANOS) column declared `date` narrows nanos to millis, and it does so below the epoch too: `date`
+// represents a pre-1970 instant exactly, and the 1970 floor the narrowing used to borrow belongs to DateUtils'
+// nanosecond conversion. The undeclared read of this very column renders the same instant, so declaring the conventional
+// dashboard type used to be strictly worse than declaring nothing -- one pre-1970 row failed the whole query.
+// {{pre_epoch_nanos}} carries epoch-nanosecond longs, one before and one after 1970.
+declaredDatetimeOverPreEpochTimestampNarrowsNotFails
+required_capability: dataset_in_from_command
+required_capability: dataset_declared_date_narrows_below_the_epoch
+dataset: pre_epoch_declared_date: "{{pre_epoch_nanos}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM pre_epoch_declared_date
+| SORT id
+;
+
+id:integer | ts:date
+1          | 1965-03-04T12:00:00.000Z
+2          | 2024-01-01T00:00:00.000Z
+;
+
+// The control for the case above, and the reason it is a defect rather than a limit of the type: the same column
+// with no declaration at all renders the same pre-1970 instant. The reader's date_nanos block holds any instant
+// a signed epoch-nanosecond long can, back to 1677, so nothing about the file or the data was ever out of range
+// -- only the narrowing borrowed a floor from the wrong type.
+// Rendered through TO_STRING because the csv-spec harness parses an expected date_nanos literal through a converter
+// with a 1970 floor of its own, so a pre-1970 literal cannot be written on the right-hand side at all. These two
+// values are whole milliseconds, which is why they print three fraction digits; the printer carries as many digits
+// as the value needs, so a sub-millisecond instant would print more. The instant is what this case is about, and it
+// is the same one the declared read above produces.
+declaredNothingOverPreEpochTimestampReadsTheSameInstant
+required_capability: dataset_in_from_command
+required_capability: dataset_declared_date_narrows_below_the_epoch
+dataset: pre_epoch_undeclared: "{{pre_epoch_nanos}}"
+
+FROM pre_epoch_undeclared
+| SORT id
+| EVAL rendered = TO_STRING(ts)
+| KEEP id, rendered
+;
+
+id:integer | rendered:keyword
+1          | 1965-03-04T12:00:00.000Z
+2          | 2024-01-01T00:00:00.000Z
 ;

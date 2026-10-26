@@ -10,8 +10,6 @@
 package org.elasticsearch.gradle.fixtures
 
 import spock.lang.Specification
-import spock.lang.TempDir
-import com.github.tomakehurst.wiremock.WireMockServer
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
@@ -21,7 +19,6 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
-import org.junit.After
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -29,16 +26,18 @@ import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.StandardCopyOption
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
+
+    private static final List<String> SHARED_DOWNLOAD_DIRS = ["jdks", "wrapper"]
 
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
@@ -166,44 +165,64 @@ abstract class AbstractGradleFuncTest extends Specification {
      * Override to supply a custom Gradle user home directory for the TestKit runner.
      * TestKit will set {@code GRADLE_USER_HOME} to this directory for every forked
      * Gradle process, including any {@code ./gradlew} subprocesses spawned by build
-     * logic.  Returns {@code null} by default, in which case the shared directory declared by the
-     * owning {@code integTest} task via {@code org.gradle.testkit.dir} is used, if present
-     * (see {@link #testKitDir()}).
+     * logic.  Returns {@code null} by default, in which case the Gradle user home of the current
+     * worker is used, if present (see {@link #testKitDir()}).
      */
     protected File customGradleUserHome() {
         return null
     }
 
-    /**
-     * The TestKit Gradle user home. Uses the directory declared explicitly via
-     * {@code org.gradle.testkit.dir} when running under the {@code integTest} task, so that
-     * {@link #disableCacheCleanup} is guaranteed to seed its init script into the directory the
-     * nested builds actually use.
-     * <p>
-     * Falls back to TestKit's own default (letting {@link GradleRunner} derive it, e.g. from
-     * {@code java.io.tmpdir}) when the property is absent, which is the case for ad-hoc runs from
-     * an IDE that does not delegate test execution to Gradle. Such runs execute a single test at a
-     * time, so they are not exposed to the cross-worker cache cleanup race this fixes; disabling
-     * cleanup for them is a nice-to-have; falling back to null here has {@link #gradleRunner} skip
-     * seeding it rather than fail the run outright.
-     */
-    private static File testKitDir() {
+    protected static File testKitRootDir() {
         String testKitDir = System.getProperty("org.gradle.testkit.dir")
         return testKitDir == null ? null : new File(testKitDir)
+    }
+
+    /**
+     * The Gradle user home of the current worker.
+     */
+    private static File testKitDir() {
+        File testKitRoot = testKitRootDir()
+        if (testKitRoot == null) {
+            return null
+        }
+        String worker = System.getProperty("org.gradle.test.worker")
+        if (worker == null) {
+            return testKitRoot
+        }
+        File workerHome = new File(testKitRoot, "worker-" + worker)
+        SHARED_DOWNLOAD_DIRS.each { linkSharedDownloadDir(testKitRoot, workerHome, it) }
+        return workerHome
+    }
+
+    private static void linkSharedDownloadDir(File testKitRoot, File workerHome, String name) {
+        File link = new File(workerHome, name)
+        if (Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+            return
+        }
+        File shared = new File(testKitRoot, name)
+        shared.mkdirs()
+        workerHome.mkdirs()
+        try {
+            Files.createSymbolicLink(link.toPath(), shared.toPath())
+        } catch (IOException | UnsupportedOperationException e) {
+            System.err.println("Could not link ${name} of ${workerHome} to ${shared}, "
+                + "this worker will populate its own copy: ${e}")
+        }
     }
 
     /**
      * Disables Gradle user home cache cleanup for the given TestKit dir.
      *
      * Our func test tasks run with {@code maxParallelForks} set to the number of physical cores,
-     * and every worker shares a single TestKit Gradle user home. Cleanup triggered by one nested
-     * daemon then races with another worker's daemon reading or creating entries under
-     * {@code caches/<version>/groovy-dsl/**}{@code /instrumented}, which surfaces as a
-     * {@code NoSuchFileException} while the settings script is being compiled
-     * (see https://github.com/gradle/gradle/issues/6354).
+     * and every worker used to share a single TestKit Gradle user home. Cleanup triggered by one
+     * nested daemon then raced with another worker's daemon reading or creating entries under
+     * {@code caches/<version>/groovy-dsl/**}{@code /instrumented}, which surfaced as a
+     * {@code NoSuchFileException} while the settings script was being compiled
+     * (see https://github.com/gradle/gradle/issues/6354). Every worker now has its own home, which
+     * rules that race out, so cleanup stays disabled only because it has no value here:
      *
-     * Cleanup has no value for this directory anyway: it lives under {@code build/} locally and on
-     * an ephemeral CI agent otherwise, so it never survives long enough to need pruning.
+     * It lives under {@code build/} locally and on an ephemeral CI agent otherwise, so it never
+     * survives long enough to need pruning.
      *
      * Cache cleanup can only be configured from an init script in the Gradle user home, not from a
      * settings script, so the setting is seeded into {@code init.d}. Writing it there (rather than
@@ -234,7 +253,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         try {
             Files.move(tmpScript.toPath(), initScript.toPath(), StandardCopyOption.ATOMIC_MOVE)
         } catch (FileAlreadyExistsException e) {
-            // Another worker won the race; its script is equivalent so there is nothing left to do.
+            // Another process using this home won the race; its script is equivalent so there is
+            // nothing left to do.
             tmpScript.delete()
         }
     }

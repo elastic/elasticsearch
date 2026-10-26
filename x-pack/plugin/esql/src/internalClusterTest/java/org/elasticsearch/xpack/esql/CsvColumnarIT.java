@@ -170,6 +170,25 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
         "unmapped_object_data",
+        // mv_expand_unmapped is dynamic:false and read for the tags and deep.items leaves its mapping does not declare, which strict
+        // columnar drops at ingest; mv_expand_mapped only exists to be read alongside it.
+        "mv_expand_mapped",
+        "mv_expand_unmapped",
+        // change_point_mapped carries unmapped leaves (type, pvalue, ...) and change_point_unmapped maps only id, so strict columnar drops
+        // what the tests read at ingest.
+        "change_point_mapped",
+        "change_point_unmapped",
+        // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
+        "flattened_paths_mapped",
+        "flattened_paths_unmapped",
+        // dynamic:false, read for the undeclared leaves under a nested parent, which strict columnar drops at ingest. The mapped index also
+        // nests parts inside items, and columnar supports only a single level of nesting, so index creation fails outright.
+        "nested_paths_mapped",
+        "nested_paths_unmapped",
+        // dynamic:false and read for the leaves its mapping does not declare, which strict columnar drops at ingest.
+        "unmapped_compound_outputs",
+        // Same again: every field but id is unmapped, so strict columnar drops it at ingest.
+        "unmapped_compound_inputs",
         "synthetic_source_partial_mapping",
         // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
         // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
@@ -282,13 +301,28 @@ public class CsvColumnarIT extends CsvIT {
      * dataset(s) it reads from, so {@link #shouldExclude} can detect incompatible or time-series
      * datasets that are only reachable via a view.
      */
+    /**
+     * Matches one leading {@code SET <name> = <value>;} statement, where the value is either a
+     * double-quoted string (escapes allowed) or a run of non-semicolon characters. Trailing
+     * whitespace — including the {@code \r\n} that {@link CsvSpecReader} emits after each SET
+     * line — is consumed so repeated application peels off stacked SET statements.
+     *
+     * <p>Declared before {@link #VIEW_BACKING_DATASETS}, whose static initializer calls
+     * {@link #stripLeadingSetStatements}.
+     */
+    private static final java.util.regex.Pattern LEADING_SET_STATEMENT = java.util.regex.Pattern.compile(
+        "^\\s*(?i:SET)\\s+[A-Za-z_][A-Za-z0-9_.]*\\s*=\\s*(\"(?:[^\"\\\\]|\\\\.)*\"|[^;]*);\\s*"
+    );
+
     private static final Map<String, Set<CsvTestsDataLoader.TestDataset>> VIEW_BACKING_DATASETS = VIEW_CONFIGS.entrySet()
         .stream()
         .collect(
             java.util.stream.Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
+                // View bodies may open with SET statements (set_in_view_definitions), which hide
+                // the FROM from the pattern extractor's anchors; strip them like test queries.
                 e -> EsqlQueryDatasetResolver.resolveDatasets(
-                    EsqlQueryDatasetResolver.extractIndexPatterns(e.getValue().loadQuery()),
+                    EsqlQueryDatasetResolver.extractIndexPatterns(stripLeadingSetStatements(e.getValue().loadQuery())),
                     CSV_DATASET
                 )
             )
@@ -425,33 +459,26 @@ public class CsvColumnarIT extends CsvIT {
     }
 
     /**
-     * Returns {@code query} with any leading {@code SET <name>=<value>;\r\n} lines removed.
+     * Returns {@code query} with any leading {@code SET <name>=<value>;} statements removed.
      *
      * <p>{@link EsqlQueryDatasetResolver#extractIndexPatterns} uses a regex that anchors on
      * start-of-input, {@code |}, or {@code (} (deliberately, to avoid widening
-     * {@code CsvFlattenedKeywordIT}'s keyword-path scoping). When a csv-spec query opens with one or
-     * more {@code SET} lines — which {@link CsvSpecReader} appends to the query as {@code SET
-     * name=value;\r\n} — the subsequent {@code FROM} sits after a newline and the regex returns no
-     * patterns, causing {@link #shouldExclude} to miss time-series or incompatible-dataset sources.
-     * Stripping the {@code SET} lines here restores the extraction without touching the shared
-     * resolver.
-     *
-     * <p>Only strips lines whose first non-whitespace token is {@code SET} (case-insensitive) followed
-     * by a non-whitespace identifier, an equals sign, and a value ending in {@code ;} — the exact
-     * form {@code CsvSpecReader} emits. Lines that do not match are left intact; the first non-{@code
-     * SET} line and all subsequent lines are returned unchanged.
+     * {@code CsvFlattenedKeywordIT}'s keyword-path scoping). When a query opens with one or more
+     * {@code SET} statements, the subsequent {@code FROM} sits after the {@code ;} — on the next
+     * line for csv-spec test queries ({@link CsvSpecReader} emits {@code SET name=value;\r\n}) or
+     * on the same line for view bodies ({@code SET name="v"; FROM x | ...}) — and the regex
+     * returns no patterns, causing {@link #shouldExclude} to miss time-series or
+     * incompatible-dataset sources. Stripping the {@code SET} statements here restores the
+     * extraction without touching the shared resolver.
      */
     private static String stripLeadingSetStatements(String query) {
-        // CsvSpecReader joins lines with "\r\n"; split on any line ending and reconstruct.
-        String[] lines = query.split("\r\n|\r|\n", -1);
-        int first = 0;
-        while (first < lines.length && lines[first].stripLeading().toUpperCase(Locale.ROOT).startsWith("SET ")) {
-            first++;
+        String result = query;
+        java.util.regex.Matcher m = LEADING_SET_STATEMENT.matcher(result);
+        while (m.find()) {
+            result = result.substring(m.end());
+            m = LEADING_SET_STATEMENT.matcher(result);
         }
-        if (first == 0) {
-            return query;
-        }
-        return String.join("\r\n", java.util.Arrays.copyOfRange(lines, first, lines.length));
+        return result;
     }
 
     private static boolean shouldExclude(CsvTestCase testCase) throws IOException {
@@ -753,7 +780,7 @@ public class CsvColumnarIT extends CsvIT {
         /**
          * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>Performs four adjustments in a single parse-serialize pass:
+         * <p>Performs five adjustments in a single parse-serialize pass:
          * <ol>
          *   <li>Removes the top-level {@code "runtime"} section.
          *       {@code IndexMode.COLUMNAR.validateMapping} calls
@@ -784,6 +811,12 @@ public class CsvColumnarIT extends CsvIT {
          *       collapse to a constant. That produces different relevance scores for the same
          *       query, invalidating the csv-spec oracle. Restoring the standard-mode default
          *       makes BM25 scores bit-identical so all score-asserting specs remain valid.</li>
+         *   <li>Injects {@code "index_options": "positions"} into every {@code text} field that omits
+         *       {@code "index_options"}.
+         *       Strictly columnar mode defaults text {@code index_options} to {@code docs} (no
+         *       positions), which breaks positional queries (e.g. {@code MATCH_PHRASE},
+         *       {@code QSTR}/{@code KQL} phrases). Restoring the standard-mode {@code positions}
+         *       default keeps those queries valid so the csv-spec oracle remains valid.</li>
          * </ol>
          */
         private static String sanitizeMapping(String mapping) throws IOException {
@@ -792,6 +825,7 @@ public class CsvColumnarIT extends CsvIT {
             stripStoreTrue(map);
             fixDenseVectorIndexDefault(map);
             fixTextNormsDefault(map);
+            fixTextIndexOptionsDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(map);
                 return Strings.toString(builder);
@@ -855,6 +889,26 @@ public class CsvColumnarIT extends CsvIT {
             walkFieldDefs(mappingObject, fieldDef -> {
                 if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("norms") == false) {
                     fieldDef.put("norms", true);
+                }
+            });
+        }
+
+        /**
+         * Recursively walks the mapping and injects {@code "index_options": "positions"} into every
+         * {@code text} field that does not already declare {@code "index_options"}.
+         *
+         * <p>Strictly columnar mode defaults text {@code index_options} to {@code docs} (no positions),
+         * because positions are not needed to reconstruct values from doc values. That breaks positional
+         * queries (e.g. {@code MATCH_PHRASE}, {@code QSTR}/{@code KQL} phrases), which fail on a field
+         * indexed without position data and therefore diverge from the csv-spec oracle. Restoring the
+         * standard-mode {@code positions} default keeps those queries valid. Multi-fields (reachable via
+         * {@code "fields"}) are covered through {@link #walkFieldDefs}. {@code match_only_text} is a
+         * different type and mapper and is intentionally left untouched.
+         */
+        private static void fixTextIndexOptionsDefault(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
+                if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("index_options") == false) {
+                    fieldDef.put("index_options", "positions");
                 }
             });
         }

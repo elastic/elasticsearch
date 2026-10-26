@@ -41,6 +41,18 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
     }
 
     /**
+     * The analyzer binds {@code _score} on external relations as an {@link ExternalMetadataAttribute},
+     * not a {@link MetadataAttribute} (the latter is {@code final}); the planner's scoring gate must
+     * recognize both, or a runtime {@code MATCH}/{@code MATCH_PHRASE} over a federated relation never
+     * gets a {@code ScoreOperator} wired in.
+     */
+    public void testScoreAttributeRecognizedOnExternalRelations() {
+        ExternalMetadataAttribute score = new ExternalMetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE);
+        assertTrue(MetadataAttribute.isScoreAttribute(score));
+        assertFalse(MetadataAttribute.isScoreAttribute(new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD)));
+    }
+
+    /**
      * {@code _index} names an index and a dataset is not one, so it binds and answers SQL NULL rather
      * than the dataset name. The name that does answer for a dataset is {@code _name}, folded in the
      * plan by {@code MaterializeRelationClassAndName} and never reaching a reader.
@@ -66,12 +78,16 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
     }
 
     /**
-     * Every per-file constant is null, with no exception. Pins the set as a whole so a name given a composed value
-     * has to change this assertion rather than slip in beside the null arm.
+     * Every per-file constant is null except {@code _score}. Pins the set as a whole so a name given
+     * a composed value has to change this assertion rather than slip in beside the null arm.
      */
-    public void testEveryPerFileConstantIsNull() {
+    public void testEveryPerFileConstantIsNullExceptScore() {
         for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
-            assertNull("[" + constant.getKey() + "] must answer SQL NULL", constant.getValue());
+            if (constant.getKey().equals(ExternalMetadataColumns.SCORE)) {
+                assertEquals("[_score] must seed 0.0, not SQL NULL", 0.0d, constant.getValue());
+            } else {
+                assertNull("[" + constant.getKey() + "] must answer SQL NULL", constant.getValue());
+            }
         }
     }
 

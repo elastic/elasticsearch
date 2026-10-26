@@ -1,8 +1,6 @@
 // Tests for KNN() function operating on runtime expressions (non-index-mapped dense_vector).
 //
-// All tests require:
-//   - knn_runtime_field capability (snapshot builds only)
-//   - knn_runtime_field pragma to enable the runtime execution path
+// All tests require knn_runtime_field capability
 //
 // The knn_hex_vectors dataset stores vectors as hex strings which is converted at runtime into
 // dense_vector field. It does not matter how the runtime dense_vector field is created;
@@ -21,7 +19,6 @@
 // has cosine similarity 1.0 with the query [64,0,0], so it passes the filter.
 knnRuntimeOnRow
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 ROW emb_hex = "400000"
 | EVAL dv = to_dense_vector(emb_hex)
@@ -39,7 +36,6 @@ dv:dense_vector
 // are sorted by id for a deterministic output.
 knnRuntimeNoScore
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
@@ -63,7 +59,6 @@ id:integer | label:keyword
 // be generated based on cosine similarity.
 knnRuntimeWithScore
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors metadata _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -88,7 +83,6 @@ id:integer | _score:double
 // scoring rows.
 knnRuntimeWithSortOnScore
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors metadata _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -106,7 +100,6 @@ id:integer
 // Test 5: KNN on runtime field dense_vector field with similarity threshold option
 knnRuntimeWithSimThreshold
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
@@ -125,7 +118,6 @@ id:integer
 // Test 6: KNN on runtime field dense_vector field with boost option
 knnRuntimeWithBoost
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -147,7 +139,6 @@ id:integer | _score:double
 // Test 7: KNN on runtime field dense_vector field: combined filtering and scoring
 knnRuntimeCombinedFilter
 required_capability: knn_runtime_field
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -170,7 +161,6 @@ id:integer | _score:double
 knnRuntimeAfterLimit
 required_capability: knn_runtime_field
 required_capability: fn_knn_runtime_anywhere
-pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -185,4 +175,71 @@ FROM knn_hex_vectors METADATA _score
 id:integer | label:keyword | _score:double
 0          | x             | 1.0
 3          | xy            | 0.8535534143447876
+;
+
+
+// KNN with similarity_function option = l2_norm (euclidean distance) and a threshold of 50.
+// Euclidean distances from [64,0,0] and score (1 / (1 + d²)) computation:
+
+//   id=0: 0                     -> score 1.0
+//   id=1: sqrt(64²+64²)=sqrt(8192)≈90.51 -> score 1/(1+8192) ≈ 0.000122
+//   id=2: same as id=1
+//   id=3: sqrt((45-64)²+45²)=sqrt(361+2025)=sqrt(2386)≈48.85 -> score 1/(1+2386) ≈ 0.000419
+//   id=4: sqrt((57-64)²+29²)=sqrt(49+841)=sqrt(890)≈29.83 -> score 1/(1+890) ≈ 0.001122
+//   id=5: sqrt((32-64)²+39²+39²)=sqrt(1024+1521+1521)=sqrt(4066)≈63.77 -> score 1/(1+4066) ≈ 0.000246
+
+// Similarity threshold of 50 keeps ids 0, 3, and 4.
+
+knnRuntimeWithL2NormSimilarityAndThreshold
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_similarity_function
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"similarity_function": "l2_norm", "similarity": 50.0})
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.0
+3          | 4.1893590634394916E-4
+4          | 1.122334395865555E-3
+;
+
+// Same scores as knnRuntimeWithScore; the _score filter keeps only ids 0 and 4.
+knnRuntimeThenScoreFilter
+required_capability: knn_runtime_field
+required_capability: runtime_score_fix
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0])
+| WHERE _score > 0.9
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.0
+4          | 0.9456390142440796
+;
+
+// dot_product requires unit-length vectors. A field vector with squared magnitude != 1.0 triggers
+// a per-row warning and is excluded; the result is empty.
+knnRuntimeWithDotProductSimilarityRejectsNonUnitVectors
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_similarity_function
+
+ROW dv = to_dense_vector([2.0, 0.0, 0.0])
+| WHERE knn(dv, [1.0, 0.0, 0.0], {"similarity_function": "dot_product"})
+| KEEP dv
+| LIMIT 10
+;
+warning:Line 2:9: evaluation of [knn(dv, [1.0, 0.0, 0.0], {\"similarity_function\": \"dot_product\"})] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: dot_product requires unit-length vectors but encountered magnitude [2.0]
+
+dv:dense_vector
 ;

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 162572
+pr: 162684
+summary: Fix filtered alias handling in multi-nested knn queries
+type: bug

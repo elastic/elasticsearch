@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
@@ -340,11 +341,22 @@ public final class InferenceQueryUtils {
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),
                 input,
-                originalIndices.indicesOptions()
+                indicesOptionsForInferenceFieldsLookup(originalIndices.indicesOptions())
             );
 
             queryRewriteContext.registerUniqueAsyncAction(new RemoteInferenceInfoAsyncAction(clusterAlias, request), gal::onResponse);
         }
+    }
+
+    /**
+     * A missing index has no inference fields, so this lookup must not fail on one. The search itself still reports the missing index,
+     * and that is where {@code skip_unavailable} applies.
+     */
+    private static IndicesOptions indicesOptionsForInferenceFieldsLookup(IndicesOptions indicesOptions) {
+        return IndicesOptions.builder(indicesOptions)
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true))
+            .build();
     }
 
     private static void getRemoteTransportVersion(

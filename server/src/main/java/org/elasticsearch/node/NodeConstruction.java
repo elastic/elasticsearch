@@ -44,7 +44,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -217,6 +217,7 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
@@ -242,7 +243,6 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
-import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -475,7 +475,6 @@ class NodeConstruction {
         Settings envSettings = initialEnvironment.settings();
         DeprecationLogger.initialize(envSettings);
 
-        JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (Environment.PATH_SHARED_DATA_SETTING.exists(envSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
@@ -513,11 +512,6 @@ class NodeConstruction {
                 initialEnvironment.pluginsDir()
             );
         }
-
-        Node.deleteTemporaryApmConfig(
-            jvmInfo,
-            (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
-        );
 
         pluginsService = serviceProvider.newPluginService(initialEnvironment, pluginsLoader);
         modules.bindToInstance(PluginsService.class, pluginsService);
@@ -692,17 +686,18 @@ class NodeConstruction {
         return scriptService;
     }
 
-    private DataStreamGlobalRetentionSettings createDataStreamServicesAndGlobalRetentionResolver(
+    private DataStreamLifecycleSettings createDataStreamServicesAndLifecycleSettingsResolver(
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
         MetadataCreateIndexService metadataCreateIndexService,
         IndexSettingProviders indexSettingProviders
     ) {
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterService.getClusterSettings()
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings()
         );
-        modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
+        modules.bindToInstance(DataStreamLifecycleSettings.class, dataStreamLifecycleSettings);
         modules.bindToInstance(
             DataStreamFailureStoreSettings.class,
             DataStreamFailureStoreSettings.create(clusterService.getClusterSettings())
@@ -713,9 +708,9 @@ class NodeConstruction {
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings, indexSettingProviders)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamLifecycleSettings, indexSettingProviders)
         );
-        return dataStreamGlobalRetentionSettings;
+        return dataStreamLifecycleSettings;
     }
 
     private UpdateHelper createUpdateHelper(ScriptService scriptService) {
@@ -815,7 +810,6 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
-        final SnapshotMetrics snapshotMetrics = new SnapshotMetrics(telemetryProvider.getMeterRegistry());
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
@@ -825,10 +819,10 @@ class NodeConstruction {
             bigArrays,
             xContentRegistry,
             recoverySettings,
-            telemetryProvider,
-            snapshotMetrics
+            telemetryProvider
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
+        SnapshotMetrics snapshotMetrics = repositoriesModule.getSnapshotMetrics();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
             clusterService.getClusterSettings()
@@ -959,7 +953,8 @@ class NodeConstruction {
             projectResolver,
             clusterService,
             recoverySchedulingListeners,
-            recoveryGateMonitor
+            recoveryGateMonitor,
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -976,6 +971,7 @@ class NodeConstruction {
             .bigArrays(bigArrays)
             .scriptService(scriptService)
             .clusterService(clusterService)
+            .featureService(featureService)
             .projectResolver(projectResolver)
             .client(client)
             .metaStateService(metaStateService)
@@ -1022,7 +1018,7 @@ class NodeConstruction {
             threadPool
         );
 
-        final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = createDataStreamServicesAndGlobalRetentionResolver(
+        final DataStreamLifecycleSettings dataStreamLifecycleSettings = createDataStreamServicesAndLifecycleSettingsResolver(
             threadPool,
             clusterService,
             indicesService,
@@ -1038,7 +1034,7 @@ class NodeConstruction {
             xContentRegistry,
             systemIndices,
             indexSettingProviders,
-            dataStreamGlobalRetentionSettings
+            dataStreamLifecycleSettings
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
@@ -1104,7 +1100,7 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             documentParsingProvider,
             taskManager,
             projectResolver,
@@ -1219,6 +1215,7 @@ class NodeConstruction {
         final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             settings,
             clusterService,
+            featureService,
             xContentRegistry,
             indicesModule.getMapperRegistry(),
             settingsModule.getIndexScopedSettings(),
@@ -1282,10 +1279,6 @@ class NodeConstruction {
                 () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
             )
         );
-        final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
-            new CachingSnapshotAndShardByStateMetricsService(clusterService);
-        snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState);
-        snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState);
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
@@ -1309,7 +1302,8 @@ class NodeConstruction {
             threadPool,
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
-            featureService
+            featureService,
+            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
@@ -1423,8 +1417,11 @@ class NodeConstruction {
             final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
-                throttlingRecoveryService::blockedState,
-                threadPool.relativeTimeInMillisSupplier()
+                throttlingRecoveryService,
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
@@ -1438,7 +1435,6 @@ class NodeConstruction {
 
             resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
-            resourcesToClose.add(recoveryMetricsCollector);
 
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
             b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);
@@ -1508,6 +1504,7 @@ class NodeConstruction {
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
             b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
+            b.bind(SnapshotMetrics.class).toInstance(snapshotMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
@@ -1652,7 +1649,7 @@ class NodeConstruction {
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService, projectResolver),
             new DiskHealthIndicatorService(clusterService, projectResolver),
-            new ShardsCapacityHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService, projectResolver),
             new FileSettingsHealthIndicatorService()
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)

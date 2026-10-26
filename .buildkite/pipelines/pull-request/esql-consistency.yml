@@ -1,0 +1,15 @@
+config:
+  auto-retry: false
+  any-included-regions:
+    - ^x-pack/plugin/esql/.*
+    - ^build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/esql/.*
+steps:
+  - label: esql-consistency
+    command: .buildkite/scripts/esql-consistency.sh
+    timeout_in_minutes: 60
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

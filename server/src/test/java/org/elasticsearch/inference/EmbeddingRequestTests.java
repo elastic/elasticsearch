@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
@@ -279,7 +278,6 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
      * trigger it, ensuring we always get the URL-specific error on any pre-URL node.
      */
     public void testUrlFormatIsNotBackwardsCompatible() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         var urlRequest = new EmbeddingRequest(
             List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png"))),
             InputType.UNSPECIFIED,

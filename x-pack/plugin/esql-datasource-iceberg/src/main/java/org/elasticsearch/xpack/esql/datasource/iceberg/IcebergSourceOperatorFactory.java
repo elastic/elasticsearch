@@ -23,7 +23,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,6 +53,8 @@ import java.util.function.Supplier;
  * </ul>
  */
 public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
+
+    private static final Logger logger = LogManager.getLogger(IcebergSourceOperatorFactory.class);
 
     private final Executor executor;
     private final String tablePath;
@@ -115,7 +120,8 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
             try {
                 return createIcebergTableReader();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to create Iceberg data reader for: " + tablePath, e);
+                logger.debug("Failed to create Iceberg data reader for [{}]", tablePath, e);
+                throw new RuntimeException("Failed to create Iceberg data reader");
             }
         };
     }
@@ -175,7 +181,13 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
 
     @Override
     public String describe() {
-        return "IcebergSourceOperator[path=" + tablePath + ", pageSize=" + pageSize + ", bufferSize=" + maxBufferSize + "]";
+        return "IcebergSourceOperator[table="
+            + StoragePath.objectName(tablePath)
+            + ", pageSize="
+            + pageSize
+            + ", bufferSize="
+            + maxBufferSize
+            + "]";
     }
 
     /**

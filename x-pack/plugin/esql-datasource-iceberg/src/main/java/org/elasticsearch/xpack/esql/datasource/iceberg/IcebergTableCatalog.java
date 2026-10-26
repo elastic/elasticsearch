@@ -15,6 +15,8 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
@@ -31,6 +33,8 @@ import java.util.Set;
  * Provides metadata resolution and scan planning for Iceberg tables stored in S3.
  */
 public class IcebergTableCatalog implements TableCatalog {
+
+    private static final Logger logger = LogManager.getLogger(IcebergTableCatalog.class);
 
     private static final String CATALOG_TYPE = "iceberg";
 
@@ -61,7 +65,10 @@ public class IcebergTableCatalog implements TableCatalog {
             IcebergTableMetadata metadata = IcebergCatalogAdapter.resolveTable(tablePath, s3Config);
             return new IcebergSourceMetadata(metadata);
         } catch (Exception e) {
-            throw new IOException("Failed to resolve Iceberg table metadata: " + tablePath, e);
+            // Log the full exception (which may embed the table path via Iceberg internals) at DEBUG
+            // for diagnostics on this node, but do not chain it so the path never appears in caused_by.
+            logger.debug("Failed to resolve Iceberg table metadata for [{}]", tablePath, e);
+            throw new IOException("Failed to resolve Iceberg table metadata");
         }
     }
 
@@ -96,7 +103,8 @@ public class IcebergTableCatalog implements TableCatalog {
 
             return dataFiles;
         } catch (Exception e) {
-            throw new IOException("Failed to plan Iceberg table scan: " + tablePath, e);
+            logger.debug("Failed to plan Iceberg table scan for [{}]", tablePath, e);
+            throw new IOException("Failed to plan Iceberg table scan");
         } finally {
             IOUtils.closeWhileHandlingException(fileIO);
         }

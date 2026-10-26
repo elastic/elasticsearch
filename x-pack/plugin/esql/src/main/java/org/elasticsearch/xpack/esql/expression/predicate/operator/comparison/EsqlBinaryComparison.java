@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -41,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.FieldValueQueries;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -378,6 +384,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }
+            if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, left())) {
+                // The field answers over the values it keeps, which the expression asks it for on the shard.
+                return FieldValueQueries.pushable(pushdownPredicates.minTransportVersion()) ? Translatable.YES : Translatable.NO;
+            }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
                 return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
             }
@@ -420,8 +430,44 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             }
         }
 
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, left())) {
+            // asLuceneQuery builds the positive shape, so an inequality is negated here.
+            final Query over = FieldValueQueries.over(source(), handler.nameOf((TypedAttribute) left()), this);
+            return this instanceof NotEquals ? new NotQuery(source(), over) : over;
+        }
+
         Query translated = translateOutOfRangeComparisons();
         return translated != null ? translated : translate(handler);
+    }
+
+    /**
+     * The comparison answered over the values the field keeps, which match whole. Always the positive shape: an
+     * inequality is negated by the query that wraps this one.
+     */
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        final TextFamilyFieldType field = FieldValueQueries.textFamily(fieldType);
+        final BytesRef value = BytesRefs.toBytesRef(literalValueOf(right()));
+        if (this instanceof Equals || this instanceof NotEquals) {
+            return field.termLikeQuery(value, context);
+        }
+        if (this instanceof GreaterThan) {
+            return field.rangeLikeQuery(value, null, false, false, context);
+        }
+        if (this instanceof GreaterThanOrEqual) {
+            return field.rangeLikeQuery(value, null, true, false, context);
+        }
+        if (this instanceof LessThan) {
+            return field.rangeLikeQuery(null, value, false, false, context);
+        }
+        if (this instanceof LessThanOrEqual) {
+            return field.rangeLikeQuery(null, value, false, true, context);
+        }
+        throw new QlIllegalArgumentException("Don't know how to answer [{}] over a field's values", symbol());
     }
 
     /**

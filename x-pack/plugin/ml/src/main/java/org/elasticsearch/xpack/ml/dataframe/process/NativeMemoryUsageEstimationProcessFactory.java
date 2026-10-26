@@ -80,6 +80,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             false,
             true,
             false,
+            false,
             false
         );
 

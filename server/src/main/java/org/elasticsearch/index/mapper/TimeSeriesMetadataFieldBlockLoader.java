@@ -146,8 +146,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            // TODO: support appending BytesReference directly.
-            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
+            ((BytesRefBuilder) builder).appendBytesReference(toJson(storedFields.source()));
         }
 
         @Override

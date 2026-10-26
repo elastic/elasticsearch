@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -118,6 +120,7 @@ public enum FeatureMetric {
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),
+    FILLNULL(FillNull.class::isInstance),
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
@@ -142,7 +145,10 @@ public enum FeatureMetric {
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
     // InSubquery has already been rewritten to SemiJoin/AntiJoin/MarkJoin.
-    IN_SUBQUERY(plan -> false);
+    IN_SUBQUERY(plan -> false),
+    // LET bindings are consumed by LetResolver before analysis, so they are never visible to the plan walk.
+    // The counter is incremented in EsqlSession.gatherLetMetrics, from the parsed statement.
+    LET(plan -> false);
 
     /**
      * List here plans we want to exclude from telemetry
@@ -155,6 +161,7 @@ public enum FeatureMetric {
         FuseScoreEval.class,
         Aggregate.class, // STATS is managed in another way, see above
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
+        UnresolvedMetadata.class, // temporary plan node stripped in the Analyzer
         NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable

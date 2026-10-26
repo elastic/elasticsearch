@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 160494
+summary: Upgrade reactor-core to 3.8.7
+type: upgrade

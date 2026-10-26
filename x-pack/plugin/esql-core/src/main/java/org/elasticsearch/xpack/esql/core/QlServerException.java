@@ -16,10 +16,6 @@ public abstract class QlServerException extends QlException {
         super(message, args);
     }
 
-    protected QlServerException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
-    }
-
     protected QlServerException(String message, Throwable cause) {
         super(message, cause);
     }

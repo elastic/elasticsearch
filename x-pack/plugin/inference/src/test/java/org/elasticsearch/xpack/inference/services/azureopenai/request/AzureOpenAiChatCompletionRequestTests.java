@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,7 +25,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -82,13 +81,13 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
-    private static HttpPost assertStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input) throws IOException {
+    private static SimpleHttpRequest assertStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input)
+        throws IOException {
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(true));
         assertThat(requestMap.get(N_FIELD_NAME), is(1));
@@ -113,13 +112,13 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
-    private static HttpPost assertNonStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input) throws IOException {
+    private static SimpleHttpRequest assertNonStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input)
+        throws IOException {
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
         assertThat(requestMap.get(N_FIELD_NAME), is(1));

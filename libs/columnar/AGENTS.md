@@ -22,33 +22,48 @@ Read `README.md` for the architecture first, then this. It covers what is expens
 4. **Insertion order is preserved.** No column sorts or deduplicates its values; a value address is
    assigned in written order and stays internal to the column.
 
-5. **Never hold a column on the heap.** Read, write and merge stream one block at a time. Offset
-   tables use `DirectMonotonic` (temp file on write, mapped slice on read); presence uses
+5. **Never hold a column on the heap.** Read, write and merge stream one block at a time. Tables use
+   the `DirectMonotonic` layout, written straight into their file by `MonotonicWriter` (no entry count
+   up front, and several tables may share a file) and read off-heap from a mapped slice; presence uses
    `IndexedDISI`. Only bounded metadata and one decode block stay in memory. Note that "bounded" is not
    the same as "small enough": metadata is read for every field in every segment whether the field is
    queried or not, so anything resident scales with fields × segments. A per-field structure earns its
    place in the meta stream only if it is needed to open the column at all; everything else belongs in
-   the data file, read on demand.
+   one of the content files, read on demand.
+
+6. **No temporary files, except where a second pass needs one.** Each content file has one stream writing
+   into it at a time while a column is written, so values and tables go into their files as they are
+   produced. The dictionary layout is the exception: it stages its ordinals and its escapes, which it
+   replays once their count is known. A new structure streams too; staging needs a reason.
+
+7. **Metadata and content live in different files**, one of each per segment and shared by every field:
+
+   | file | holds | read |
+   | --- | --- | --- |
+   | `.cnm` metadata | fixed-size per-column records | in full at open; the only part on the heap |
+   | `.cnd` data | values: string chunks, numeric blocks, dictionary terms, ordinals, escapes | on demand |
+   | `.cna` addressing | per document: presence, slot counts, numeric value addresses | on demand |
+   | `.cnl` lengths | a plain column's per-slot length codes | on demand |
+   | `.cnn` navigation | per block or per chunk: block offsets, the chunk index, slot bases, escape ranks, length-block starts | up front (index file) |
+   | `.cns` skip index | per-interval min/max | before the values |
+
+   A structure goes where its read pattern puts it. Navigation is opened as an index file and fetched
+   whole by a cache that warms metadata files, so it must stay coarse — per block or per chunk, never per
+   document or per value — and a small fraction of the columns. Anything per document goes in the
+   addressing. `.cnm` must not grow with the data.
 
 ## Chunks
 
 `ChunkedBytesWriter`/`ChunkedBytesReader` sit below the encoders: they store a column's byte stream as
-byte-bounded chunks, each compressed whole by a `ChunkCodec` on a frozen `byte` id. A caller appends
-values and calls `boundary()` wherever a chunk may end, which is what keeps a block — or any other unit
-the caller addresses — from straddling two chunks.
+chunks, each compressed whole by a `ChunkCodec` on a frozen `byte` id, and closed by whichever of its
+`ChunkBounds` it reaches first — a byte target or a value count. A chunk is cut wherever the byte bound
+falls, inside a value if need be, so a range the caller addresses may span two chunks and the reader
+puts it back together. A caller calls `boundary()` ahead of the values it is about to append, so the
+value bound counts them.
 
-Two rules to keep: the compression unit is sized in **bytes**, never in values, so the ratio does not
-move with value width; and nothing the writer holds grows with the column — one chunk is buffered and
-the chunk index is staged in a temporary file, because `MonotonicWriter` needs its entry count up front
-and the chunk count is only known at the end.
-
-6. **Metadata and content live in different files.** A segment writes `.cnm` (metadata), `.cnd`
-   (data) and `.cns` (skip index). Anything whose size scales with the column — presence, value
-   blocks, offset-table bytes, the skip index — goes in `.cnd` or `.cns` and is read through the
-   mapped input. `.cnm` carries only fixed-size per-column records: it is read in full at segment
-   open and is the one part that lives on the heap, so a structure added there must not grow with
-   the data. A structure a reader consults *before* it touches values gets its own file, so it can
-   be read and cached without fetching the column's bytes; the skip index is the case today.
+Two rules to keep: the byte bound is what sizes the compression unit, so the ratio does not move with
+value width; and nothing the writer holds grows with the column — one chunk is buffered, and the chunk
+index streams into the navigation as chunks are cut.
 
 ## Encoders
 
@@ -88,7 +103,8 @@ against the TSDB codecs; no results are committed. See `docs/BENCHMARKS.md`.
 
 - `./gradlew :libs:columnar:spotlessApply` — format (no wildcard imports; don't reorder untouched lines).
 - `./gradlew :libs:columnar:test` — tests.
-- Dependencies stay minimal (`lucene-core`, `libs:simdvec`) and need justification. Never depend on
+- Dependencies stay minimal (`lucene-core`, `libs:simdvec`, `libs:zstd`, `libs:lucene-store`, `libs:core`)
+  and need justification. Never depend on
   `server` — `server` will depend on this library.
 
 The repo-wide top-level `AGENTS.md` governs formatting, logging, Javadoc, and license headers.

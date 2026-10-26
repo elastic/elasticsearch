@@ -23,7 +23,7 @@ import java.util.Objects;
  * Marker leaf node that represents an exact dataset name being looked up on linked projects (CPS) as
  * a potential <em>remote index</em> with the same name as a local dataset. The dataset analog of
  * {@link ViewShadowRelation}: it rides next to the dataset's {@link UnresolvedExternalRelation} inside
- * the plain {@link UnionAll} the {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} builds.
+ * the {@link BranchPlan} the {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} builds.
  * <p>
  * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote index. The
  * local dataset is consumed before field-caps, and {@code DatasetRewriter.crossProjectPatternsToPreserve}

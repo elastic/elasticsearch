@@ -18,6 +18,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
@@ -378,6 +379,38 @@ public class MultiValuedSortableBinaryDocValuesTests extends ESTestCase {
                 SortableBinaryDocValues values = MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, "field");
 
                 // IntegratedCounts reader should decode correctly
+                assertTrue(values.advanceExact(0));
+                assertEquals(1, values.docValueCount());
+                assertEquals(expected, values.nextValue());
+            }
+        }
+    }
+
+    public void testForFormatReadsIntegratedCountsBelowDeprecationVersion() throws IOException {
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        BytesRef expected = new BytesRef(randomAlphanumericOfLength(10));
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                LuceneDocument doc = new LuceneDocument();
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    doc,
+                    "field",
+                    expected,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                    oldVersion
+                );
+                iw.addDocument(doc);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                SortableBinaryDocValues values = SortableBinaryDocValues.forFormat(
+                    leafReader,
+                    "field",
+                    oldVersion,
+                    BinaryDocValuesFormat.SEPARATE_COUNT
+                );
+
                 assertTrue(values.advanceExact(0));
                 assertEquals(1, values.docValueCount());
                 assertEquals(expected, values.nextValue());

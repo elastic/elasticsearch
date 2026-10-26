@@ -447,7 +447,7 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "boolean");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":true}", "{\"f\":null}"));

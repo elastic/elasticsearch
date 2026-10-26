@@ -132,12 +132,10 @@ public class BlockLoaderTestRunner {
                 var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
                 var source = new SourceToParse(
                     "1",
-                    BytesReference.bytes(documentXContent),
-                    XContentType.JSON,
+                    new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
                     null,
                     Map.of(),
                     Map.of(),
-                    true,
                     XContentMeteringParserDecorator.NOOP,
                     null
                 );

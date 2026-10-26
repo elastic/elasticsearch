@@ -120,6 +120,44 @@ public final class ExceptionsHelper {
     }
 
     /**
+     * Like {@link #stackTrace(Throwable)} but prints {@code additionalSuppressed} after the suppressed exceptions of {@code e}, exactly as
+     * if they had been added to it with {@link Throwable#addSuppressed}. Use this instead of {@link Throwable#addSuppressed} when
+     * {@code e} may be shared and must not be mutated.
+     */
+    public static String stackTrace(Throwable e, Throwable[] additionalSuppressed) {
+        if (additionalSuppressed.length == 0) {
+            return stackTrace(e);
+        }
+        return stackTrace(new StackTraceView(e, additionalSuppressed));
+    }
+
+    /**
+     * Prints exactly like the throwable it wraps, with some extra suppressed exceptions. This works because
+     * {@link Throwable#printStackTrace} only reads the string form, the stack trace, the cause and the suppressed exceptions of the
+     * throwable it is called on.
+     */
+    private static final class StackTraceView extends Throwable {
+        private final Throwable delegate;
+
+        StackTraceView(Throwable delegate, Throwable[] additionalSuppressed) {
+            super(delegate.getMessage(), delegate.getCause());
+            this.delegate = delegate;
+            setStackTrace(delegate.getStackTrace());
+            for (Throwable suppressed : delegate.getSuppressed()) {
+                addSuppressed(suppressed);
+            }
+            for (Throwable suppressed : additionalSuppressed) {
+                addSuppressed(suppressed);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+    }
+
+    /**
      * Constructs a limited and compressed stack trace string. Each exception printed as part of the full stack trace will have its printed
      * stack frames capped at the given trace depth. Stack traces that are longer than the given trace depth will summarize the count of the
      * remaining frames at the end of the trace. Each stack frame omits the module information and limits the package names to single
@@ -504,6 +542,7 @@ public final class ExceptionsHelper {
     public static boolean isNodeOrShardUnavailableTypeException(Throwable t) {
         return (t instanceof org.elasticsearch.action.NoShardAvailableActionException
             || t instanceof org.elasticsearch.action.UnavailableShardsException
+            || t instanceof org.elasticsearch.snapshots.ShardRestoringException
             || t instanceof org.elasticsearch.node.NodeClosedException
             || t instanceof org.elasticsearch.transport.NodeDisconnectedException
             || t instanceof org.elasticsearch.discovery.MasterNotDiscoveredException

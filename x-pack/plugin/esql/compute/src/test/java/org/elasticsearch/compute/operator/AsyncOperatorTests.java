@@ -313,7 +313,7 @@ public class AsyncOperatorTests extends ESTestCase {
         SourceOperator sourceOperator = new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, 10));
         AtomicInteger getOutputCalls = new AtomicInteger();
         int maxOutstandingRequests = between(2, 10);
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxOutstandingRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxOutstandingRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 // a driver that polls would call getOutput thousands of times in the meantime
@@ -346,7 +346,7 @@ public class AsyncOperatorTests extends ESTestCase {
             page.releaseBlocks();
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator);
+        Driver driver = new Driver("test", driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> {});
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10_000), future);
         future.actionGet(30, TimeUnit.SECONDS);
         assertThat(rows.get(), equalTo(10));

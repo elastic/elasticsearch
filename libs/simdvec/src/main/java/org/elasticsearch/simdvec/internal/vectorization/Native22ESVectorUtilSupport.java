@@ -23,6 +23,14 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     private static final SimdVecLibrary SIMDVEC = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
+    /**
+     * Rows per heap bulk call in the {@code maxSimDotProduct} paths. A critical call cannot respond to
+     * a safepoint or arena-close handshake for its whole duration, so this caps the runtime of each
+     * call; with rank_vectors dims bounded by {@code DenseVectorFieldMapper.MAX_DIMS_COUNT} (4096),
+     * the worst-case slice is 32 rows x 4096 dims x 4 bytes.
+     */
+    private static final int HEAP_BULK_ROWS = 32;
+
     /*
      * This is technically separate to the Panama22 implementation, but there's
      * only a few things which are native-only, it's easiest to inherit implementations
@@ -99,19 +107,22 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         if (canUseF32BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
-            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
-            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            final int count = source.vectorCount();
+            final int vectorByteSize = source.vectorByteSize();
             float sum = 0f;
             for (float[] floats : query) {
-                SIMDVEC.dotProductF32Bulk(
-                    vectorsSegment,
-                    MemorySegment.ofArray(floats),
-                    source.vectorDims(),
-                    source.vectorCount(),
-                    scoresSegment
-                );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+                for (int row = 0; row < count; row += HEAP_BULK_ROWS) {
+                    SIMDVEC.dotProductF32Bulk(
+                        vectors.bytes,
+                        vectors.offset + row * vectorByteSize,
+                        floats,
+                        source.vectorDims(),
+                        Math.min(HEAP_BULK_ROWS, count - row),
+                        scoresScratch,
+                        row
+                    );
+                }
+                sum += ESVectorUtil.max(scoresScratch, count);
             }
             return sum;
         }
@@ -122,19 +133,22 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
         if (canUseBFloat16Path(source)) {
             final BytesRef vectors = source.vectorBytes();
-            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
-            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            final int count = source.vectorCount();
+            final int vectorByteSize = source.vectorByteSize();
             float sum = 0f;
             for (float[] floats : query) {
-                SIMDVEC.dotProductDBF16QF32Bulk(
-                    vectorsSegment,
-                    MemorySegment.ofArray(floats),
-                    source.vectorDims(),
-                    source.vectorCount(),
-                    scoresSegment
-                );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+                for (int row = 0; row < count; row += HEAP_BULK_ROWS) {
+                    SIMDVEC.dotProductDBF16QF32Bulk(
+                        vectors.bytes,
+                        vectors.offset + row * vectorByteSize,
+                        floats,
+                        source.vectorDims(),
+                        Math.min(HEAP_BULK_ROWS, count - row),
+                        scoresScratch,
+                        row
+                    );
+                }
+                sum += ESVectorUtil.max(scoresScratch, count);
             }
             return sum;
         }
@@ -145,19 +159,22 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         if (canUseI8BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
-            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
-            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            final int count = source.vectorCount();
+            final int vectorByteSize = source.vectorByteSize();
             float sum = 0f;
             for (byte[] bytes : query) {
-                SIMDVEC.dotProductI8Bulk(
-                    vectorsSegment,
-                    MemorySegment.ofArray(bytes),
-                    source.vectorDims(),
-                    source.vectorCount(),
-                    scoresSegment
-                );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+                for (int row = 0; row < count; row += HEAP_BULK_ROWS) {
+                    SIMDVEC.dotProductI8Bulk(
+                        vectors.bytes,
+                        vectors.offset + row * vectorByteSize,
+                        bytes,
+                        source.vectorDims(),
+                        Math.min(HEAP_BULK_ROWS, count - row),
+                        scoresScratch,
+                        row
+                    );
+                }
+                sum += ESVectorUtil.max(scoresScratch, count);
             }
             return sum;
         }

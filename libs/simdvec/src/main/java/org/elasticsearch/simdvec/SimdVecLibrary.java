@@ -355,7 +355,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_cosi8_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void cosineI8Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
@@ -388,12 +388,38 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti8_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductI8Bulk(
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
+        int length,
+        int count,
+        @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
+    );
+
+    @Function("vec_doti8_bulk")
+    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    protected abstract void dotProductI8BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
+
+    /**
+     * Heap-only entry point for {@code vec_doti8_bulk}.
+     *
+     * @param datasetOffset byte offset of the first row in {@code dataset}
+     * @param scoresOffset  index of the first score written in {@code scores}
+     */
+    public void dotProductI8Bulk(byte[] dataset, int datasetOffset, byte[] query, int length, int count, float[] scores, int scoresOffset) {
+        dotProductI8BulkHeap_raw(
+            MemorySegment.ofArray(dataset).asSlice(datasetOffset, (long) count * length),
+            MemorySegment.ofArray(query),
+            length,
+            count,
+            MemorySegment.ofArray(scores).asSlice((long) scoresOffset * Float.BYTES, (long) count * Float.BYTES)
+        );
+    }
 
     /**
      * Computes {@code result = a @ v} in exact int32 arithmetic, where {@code a} is a row-major
@@ -435,7 +461,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri8_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceI8Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
@@ -472,12 +498,46 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductF32Bulk(
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
+        int length,
+        int count,
+        @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
+    );
+
+    @Function("vec_dotf32_bulk")
+    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    protected abstract void dotProductF32BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
+
+    /**
+     * Heap-only entry point for {@code vec_dotf32_bulk}.
+     *
+     * @param datasetOffset byte offset of the first row in {@code dataset}
+     * @param scoresOffset  index of the first score written in {@code scores}
+     */
+    public void dotProductF32Bulk(
+        byte[] dataset,
+        int datasetOffset,
+        float[] query,
+        int length,
+        int count,
+        float[] scores,
+        int scoresOffset
+    ) {
+        dotProductF32BulkHeap_raw(
+            MemorySegment.ofArray(dataset).asSlice(datasetOffset, (long) count * length * Float.BYTES),
+            MemorySegment.ofArray(query),
+            length,
+            count,
+            MemorySegment.ofArray(scores).asSlice((long) scoresOffset * Float.BYTES, (long) count * Float.BYTES)
+        );
+    }
 
     @Function("vec_dotf32_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
@@ -529,7 +589,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqrf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceF32Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
@@ -594,12 +654,46 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotDbf16Qf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductDBF16QF32Bulk(
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
+        int length,
+        int count,
+        @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
+    );
+
+    @Function("vec_dotDbf16Qf32_bulk")
+    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    protected abstract void dotProductDBF16QF32BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
+
+    /**
+     * Heap-only entry point for {@code vec_dotDbf16Qf32_bulk}.
+     *
+     * @param datasetOffset byte offset of the first row in {@code dataset}
+     * @param scoresOffset  index of the first score written in {@code scores}
+     */
+    public void dotProductDBF16QF32Bulk(
+        byte[] dataset,
+        int datasetOffset,
+        float[] query,
+        int length,
+        int count,
+        float[] scores,
+        int scoresOffset
+    ) {
+        dotProductDBF16QF32BulkHeap_raw(
+            MemorySegment.ofArray(dataset).asSlice(datasetOffset, (long) count * length * Short.BYTES),
+            MemorySegment.ofArray(query),
+            length,
+            count,
+            MemorySegment.ofArray(scores).asSlice((long) scoresOffset * Float.BYTES, (long) count * Float.BYTES)
+        );
+    }
 
     @Function("vec_dotDbf16Qf32_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
@@ -627,7 +721,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqrDbf16Qf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceDBF16QF32Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
@@ -666,7 +760,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotDbf16Qbf16_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductDBF16QBF16Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int count,
@@ -699,7 +793,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqrDbf16Qbf16_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceDBF16QBF16Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int count,

@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -75,14 +76,25 @@ public class EsqlDataExtractor implements DataExtractor {
     private final Client client;
     private final EsqlDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final EsqlSyncQueryRunner syncQueryRunner;
     private boolean hasNext = true;
     private volatile boolean isCancelled = false;
     private final AtomicReference<Task> inFlightQueryTask = new AtomicReference<>();
 
     public EsqlDataExtractor(Client client, EsqlDataExtractorContext context, DatafeedTimingStatsReporter timingStatsReporter) {
+        this(client, context, timingStatsReporter, null);
+    }
+
+    EsqlDataExtractor(
+        Client client,
+        EsqlDataExtractorContext context,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        @Nullable EsqlSyncQueryRunner syncQueryRunner
+    ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.syncQueryRunner = syncQueryRunner != null ? syncQueryRunner : this::executeDefaultSyncQuery;
     }
 
     @Override
@@ -121,9 +133,12 @@ public class EsqlDataExtractor implements DataExtractor {
     public DataSummary getSummary() {
         QueryBuilder timeFilter = buildTimeFilter();
         SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
-        // Key off hasData() (null MIN/MAX with positive COUNT(*) is possible); estimateAggregatingOutputRows needs times.
         if (sourceSummary.hasData() == false || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
             return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
+        }
+        if (sourceSummary.earliestTime() == null) {
+            // COUNT(*) can be positive while MIN/MAX(??timeField) are null when every doc lacks the source time field.
+            return new DataSummary(null, null, sourceSummary.totalHits());
         }
         long estimatedOutputRows = estimateAggregatingOutputRows(sourceSummary);
         return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), estimatedOutputRows);
@@ -189,7 +204,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private record SourceRangeSummary(Long earliestTime, Long latestTime, long totalHits) {
         boolean hasData() {
-            return earliestTime != null;
+            return totalHits > 0;
         }
     }
 
@@ -201,17 +216,20 @@ public class EsqlDataExtractor implements DataExtractor {
         List<? extends ColumnInfo> columns = response.columns();
         boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedColumnValues.isDateColumnType(columns.get(0).outputType());
         boolean latestIsDate = columns.size() > 1 && EsqlDatafeedColumnValues.isDateColumnType(columns.get(1).outputType());
-        for (Iterable<Object> row : response.rows()) {
-            List<Object> values = new ArrayList<>();
-            for (Object v : row) {
-                values.add(v);
-            }
-            Long earliestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(0), earliestIsDate);
-            Long latestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(1), latestIsDate);
-            long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
-            return new DataSummary(earliestTime, latestTime, totalHits);
+        var rowIterator = response.rows().iterator();
+        if (rowIterator.hasNext() == false) {
+            return new DataSummary(null, null, 0L);
         }
-        return new DataSummary(null, null, 0L);
+        Iterable<Object> row = rowIterator.next();
+        assert rowIterator.hasNext() == false : "source range summary probe must return exactly one row";
+        List<Object> values = new ArrayList<>();
+        for (Object v : row) {
+            values.add(v);
+        }
+        Long earliestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(0), earliestIsDate);
+        Long latestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(1), latestIsDate);
+        long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
+        return new DataSummary(earliestTime, latestTime, totalHits);
     }
 
     @Override
@@ -245,7 +263,11 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
+    private EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
+        return syncQueryRunner.run(orderedQuery, timeFilter, params);
+    }
+
+    private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
     }
 

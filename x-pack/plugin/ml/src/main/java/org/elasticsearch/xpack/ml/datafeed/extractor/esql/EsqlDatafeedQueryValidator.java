@@ -39,6 +39,16 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  */
 public class EsqlDatafeedQueryValidator {
 
+    private final EsqlQueryRunner queryRunner;
+
+    public EsqlDatafeedQueryValidator() {
+        this(EsqlQueryRunner.DEFAULT);
+    }
+
+    EsqlDatafeedQueryValidator(EsqlQueryRunner queryRunner) {
+        this.queryRunner = queryRunner;
+    }
+
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
 
@@ -484,7 +494,7 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
-    protected void executeEsqlQueryAsync(
+    private void executeEsqlQueryAsync(
         Client client,
         String query,
         Map<String, String> headers,
@@ -492,11 +502,6 @@ public class EsqlDatafeedQueryValidator {
         List<EsqlQueryParam> params,
         ActionListener<EsqlQueryResponse> listener
     ) {
-        EsqlQueryExecutor.executeAsync(
-            client,
-            EsqlQueryExecutor.newRequest(client, query, null, params, projectRouting),
-            headers,
-            listener
-        );
+        queryRunner.executeAsync(client, query, null, headers, projectRouting, params, listener);
     }
 }

@@ -19,6 +19,8 @@ public interface DataExtractor {
 
     record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates, long rowCount) {
 
+        // MUST FIX before production: rowCount is ES|QL-specific; move to an ES|QL result type and drop from this shared record.
+        // See https://github.com/elastic/elasticsearch/issues/161207
         /** {@code rowCount} value for extractors that do not report the number of extracted rows (e.g. the DSL extractors). */
         public static final long ROW_COUNT_UNKNOWN = -1L;
 

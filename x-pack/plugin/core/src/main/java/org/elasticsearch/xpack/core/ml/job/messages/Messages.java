@@ -58,29 +58,39 @@ public final class Messages {
         "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
     public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
         "grouping_interval [{0}] must equal the job bucket_span [{1}]";
-    private static final String DATAFEED_ESQL_EMITTED_TIME_FAILED = "Job [{0}] ES|QL extraction failed for emitted time field [{1}]: ";
-    private static final String DATAFEED_ESQL_EMITTED_TIME_WINDOW = "; source window [{2,number,#}, {3,number,#}). ";
+    private static final String DATAFEED_ESQL_EMITTED_TIME_FAILED = "Job [{0}] ES|QL extraction failed for emitted time field [{1}].";
+    private static final String DATAFEED_ESQL_EMITTED_TIME_WINDOW = "Source window is [{2,number,#}, {3,number,#}).";
     private static final String DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT =
-        "Check grouping alignment so emitted timestamps fall within the queried source range";
+        "Check grouping alignment so emitted timestamps fall within the queried source range.";
     public static final String DATAFEED_ESQL_EMITTED_TIME_NULL = DATAFEED_ESQL_EMITTED_TIME_FAILED
-        + "value is null"
+        + " "
+        + "The value is null. "
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
-        + "Ensure the ES|QL query returns a non-null scalar timestamp for every row";
+        + " "
+        + "Ensure the ES|QL query returns a non-null scalar timestamp for every row.";
     public static final String DATAFEED_ESQL_EMITTED_TIME_MULTI_VALUED = DATAFEED_ESQL_EMITTED_TIME_FAILED
-        + "value is multi-valued"
+        + " "
+        + "The value is multi-valued. "
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
-        + "Ensure the emitted time field contains exactly one timestamp per row";
+        + " "
+        + "Ensure the emitted time field contains exactly one timestamp per row.";
     public static final String DATAFEED_ESQL_EMITTED_TIME_UNSUPPORTED_TYPE = DATAFEED_ESQL_EMITTED_TIME_FAILED
-        + "value has an unsupported type"
+        + " "
+        + "The value has an unsupported type. "
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
-        + "Ensure the emitted time field is a date or numeric timestamp";
+        + " "
+        + "Ensure the emitted time field is a date or numeric timestamp.";
     public static final String DATAFEED_ESQL_EMITTED_TIME_BEFORE_WINDOW = DATAFEED_ESQL_EMITTED_TIME_FAILED
-        + "value [{4}] is before the source window start"
+        + " "
+        + "The value [{4}] is before the source window start. "
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
         + DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT;
     public static final String DATAFEED_ESQL_EMITTED_TIME_AT_OR_AFTER_WINDOW_END = DATAFEED_ESQL_EMITTED_TIME_FAILED
-        + "value [{4}] is at or after the source window end"
+        + " "
+        + "The value [{4}] is at or after the source window end. "
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
         + DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT;
     public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";

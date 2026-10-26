@@ -37,7 +37,8 @@ import static org.mockito.Mockito.mock;
 
 public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
-    private static final String ESQL_QUERY = "FROM logs";
+    private static final String ESQL_QUERY =
+        "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "ts";
     private static final String SOURCE_TIME_FIELD = "@timestamp";
     private static final String SUMMARY_COUNT_FIELD = "doc_count";

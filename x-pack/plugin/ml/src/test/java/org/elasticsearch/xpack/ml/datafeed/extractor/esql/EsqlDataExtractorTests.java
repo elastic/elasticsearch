@@ -8,17 +8,13 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -58,6 +54,7 @@ import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -71,6 +68,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -109,7 +107,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testExecuteTrackedCopiesParentAndCancelsTaskPublishedAfterCancel() throws Exception {
-        TrackingNodeClient nodeClient = new TrackingNodeClient(trackingThreadPool);
+        NodeClientTracking tracking = new NodeClientTracking();
+        NodeClient nodeClient = mockNodeClient(tracking);
         TaskId parentTaskId = new TaskId("parent-node", 42L);
         EsqlDataExtractor extractor = new EsqlDataExtractor(
             new ParentTaskAssigningClient(nodeClient, parentTaskId),
@@ -119,58 +118,61 @@ public class EsqlDataExtractorTests extends ESTestCase {
         EsqlQueryRequest request = mock(EsqlQueryRequest.class);
         ActionType<EsqlQueryResponse> action = mock();
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = new TestEsqlQueryRequestBuilder(request, action);
-        nodeClient.cancelBeforeTaskPublication = extractor::cancel;
+        tracking.cancelBeforeTaskPublication = extractor::cancel;
 
         Future<EsqlQueryResponse> result = trackingThreadPool.generic().submit(() -> extractor.execute(builder));
-        assertTrue(nodeClient.queryStarted.await(10, TimeUnit.SECONDS));
-        assertTrue(nodeClient.cancelRequestReceived.await(10, TimeUnit.SECONDS));
-        assertThat(nodeClient.cancelRequests.size(), equalTo(1));
-        assertThat(nodeClient.cancelRequests.get(0).getTargetTaskId(), equalTo(new TaskId("local-node", 7L)));
-        assertThat(nodeClient.cancelOrigins, equalTo(List.of("tasks")));
+        assertTrue(tracking.queryStarted.await(10, TimeUnit.SECONDS));
+        assertTrue(tracking.cancelRequestReceived.await(10, TimeUnit.SECONDS));
+        assertThat(tracking.cancelRequests.size(), equalTo(1));
+        assertThat(tracking.cancelRequests.get(0).getTargetTaskId(), equalTo(new TaskId("local-node", 7L)));
+        assertThat(tracking.cancelOrigins, equalTo(List.of("tasks")));
         verify(request).setParentTask(parentTaskId);
 
-        nodeClient.queryListener.onResponse(mock(EsqlQueryResponse.class));
+        tracking.queryListener.onResponse(mock(EsqlQueryResponse.class));
         result.get(10, TimeUnit.SECONDS);
         extractor.destroy();
-        assertThat(nodeClient.cancelRequests.size(), equalTo(1));
+        assertThat(tracking.cancelRequests.size(), equalTo(1));
     }
 
     public void testExecuteTrackedClearsTaskAfterNormalCompletion() throws Exception {
-        TrackingNodeClient nodeClient = new TrackingNodeClient(trackingThreadPool);
+        NodeClientTracking tracking = new NodeClientTracking();
+        NodeClient nodeClient = mockNodeClient(tracking);
         EsqlDataExtractor extractor = new EsqlDataExtractor(nodeClient, context(0L, 1000L), timingStatsReporter);
         EsqlQueryRequest request = mock(EsqlQueryRequest.class);
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = new TestEsqlQueryRequestBuilder(request, mock());
 
         Future<EsqlQueryResponse> result = trackingThreadPool.generic().submit(() -> extractor.execute(builder));
-        assertTrue(nodeClient.queryStarted.await(10, TimeUnit.SECONDS));
-        nodeClient.queryListener.onResponse(mock(EsqlQueryResponse.class));
+        assertTrue(tracking.queryStarted.await(10, TimeUnit.SECONDS));
+        tracking.queryListener.onResponse(mock(EsqlQueryResponse.class));
         result.get(10, TimeUnit.SECONDS);
 
         extractor.destroy();
-        assertThat(nodeClient.cancelRequests, equalTo(List.of()));
+        assertThat(tracking.cancelRequests, equalTo(List.of()));
     }
 
     public void testExecuteTrackedGivenCancelWhileInFlightShouldCancelTaskExactlyOnce() throws Exception {
-        TrackingNodeClient nodeClient = new TrackingNodeClient(trackingThreadPool);
+        NodeClientTracking tracking = new NodeClientTracking();
+        NodeClient nodeClient = mockNodeClient(tracking);
         EsqlDataExtractor extractor = new EsqlDataExtractor(nodeClient, context(0L, 1000L), timingStatsReporter);
         EsqlQueryRequest request = mock(EsqlQueryRequest.class);
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = new TestEsqlQueryRequestBuilder(request, mock());
 
         Future<EsqlQueryResponse> result = trackingThreadPool.generic().submit(() -> extractor.execute(builder));
-        assertTrue(nodeClient.queryStarted.await(10, TimeUnit.SECONDS));
+        assertTrue(tracking.queryStarted.await(10, TimeUnit.SECONDS));
         extractor.cancel();
         extractor.cancel();
-        assertTrue(nodeClient.cancelRequestReceived.await(10, TimeUnit.SECONDS));
-        assertThat(nodeClient.cancelRequests.size(), equalTo(1));
+        assertTrue(tracking.cancelRequestReceived.await(10, TimeUnit.SECONDS));
+        assertThat(tracking.cancelRequests.size(), equalTo(1));
 
-        nodeClient.queryListener.onResponse(mock(EsqlQueryResponse.class));
+        tracking.queryListener.onResponse(mock(EsqlQueryResponse.class));
         result.get(10, TimeUnit.SECONDS);
         extractor.destroy();
-        assertThat(nodeClient.cancelRequests.size(), equalTo(1));
+        assertThat(tracking.cancelRequests.size(), equalTo(1));
     }
 
     public void testExecuteTrackedPassesStoredDatafeedHeadersToEsqlQuery() throws Exception {
-        TrackingNodeClient nodeClient = new TrackingNodeClient(trackingThreadPool);
+        NodeClientTracking tracking = new NodeClientTracking();
+        NodeClient nodeClient = mockNodeClient(tracking);
         EsqlDataExtractor extractor = new EsqlDataExtractor(
             nodeClient,
             contextWithHeaders(0L, 1000L, Map.of("es-security-runas-user", "stored-datafeed-user")),
@@ -180,15 +182,15 @@ public class EsqlDataExtractorTests extends ESTestCase {
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = new TestEsqlQueryRequestBuilder(request, mock());
 
         Future<EsqlQueryResponse> result = trackingThreadPool.generic().submit(() -> extractor.execute(builder));
-        assertTrue(nodeClient.queryStarted.await(10, TimeUnit.SECONDS));
-        assertThat(nodeClient.queryRunAsHeader, equalTo("stored-datafeed-user"));
+        assertTrue(tracking.queryStarted.await(10, TimeUnit.SECONDS));
+        assertThat(tracking.queryRunAsHeader, equalTo("stored-datafeed-user"));
 
-        nodeClient.queryListener.onResponse(mock(EsqlQueryResponse.class));
+        tracking.queryListener.onResponse(mock(EsqlQueryResponse.class));
         result.get(10, TimeUnit.SECONDS);
     }
 
     public void testNextGivenSortIsInjected() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE), column("value", LONG)), isoAtEpochMillis(1500L), 42L);
 
         assertThat(extractor.hasNext(), is(true));
@@ -208,7 +210,17 @@ public class EsqlDataExtractorTests extends ESTestCase {
         when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
         SharedSecrets.setEsqlQueryRequestBuilderAccess(client -> builder);
         try {
-            RequestCapturingDataExtractor extractor = new RequestCapturingDataExtractor(context(1000L, 2000L));
+            AtomicReference<EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse>> capturedRequest =
+                new AtomicReference<>();
+            EsqlDataExtractor extractor = new EsqlDataExtractor(
+                client,
+                context(1000L, 2000L),
+                timingStatsReporter,
+                (orderedQuery, timeFilter, params) -> {
+                    capturedRequest.set(builder);
+                    return wrapResponse(mockEsqlResponse(List.of(column(TIME_FIELD, DATE)), List.of()));
+                }
+            );
 
             extractor.next();
 
@@ -216,7 +228,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
             verify(builder).filter(any(RangeQueryBuilder.class));
             verify(builder).params(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER)));
             verify(builder).allowPartialResults(false);
-            assertThat(extractor.capturedRequest, sameInstance(builder));
+            assertThat(capturedRequest.get(), sameInstance(builder));
             // The concrete builder lives in x-pack-esql, which is deliberately absent from the ML test classpath.
             // Its core interface has no indicesOptions API, so this production next() path cannot send one.
             assertThat(
@@ -232,7 +244,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testNextGivenSortIsInjectedEvenWhenUserQueryAlreadyHasSort() throws IOException {
         String esqlQuery = "FROM logs | SORT value DESC";
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, esqlQuery, "timestamp");
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, esqlQuery, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE), column("value", LONG)), isoAtEpochMillis(1500L), 1L);
 
         extractor.next();
@@ -274,7 +286,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testNextGivenUserLimitShouldKeepUserLimitAndAppendTimeSort() throws IOException {
         String query = "FROM logs-* | LIMIT 20";
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, query, "timestamp");
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, query, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE)), isoAtEpochMillis(1500L));
 
         extractor.next();
@@ -284,7 +296,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testNextGivenUserLimitEndingInLineCommentShouldAppendTimeSortOnNewLine() throws IOException {
         String query = "FROM logs-* | LIMIT 20 // explanation";
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, query, "timestamp");
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, query, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE)), isoAtEpochMillis(1500L));
 
         extractor.next();
@@ -306,7 +318,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testNextGivenFourQuoteTripleStringAndOuterLimitShouldAppendTimeSort() throws IOException {
         String query = "FROM logs-* | WHERE message == \"\"\"literal\"\"\"\" | LIMIT 20";
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, query, "timestamp");
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, query, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE)), isoAtEpochMillis(1500L));
 
         extractor.next();
@@ -375,7 +387,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenTimeFilterIsHalfOpen() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE)), isoAtEpochMillis(1500L));
 
         extractor.next();
@@ -384,7 +396,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenStringAndLongFieldsPassThrough() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 5000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 5000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(
             List.of(column(TIME_FIELD, DATE), column("host", KEYWORD), column("count", LONG)),
             "1970-01-01T00:00:01.500Z",
@@ -402,7 +414,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenDateColumnConvertedToEpochMillis() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         String isoDate = isoAtEpochMillis(500L);
         long expectedMillis = 500L;
 
@@ -412,7 +424,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenDateNanosColumnConvertedToEpochMillis() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         String isoDate = "1970-01-01T00:00:00.500123456Z";
         long expectedMillis = epochMillis(isoDate);
 
@@ -422,7 +434,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenMultiValuedEmittedTimeShouldFailWholeBatch() {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), List.of(isoAtEpochMillis(100L), isoAtEpochMillis(200L)));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -432,14 +444,14 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenMultiValuedNonDateColumnPassedThrough() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE), column("tags", KEYWORD)), isoAtEpochMillis(100L), List.of("a", "b"));
 
         assertThat(asString(extractor.next().data().get()), containsString("\"tags\":[\"a\",\"b\"]"));
     }
 
     public void testNextGivenNullFieldIsOmittedFromRow() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(
             List.of(column(TIME_FIELD, DATE), column("optional_field", KEYWORD)),
             List.of(Arrays.asList(isoAtEpochMillis(100L), null))
@@ -451,7 +463,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenMissingTimeFieldThrowsIllegalArgument() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column("other_field", KEYWORD)), "some-value");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -460,7 +472,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenMissingSummaryCountFieldThrowsIllegalArgument() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), isoAtEpochMillis(100L));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -469,7 +481,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenSummaryCountFieldPresentSucceeds() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE), column(SUMMARY_COUNT_FIELD, LONG)), isoAtEpochMillis(100L), 5L);
 
         DataExtractor.Result result = extractor.next();
@@ -479,7 +491,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenNoRowsReturnsEmptyOptional() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of());
 
         DataExtractor.Result result = extractor.next();
@@ -489,14 +501,14 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenMalformedDateThrows() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), "not-a-valid-iso-date");
 
         expectThrows(Exception.class, extractor::next);
     }
 
     public void testHasNextIsTrueThenFalseAfterSingleCall() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of());
 
         assertThat(extractor.hasNext(), is(true));
@@ -505,7 +517,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextAfterExhaustionThrowsNoSuchElement() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of());
 
         extractor.next();
@@ -513,12 +525,12 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testGetEndTimeReturnsContextEnd() {
-        TestDataExtractor extractor = createExtractor(500L, 9999L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(500L, 9999L, DEFAULT_QUERY, TIME_FIELD);
         assertThat(extractor.getEndTime(), equalTo(9999L));
     }
 
     public void testCancelReturnsEmptyResultWithoutExecutingQuery() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
 
         assertThat(extractor.isCancelled(), is(false));
         extractor.cancel();
@@ -532,7 +544,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testDestroyAlsoCancels() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
 
         extractor.destroy();
         assertThat(extractor.isCancelled(), is(true));
@@ -544,7 +556,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNodeClosedOnceShouldRetrySameRange() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueFailure(new NodeClosedException((DiscoveryNode) null));
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), isoAtEpochMillis(1500L));
 
@@ -559,7 +571,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNodeClosedTwiceShouldFailCycleWithoutAdditionalRetry() {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueFailure(new NodeClosedException((DiscoveryNode) null));
         extractor.enqueueFailure(new NodeClosedException((DiscoveryNode) null));
 
@@ -569,7 +581,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testCancelledInFlightQueryShouldNotRetry() {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.cancelBeforeNextFailure();
         extractor.enqueueFailure(new NodeClosedException((DiscoveryNode) null));
 
@@ -579,7 +591,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testGetSummaryBuildsEsqlStatsQueryAndConvertsDateColumns() {
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
         String earliestIso = "1970-01-01T00:00:01.500Z";
         String latestIso = "1970-01-01T00:00:08.500Z";
         long expectedEarliest = epochMillis(earliestIso);
@@ -610,7 +622,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testGetSummaryReturnsNoDataWhenStatsRowHasNullMinMax() {
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
             List.of(Arrays.asList(null, null, 0L))
@@ -624,7 +636,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testGetSummaryPassesDoesNotSubstituteInvalidTimeField() {
         String invalidTimeField = "field | STATS COUNT(*)";
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, invalidTimeField);
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, invalidTimeField);
         extractor.enqueueRow(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
             "1970-01-01T00:00:01.500Z",
@@ -640,7 +652,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testGetSummaryDetectsTimeColumnTypesIndependently() {
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
         String latestIso = "1970-01-01T00:00:08.500Z";
         long expectedLatest = epochMillis(latestIso);
 
@@ -658,14 +670,14 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenScalarEmittedTimeInWindowShouldSucceed() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, LONG)), 1500L);
 
         assertThat(asString(extractor.next().data().get()), equalTo("{\"" + TIME_FIELD + "\":1500}"));
     }
 
     public void testNextGivenEmittedTimeBeforeStartShouldFailWholeBatch() {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, LONG)), 999L);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -677,7 +689,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenEmittedTimeAtEndShouldFailWholeBatch() {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, LONG)), 2000L);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -687,7 +699,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenNullEmittedTimeShouldFailWholeBatch() {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of(Arrays.asList((Object) null)));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -697,7 +709,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenWrongTypeEmittedTimeShouldFailWholeBatch() {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), "not-a-valid-iso-date");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
@@ -708,14 +720,14 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenInvalidEmittedTimeShouldNotExposeNdjson() {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(List.of(column(TIME_FIELD, LONG)), List.of(List.of(1500L), List.of(2500L)));
 
         expectThrows(IllegalArgumentException.class, extractor::next);
     }
 
     public void testRenamedEmittedTimeFieldShouldFilterOnSourceTimeField() throws IOException {
-        TestDataExtractor extractor = createExtractorWithDistinctTimeFields(1000L, 2000L, DEFAULT_QUERY, SOURCE_TIME_FIELD, "bucket_time");
+        RecordingSyncQuery extractor = createExtractorWithDistinctTimeFields(1000L, 2000L, DEFAULT_QUERY, SOURCE_TIME_FIELD, "bucket_time");
         extractor.enqueueRow(List.of(column("bucket_time", DATE)), isoAtEpochMillis(1500L));
 
         extractor.next();
@@ -730,7 +742,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     // getSummary() binds ??timeField to source_time_field for the source-level probe (leading FROM/TS only),
     // not the emitted time column name used after the user's pipeline renames it.
     public void testQuerySummaryUsesSourceTimeFieldForFastRangeProbe() {
-        TestDataExtractor extractor = createExtractorWithDistinctTimeFields(1000L, 9000L, DEFAULT_QUERY, SOURCE_TIME_FIELD, "bucket_time");
+        RecordingSyncQuery extractor = createExtractorWithDistinctTimeFields(1000L, 9000L, DEFAULT_QUERY, SOURCE_TIME_FIELD, "bucket_time");
         extractor.enqueueRow(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
             "1970-01-01T00:00:01.500Z",
@@ -753,7 +765,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testGetSummaryForAggregatingQueryRunsBoundedProbeInsteadOfFullRange() {
         String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
-        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
 
         // Source-level probe (fast, FROM-clause only): earliest/latest/raw-doc-count over the full range.
         extractor.enqueueRow(
@@ -790,7 +802,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testGetSummaryGivenLeadingCommandEndingInLineCommentShouldAppendSourceStatsOnNewLine() {
         String commentedQuery = "FROM logs // web tier\n| STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
-        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, commentedQuery, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 100_000_000L, commentedQuery, TIME_FIELD);
         extractor.enqueueRow(
             List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
             1_000_000L,
@@ -811,7 +823,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testGetSummaryGivenQueryEndingInLineCommentShouldAppendProbeStatsOnNewLine() {
         String commentedQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h) // hourly";
-        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, commentedQuery, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 100_000_000L, commentedQuery, TIME_FIELD);
         extractor.enqueueRow(
             List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
             1_000_000L,
@@ -828,7 +840,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testGetSummaryForAggregatingQueryWithNoDataInProbeWindowFallsBackToProbeCount() {
         String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
-        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
 
         extractor.enqueueRow(
             List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
@@ -847,7 +859,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
     public void testGetSummaryForAggregatingQueryWhenNoSourceDataReturnsNoData() {
         String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
-        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
 
         extractor.enqueueRows(
             List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
@@ -868,7 +880,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     // call estimateAggregatingOutputRows() with null earliest/latest bounds.
     public void testGetSummaryForAggregatingQueryWithNullMinMaxButNonZeroTotalHitsReturnsNoData() {
         String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
-        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
 
         extractor.enqueueRows(
             List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
@@ -889,7 +901,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     // hasData() == false consistently, mirroring DataExtractorUtils.getDataSummary()'s DSL precedent where
     // totalHits() and null earliest/latest can likewise diverge.
     public void testGetSummaryForPassThroughQueryWithNullMinMaxButNonZeroTotalHitsReturnsNoData() {
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
             List.of(Arrays.asList(null, null, 5L))
@@ -901,7 +913,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(summary.totalHits(), equalTo(5L));
     }
 
-    private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField) {
+    private RecordingSyncQuery createExtractor(long start, long end, String esqlQuery, String timeField) {
         return createExtractor(start, end, esqlQuery, timeField, null);
     }
 
@@ -935,11 +947,11 @@ public class EsqlDataExtractorTests extends ESTestCase {
         );
     }
 
-    private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField, String requiredSummaryCountField) {
+    private RecordingSyncQuery createExtractor(long start, long end, String esqlQuery, String timeField, String requiredSummaryCountField) {
         return createExtractorWithDistinctTimeFields(start, end, esqlQuery, timeField, timeField, requiredSummaryCountField);
     }
 
-    private TestDataExtractor createExtractorWithDistinctTimeFields(
+    private RecordingSyncQuery createExtractorWithDistinctTimeFields(
         long start,
         long end,
         String esqlQuery,
@@ -949,7 +961,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         return createExtractorWithDistinctTimeFields(start, end, esqlQuery, sourceTimeField, emittedTimeField, null);
     }
 
-    private TestDataExtractor createExtractorWithDistinctTimeFields(
+    private RecordingSyncQuery createExtractorWithDistinctTimeFields(
         long start,
         long end,
         String esqlQuery,
@@ -969,7 +981,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
             requiredSummaryCountField,
             null
         );
-        return new TestDataExtractor(context);
+        return new RecordingSyncQuery(client, context, timingStatsReporter);
     }
 
     private ColumnInfo column(String name, String outputType) {
@@ -1009,24 +1021,37 @@ public class EsqlDataExtractorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Test subclass of {@link EsqlDataExtractor} that overrides {@link #runEsqlQuery} to avoid the
-     * {@code SharedSecrets} / esql-plugin dependency that is absent from the ml plugin's test classpath.
-     * The override captures the query parameters for assertion and returns responses from a queue.
-     */
-    private class TestDataExtractor extends EsqlDataExtractor {
+    private final class RecordingSyncQuery {
 
+        private final EsqlDataExtractor extractor;
         private final Queue<Object> responses = new ArrayDeque<>();
-        private final List<String> capturedQueries = new ArrayList<>();
-        private final List<QueryBuilder> capturedTimeFilters = new ArrayList<>();
-        private final List<List<EsqlQueryParam>> capturedParameterLists = new ArrayList<>();
+        final List<String> capturedQueries = new ArrayList<>();
+        final List<QueryBuilder> capturedTimeFilters = new ArrayList<>();
+        final List<List<EsqlQueryParam>> capturedParameterLists = new ArrayList<>();
         private boolean cancelBeforeNextFailure;
         String capturedOrderedQuery;
         QueryBuilder capturedTimeFilter;
         List<EsqlQueryParam> capturedParams;
 
-        TestDataExtractor(EsqlDataExtractorContext context) {
-            super(client, context, timingStatsReporter);
+        RecordingSyncQuery(Client client, EsqlDataExtractorContext context, DatafeedTimingStatsReporter timingStatsReporter) {
+            EsqlSyncQueryRunner runner = (orderedQuery, timeFilter, params) -> {
+                capturedOrderedQuery = orderedQuery;
+                capturedTimeFilter = timeFilter;
+                capturedParams = params;
+                capturedQueries.add(orderedQuery);
+                capturedTimeFilters.add(timeFilter);
+                capturedParameterLists.add(params);
+                Object response = responses.poll();
+                if (cancelBeforeNextFailure) {
+                    cancelBeforeNextFailure = false;
+                    extractor.cancel();
+                }
+                if (response instanceof RuntimeException failure) {
+                    throw failure;
+                }
+                return (EsqlQueryResponse) response;
+            };
+            this.extractor = new EsqlDataExtractor(client, context, timingStatsReporter, runner);
         }
 
         void enqueueRow(List<ColumnInfo> columns, Object... columnValues) {
@@ -1049,81 +1074,61 @@ public class EsqlDataExtractorTests extends ESTestCase {
             cancelBeforeNextFailure = true;
         }
 
-        @Override
-        protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-            capturedOrderedQuery = orderedQuery;
-            capturedTimeFilter = timeFilter;
-            capturedParams = params;
-            capturedQueries.add(orderedQuery);
-            capturedTimeFilters.add(timeFilter);
-            capturedParameterLists.add(params);
-            Object response = responses.poll();
-            if (cancelBeforeNextFailure) {
-                cancelBeforeNextFailure = false;
-                cancel();
-            }
-            if (response instanceof RuntimeException failure) {
-                throw failure;
-            }
-            return (EsqlQueryResponse) response;
+        boolean hasNext() {
+            return extractor.hasNext();
+        }
+
+        DataExtractor.Result next() throws IOException {
+            return extractor.next();
+        }
+
+        DataExtractor.DataSummary getSummary() {
+            return extractor.getSummary();
+        }
+
+        void cancel() {
+            extractor.cancel();
+        }
+
+        void destroy() {
+            extractor.destroy();
         }
     }
 
-    private class RequestCapturingDataExtractor extends EsqlDataExtractor {
-
-        private EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> capturedRequest;
-
-        RequestCapturingDataExtractor(EsqlDataExtractorContext context) {
-            super(client, context, timingStatsReporter);
-        }
-
-        @Override
-        EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
-            capturedRequest = request;
-            return wrapResponse(mockEsqlResponse(List.of(column(TIME_FIELD, DATE)), List.of()));
-        }
+    private static final class NodeClientTracking {
+        final CountDownLatch queryStarted = new CountDownLatch(1);
+        final CountDownLatch cancelRequestReceived = new CountDownLatch(1);
+        final List<CancelTasksRequest> cancelRequests = new ArrayList<>();
+        final List<String> cancelOrigins = new ArrayList<>();
+        final Task queryTask = new Task(7L, "transport", "esql/query", null, TaskId.EMPTY_TASK_ID, Map.of());
+        Runnable cancelBeforeTaskPublication;
+        ActionListener<EsqlQueryResponse> queryListener;
+        String queryRunAsHeader;
     }
 
-    private static class TrackingNodeClient extends NodeClient {
-        private final CountDownLatch queryStarted = new CountDownLatch(1);
-        private final CountDownLatch cancelRequestReceived = new CountDownLatch(1);
-        private final List<CancelTasksRequest> cancelRequests = new ArrayList<>();
-        private final List<String> cancelOrigins = new ArrayList<>();
-        private final Task queryTask = new Task(7L, "transport", "esql/query", null, TaskId.EMPTY_TASK_ID, Map.of());
-        private Runnable cancelBeforeTaskPublication;
-        private ActionListener<EsqlQueryResponse> queryListener;
-        private String queryRunAsHeader;
-
-        TrackingNodeClient(ThreadPool threadPool) {
-            super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
+    @SuppressWarnings("unchecked")
+    private NodeClient mockNodeClient(NodeClientTracking tracking) {
+        NodeClient nodeClient = mock(NodeClient.class);
+        when(nodeClient.threadPool()).thenReturn(trackingThreadPool);
+        when(nodeClient.getLocalNodeId()).thenReturn("local-node");
+        doAnswer(invocation -> {
+            Object request = invocation.getArgument(1);
+            ActionListener<?> listener = invocation.getArgument(2);
             if (request instanceof CancelTasksRequest cancelRequest) {
-                cancelRequests.add(cancelRequest);
-                cancelOrigins.add(threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
-                cancelRequestReceived.countDown();
+                tracking.cancelRequests.add(cancelRequest);
+                tracking.cancelOrigins.add(trackingThreadPool.getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+                tracking.cancelRequestReceived.countDown();
                 return new Task(8L, "transport", "cluster:admin/tasks/cancel", null, TaskId.EMPTY_TASK_ID, Map.of());
             }
-            queryListener = (ActionListener<EsqlQueryResponse>) listener;
-            queryRunAsHeader = threadPool().getThreadContext().getHeader("es-security-runas-user");
-            if (cancelBeforeTaskPublication != null) {
-                cancelBeforeTaskPublication.run();
+            tracking.queryListener = (ActionListener<EsqlQueryResponse>) listener;
+            tracking.queryRunAsHeader = trackingThreadPool.getThreadContext().getHeader("es-security-runas-user");
+            if (tracking.cancelBeforeTaskPublication != null) {
+                tracking.cancelBeforeTaskPublication.run();
             }
-            queryStarted.countDown();
-            return queryTask;
-        }
-
-        @Override
-        public String getLocalNodeId() {
-            return "local-node";
-        }
+            tracking.queryStarted.countDown();
+            return tracking.queryTask;
+        }).when(nodeClient).executeAndReturnTask(any(), any(), any());
+        return nodeClient;
     }
 
     private static class TestEsqlQueryRequestBuilder extends EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> {

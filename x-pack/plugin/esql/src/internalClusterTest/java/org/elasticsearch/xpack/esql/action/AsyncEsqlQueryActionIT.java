@@ -236,9 +236,10 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         scriptWaits.drainPermits();
         var pragmas = new QueryPragmas(
             Settings.builder()
-                // One driver per leaf (the index has a single shard): the scriptWaits accounting below counts one permit per paused
-                // driver, so a leaf split across several drivers would break the "exactly two waits" logic.
-                .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                // Force shard partitioning so each leaf subquery runs as exactly one driver (the index has a single shard). The
+                // semaphore accounting below counts one scriptWaits permit per paused driver, so finer partitioning that splits a
+                // leaf into several slices/drivers would break the "exactly two waits" logic.
+                .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
                 .build()
         );
         var request = asyncEsqlQueryRequest("""

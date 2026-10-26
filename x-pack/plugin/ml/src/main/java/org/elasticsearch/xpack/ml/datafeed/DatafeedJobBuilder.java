@@ -212,7 +212,7 @@ public class DatafeedJobBuilder {
     // visible for testing
     void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // ES|QL datafeeds have no indices list
+            // ES|QL sources are in esql_query, not indices; remote checks live in EsqlDatafeedQueryValidator (#160858).
             if (datafeedConfig.getIndices() == null) {
                 return;
             }

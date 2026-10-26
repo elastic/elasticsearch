@@ -170,7 +170,7 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
-        // ES|QL datafeeds have no indices; the ES|QL engine resolves its sources at query time
+        // ES|QL datafeeds use an empty index list; concrete sources are resolved at query time (#160858).
         if (datafeedIndices.isEmpty()) {
             return null;
         }

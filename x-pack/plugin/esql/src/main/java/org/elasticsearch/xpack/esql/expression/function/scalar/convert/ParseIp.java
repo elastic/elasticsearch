@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Strings;
 
 import java.net.InetAddress;
 
@@ -229,7 +230,7 @@ public class ParseIp {
     }
 
     private static IllegalArgumentException invalid(BytesRef string) {
-        return new IllegalArgumentException("'" + string.utf8ToString() + "' is not an IP string literal.");
+        return new IllegalArgumentException("'" + Strings.truncateForError(string.utf8ToString()) + "' is not an IP string literal.");
     }
 
     private static boolean isV6(BytesRef string, int end) {

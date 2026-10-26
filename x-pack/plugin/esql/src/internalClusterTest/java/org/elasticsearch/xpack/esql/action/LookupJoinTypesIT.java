@@ -419,7 +419,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static void deleteAndAwaitShardsClosed(List<String> indices) {
-        cluster().wipeIndices(indices.toArray(String[]::new));
+        assertAcked(indicesAdmin().prepareDelete(indices.toArray(String[]::new)));
         internalCluster().awaitIndexShardCloseAsyncTasks();
     }
 

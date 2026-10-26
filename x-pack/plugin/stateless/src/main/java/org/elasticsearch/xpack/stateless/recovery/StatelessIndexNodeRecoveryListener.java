@@ -257,20 +257,9 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         // Can be null if there was a problem creating the shard.
         if (indexShard != null) {
-            splitTargetService.cancelSplits(indexShard);
-        }
-    }
-
-    @Override
-    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
-            // A second-chance cleanup in case beforeIndexShardClosed fired before startSplitTargetShardRecovery
-            // added the state machine to onGoingSplits (a race where the first cancelSplits call was a no-op).
-            // afterIndexShardClosed runs after IndexShard.close() sets the state to CLOSED, so any state machine
-            // added between the two callbacks will be found and cancelled here.
             splitTargetService.cancelSplits(indexShard);
             splitSourceService.cancelSplits(indexShard);
         }

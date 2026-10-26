@@ -140,8 +140,11 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.Clone(recoveryListener)
                 );
-                onGoingSplits.put(indexShard, stateMachine);
-                stateMachine.run();
+                if (registerStateMachine(indexShard, stateMachine)) {
+                    stateMachine.run();
+                } else {
+                    recoveryListener.onFailure(new IndexShardClosedException(shardId));
+                }
             }
             case HANDOFF -> {
                 var stateMachine = new StateMachine(
@@ -152,9 +155,11 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInHandoff()
                 );
-                onGoingSplits.put(indexShard, stateMachine);
+                boolean registered = registerStateMachine(indexShard, stateMachine);
                 recoveryListener.onResponse(null);
-                stateMachine.run();
+                if (registered) {
+                    stateMachine.run();
+                }
             }
             case SPLIT -> {
                 var stateMachine = new StateMachine(
@@ -165,12 +170,34 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInSplit()
                 );
-                onGoingSplits.put(indexShard, stateMachine);
+                boolean registered = registerStateMachine(indexShard, stateMachine);
                 recoveryListener.onResponse(null);
-                stateMachine.run();
+                if (registered) {
+                    stateMachine.run();
+                }
             }
             case DONE -> recoveryListener.onResponse(null);
         }
+    }
+
+    /// Registers the state machine unless the shard is already closed. Returns whether it was registered.
+    ///
+    /// If this runs first and observes `CLOSED`, [#cancelSplits(IndexShard)] may or may not have been called, so we handle the case
+    /// where it already ran by not registering anything (and cancelling the machine ourselves to stop tracking the split).
+    /// If we don't observe `CLOSED`, we can rely on `cancelSplits` running later and removing the entry.
+    private boolean registerStateMachine(IndexShard indexShard, StateMachine stateMachine) {
+        boolean[] registered = new boolean[1];
+        onGoingSplits.compute(indexShard, (shard, existing) -> {
+            if (shard.state() == IndexShardState.CLOSED) {
+                return existing;
+            }
+            registered[0] = true;
+            return stateMachine;
+        });
+        if (registered[0] == false) {
+            stateMachine.cancel();
+        }
+        return registered[0];
     }
 
     public void acceptHandoff(IndexShard indexShard, TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> listener) {
@@ -193,7 +220,7 @@ public class SplitTargetService {
     // only for tests
     void initializeSplitInCloneState(IndexShard indexShard, Split split) {
         assert Thread.currentThread().getName().startsWith("TEST-");
-        onGoingSplits.put(
+        registerStateMachine(
             indexShard,
             new StateMachine(
                 split,
@@ -206,6 +233,10 @@ public class SplitTargetService {
         );
     }
 
+    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
+    /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
+    /// We rely on this fact in [#registerStateMachine(IndexShard, StateMachine)] to handle the possible race
+    /// of this function and adding a new state machine to the `onGoingSplits` map.
     public void cancelSplits(IndexShard indexShard) {
         var stateMachine = onGoingSplits.remove(indexShard);
         if (stateMachine != null) {

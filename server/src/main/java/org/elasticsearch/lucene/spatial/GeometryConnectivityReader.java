@@ -35,16 +35,26 @@ import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_P
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_RECTANGLE;
 
 /**
- * Reads the vertex connectivity/ordering written by {@link GeometryConnectivityWriter}
- * and reconstructs the original {@link Geometry} objects using the coordinates from a
- * {@link VertexLookupTable} decoded through a {@link CoordinateEncoder}.
+ * Reads the connectivity written by {@link GeometryConnectivityWriter} and reconstructs the original
+ * {@link Geometry} objects. Since the {@link VertexLookupTable} starts with the geometry vertices in
+ * geometry order, vertices are consumed sequentially from the start of the table, guided by the counts
+ * in the connectivity, and decoded through a {@link CoordinateEncoder}.
  *
  * <p>The reconstructed geometry uses quantized coordinates (from the Lucene spatial grid)
  * rather than the exact original doubles, which is acceptable for all current use cases.
  */
 public class GeometryConnectivityReader {
 
-    private GeometryConnectivityReader() {}
+    private final ByteArrayStreamInput input;
+    private final VertexLookupTable vertexTable;
+    private final CoordinateEncoder encoder;
+    private int nextOrdinal = 0;
+
+    private GeometryConnectivityReader(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder) {
+        this.input = input;
+        this.vertexTable = vertexTable;
+        this.encoder = encoder;
+    }
 
     /**
      * Reads the connectivity section and returns the list of reconstructed geometries.
@@ -53,12 +63,7 @@ public class GeometryConnectivityReader {
      */
     public static List<Geometry> readGeometries(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
         throws IOException {
-        int numGeometries = input.readVInt();
-        List<Geometry> geometries = new ArrayList<>(numGeometries);
-        for (int i = 0; i < numGeometries; i++) {
-            geometries.add(readSingleGeometry(input, vertexTable, encoder));
-        }
-        return geometries;
+        return new GeometryConnectivityReader(input, vertexTable, encoder).readGeometries();
     }
 
     /**
@@ -74,140 +79,113 @@ public class GeometryConnectivityReader {
         return new GeometryCollection<>(geometries);
     }
 
-    private static Geometry readSingleGeometry(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private List<Geometry> readGeometries() throws IOException {
+        int numGeometries = input.readVInt();
+        List<Geometry> geometries = new ArrayList<>(numGeometries);
+        for (int i = 0; i < numGeometries; i++) {
+            geometries.add(readSingleGeometry());
+        }
+        return geometries;
+    }
+
+    private Geometry readSingleGeometry() throws IOException {
         byte type = input.readByte();
         return switch (type) {
-            case TYPE_POINT -> readPoint(input, vertexTable, encoder);
-            case TYPE_LINE -> readLine(input, vertexTable, encoder);
-            case TYPE_POLYGON -> readPolygon(input, vertexTable, encoder);
-            case TYPE_MULTIPOINT -> readMultiPoint(input, vertexTable, encoder);
-            case TYPE_MULTILINE -> readMultiLine(input, vertexTable, encoder);
-            case TYPE_MULTIPOLYGON -> readMultiPolygon(input, vertexTable, encoder);
-            case TYPE_GEOMETRYCOLLECTION -> readGeometryCollection(input, vertexTable, encoder);
-            case TYPE_RECTANGLE -> readRectangle(input, vertexTable, encoder);
+            case TYPE_POINT -> readPoint();
+            case TYPE_LINE -> readLine();
+            case TYPE_POLYGON -> readPolygon();
+            case TYPE_MULTIPOINT -> readMultiPoint();
+            case TYPE_MULTILINE -> readMultiLine();
+            case TYPE_MULTIPOLYGON -> readMultiPolygon();
+            case TYPE_GEOMETRYCOLLECTION -> readGeometryCollection();
+            case TYPE_RECTANGLE -> readRectangle();
             default -> throw new IllegalArgumentException("Unknown geometry connectivity type: " + type);
         };
     }
 
-    private static Point readPoint(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
-        int ordinal = input.readVInt();
+    private Point readPoint() {
+        int ordinal = nextOrdinal++;
         return new Point(encoder.decodeX(vertexTable.getX(ordinal)), encoder.decodeY(vertexTable.getY(ordinal)));
     }
 
-    private static Line readLine(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder) throws IOException {
+    private Line readLine() throws IOException {
         int numVertices = input.readVInt();
         double[] x = new double[numVertices];
         double[] y = new double[numVertices];
-        for (int i = 0; i < numVertices; i++) {
-            int ordinal = input.readVInt();
-            x[i] = encoder.decodeX(vertexTable.getX(ordinal));
-            y[i] = encoder.decodeY(vertexTable.getY(ordinal));
-        }
+        readCoordinates(x, y, numVertices);
         return new Line(x, y);
     }
 
-    private static Polygon readPolygon(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private void readCoordinates(double[] x, double[] y, int numVertices) {
+        for (int i = 0; i < numVertices; i++) {
+            int ordinal = nextOrdinal++;
+            x[i] = encoder.decodeX(vertexTable.getX(ordinal));
+            y[i] = encoder.decodeY(vertexTable.getY(ordinal));
+        }
+    }
+
+    private Polygon readPolygon() throws IOException {
         int numRings = input.readVInt();
-        LinearRing outerRing = readRing(input, vertexTable, encoder);
+        LinearRing outerRing = readRing();
         if (numRings == 1) {
             return new Polygon(outerRing);
         }
         List<LinearRing> holes = new ArrayList<>(numRings - 1);
         for (int i = 1; i < numRings; i++) {
-            holes.add(readRing(input, vertexTable, encoder));
+            holes.add(readRing());
         }
         return new Polygon(outerRing, holes);
     }
 
     /** Reads a ring, restoring the closing vertex that was omitted during writing. */
-    private static LinearRing readRing(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private LinearRing readRing() throws IOException {
         int numVertices = input.readVInt();
         double[] x = new double[numVertices + 1]; // +1 for closing vertex
         double[] y = new double[numVertices + 1];
-        for (int i = 0; i < numVertices; i++) {
-            int ordinal = input.readVInt();
-            x[i] = encoder.decodeX(vertexTable.getX(ordinal));
-            y[i] = encoder.decodeY(vertexTable.getY(ordinal));
-        }
-        // Close the ring
+        readCoordinates(x, y, numVertices);
         x[numVertices] = x[0];
         y[numVertices] = y[0];
         return new LinearRing(x, y);
     }
 
-    private static Rectangle readRectangle(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
-        int minOrdinal = input.readVInt();
-        int maxOrdinal = input.readVInt();
-        double minX = encoder.decodeX(vertexTable.getX(minOrdinal));
-        double minY = encoder.decodeY(vertexTable.getY(minOrdinal));
-        double maxX = encoder.decodeX(vertexTable.getX(maxOrdinal));
-        double maxY = encoder.decodeY(vertexTable.getY(maxOrdinal));
-        return new Rectangle(minX, maxX, maxY, minY);
+    private Rectangle readRectangle() {
+        Point min = readPoint();
+        Point max = readPoint();
+        return new Rectangle(min.getX(), max.getX(), max.getY(), min.getY());
     }
 
-    private static MultiPoint readMultiPoint(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private MultiPoint readMultiPoint() throws IOException {
         int count = input.readVInt();
         List<Point> points = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            int ordinal = input.readVInt();
-            points.add(new Point(encoder.decodeX(vertexTable.getX(ordinal)), encoder.decodeY(vertexTable.getY(ordinal))));
+            points.add(readPoint());
         }
         return new MultiPoint(points);
     }
 
-    private static MultiLine readMultiLine(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private MultiLine readMultiLine() throws IOException {
         int count = input.readVInt();
         List<Line> lines = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            int numVertices = input.readVInt();
-            double[] x = new double[numVertices];
-            double[] y = new double[numVertices];
-            for (int j = 0; j < numVertices; j++) {
-                int ordinal = input.readVInt();
-                x[j] = encoder.decodeX(vertexTable.getX(ordinal));
-                y[j] = encoder.decodeY(vertexTable.getY(ordinal));
-            }
-            lines.add(new Line(x, y));
+            lines.add(readLine());
         }
         return new MultiLine(lines);
     }
 
-    private static MultiPolygon readMultiPolygon(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private MultiPolygon readMultiPolygon() throws IOException {
         int count = input.readVInt();
         List<Polygon> polygons = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            int numRings = input.readVInt();
-            LinearRing outerRing = readRing(input, vertexTable, encoder);
-            if (numRings == 1) {
-                polygons.add(new Polygon(outerRing));
-            } else {
-                List<LinearRing> holes = new ArrayList<>(numRings - 1);
-                for (int j = 1; j < numRings; j++) {
-                    holes.add(readRing(input, vertexTable, encoder));
-                }
-                polygons.add(new Polygon(outerRing, holes));
-            }
+            polygons.add(readPolygon());
         }
         return new MultiPolygon(polygons);
     }
 
-    private static GeometryCollection<Geometry> readGeometryCollection(
-        ByteArrayStreamInput input,
-        VertexLookupTable vertexTable,
-        CoordinateEncoder encoder
-    ) throws IOException {
+    private GeometryCollection<Geometry> readGeometryCollection() throws IOException {
         int count = input.readVInt();
         List<Geometry> geometries = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            geometries.add(readSingleGeometry(input, vertexTable, encoder));
+            geometries.add(readSingleGeometry());
         }
         return new GeometryCollection<>(geometries);
     }

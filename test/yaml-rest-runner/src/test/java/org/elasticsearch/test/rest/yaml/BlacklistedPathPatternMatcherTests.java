@@ -28,6 +28,12 @@ public class BlacklistedPathPatternMatcherTests extends ESTestCase {
         assertNoMatch("termvector/20_issue7121/*", "/suite/termvector/20_issue7121/test/first");
     }
 
+    public void testMatchesWholeDirectoryOnlyWithOneWildcardPerSegment() {
+        assertNoMatch("ml/*", "ml/jobs_crud/Test get job");
+        assertMatch("ml/*/*", "ml/jobs_crud/Test get job");
+        assertMatch("ml/*/*", "/suite/ml/jobs_crud/Test get job");
+    }
+
     public void testMatchesMultiWildcardPatterns() {
         assertMatch("indices.get/10_basic/*allow_no_indices*", "/suite/indices.get/10_basic/we_allow_no_indices");
         assertMatch("indices.get/10_basic/*allow_no_indices*", "/suite/indices.get/10_basic/we_allow_no_indices_at_all");

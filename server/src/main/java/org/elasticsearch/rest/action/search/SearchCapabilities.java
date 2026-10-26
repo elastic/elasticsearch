@@ -81,6 +81,8 @@ public final class SearchCapabilities {
 
     /** A text field that indexes no positions answers positional queries from the values it keeps. */
     private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+    /** Sub-aggregations of {@code variable_width_histogram} collect exactly the documents of their own bucket. */
+    private static final String VARIABLE_WIDTH_HISTOGRAM_SUB_AGG_ORDINALS = "variable_width_histogram_sub_agg_ordinals";
     /** A knn search on a slice-enabled index is rejected unless the request selects the slices to search by name. */
     private static final String KNN_REQUIRES_SLICE_SELECTION = "knn_requires_slice_selection";
 
@@ -125,6 +127,7 @@ public final class SearchCapabilities {
         capabilities.add(KEYED_FLATTENED_EXACT_KEY_QUERIES);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
+        capabilities.add(VARIABLE_WIDTH_HISTOGRAM_SUB_AGG_ORDINALS);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         CAPABILITIES = Set.copyOf(capabilities);
     }

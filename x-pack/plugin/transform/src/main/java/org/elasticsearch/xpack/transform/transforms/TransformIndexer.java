@@ -468,10 +468,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // If we are not on the initial batch checkpoint and it's the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
-            checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
+            checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(sourceChange -> {
                 context.setLastSearchTime(instantOfTrigger);
-                hasSourceChanged = hasChanged;
-                if (hasChanged) {
+                onSourceChangeChecked(sourceChange.crossProject());
+                hasSourceChanged = sourceChange.changed();
+                if (hasSourceChanged) {
                     context.setChangesLastDetectedAt(instantOfTrigger);
                     logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
                     changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
@@ -678,6 +679,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             listener.onFailure(e);
         }
     }
+
+    /**
+     * Called after each change-detection search of a continuous transform, whether or not it found changes. For an idle
+     * continuous transform this is the only search it runs, so it is the only chance to observe where its source lives.
+     *
+     * @param crossProject whether the change-detection search touched at least one linked project
+     */
+    protected void onSourceChangeChecked(boolean crossProject) {}
 
     @Override
     protected void afterFinishOrFailure() {

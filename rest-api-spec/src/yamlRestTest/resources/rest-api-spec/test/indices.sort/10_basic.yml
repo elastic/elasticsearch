@@ -7,10 +7,9 @@
         body:
           settings:
             number_of_shards: 1
-            # the _doc order assertions below rely on every searchable copy being a single merged segment, so all copies
-            # must be started before the force merge (see the green health check below). A replica that is still
-            # recovering when the force merge runs is skipped by it and can keep the unmerged segments. Auto-expanding
-            # keeps green reachable on a single node, while stateless always keeps one replica for searches.
+            # The _doc order checks need every copy merged, but force merge fails on copies that are still recovering.
+            # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+            # keep a replica for stateless searches.
             auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: rank

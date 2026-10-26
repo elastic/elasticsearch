@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 163384
-summary: Let ES|QL use single-session reader contexts
-type: feature

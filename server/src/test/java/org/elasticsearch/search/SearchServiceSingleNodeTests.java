@@ -362,7 +362,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(ActionListener.wrap(r -> {
                 r.incRef();
                 scrollFuture.onResponse(r);
-            }, scrollFuture::onFailure));
+            }, e -> {
+                logger.warn("scroll failed", e);
+                scrollFuture.onResponse(null);
+            }));
             assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
 
             SearchService service = getInstanceFromNode(SearchService.class);
@@ -381,11 +384,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 // Wait for the parked fetch to exit and close its SearchContext before reset() clears the flags. This must not
                 // throw: that would mask an exception from the try block above and skip reset().
                 if (waitUntil(scrollFuture::isDone, 10, TimeUnit.SECONDS)) {
-                    try {
-                        scrollFuture.actionGet().decRef();
-                    } catch (Exception ignored) {
-                        // a failed scroll holds no response to release, and the test body does not depend on its outcome
+                    SearchResponse response = scrollFuture.actionGet();
+                    if (response != null) {
+                        response.decRef();
                     }
+                } else {
+                    logger.warn("parked scroll fetch did not exit within 10s; later tests may observe its leaked SearchContext");
                 }
             } finally {
                 ParkedScrollQueryBuilder.reset();
@@ -446,6 +450,31 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
             ParkedScrollQueryBuilder.reset();
+        }
+    }
+
+    /**
+     * A scroll phase that registers after {@link SearchService#beforeIndexRemoved} has swept the readers is not seen by the
+     * sweep, so it must be rejected on registration rather than left running against a reader that is being freed.
+     */
+    public void testScrollPhaseStartedAfterIndexRemovalSweepIsCancelled() {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse opened = client().prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(2)).get();
+        try {
+            SearchService service = getInstanceFromNode(SearchService.class);
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+            service.beforeIndexRemoved(indicesService.indexServiceSafe(resolveIndex("index")), DELETED);
+
+            final var e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get()
+            );
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+        } finally {
+            client().prepareClearScroll().addScrollId(opened.getScrollId()).get();
+            opened.decRef();
         }
     }
 

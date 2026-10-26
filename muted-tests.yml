@@ -448,9 +448,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162373
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testBulkRequestSameOutcomeAsSeparateRequests
-  issue: https://github.com/elastic/elasticsearch/issues/162390
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   method: testCrossClusterTransform
   issue: https://github.com/elastic/elasticsearch/issues/162405
@@ -502,10 +499,6 @@ tests:
 - class: org.elasticsearch.search.basic.TransportSearchFailuresIT
   method: testFailedSearchWithWrongQuery
   issue: https://github.com/elastic/elasticsearch/issues/162738
-- class: org.elasticsearch.xpack.esql.CsvColumnarCodecIT
-  issue: https://github.com/elastic/elasticsearch/issues/162749
-- class: org.elasticsearch.xpack.esql.CsvColumnarIT
-  issue: https://github.com/elastic/elasticsearch/issues/162751
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -578,3 +571,7 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163244
+- class: org.elasticsearch.xpack.esql.CsvColumnarIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163462

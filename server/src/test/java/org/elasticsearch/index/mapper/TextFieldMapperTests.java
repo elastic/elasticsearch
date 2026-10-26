@@ -2658,7 +2658,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testNormsEnabledWhenIndexModeIsVectordbColumnar() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
         XContentBuilder mapping = mapping(b -> b.startObject("potato").field("type", "text").endObject());
         DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
@@ -2685,7 +2684,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsVectordbColumnar() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.VECTORDB_COLUMNAR);
     }
 
@@ -2725,7 +2723,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultIndexOptionsIsPositionsWhenIndexModeIsVectordbColumnar() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         // vectordb_columnar is search-optimized, so it keeps the "positions" default rather than dropping to "docs".
         Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> b.startObject("field").field("type", "text").endObject()))

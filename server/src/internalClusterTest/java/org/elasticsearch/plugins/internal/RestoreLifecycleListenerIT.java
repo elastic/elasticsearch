@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.snapshots;
+package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -14,15 +14,13 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.RestoreService.RestoreCompletionResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.junit.After;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,43 +36,33 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(RestoreLifecycleListenerPlugin.class);
-        return plugins;
-    }
-
     /*
-     * RepositoryPlugin implementation that lets us set a custom RestoreLifecycleListener at runtime
+     * RestoreLifecycleListener registered through SPI (see META-INF/services) that lets us set a custom listener at runtime
      */
-    public static class RestoreLifecycleListenerPlugin extends Plugin implements RepositoryPlugin {
-        private volatile RestoreLifecycleListener delegate = RestoreLifecycleListener.NOOP;
+    public static class DelegatingRestoreLifecycleListener implements RestoreLifecycleListener {
+        private static volatile RestoreLifecycleListener delegate = RestoreLifecycleListener.NOOP;
 
         @Override
-        public RestoreLifecycleListener getRestoreLifecycleListener() {
-            return new RestoreLifecycleListener() {
-                @Override
-                public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
-                    return delegate.onRestoreInitialized(entry, state);
-                }
+        public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+            return delegate.onRestoreInitialized(entry, state);
+        }
 
-                @Override
-                public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
-                    return delegate.onRestoreCompleted(entry, state);
-                }
-            };
+        @Override
+        public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+            return delegate.onRestoreCompleted(entry, state);
         }
     }
 
+    @After
+    public void resetRestoreLifecycleListener() {
+        DelegatingRestoreLifecycleListener.delegate = RestoreLifecycleListener.NOOP;
+    }
+
     /**
-     * Sets the given listener as the delegate on the RestoreLifecycleListenerPlugin used by this test
+     * Sets the given listener as the delegate on the {@link DelegatingRestoreLifecycleListener} used by this test
      */
     private void setRestoreLifecycleListener(RestoreLifecycleListener listener) {
-        internalCluster().getInstance(PluginsService.class, internalCluster().getMasterName())
-            .filterPlugins(RestoreLifecycleListenerPlugin.class)
-            .findFirst()
-            .orElseThrow().delegate = listener;
+        DelegatingRestoreLifecycleListener.delegate = listener;
     }
 
     private static final String REPO = "test-repo";
@@ -96,10 +84,6 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(IDX);
         createFullSnapshot(REPO, SNAP);
         cluster().wipeIndices(IDX);
-
-        RestoreService restoreService = internalCluster().getInstance(RestoreService.class, internalCluster().getMasterName());
-        // The lifecycle listener has already been set because this test pulls in the RestoreLifecycleListenerPlugin:
-        expectThrows(IllegalStateException.class, () -> restoreService.setLifecycleListener(new RestoreLifecycleListener() {}));
 
         AtomicInteger initCount = new AtomicInteger(0);
         AtomicInteger completedCount = new AtomicInteger(0);

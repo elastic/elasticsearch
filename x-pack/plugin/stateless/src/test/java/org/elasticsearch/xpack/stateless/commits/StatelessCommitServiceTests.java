@@ -18,7 +18,6 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -3305,6 +3304,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testShouldOnlyUploadVirtualBccWhenOverMaxSizeLimit() throws Exception {
         long uploadMaxSize = randomLongBetween(1, ByteSizeValue.ofKb(20).getBytes());
+
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
@@ -3315,39 +3315,50 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     .build();
             }
         }) {
-            final List<StatelessCommitRef> allCommitRefs = new ArrayList<>();
+            // Add a previous vbcc that may have generational files since this impacts VBCC size calculation.
+            // Generational files will only be present if there is more than one commit.
+            var commitsWithGenerationalFiles = testHarness.generateCommitsWithGenerationalFiles(randomIntBetween(1, 5));
+            for (var commitRef : commitsWithGenerationalFiles) {
+                testHarness.commitService.onCommitCreation(commitRef);
+            }
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(
+                testHarness.shardId,
+                commitsWithGenerationalFiles.getLast().getGeneration()
+            );
+
+            // Reference that we use to know the size of the uploaded commit.
+            var referenceVbcc = new VirtualBatchedCompoundCommit(
+                testHarness.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithGenerationalFiles.getLast().getGeneration() + 1,
+                fileName -> testHarness.commitService.getBlobLocation(testHarness.shardId, fileName),
+                ESTestCase::randomNonNegativeLong,
+                testHarness.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, testHarness.sharedCacheService.getRegionSize())
+            );
+
             do {
+                VirtualBatchedCompoundCommit currentVbcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+                if (currentVbcc != null) {
+                    // The VBCC is not uploaded yet so must below the threshold.
+                    assertTrue(currentVbcc.sizeInBytesExcludingCopiedGenerationalFiles() < uploadMaxSize);
+                    assertTrue(currentVbcc.sizeInBytesExcludingCopiedGenerationalFiles() <= currentVbcc.getTotalSizeInBytes());
+                }
+
                 StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
-                allCommitRefs.add(commitRef);
+                referenceVbcc.appendCommit(
+                    commitRef,
+                    testHarness.commitService.useReplicatedRanges(),
+                    new StatelessCompoundCommit.TimestampFieldValueRange(100, 200)
+                );
                 testHarness.commitService.onCommitCreation(commitRef);
             } while (testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId) != null);
 
-            final var batchedCompoundCommit = getAndAssertBccWithGenerations(
-                testHarness.getShardContainer(),
-                allCommitRefs.get(0).getGeneration(),
-                allCommitRefs.stream().map(StatelessCommitRef::getGeneration).toList()
-            );
-
-            final long[] ccSizes = batchedCompoundCommit.compoundCommits()
-                .stream()
-                .mapToLong(StatelessCompoundCommit::sizeInBytes)
-                .toArray();
-            long sizeBeforeUpload = 0;
-            for (int i = 0; i <= ccSizes.length - 2; i++) {
-                if (i == ccSizes.length - 2) {
-                    sizeBeforeUpload += ccSizes[i];
-                } else {
-                    sizeBeforeUpload += BlobCacheUtils.toPageAlignedSize(ccSizes[i]);
-                }
-            }
-            assertThat(sizeBeforeUpload, lessThan(uploadMaxSize));
-
-            long totalSize = 0;
-            for (int i = 0; i < ccSizes.length - 1; i++) {
-                totalSize += BlobCacheUtils.toPageAlignedSize(ccSizes[i]);
-            }
-            totalSize += ccSizes[ccSizes.length - 1];
-            assertThat(totalSize, greaterThanOrEqualTo(uploadMaxSize));
+            // Should upload based on the size excluding copied generational files.
+            assertTrue(referenceVbcc.sizeInBytesExcludingCopiedGenerationalFiles() >= uploadMaxSize);
+            // `sizeInBytesExcludingCopiedGenerationalFiles` is <= total size so both should be true.
+            assertTrue(referenceVbcc.getTotalSizeInBytes() >= uploadMaxSize);
         }
     }
 

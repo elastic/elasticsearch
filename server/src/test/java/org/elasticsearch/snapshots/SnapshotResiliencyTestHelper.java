@@ -147,6 +147,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -978,7 +979,8 @@ public class SnapshotResiliencyTestHelper {
                     threadPool,
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-                    featureService
+                    featureService,
+                    RestoreLifecycleListener.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

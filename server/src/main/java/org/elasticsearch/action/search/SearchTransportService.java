@@ -846,9 +846,8 @@ public class SearchTransportService {
                     }
                 };
             }
-            // BWC: old coordinator (CHUNKED_FETCH_PHASE) expects lastChunkBytes but this node
-            // (CHUNKED_FETCH_DOC_ID_ORDER) fell back to traditional fetch — serialize hits into
-            // lastChunkBytes in the old format so the coordinator's response stream isn't empty.
+            // The coordinator asked for a chunked fetch but this node does a classic one. Older coordinators build the shard
+            // result from lastChunkBytes only, so also serialize the hits there in the format that coordinator reads.
             ActionListener<FetchSearchResult> responseListener = new ChannelActionListener<>(channel);
             if (hasCoordinator && chunkWriter == null) {
                 final TransportVersion bwcVersion = channelVersion;
@@ -906,18 +905,23 @@ public class SearchTransportService {
     }
 
     /**
-     * BWC: serializes hits into lastChunkBytes (old format, no vInt position prefix) for old coordinators
-     * whose TransportFetchPhaseCoordinationAction ignores FetchSearchResult.hits.
+     * Serializes a classic fetch's hits into lastChunkBytes for coordinators that build the shard result from those bytes only
+     * and ignore FetchSearchResult.hits. Coordinators that support {@code CHUNKED_FETCH_DOC_ID_ORDER} read a vInt position before
+     * each hit; older ones read the hits alone. Classic fetch returns hits in request order, so a hit's position is its index.
      */
     static void populateBwcLastChunkBytes(FetchSearchResult result, TransportVersion transportVersion) throws IOException {
         SearchHit[] hits = result.hits().getHits();
         if (hits.length == 0) {
             return;
         }
+        final boolean withPositions = transportVersion.supports(CHUNKED_FETCH_DOC_ID_ORDER);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(transportVersion);
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                if (withPositions) {
+                    out.writeVInt(i);
+                }
+                hits[i].writeTo(out);
             }
             result.setLastChunkSequenceStart(0);
             result.setLastChunkBytes(out.bytes(), hits.length);

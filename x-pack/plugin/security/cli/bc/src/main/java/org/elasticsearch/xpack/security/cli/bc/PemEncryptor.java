@@ -51,38 +51,15 @@ public final class PemEncryptor {
      * @param password  the password from which the encryption key is derived
      */
     public PemEncryptor(String algorithm, char[] password) {
-        final String transformation;
-        final String keyAlgorithm;
-        final int keyLength;
-        final int ivLength;
-        switch (algorithm) {
-            case "AES-128-CBC" -> {
-                transformation = "AES/CBC/PKCS5Padding";
-                keyAlgorithm = "AES";
-                keyLength = 16;
-                ivLength = 16;
-            }
-            case "AES-192-CBC" -> {
-                transformation = "AES/CBC/PKCS5Padding";
-                keyAlgorithm = "AES";
-                keyLength = 24;
-                ivLength = 16;
-            }
-            case "AES-256-CBC" -> {
-                transformation = "AES/CBC/PKCS5Padding";
-                keyAlgorithm = "AES";
-                keyLength = 32;
-                ivLength = 16;
-            }
-            case "DES-EDE3-CBC" -> {
-                transformation = "DESede/CBC/PKCS5Padding";
-                keyAlgorithm = "DESede";
-                keyLength = 24;
-                ivLength = 8;
-            }
+        record Params(String transformation, String keyAlgorithm, int keyLength, int ivLength) {}
+        final Params params = switch (algorithm) {
+            case "AES-128-CBC" -> new Params("AES/CBC/PKCS5Padding", "AES", 16, 16);
+            case "AES-192-CBC" -> new Params("AES/CBC/PKCS5Padding", "AES", 24, 16);
+            case "AES-256-CBC" -> new Params("AES/CBC/PKCS5Padding", "AES", 32, 16);
+            case "DES-EDE3-CBC" -> new Params("DESede/CBC/PKCS5Padding", "DESede", 24, 8);
             default -> throw new IllegalArgumentException("unsupported PEM encryption algorithm [" + algorithm + "]");
-        }
-        final byte[] iv = new byte[ivLength];
+        };
+        final byte[] iv = new byte[params.ivLength];
         new SecureRandom().nextBytes(iv);
 
         this.encryptor = new PEMEncryptor() {
@@ -101,8 +78,8 @@ public final class PemEncryptor {
                 // Like Bouncy Castle's own encryptor, the key is derived when the key material is written, so that an unavailable
                 // algorithm (e.g. MD5 in a FIPS JVM) surfaces as a PEMException from the write rather than from the construction.
                 try {
-                    final SecretKeySpec key = new SecretKeySpec(generateOpenSslKey(password, iv, keyLength), keyAlgorithm);
-                    final Cipher cipher = Cipher.getInstance(transformation);
+                    final SecretKeySpec key = new SecretKeySpec(generateOpenSslKey(password, iv, params.keyLength), params.keyAlgorithm);
+                    final Cipher cipher = Cipher.getInstance(params.transformation);
                     cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
                     return cipher.doFinal(encoding);
                 } catch (GeneralSecurityException e) {

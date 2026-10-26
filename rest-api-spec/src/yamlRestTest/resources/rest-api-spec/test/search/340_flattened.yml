@@ -474,6 +474,10 @@ setup:
         body:
           settings:
             index:
+              # The _doc order checks need every copy merged, but force merge fails on copies that are still recovering.
+              # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+              # keep a replica for stateless searches.
+              auto_expand_replicas: 0-1
               sort.field: labels.priority
               sort.order: asc
           mappings:
@@ -483,6 +487,13 @@ setup:
                 properties:
                   priority:
                     type: long
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
 
   - do:
       bulk:
@@ -497,7 +508,11 @@ setup:
           - '{ "labels": { "priority": 2, "name": "medium" } }'
   - match: { errors: false }
 
+<<<<<<< HEAD
   # force merge to guarantee sort order
+=======
+  # index sort orders docs only within a segment and _doc order follows segment order, so merge to one segment.
+>>>>>>> d479021a6136 (Fix index sort yaml test race with replicas (#162836))
   - do:
       indices.forcemerge:
         index: test

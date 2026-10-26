@@ -362,6 +362,7 @@ tests:
 - class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
   method: testWebhook
   issue: https://github.com/elastic/elasticsearch/issues/160935
+<<<<<<< HEAD
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/160951
@@ -377,6 +378,35 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
   method: testStopAtCheckpointForThrottledTransform
   issue: https://github.com/elastic/elasticsearch/issues/161096
+=======
+- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/161309
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/161316
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
+  method: testPeerRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/161463
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testManyDissectFromRow
+  issue: https://github.com/elastic/elasticsearch/issues/161465
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testTrackOldSearchNodesWhenIndexingShardRelocates
+  issue: https://github.com/elastic/elasticsearch/issues/161643
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {yaml=aggregations/terms/Basic test}
+  issue: https://github.com/elastic/elasticsearch/issues/161650
+- class: org.elasticsearch.xpack.esql.action.SubqueryIT
+  method: testNestedSubqueryOuterLimitWithQueuedLeaves
+  issue: https://github.com/elastic/elasticsearch/issues/161662
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
+  method: testVbccRemainsServableUntilSearchTierNotificationCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/161667
+- class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
+  method: testLifecycleEnabledByDefaultSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/161848
+>>>>>>> d479021a6136 (Fix index sort yaml test race with replicas (#162836))
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
@@ -395,15 +425,13 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/10_basic/Index Sort}
-  issue: https://github.com/elastic/elasticsearch/issues/162591
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/161602
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
+<<<<<<< HEAD
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testEvaluate {TestCase=<dense_vector>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/162950
@@ -411,6 +439,9 @@ tests:
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+=======
+- class: org.elasticsearch.xpack.stateless.StatelessResizeIT
+>>>>>>> d479021a6136 (Fix index sort yaml test race with replicas (#162836))
   tasks:
   - :qa:mixed-cluster:v9.2.8#mixedClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163053

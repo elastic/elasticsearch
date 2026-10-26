@@ -541,3 +541,8 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163460
+- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
+  tasks:
+  - :server:test
+  method: testAMultiValuedFieldCountsTheSame
+  issue: https://github.com/elastic/elasticsearch/issues/163464

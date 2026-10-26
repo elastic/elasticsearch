@@ -791,6 +791,30 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarity_ByteEmbeddingType_UsesDotProduct() throws IOException {
+        try (var service = createInferenceService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = createInternalEmbeddingModel(
+                new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BYTE),
+                URL_VALUE
+            );
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+            assertThat(updatedModel.getServiceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarity_BitEmbeddingType_UsesDotProduct() throws IOException {
+        try (var service = createInferenceService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = createInternalEmbeddingModel(
+                new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BIT),
+                URL_VALUE
+            );
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+            assertThat(updatedModel.getServiceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+        }
+    }
+
     @Override
     public InferenceService createInferenceService() {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);

@@ -16,10 +16,8 @@ import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -48,9 +46,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.ScriptLongValueSource;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.lucene.queries.MinDocQuery;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -339,15 +339,14 @@ public class OptOutQueryCacheTests extends ESTestCase {
                     innerCacheable &= inner.cacheable();
                 }
 
-                boolean constant = randomBoolean();
-                LongValuesSource minimumNumberMatch;
-                if (constant) {
-                    minimumNumberMatch = LongValuesSource.constant(between(1, numQueries));
-                } else if (randomBoolean()) {
-                    minimumNumberMatch = LongValuesSource.fromLongField(randomFrom(randomBoolean() ? allowedFields : disallowedFields));
-                } else {
-                    minimumNumberMatch = new ScriptLikeLongValuesSource();
-                }
+                int kind = between(0, 2);
+                boolean constant = kind == 0;
+                LongValuesSource minimumNumberMatch = switch (kind) {
+                    case 0 -> LongValuesSource.constant(between(1, numQueries));
+                    case 1 -> LongValuesSource.fromLongField(randomFrom(randomBoolean() ? allowedFields : disallowedFields));
+                    case 2 -> new ScriptLongValueSource(new Script("1"), ctx -> { throw new AssertionError("not evaluated"); }, null);
+                    default -> throw new AssertionError("unexpected " + kind);
+                };
 
                 // A constant minimum is rewritten to a boolean query, so only the inner clauses matter. That rewrite drops match-none
                 // SHOULD clauses, and if fewer than the minimum remain it collapses to a MatchNoDocsQuery, which is always cacheable.
@@ -450,57 +449,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         @Override
         public int hashCode() {
             return Objects.hash(classHash(), field);
-        }
-    }
-
-    /**
-     * Stands in for {@code TermsSetQueryBuilder.ScriptLongValueSource} (package-private in server), the source used by
-     * {@code terms_set} with {@code minimum_should_match_script}. Like that source, it reads no field and isn't cacheable.
-     */
-    private static class ScriptLikeLongValuesSource extends LongValuesSource {
-        @Override
-        public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) {
-            return new LongValues() {
-                @Override
-                public long longValue() {
-                    return 1;
-                }
-
-                @Override
-                public boolean advanceExact(int doc) {
-                    return true;
-                }
-            };
-        }
-
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
-
-        @Override
-        public boolean isCacheable(LeafReaderContext ctx) {
-            return false;
-        }
-
-        @Override
-        public LongValuesSource rewrite(IndexSearcher searcher) {
-            return this;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj != null && getClass() == obj.getClass();
-        }
-
-        @Override
-        public int hashCode() {
-            return getClass().hashCode();
-        }
-
-        @Override
-        public String toString() {
-            return "script-like";
         }
     }
 }

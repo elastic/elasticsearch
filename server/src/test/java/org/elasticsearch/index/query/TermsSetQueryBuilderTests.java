@@ -374,7 +374,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     true
                 );
-                TermsSetQueryBuilder.ScriptLongValueSource withCheck = new TermsSetQueryBuilder.ScriptLongValueSource(
+                ScriptLongValueSource withCheck = new ScriptLongValueSource(
                     new Script("test"),
                     leafFactory,
                     contextSearcher::checkCancelled
@@ -383,11 +383,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 assertNotNull(capturedScript.get()._getCancellationCheck());
 
                 capturedScript.set(null);
-                TermsSetQueryBuilder.ScriptLongValueSource withoutCheck = new TermsSetQueryBuilder.ScriptLongValueSource(
-                    new Script("test"),
-                    leafFactory,
-                    null
-                );
+                ScriptLongValueSource withoutCheck = new ScriptLongValueSource(new Script("test"), leafFactory, null);
                 withoutCheck.getValues(reader.leaves().get(0), null);
                 assertNull(capturedScript.get()._getCancellationCheck());
             }

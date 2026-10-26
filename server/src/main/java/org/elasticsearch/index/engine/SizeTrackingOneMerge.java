@@ -24,6 +24,12 @@ import java.util.OptionalLong;
  * {@link org.apache.lucene.index.IndexWriter}, which mutates it under its own lock, so reading the size afterwards from the merge
  * thread can observe {@code -1}, a stale value or a partially updated file set. {@link #mergeFinished} is invoked while the
  * {@code IndexWriter} lock is held and before any other thread can touch the new segment, making it the one safe point to read the size.
+ * <p>
+ * The recorded value is a snapshot of the size at commit time, which is what merge metrics want (the bytes this merge produced); it does
+ * not reflect later deletes or doc-values updates to the segment.
+ * <p>
+ * {@link ThreadPoolMergeScheduler} requires the merges it runs to be of this type, so any {@link InternalEngine#wrapMergePolicy} override
+ * must produce merges that extend it.
  */
 public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
     private final MergePolicy.OneMerge wrapped;

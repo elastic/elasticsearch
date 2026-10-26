@@ -92,7 +92,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             int mergeCount = randomIntBetween(2, 10);
             for (int i = 0; i < mergeCount; i++) {
                 MergeSource mergeSource = mock(MergeSource.class);
-                OneMerge oneMerge = mock(OneMerge.class);
+                OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -146,7 +146,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
         for (int i = 0; i < mergeCount; i++) {
             MergeSource mergeSource = mock(MergeSource.class);
-            OneMerge oneMerge = mock(OneMerge.class);
+            OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
             when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
             when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
             when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -189,7 +189,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(2, 10);
         for (int i = 0; i < mergeCount; i++) {
             MergeSource mergeSource = mock(MergeSource.class);
-            OneMerge oneMerge = mock(OneMerge.class);
+            OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
             when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
             when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
             when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -262,7 +262,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             } else {
                 // submit one new merge
                 MergeSource mergeSource = mock(MergeSource.class);
-                OneMerge oneMerge = mock(OneMerge.class);
+                OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -285,7 +285,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             isUsingMaxTargetIORate.set(randomBoolean());
         }
         MergeSource mergeSource = mock(MergeSource.class);
-        OneMerge oneMerge = mock(OneMerge.class);
+        OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
         when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
         when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -342,7 +342,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 } else {
                     // submit one merge
                     MergeSource mergeSource = mock(MergeSource.class);
-                    OneMerge oneMerge = mock(OneMerge.class);
+                    OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                     when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                     when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                     when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -430,7 +430,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     private static void submitMockMerge(ThreadPoolMergeScheduler scheduler) {
         MergeSource mergeSource = mock(MergeSource.class);
-        OneMerge oneMerge = mock(OneMerge.class);
+        OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
         when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
         when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -461,7 +461,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 )
             ) {
                 MergeSource mergeSource = mock(MergeSource.class);
-                OneMerge firstMerge = mock(OneMerge.class);
+                OneMerge firstMerge = mock(SizeTrackingOneMerge.class);
                 when(firstMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(firstMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 // at least one followup merge + null (i.e. no more followups)
@@ -469,7 +469,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 OneMerge[] followUpMerges = new OneMerge[followUpMergeCount];
                 followUpMerges[followUpMergeCount - 1] = null;
                 for (int i = 0; i < followUpMergeCount - 1; i++) {
-                    OneMerge oneMerge = mock(OneMerge.class);
+                    OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                     when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                     when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                     followUpMerges[i] = oneMerge;
@@ -544,7 +544,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 Semaphore runMergeSemaphore = new Semaphore(0);
                 for (int i = 0; i < mergeCount; i++) {
                     MergeSource mergeSource = mock(MergeSource.class);
-                    OneMerge oneMerge = mock(OneMerge.class);
+                    OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                     when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                     when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                     when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -640,7 +640,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
                 CountDownLatch mergeRunningLatch = new CountDownLatch(1);
                 MergeSource mergeSource = mock(MergeSource.class);
-                OneMerge oneMerge = mock(OneMerge.class);
+                OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -698,7 +698,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
-        OneMerge oneMerge = mock(OneMerge.class);
+        OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong()));
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
         MergeSource mergeSource = mock(MergeSource.class);
@@ -727,7 +727,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settingsBuilder.build());
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
-        OneMerge oneMerge = mock(OneMerge.class);
+        OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
         // forced merge with a set number of segments
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong(), randomNonNegativeInt()));
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
@@ -819,7 +819,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             int mergeCount = randomIntBetween(2, 10);
             for (int i = 0; i < mergeCount; i++) {
                 MergeSource mergeSource = mock(MergeSource.class);
-                OneMerge oneMerge = mock(OneMerge.class);
+                OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -884,7 +884,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             }
         ) {
             MergeSource mergeSource = mock(MergeSource.class);
-            OneMerge oneMerge = mock(OneMerge.class);
+            OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
             when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
             when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
             when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
@@ -932,7 +932,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             )
         ) {
             MergeSource mergeSource = mock(MergeSource.class);
-            OneMerge oneMerge = mock(OneMerge.class);
+            OneMerge oneMerge = mock(SizeTrackingOneMerge.class);
             when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
             when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
             when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);

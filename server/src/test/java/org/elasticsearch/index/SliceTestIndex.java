@@ -43,8 +43,7 @@ final class SliceTestIndex {
     private SliceTestIndex() {}
 
     static IndexWriterConfig config() {
-        SortField sortField = new SortField(FIELD, SortField.Type.STRING);
-        sortField.setMissingValue(SortField.STRING_LAST);
+        SortField sortField = new SortField(FIELD, SortField.Type.STRING, false, SortField.STRING_LAST);
         return new IndexWriterConfig().setIndexSort(new Sort(sortField));
     }
 

@@ -95,7 +95,8 @@ public class NodeDeprecationChecks {
             NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
             NodeDeprecationChecks::checkTracingApmSettings,
             NodeDeprecationChecks::checkTelemetryAgentSettings,
-            NodeDeprecationChecks::checkDynamicLoggerChildOverride
+            NodeDeprecationChecks::checkDynamicLoggerChildOverride,
+            NodeDeprecationChecks::checkJavaVersion
         );
 
     static DeprecationIssue checkDeprecatedSetting(
@@ -1206,6 +1207,29 @@ public class NodeDeprecationChecks {
                 + " and child loggers with their own explicit configuration will retain their level."
                 + " Review these settings and remove child logger overrides that you no longer need,"
                 + " or use the wildcard reset [logger.*: null] to clear all logger overrides.",
+            false,
+            null
+        );
+    }
+
+    static DeprecationIssue checkJavaVersion(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkJavaVersion(Runtime.version());
+    }
+
+    static DeprecationIssue checkJavaVersion(Runtime.Version version) {
+        if (version.feature() >= 25) {
+            return null;
+        }
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Support for Java versions earlier than 25 is deprecated",
+            "https://www.elastic.co/support/matrix#matrix_jvm",
+            "This node is running Java [" + version + "]. A future Elasticsearch 9.x release will require Java 25 or later.",
             false,
             null
         );

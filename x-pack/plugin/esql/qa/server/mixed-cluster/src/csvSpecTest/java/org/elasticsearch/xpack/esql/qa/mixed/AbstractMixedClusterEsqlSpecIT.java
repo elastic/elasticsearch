@@ -184,4 +184,13 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected boolean deduplicateExactWarnings() {
         return true;
     }
+
+    /**
+     * The old node coordinates in {@link AbstractMixedClusterEsqlOldCoordSpecIT} and can hold the shards a query
+     * reads in both suites, so it can drop warnings whichever version coordinates.
+     */
+    @Override
+    protected boolean mayDropWarnings() {
+        return versionMayDropWarnings(bwcVersion);
+    }
 }

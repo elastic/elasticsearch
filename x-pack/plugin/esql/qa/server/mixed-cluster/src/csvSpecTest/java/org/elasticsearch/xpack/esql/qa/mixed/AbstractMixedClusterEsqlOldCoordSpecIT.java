@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.qa.mixed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 
 /**
@@ -25,18 +24,7 @@ public abstract class AbstractMixedClusterEsqlOldCoordSpecIT extends AbstractMix
         CsvTestCase testCase,
         String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, maybeOptionalWarnings(testCase), instructions);
-    }
-
-    /**
-     * Released 9.0 to 9.3 coordinators keep warnings in a thread-local and can drop them from the response.
-     * 8.19.23, 9.4.8 and 9.5.5 onwards carry them on the driver instead.
-     */
-    private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
-        if (bwcVersion.onOrAfter(Version.V_9_0_0) && bwcVersion.before(Version.V_9_4_0)) {
-            testCase.makeWarningsOptional();
-        }
-        return testCase;
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     /**

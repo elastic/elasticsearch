@@ -115,14 +115,12 @@ public class ReaderContext implements Releasable {
 
     /**
      * Tracks a search phase that is still using this reader. {@link #cancelInFlightSearches} stops it
-     * when the reader is freed, so the phase can release its {@link SearchContext}.
+     * when the reader is freed, so the phase can release its {@link SearchContext}. The task is untracked
+     * automatically when the given search context is closed.
      */
-    public void addInFlightSearch(CancellableTask task) {
+    public void addInFlightSearch(CancellableTask task, SearchContext searchContext) {
         inFlightSearches.add(task);
-    }
-
-    public void removeInFlightSearch(CancellableTask task) {
-        inFlightSearches.remove(task);
+        searchContext.addReleasable(() -> inFlightSearches.remove(task));
     }
 
     /**

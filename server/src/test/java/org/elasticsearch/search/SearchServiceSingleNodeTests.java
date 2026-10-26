@@ -369,18 +369,36 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             ShardSearchContextId contextId = new SearchScrollRequest(opened.getScrollId()).parseScrollId().getContext()[0]
                 .getSearchContextId();
             assertTrue(service.freeReaderContext(contextId));
-            assertFalse("freeReaderContext cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
+            assertScrollFetchNotCancelled("freeReaderContext cancelled an in-flight scroll fetch");
 
             IndicesService indicesService = getInstanceFromNode(IndicesService.class);
             service.beforeIndexRemoved(indicesService.indexServiceSafe(resolveIndex("index")), NO_LONGER_ASSIGNED);
-            assertFalse("a non-freeing index removal cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
+            assertScrollFetchNotCancelled("a non-freeing index removal cancelled an in-flight scroll fetch");
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
-            // Wait for the parked fetch to exit and close its SearchContext before reset() clears the flags.
-            scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
-            ParkedScrollQueryBuilder.reset();
+            try {
+                // Wait for the parked fetch to exit and close its SearchContext before reset() clears the flags. This must not
+                // throw: that would mask an exception from the try block above and skip reset().
+                if (waitUntil(scrollFuture::isDone, 10, TimeUnit.SECONDS)) {
+                    try {
+                        scrollFuture.actionGet().decRef();
+                    } catch (Exception ignored) {
+                        // a failed scroll holds no response to release, and the test body does not depend on its outcome
+                    }
+                }
+            } finally {
+                ParkedScrollQueryBuilder.reset();
+            }
         }
+    }
+
+    /**
+     * The parked fetch only notices cancellation when it polls (every 10ms), so an immediate check could pass even though
+     * a cancellation is on its way. Give it several poll intervals to show up before concluding it was not cancelled.
+     */
+    private static void assertScrollFetchNotCancelled(String message) {
+        assertFalse(message, waitUntil(ParkedScrollQueryBuilder.cancelled::get, 100, TimeUnit.MILLISECONDS));
     }
 
     /**

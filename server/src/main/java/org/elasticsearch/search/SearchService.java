@@ -1970,14 +1970,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
 
-        if (task != null && readerContext.scrollContext() != null) {
+        if (readerContext.scrollContext() != null) {
             // Freed readers close only after in-flight phases release them. Registering the task lets index removal cancel
             // a scroll phase blocked inside its SearchContext try-with-resources so it can exit and close that context.
             // Only scroll is tracked: that is the case that leaked (#161316), and other searches keep today's behavior.
             // ponytail: a phase registered after beforeIndexRemoved has swept the readers is not cancelled; closing that
             // window would need a "cancelled" flag on ReaderContext checked here.
-            readerContext.addInFlightSearch(task);
-            context.addReleasable(() -> readerContext.removeInFlightSearch(task));
+            readerContext.addInFlightSearch(task, context);
         }
 
         return context;

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.lucene;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -23,9 +25,9 @@ public class IndexBlobStoreCacheDirectoryTests extends ESTestCase {
 
             assertThat(indexDirectory.claimExecutor(), nullValue());
             assertThat(warmingDirectory.claimExecutor(), nullValue());
-            assertThat(indexDirectory.createPerBccMetadataReadDirectory().claimExecutor(), sameInstance(shardReadExecutor));
-            assertThat(warmingDirectory.createPerBccMetadataReadDirectory().claimExecutor(), sameInstance(shardReadExecutor));
-            assertThat(fakeNode.searchDirectory.createPerBccMetadataReadDirectory().claimExecutor(), nullValue());
+            assertThat(indexDirectory.createPerBccMetadataReadDirectory(Map.of(), 0L).claimExecutor(), sameInstance(shardReadExecutor));
+            assertThat(warmingDirectory.createPerBccMetadataReadDirectory(Map.of(), 0L).claimExecutor(), sameInstance(shardReadExecutor));
+            assertThat(fakeNode.searchDirectory.createPerBccMetadataReadDirectory(Map.of(), 0L).claimExecutor(), nullValue());
         }
     }
 }

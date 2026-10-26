@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
@@ -18,10 +20,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Parity tests for {@link NumberFieldMapper#mapColumnBatch} against the row path. Single-valued
@@ -979,6 +984,38 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     }
 
     /**
+     * An array with more slots than fit in a sorted doc value ({@code IndexWriter.MAX_TERM_LENGTH}) makes the columnar path
+     * bail out, so the batch falls back to the row path, which rejects that document with an explicit error instead of
+     * letting Lucene fail on the oversized {@code f.offsets} doc value. Both paths report the same condition.
+     */
+    public void testOversizedOffsetsBailOutOfColumnarPath() throws IOException {
+        final var mapperService = createMapperService(
+            multiValueColumnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject())
+        );
+        // One more slot than the limit guarantees the encoded offsets exceed it, since every slot takes at least one byte.
+        final StringBuilder source = new StringBuilder("{\"f\":[");
+        final int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        for (int i = 0; i < numSlots; i++) {
+            source.append(i == 0 ? "" : ",").append(randomInt(3));
+        }
+        source.append("]}");
+
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, source.toString())
+        );
+        assertThat(ex.getMessage(), containsString("encoded offsets of field [f.offsets] are too large to store"));
+
+        final DocumentParsingException rowPathEx = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(source.toString()), XContentType.JSON))
+        );
+        assertThat(rowPathEx.getCause().getMessage(), containsString("encoded offsets of field [f.offsets] are too large to store"));
+        assertThat(rowPathEx.getCause().getMessage(), containsString("cannot be preserved in [_ignored_source]"));
+    }
+
+    /**
      * With a {@code null_value} configured, a coerced empty string inside an array indexes the null value
      * rather than dropping the slot, so the row path records an ordinary ordinal for it and the columnar
      * path can build the offsets sidecar instead of bailing out. The duplicates and out-of-order values
@@ -1074,6 +1111,20 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         });
     }
 
+    /**
+     * Under {@code synthetic_source_keep: all} the row path copies every value, scalars included, into {@code _ignored_source}, which
+     * the columnar path does not write, so the field is not eligible for the columnar path at all.
+     */
+    public void testLongField_tsdbFieldKeepAllNotColumnar() throws IOException {
+        final var mapperService = createMapperService(tsdbSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+    }
+
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)
         throws IOException {
         final var mapperService = createMapperService(settings, mapping(mapping));
@@ -1081,7 +1132,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[3,1,3]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /** TSDB settings naming both the keyword {@code dim} and the numeric {@code f} as index dimensions. */
@@ -1159,7 +1210,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "long");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));

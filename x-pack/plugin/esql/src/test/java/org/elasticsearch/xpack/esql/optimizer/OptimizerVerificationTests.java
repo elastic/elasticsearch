@@ -274,13 +274,16 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testRuntimeTextSearchRejectedAfterForkNestedInSubqueryBranch() {
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // The bare FORK at the top of the subquery branch is lifted into the enclosing union by compaction, so no
+        // Fork node survives for the after-FORK check; the query is still rejected, by the SORT+LIMIT (TopN) check
+        // on the lifted branches instead.
         var err = error(fullTextAnalyzer().query("""
             FROM (FROM test | FORK (WHERE match(title, "fox") | SORT id | LIMIT 5)
                                    (WHERE category == 1       | SORT id | LIMIT 5)),
                  (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
             | WHERE match(title, "data")
             """));
-        assertThat(err, containsString("[MATCH] function cannot search column [title] after FORK"));
+        assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT when it targets an indexed field"));
     }
 
     public void testRuntimeTextSearchRejectedAfterForkThroughCast() {

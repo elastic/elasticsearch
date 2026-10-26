@@ -144,7 +144,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         );
         FieldExtract fn = new FieldExtract(Source.EMPTY, rootWithoutDocValues, Literal.keyword(Source.EMPTY, "host.name"));
 
-        // EMPTY stats report no doc values, so the decline comes from isIndexedAndHasDocValues (the
+        // EMPTY stats report no doc values, so the decline comes from isQueryable (the
         // attribute is also non-aggregatable) rather than the mapped/unmapped loader-config check.
         LucenePushdownPredicates noDocValuesPredicates = LucenePushdownPredicates.from(SearchStats.EMPTY, new EsqlFlags(true));
         assertThat(fn.tryAsKeyedSubfieldName(noDocValuesPredicates), equalTo(Optional.empty()));
@@ -666,7 +666,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
      * A predicate whose {@code SearchStats} reports the {@code field_extract} loader config as unsupported,
      * mirroring what local physical planning sees for a key declared under the flattened root's
      * {@code properties} (the flattened field type rejects the config for mapped sub-fields).
-     * {@code isIndexedAndHasDocValues} is still satisfied through the attribute's aggregatable flag, so the
+     * {@code isQueryable} is still satisfied through the attribute's aggregatable flag, so the
      * only reason pushdown declines is the mapped-sub-field rejection in {@code supportsBlockLoaderConfig}.
      */
     private static LucenePushdownPredicates mappedKeyPredicates() {

@@ -3644,7 +3644,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.query());
     }
 
-    public void testNoNonIndexedFilterPushDown() {
+    /** A field with doc values and no index is searched through its doc values, so a filter on it is pushed. */
+    public void testNonIndexedFieldWithDocValuesFilterPushDown() {
         var plan = physicalPlan("""
             from test
             | where long_noidx == 1
@@ -3655,11 +3656,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var limit2 = as(extract.child(), LimitExec.class);
-        var filter = as(limit2.child(), FilterExec.class);
-        var extract2 = as(filter.child(), FieldExtractExec.class);
-        var source = source(extract2.child());
-        assertNull(source.query());
+        var source = as(extract.child(), EsQueryExec.class);
+        var qb = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(qb.field(), equalTo("long_noidx"));
     }
 
     public void testTextWithRawFilterPushDown() {
@@ -3695,7 +3694,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.sorts());
     }
 
-    public void testNoNonIndexedSortPushDown() {
+    /** A field with doc values and no index sorts on its doc values, so a sort on it is pushed. */
+    public void testNonIndexedFieldWithDocValuesSortPushDown() {
         var plan = physicalPlan("""
             from test
             | sort long_noidx
@@ -3706,10 +3706,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topN2 = as(extract.child(), TopNExec.class);
-        var extract2 = as(topN2.child(), FieldExtractExec.class);
-        var source = source(extract2.child());
-        assertNull(source.sorts());
+        var source = as(extract.child(), EsQueryExec.class);
+        assertThat(source.sorts().size(), equalTo(1));
+        assertThat(source.sorts().get(0).field().name(), equalTo("long_noidx"));
     }
 
     public void testTextWithRawSortPushDown() {

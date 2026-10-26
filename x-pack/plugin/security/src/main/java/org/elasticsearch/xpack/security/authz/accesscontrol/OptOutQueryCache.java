@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -21,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
@@ -59,37 +58,12 @@ public final class OptOutQueryCache extends IndexQueryCache {
     }
 
     /**
-     * Returns true if its safe to use the query cache for this query.
+     * Returns true if it's safe to use the query cache for this query. Queries with leaves that do not report a field are not cacheable.
      */
     static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
         // support caching for common queries, by inspecting the field
-        try {
-            weight.getQuery().visit(new QueryVisitor() {
-                @Override
-                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, org.apache.lucene.search.Query parent) {
-                    return this; // we want to use the same visitor for must_not clauses too
-                }
-
-                @Override
-                public boolean acceptField(String field) {
-                    // don't cache any internal fields (e.g. _field_names), these are complicated.
-                    if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
-                        throw new FLSQueryNotCacheable("Query field has FLS permissions");
-                    }
-                    return super.acceptField(field);
-                }
-            });
-        } catch (FLSQueryNotCacheable e) {
-            return false;
-        }
-        // we can cache, all fields are ok
-        return true;
-    }
-
-    private static class FLSQueryNotCacheable extends RuntimeException {
-        FLSQueryNotCacheable(String message) {
-            // don't waste time filling in the stacktrace
-            super(message, null, false, false);
-        }
+        AtomicBoolean cacheable = new AtomicBoolean(true);
+        weight.getQuery().visit(new FieldCheckingVisitor(permissions, cacheable));
+        return cacheable.get();
     }
 }

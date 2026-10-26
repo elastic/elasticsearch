@@ -499,6 +499,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -519,6 +521,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -537,6 +541,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -552,6 +558,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -566,6 +574,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -579,6 +589,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_fleet.read",
@@ -592,6 +604,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
     private static final Set<String> ALERTZERO_ALL_FEATURE_PRIVILEGES = Set.of(
         "feature_actions.read",
         "feature_agentBuilder.read",
+        "feature_agenticInvestigations.investigations_all",
+        "feature_agenticInvestigations.minimal_all",
         "feature_alertzero.all",
         "feature_alertzero.read",
         "feature_contextEngine.all",

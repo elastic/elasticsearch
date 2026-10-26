@@ -35,6 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.common.settings.Setting.Property.Deprecated;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
@@ -93,6 +94,7 @@ public class NodeDeprecationChecks {
             NodeDeprecationChecks::checkNodeAttrData,
             NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
             NodeDeprecationChecks::checkTracingApmSettings,
+            NodeDeprecationChecks::checkTelemetryAgentSettings,
             NodeDeprecationChecks::checkDynamicLoggerChildOverride
         );
 
@@ -1035,6 +1037,99 @@ public class NodeDeprecationChecks {
             url,
             "As of 8.8.0 this setting is ignored.",
             DeprecationIssue.Level.WARNING
+        );
+    }
+
+    private static final String TELEMETRY_AGENT_PREFIX = "telemetry.agent.";
+
+    private static final String TELEMETRY_AGENT_GLOBAL_LABELS = TELEMETRY_AGENT_PREFIX + "global_labels";
+
+    /**
+     * Replacements for the {@code telemetry.agent.*} settings that configured the removed Elastic APM Java agent.
+     * Any key not covered here is accepted but ignored.
+     */
+    private static final Map<String, String> TELEMETRY_AGENT_SETTING_REPLACEMENTS = Map.ofEntries(
+        entry("telemetry.agent.server_url", "telemetry.export.endpoint"),
+        entry("telemetry.agent.server_urls", "telemetry.export.endpoint"),
+        entry("telemetry.agent.server_timeout", "telemetry.export.send_timeout"),
+        entry("telemetry.agent.verify_server_cert", "telemetry.export.verify_server_cert"),
+        entry("telemetry.agent.metrics_interval", "telemetry.export.interval"),
+        entry("telemetry.agent.disable_metrics", "telemetry.metrics.disabled"),
+        entry("telemetry.agent.transaction_sample_rate", "telemetry.tracing.sample_rate"),
+        entry("telemetry.agent.transaction_max_spans", "telemetry.tracing.max_spans"),
+        entry("telemetry.agent.max_queue_size", "telemetry.tracing.max_queue_size"),
+        entry("telemetry.agent.sanitize_field_names", "telemetry.tracing.sanitize_field_names"),
+        entry("telemetry.agent.service_name", "telemetry.resource.service.name"),
+        entry("telemetry.agent.service_node_name", "telemetry.resource.service.instance.id"),
+        entry("telemetry.agent.hostname", "telemetry.resource.host.name"),
+        entry("telemetry.agent.environment", "telemetry.resource.deployment.environment")
+    );
+
+    static DeprecationIssue checkTelemetryAgentSettings(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        final Settings clusterSettings = clusterState.metadata().settings();
+        final List<String> keysInUse = Stream.of(clusterSettings, settings)
+            .flatMap(s -> s.getByPrefix(TELEMETRY_AGENT_PREFIX).keySet().stream())
+            .map(key -> TELEMETRY_AGENT_PREFIX + key)
+            .distinct()
+            .sorted()
+            .toList();
+        if (keysInUse.isEmpty()) {
+            return null;
+        }
+
+        // global_labels is an affix with user-defined label names, so it cannot be listed in the replacement map and is
+        // reported once against the telemetry.resource.* prefix rather than once per label.
+        final List<String> replaceable = new ArrayList<>();
+        final List<String> globalLabels = new ArrayList<>();
+        final List<String> ignored = new ArrayList<>();
+        for (String key : keysInUse) {
+            // also covers the agent's single-key form, telemetry.agent.global_labels: name=value,...
+            if (key.equals(TELEMETRY_AGENT_GLOBAL_LABELS) || key.startsWith(TELEMETRY_AGENT_GLOBAL_LABELS + ".")) {
+                globalLabels.add(key);
+            } else if (TELEMETRY_AGENT_SETTING_REPLACEMENTS.containsKey(key)) {
+                replaceable.add(key);
+            } else {
+                ignored.add(key);
+            }
+        }
+
+        final List<String> details = new ArrayList<>();
+        details.add("The Elastic APM Java agent has been removed; telemetry is exported by the OpenTelemetry SDK.");
+        if (replaceable.isEmpty() == false) {
+            details.add(
+                replaceable.stream()
+                    .map(key -> String.format(Locale.ROOT, "[%s] with [%s]", key, TELEMETRY_AGENT_SETTING_REPLACEMENTS.get(key)))
+                    .collect(Collectors.joining(", ", "Replace ", "."))
+            );
+        }
+        if (globalLabels.isEmpty() == false) {
+            details.add(
+                "Move each [telemetry.agent.global_labels.<name>] setting to [telemetry.resource.<name>], "
+                    + "which attaches it to every exported metric and span."
+            );
+        }
+        if (ignored.isEmpty() == false) {
+            details.add(
+                String.format(
+                    Locale.ROOT,
+                    "The remaining settings %s configured the agent itself and have no direct replacement; remove them.",
+                    ignored
+                )
+            );
+        }
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT, "Settings %s are deprecated", keysInUse),
+            "https://ela.st/es-deprecation-9-telemetry-agent-settings",
+            String.join(" ", details),
+            false,
+            null
         );
     }
 

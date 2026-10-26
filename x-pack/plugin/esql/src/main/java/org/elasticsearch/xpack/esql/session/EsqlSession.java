@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -155,7 +156,9 @@ import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.Clock;
@@ -164,8 +167,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -174,6 +179,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -427,6 +433,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         executionInfo.queryProfile().planning().start();
@@ -451,10 +458,12 @@ public class EsqlSession {
         listener = wrapForAnonymizedFailureLog(listener);
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
+        int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
-            inferenceService.inferenceSettings()
+            inferenceService.inferenceSettings(),
+            maxCommandCount
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -488,9 +497,14 @@ public class EsqlSession {
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider),
-            verifier.licenseState(),
-            plannerSettings.loadAllMaxFields()
+            verifier.licenseState()
         );
+        // Resolve LET bindings before view resolution. This is a synchronous, local rewrite that
+        // requires no cluster state — it simply substitutes named subquery bodies for their names.
+        // Performing it before replaceViews ensures that LET names never reach field-caps and that
+        // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount);
+
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
         request.setResolvedSettings(resolved);
@@ -500,41 +514,61 @@ public class EsqlSession {
         // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
-        boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(request.filter());
+        // The weakest ViewBoundaryPreservation level that covers this request: a DSL filter needs view branches kept
+        // so the rewriter can apply it at view outputs; a setting that must stop at view boundaries needs pass-through
+        // view identity kept too — a view must produce the same rows whatever the caller's query settings say (a
+        // materialized view would have baked its contents in). For a non-DEFAULT unmapped_fields, ResolveUnmapped skips
+        // every view branch wholesale and null-fills outer references at the view's output instead; for
+        // wildcards_match_datasets, the dataset rewrite turns wildcard dataset matching off inside view branches.
+        ViewBoundaryPreservation boundaryPreservation = ViewBoundaryPreservation.NONE;
+        if (ViewRequestFilterRewriter.appliesToViewOutputs(request.filter())) {
+            boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
+        }
+        if (ViewBoundaryPreservation.settingsRequireViewIdentity(
+            QuerySettings.UNMAPPED_FIELDS.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)
+        )) {
+            boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
+        }
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
-            (query, viewName) -> planningCpu.meteredCpu(
-                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan()
-            ),
-            preserveViewBoundaries,
+            // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
+            // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
+            (query, viewName) -> planningCpu.meteredCpu(() -> {
+                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
+                return new EsqlStatement(
+                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount),
+                    viewStmt.settings(),
+                    List.of()
+                );
+            }),
+            boundaryPreservation,
+            maxCommandCount,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
-                rejectViewsForExemplars(resolved, viewResolution);
+                if (QuerySettings.EXEMPLARS.get(resolved).enabled()) {
+                    verifyExemplarsQuery(viewResolution);
+                }
                 viewResolutionProfile.stop();
+                request.setViewSettings(viewResolution.viewSettings());
                 analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             }))
         );
     }
 
-    /**
-     * Rejects views in a query run with {@code SET exemplars=true}.
-     * <p>
-     * TODO: support views with the exemplars setting, with explicit tests. View resolution has inlined the view bodies by now, so the
-     * exemplar rewrite (see {@link ExemplarsRewriter}) would derive exemplar data streams from a {@code TS} or {@code PROMQL} query
-     * inside a view body, while dropping the view boundary and every operation applied to the view's output. Whether that is the
-     * intended behavior has not been decided, so views are rejected until it is.
-     */
-    private static void rejectViewsForExemplars(ResolvedSettings resolved, ViewResolver.ViewResolutionResult viewResolution) {
-        if (QuerySettings.EXEMPLARS.get(resolved).enabled() && viewResolution.viewQueries().isEmpty() == false) {
+    private static void verifyExemplarsQuery(ViewResolver.ViewResolutionResult viewResolution) {
+        // TODO support views with exemplars. There's no technical reason to not support them, we just need to check them with tests
+        if (viewResolution.viewQueries().isEmpty() == false) {
             throw new VerificationException(
                 "The exemplars setting does not support views yet, found view(s) [{}]",
                 String.join(", ", new TreeSet<>(viewResolution.viewQueries().keySet()))
             );
         }
+        ExemplarsRewriter.verifyMetricsQuery(viewResolution.plan());
     }
 
     private void analyseAndExecute(
@@ -558,9 +592,10 @@ public class EsqlSession {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
-            gatherSettingsMetrics(request, statement, resolved);
+            gatherLetMetrics(statement);
+            gatherSettingsMetrics(request, statement, resolved, viewResolution.viewSettings());
             // APM
-            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
+            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved, viewResolution.viewSettings());
             // Trigger IP location database downloads for any IP_LOCATION command
             requestIpLocationDownloads(viewResolution.plan());
         }
@@ -605,6 +640,7 @@ public class EsqlSession {
             executionInfo,
             request.filter(),
             viewResolution.indexViewOrigins(),
+            viewResolution.viewSettings(),
             new ActionListener<Versioned<LogicalPlan>>() {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
@@ -1010,7 +1046,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
@@ -1497,9 +1533,15 @@ public class EsqlSession {
 
     /**
      * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
-     * and settings from the original statement plus any nodes introduced by view expansion.
+     * and settings from the original statement plus any nodes introduced by view expansion. The settings view
+     * definitions apply to their own bodies are recorded apart from the caller's.
      */
-    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings, ResolvedSettings resolved) {
+    private void gatherPlanTelemetry(
+        LogicalPlan plan,
+        List<QuerySetting> settings,
+        ResolvedSettings resolved,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
         // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
         // should not be counted as standalone STATS commands.
@@ -1529,6 +1571,7 @@ public class EsqlSession {
             settings.forEach(s -> planTelemetry.setting(s.name()));
         }
         planTelemetry.resolvedSettings(resolved);
+        planTelemetry.viewSettings(viewSettings.values());
     }
 
     /**
@@ -1565,7 +1608,12 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement, ResolvedSettings resolved) {
+    private void gatherSettingsMetrics(
+        EsqlQueryRequest request,
+        EsqlStatement statement,
+        ResolvedSettings resolved,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         if (metrics == null) {
             return;
         }
@@ -1574,6 +1622,7 @@ public class EsqlSession {
         // ignores settings that don't have a registered counter.
         suppliedSettingNames(request, statement).forEach(metrics::incSetting);
         metrics.incResolvedSettings(resolved);
+        metrics.incViewSettings(viewSettings.values());
     }
 
     /**
@@ -1616,6 +1665,13 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.IN_SUBQUERY);
+    }
+
+    private void gatherLetMetrics(EsqlStatement statement) {
+        if (metrics == null || statement.letBindings() == null || statement.letBindings().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.LET);
     }
 
     /**
@@ -1680,6 +1736,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
         IndexViewOrigins indexViewOrigins,
+        Map<String, ViewQuerySettings> viewSettings,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1696,13 +1753,16 @@ public class EsqlSession {
             parsed,
             projectMetadata,
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            viewSettings,
+            indexViewOrigins,
             configuration.pragmas(),
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(
-                    rewritten,
+                    scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
                     unmappedResolution,
+                    viewSettings,
                     configuration,
                     executionInfo,
                     requestFilter,
@@ -1716,6 +1776,7 @@ public class EsqlSession {
     private void analyzedPlanAfterDatasetResolution(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
@@ -1732,7 +1793,7 @@ public class EsqlSession {
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
         // cause bugs.
-        PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
+        PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
@@ -1755,11 +1816,16 @@ public class EsqlSession {
         // ({@link ViewRequestFilterRewriter#rewrite} and {@link PlannerUtils#integrateEsFilterIntoFragment}) always run against
         // {@code request.filter()}. Deriving this from the retry-scoped filter instead would collapse the boundaries the rewriter
         // still needs, leaving the raw DSL to be pushed into the view's source scan.
-        boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter);
+        // A non-DEFAULT unmapped_fields — the caller's, or a SET inside a view definition — preserves boundaries too,
+        // mirroring the decision in execute(): ViewCompaction (an analyzer rule reading AnalyzerContext.preserveViewBoundaries()) must not
+        // collapse the lone-view wrappers that ResolveUnmapped null-fills outer references on. esql-planning#2273.
+        boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
+            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings);
 
         resolveIndicesAndAnalyze(
             parsed,
             unmappedResolution,
+            viewSettings,
             configuration,
             executionInfo,
             description,
@@ -1788,14 +1854,15 @@ public class EsqlSession {
         LogicalPlan parsed,
         PreAnalyzer.PreAnalysis preAnalysis,
         UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
         @Nullable QueryBuilder requestFilter,
         Configuration configuration
     ) {
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
-            parsed,
-            preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution.loadsUnmappedFields()
-        );
+        // Parent prefixes let the verifier see flattened parents of a loaded subfield. A view that SETs a loading mode
+        // needs them even when the caller does not.
+        boolean loadsUnmappedFields = unmappedResolution.loadsUnmappedFields()
+            || viewSettings.values().stream().anyMatch(settings -> settings.unmappedFields().loadsUnmappedFields());
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, loadsUnmappedFields);
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
             && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
@@ -1813,6 +1880,7 @@ public class EsqlSession {
     private void resolveIndicesAndAnalyze(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         String description,
@@ -1946,6 +2014,7 @@ public class EsqlSession {
                 analyzeWithRetry(
                     parsed,
                     nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
+                    viewSettings,
                     configuration,
                     executionInfo,
                     description,
@@ -2535,6 +2604,60 @@ public class EsqlSession {
     }
 
     /**
+     * Scopes the index pattern of every relation inside a view body to that view (see {@link IndexPattern#insideView}), when
+     * unmapped fields are loaded anywhere in the query — by the caller's setting or by a view definition's own {@code SET}. A view
+     * is a virtual index with no {@code _source} of its own, so its relations resolve under the view's own {@code unmapped_fields}
+     * (its definition's {@code SET}, or {@code DEFAULT} without one), never the caller's. Resolutions are keyed by index pattern,
+     * so a pattern named by scopes that resolve differently needs a distinct pattern per scope; otherwise they would share one
+     * resolution.
+     * <p>
+     * View bodies are found by their position, as the view branches of a {@link BranchPlan}. They are kept while any relevant
+     * setting is active, see {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}. A nested view branch (present when its parent
+     * view's own settings required nested identity) is its own scope, governed by its own definition.
+     */
+    private static LogicalPlan scopeIndexPatternsInViews(
+        LogicalPlan plan,
+        UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
+        if (unmappedResolution.loadsUnmappedFields() == false
+            && viewSettings.values().stream().noneMatch(s -> s.unmappedFields().loadsUnmappedFields())) {
+            return plan;
+        }
+        return scopeIndexPatterns(plan, null, viewSettings);
+    }
+
+    /**
+     * The recursion of {@link #scopeIndexPatternsInViews}: {@code viewLoadsUnmapped} is {@code null} in the caller's own
+     * territory and carries the owning view's loading mode inside a view branch.
+     */
+    private static LogicalPlan scopeIndexPatterns(
+        LogicalPlan plan,
+        @Nullable Boolean viewLoadsUnmapped,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
+        if (plan instanceof UnresolvedRelation ur) {
+            return viewLoadsUnmapped == null ? ur : ur.withIndexPattern(ur.indexPattern().insideView(viewLoadsUnmapped));
+        }
+        List<LogicalPlan> children = plan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            Boolean childScope = viewLoadsUnmapped;
+            if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
+                childScope = ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), viewSettings)
+                    .unmappedFields()
+                    .loadsUnmappedFields();
+            }
+            LogicalPlan newChild = scopeIndexPatterns(child, childScope, viewSettings);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        return changed ? plan.replaceChildren(newChildren) : plan;
+    }
+
+    /**
      * Perform a field caps request for each index pattern and determine the minimum transport version of all clusters with matching
      * indices.
      */
@@ -2574,7 +2697,9 @@ public class EsqlSession {
                     e.getValue(),
                     preAnalysis,
                     executionInfo,
-                    trackUnmappedFieldIndices,
+                    // A view body resolves under its own definition's unmapped_fields (DEFAULT without a SET), never the
+                    // caller's: a view is a virtual index with no _source of its own to load from.
+                    e.getKey().isInsideView() ? e.getKey().viewLoadsUnmappedFields() : trackUnmappedFieldIndices,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2597,7 +2722,9 @@ public class EsqlSession {
                     QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
                     preAnalysis,
                     executionInfo,
-                    trackUnmappedFieldIndices,
+                    // A view body resolves under its own definition's unmapped_fields (DEFAULT without a SET), never the
+                    // caller's: a view is a virtual index with no _source of its own to load from.
+                    e.getKey().isInsideView() ? e.getKey().viewLoadsUnmappedFields() : trackUnmappedFieldIndices,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2916,6 +3043,7 @@ public class EsqlSession {
     private void analyzeWithRetry(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         String description,
@@ -2945,6 +3073,7 @@ public class EsqlSession {
             LogicalPlan plan = analyzedPlan(
                 parsed,
                 unmappedResolution,
+                viewSettings,
                 configuration,
                 result,
                 executionInfo,
@@ -2969,6 +3098,7 @@ public class EsqlSession {
                 resolveIndicesAndAnalyze(
                     parsed,
                     unmappedResolution,
+                    viewSettings,
                     configuration,
                     executionInfo,
                     "second attempt, without filter",
@@ -3011,6 +3141,7 @@ public class EsqlSession {
     private LogicalPlan analyzedPlan(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
@@ -3033,15 +3164,18 @@ public class EsqlSession {
             timestampBounds,
             resolveIpLocations(parsed),
             preserveViewBoundaries,
+            viewSettings,
             flags
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         ExemplarsSettings exemplarsSettings = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings());
         if (exemplarsSettings.enabled()) {
-            // The analyzed metrics query is not executed. The initial rewrite replaces it with the relation over all resolved exemplar
-            // data streams; that relation is analyzed in turn to resolve its fields.
-            plan = analyzer.analyze(ExemplarsRewriter.exemplarsQuery(plan, r.exemplarsResolution(), exemplarsSettings));
+            // The analyzed metrics query is not executed. It is replaced with a query over the resolved exemplar data streams for the
+            // metrics it aggregates; that query is analyzed in turn to resolve its fields.
+            plan = analyzer.analyze(
+                ExemplarsRewriter.exemplarsQuery(plan, r.indexResolution().values(), r.exemplarsResolution(), exemplarsSettings)
+            );
         }
         plan.setAnalyzed();
         return plan;

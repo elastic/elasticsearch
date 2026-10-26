@@ -426,8 +426,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 false,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders,
-                false,
-                indexSettings.getPostFilterSelectivityThreshold()
+                false
             );
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -543,8 +542,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
             final String fullName = context.buildFullName(leafName());
             if (context.isInNestedContext()) {
+                // If we ever support inference fields in nested contexts, RootScopedQueryBuilder usage (and intercepted query rewriting in
+                // general) will have to be adjusted accordingly.
                 throw new IllegalArgumentException(contentType() + " field [" + fullName + "] cannot be nested");
             }
+
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder != null
                 ? inferenceFieldBuilder.build(childContext)

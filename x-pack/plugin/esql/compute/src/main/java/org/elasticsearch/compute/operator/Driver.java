@@ -191,24 +191,22 @@ public class Driver implements Releasable, Describable {
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
-     * {@code threadCpuNanosSupplier} is the CPU clock of the current thread, a parameter so tests can control it.
-     * It returns {@code -1} when thread CPU time is unsupported.
+     * The thread CPU time it uses is measured by {@link DriverContext#meteredCpu}, so it is counted once even when
+     * this runs inside an operator's measurement of this driver. That happens once the driver was cancelled or finished
+     * early: the scheduler then runs it directly on the thread that completes the listener it is blocked on, such as a
+     * worker's.
      * CPU and driver time are published at status updates. If an iteration throws, including cancellation,
      * time accumulated since the last status update is not included in the reported totals.
      */
-    SubscribableListener<Void> run(
-        TimeValue maxTime,
-        int maxIterations,
-        LongSupplier currentTimeNanosSupplier,
-        LongSupplier threadCpuNanosSupplier
-    ) {
+    SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
+        return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
+    }
+
+    private SubscribableListener<Void> runLoop(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
         long maxTimeNanos = maxTime.nanos();
         // Start time, used to stop the calculations after maxTime has passed.
         long startTime = currentTimeNanosSupplier.getAsLong();
-        // The thread CPU time at the last status update. Only read when the status is updated, never per iteration.
-        // Read next to startTime so CPU and driver time cover the same span.
-        long lastStatusUpdateCpu = threadCpuNanosSupplier.getAsLong();
-        updateStatus(0, 0, 0, DriverStatus.Status.RUNNING, "driver running", startTime);
+        updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running", startTime);
         // The time of the next forced status update.
         long nextStatus = startTime + statusNanos;
         // Total executed iterations this run, used to stop the calculations after maxIterations have passed.
@@ -254,7 +252,6 @@ public class Driver implements Releasable, Describable {
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.ASYNC,
                     isBlocked.reason(),
@@ -264,11 +261,9 @@ public class Driver implements Releasable, Describable {
             }
             if (isFinished()) {
                 finishNanos = now;
-                long extraCpuNanos = ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong());
                 if (pendingFinalStatus.isEmpty()) {
                     updateStatus(
                         finishNanos - lastStatusUpdateTime,
-                        extraCpuNanos,
                         iterationsSinceLastStatusUpdate,
                         DriverStatus.Status.DONE,
                         "driver done",
@@ -276,10 +271,9 @@ public class Driver implements Releasable, Describable {
                     );
                 } else {
                     // Delay DONE until waitForAsyncActions so a later resnapshot of kept operators
-                    // is the status the profile sees. Final-loop thread CPU and driver wall time are recorded here.
+                    // is the status the profile sees. Final-loop CPU and driver wall time are recorded here.
                     updateStatus(
                         finishNanos - lastStatusUpdateTime,
-                        extraCpuNanos,
                         iterationsSinceLastStatusUpdate,
                         DriverStatus.Status.RUNNING,
                         "driver finishing",
@@ -293,7 +287,6 @@ public class Driver implements Releasable, Describable {
             if (totalIterationsThisRun >= maxIterations) {
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.WAITING,
                     "driver iterations",
@@ -302,21 +295,12 @@ public class Driver implements Releasable, Describable {
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(
-                    now - lastStatusUpdateTime,
-                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.WAITING,
-                    "driver time",
-                    now
-                );
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.WAITING, "driver time", now);
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
-                long cpuNow = threadCpuNanosSupplier.getAsLong();
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, cpuNow),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.RUNNING,
                     "driver running",
@@ -324,7 +308,6 @@ public class Driver implements Releasable, Describable {
                 );
                 iterationsSinceLastStatusUpdate = 0;
                 lastStatusUpdateTime = now;
-                lastStatusUpdateCpu = cpuNow;
                 nextStatus = now + statusNanos;
             }
         }
@@ -503,7 +486,7 @@ public class Driver implements Releasable, Describable {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             LongSupplier currentTimeNanosSupplier = System::nanoTime;
-            driver.updateStatus(0, 0, 0, DriverStatus.Status.STARTING, "driver starting", currentTimeNanosSupplier.getAsLong());
+            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting", currentTimeNanosSupplier.getAsLong());
             initializeEarlyTerminationChecker(driver);
             schedule(
                 DEFAULT_TIME_BEFORE_YIELDING,
@@ -596,7 +579,7 @@ public class Driver implements Releasable, Describable {
         AbstractRunnable task = new AbstractRunnable() {
             @Override
             protected void doRun() {
-                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier, ThreadCpuTimer::currentNanos);
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier);
                 if (driver.isFinished()) {
                     onComplete(listener);
                     return;
@@ -627,7 +610,7 @@ public class Driver implements Releasable, Describable {
             void onComplete(ActionListener<Void> listener) {
                 driver.driverContext.waitForAsyncActions(
                     ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignored -> {
-                        driver.publishFinalStatusIfNeeded();
+                        driver.publishFinalStatus();
                         listener.onResponse(null);
                     }, listener::onFailure), threadContext)
                 );
@@ -712,38 +695,32 @@ public class Driver implements Releasable, Describable {
     }
 
     /**
-     * Replaces kept operator statuses after async close and publishes {@code DONE}.
+     * Replaces kept operator statuses after async close and publishes {@code DONE}. Always publishes, even when the
+     * driver loop already published {@code DONE}, because the rest of that loop and operators on other threads add CPU
+     * time after its last status update.
      * May run on a producer thread; the driver loop is already dead.
      */
-    private void publishFinalStatusIfNeeded() {
-        if (pendingFinalStatus.isEmpty()) {
-            return;
-        }
+    private void publishFinalStatus() {
         for (PendingFinalStatus pending : pendingFinalStatus) {
             Operator op = pending.operator;
             statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));
         }
         pendingFinalStatus.clear();
-        updateStatus(0, 0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
+        updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
     }
 
     private record PendingFinalStatus(int index, Operator operator) {}
 
     /**
-     * Update the status.
+     * Update the status. The CPU time is the driver context's {@link DriverContext#cpuNanos() total}, after adding
+     * what the calling thread's open measurement of this driver has used so far.
      * @param extraDriverNanos how many nanoseconds the driver held a thread since the previous status
-     * @param extraCpuNanos how many nanoseconds of thread CPU time to add to the previous status
      * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
      */
-    private void updateStatus(
-        long extraDriverNanos,
-        long extraCpuNanos,
-        int extraIterations,
-        DriverStatus.Status status,
-        String reason,
-        long nowNanos
-    ) {
+    private void updateStatus(long extraDriverNanos, int extraIterations, DriverStatus.Status status, String reason, long nowNanos) {
+        driverContext.cpuTracker().checkpoint();
+        long cpuNanos = driverContext.cpuNanos();
         this.status.getAndUpdate(prev -> {
             long now = System.currentTimeMillis();
             DriverSleeps sleeps = prev.sleeps();
@@ -781,7 +758,7 @@ public class Driver implements Releasable, Describable {
                 status == DriverStatus.Status.RUNNING ? Thread.currentThread().getName() : prev.threadName(),
                 startTime,
                 now,
-                prev.cpuNanos() + extraCpuNanos,
+                cpuNanos,
                 prev.driverNanos() + extraDriverNanos,
                 prev.iterations() + extraIterations,
                 status,

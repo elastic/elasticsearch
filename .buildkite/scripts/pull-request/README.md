@@ -66,6 +66,13 @@ Only trigger a step if the PR has one of these labels.
 
 Don't trigger the step if the PR has one of these labels.
 
+#### `skip-target-branches`
+
+- Type: `string|string[]`
+- Example: `["main", "patch/serverless-fix"]`
+
+Don't trigger the step if the PR targets one of these branches.
+
 #### `excluded-regions`
 
 - Type: `string|string[]` - must be JavaScript regexes

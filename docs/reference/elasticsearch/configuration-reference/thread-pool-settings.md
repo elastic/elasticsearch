@@ -71,7 +71,7 @@ $$$search-throttled$$$`search_throttled`
 $$$merge-threadpool$$$
 
 `merge`
-:   For [merge](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html) operations of all the shards on the node. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of [`# of allocated processors`](#node.processors).
+:   For [merge](/reference/elasticsearch/index-settings/merge.md) operations of all the shards on the node. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of [`# of allocated processors`](#node.processors).
 
 `force_merge`
 :   For waiting on blocking [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) operations. Thread pool type is `fixed` with a size of `max(1, (`[`# of allocated processors`](#node.processors)`) / 8)` and an unbounded queue size.

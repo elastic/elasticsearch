@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -49,6 +51,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -57,6 +60,9 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -102,6 +108,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * every external request on this node gets the same answer.
      */
     private final boolean federationAvailable;
+    /**
+     * Decides whether a received plan may read the datasets it names, before anything is planned or rebound; see
+     * {@link #messageReceived}.
+     */
+    private final ExternalSourceAuthorizer externalSourceAuthorizer;
 
     DataNodeComputeHandler(
         ComputeService computeService,
@@ -110,7 +121,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
-        Executor searchExecutor
+        Executor searchExecutor,
+        Client client
     ) {
         this.computeService = computeService;
         this.clusterService = clusterService;
@@ -121,6 +133,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
+        this.externalSourceAuthorizer = new ExternalSourceAuthorizer(
+            client,
+            threadPool.getThreadContext(),
+            searchExecutor,
+            Build.current().isSnapshot()
+        );
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
@@ -773,8 +791,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
-                        // The slices the plan reads, for the field mappers that build its queries. A plan that selects none
-                        // says so: unlike a search request, it does not read every slice by default.
+                        // The slices the plan reads, for the field mappers that build its queries.
                         context.getSearchExecutionContext().setSliceSelection(slices);
                         context.preProcess();
                         newContexts.add(context);
@@ -939,6 +956,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
     }
 
+    /**
+     * A plan that names an external dataset is authorized for the request's credential before any branch below runs,
+     * so neither the planning nor the rebind ({@link DatasetConfigResolver}) ever sees a dataset the caller may not
+     * read. The security filter authorized this action on the wire-supplied {@code indices()} only, which says nothing
+     * about the datasets inside the plan; see {@link ExternalSourceAuthorizer}. Both request shapes a coordinator
+     * sends, external splits without shards and shards with a plan that also reads a dataset, are authorized by the
+     * same rule; a plan with an external node but neither shards nor splits has no legitimate sender and is refused,
+     * as is any external node under a cross-cluster-access authentication. A plan without an external node, the
+     * common case, pays nothing: no round-trip, no thread hop.
+     */
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
         ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
@@ -950,6 +977,44 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
                 return resp;
             });
+        final CancellableTask cancellableTask = (CancellableTask) task;
+        final TransportVersion channelVersion = channel.getVersion();
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(request.plan());
+        if (datasets.isEmpty()) {
+            startCompute(request, channelVersion, cancellableTask, listener);
+            return;
+        }
+        final Exception refusal;
+        if (request.externalSplits().isEmpty() && request.shards().isEmpty()) {
+            refusal = ExternalSourceAuthorizer.unexpectedShape("a data node request with neither shards nor external splits");
+        } else if (externalSourceAuthorizer.isCrossClusterAccess()) {
+            refusal = ExternalSourceAuthorizer.notLocal();
+        } else {
+            refusal = null;
+        }
+        if (refusal != null) {
+            failWithoutStarting(request, listener, refusal);
+            return;
+        }
+        // A throw out of startCompute lands in failWithoutStarting; the channel must not be answered a second time if
+        // the compute had already been started and answered it.
+        final ActionListener<DataNodeComputeResponse> once = ActionListener.notifyOnce(listener);
+        externalSourceAuthorizer.authorize(
+            datasets,
+            new TaskId(clusterService.localNode().getId(), task.getId()),
+            ActionListener.wrap(
+                ignored -> startCompute(request, channelVersion, cancellableTask, once),
+                e -> failWithoutStarting(request, once, e)
+            )
+        );
+    }
+
+    private void startCompute(
+        DataNodeRequest request,
+        TransportVersion channelVersion,
+        CancellableTask task,
+        ActionListener<DataNodeComputeResponse> listener
+    ) {
         Configuration configuration = request.configuration();
         PlanTimeProfile planTimeProfile = null;
         if (configuration.profile()) {
@@ -957,7 +1022,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         if (request.externalSplits().isEmpty() == false && request.shards().isEmpty()) {
-            handleExternalSourceRequest(request, (CancellableTask) task, listener, planTimeProfile);
+            handleExternalSourceRequest(request, task, listener, planTimeProfile);
             return;
         }
 
@@ -993,10 +1058,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
-        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
+        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
         runComputeOnDataNode(
-            (CancellableTask) task,
+            task,
             sessionId,
             reductionPlan,
             request.withPlan(reductionPlan.dataNodePlan()),
@@ -1029,12 +1094,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
-     * Rejects an external request that never got as far as building a driver. The coordinator opened the exchange before
+     * Rejects a request that never got as far as building a driver. The coordinator opened the exchange before
      * sending the request, so a sink handler is already registered here; it has to be failed explicitly or the
      * coordinator's exchange source only learns of the refusal through task cancellation and this node holds an
-     * unfinished sink until the inactive-sinks reaper runs.
+     * unfinished sink until the inactive-sinks reaper runs. A no-op on the sink side when none is registered.
      */
-    private void failWithoutStarting(DataNodeRequest request, ActionListener<DataNodeComputeResponse> listener, Exception failure) {
+    private void failWithoutStarting(DataNodeRequest request, ActionListener<?> listener, Exception failure) {
         exchangeService.finishSinkHandler(request.sessionId(), failure);
         listener.onFailure(failure);
     }
@@ -1105,7 +1170,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
         // (including filter pushdown via FormatReader.filterPushdownSupport())
-        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them.
+        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them, and
+        // every external source is rebound to this node's own dataset definition (DatasetConfigResolver): the plan
+        // came over the wire and does not get to choose what is read or with which credentials.
         // Kept outside the ComputeListener below: a throw before any acquire, followed by close(), would
         // complete the request successfully and leave the sink registered when sourcesFinished was never sent.
         final PhysicalPlan planWithSplits;
@@ -1119,7 +1186,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 SearchStats.EMPTY,
                 computeService.formatReaderRegistry(),
                 request.externalSplits(),
-                planTimeProfile
+                planTimeProfile,
+                DatasetConfigResolver.forProduction(projectResolver.getProjectMetadata(clusterService.state()))
             );
         } catch (Exception e) {
             LOGGER.warn(

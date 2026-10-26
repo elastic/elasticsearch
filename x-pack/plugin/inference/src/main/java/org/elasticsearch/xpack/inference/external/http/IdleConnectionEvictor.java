@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.nio.conn.NHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -17,7 +17,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -25,26 +24,29 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 /**
  * Starts a monitoring task to remove expired and idle connections from the HTTP connection pool.
- * This is modeled off of https://github.com/apache/httpcomponents-client/blob/master/httpclient5/
- * src/main/java/org/apache/hc/client5/http/impl/IdleConnectionEvictor.java
  *
- * NOTE: This class should be removed once the apache async client is upgraded to 5.x because that version of the library
- * includes this already.
+ * The http client library ships an equivalent evictor thread, but it is configured once at client build time. We keep this
+ * implementation because the eviction interval and max idle time are dynamic cluster settings, and because it schedules on the
+ * Elasticsearch thread pool instead of spawning a dedicated thread.
  *
- * See <a href="https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html#d5e418">here for more info.</a>
+ * TODO (httpclient5 migration): the migration plan proposed deleting this in favor of
+ * HttpAsyncClientBuilder#evictIdleConnections/#evictExpiredConnections; that was intentionally not done to keep the
+ * connection_eviction_* settings dynamic. If those settings ever become node-restart-scoped, switch to the built-in evictor.
+ *
+ * See <a href="https://hc.apache.org/httpcomponents-client-5.5.x/current/httpclient5/apidocs/org/apache/hc/client5/http/impl/IdleConnectionEvictor.html">here for more info.</a>
  */
 public class IdleConnectionEvictor implements Closeable {
     private static final Logger logger = LogManager.getLogger(IdleConnectionEvictor.class);
 
     private final ThreadPool threadPool;
-    private final NHttpClientConnectionManager connectionManager;
+    private final PoolingAsyncClientConnectionManager connectionManager;
     private final TimeValue sleepTime;
     private final AtomicReference<TimeValue> maxIdleTime = new AtomicReference<>();
     private final AtomicReference<Scheduler.Cancellable> cancellableTask = new AtomicReference<>();
 
     public IdleConnectionEvictor(
         ThreadPool threadPool,
-        NHttpClientConnectionManager connectionManager,
+        PoolingAsyncClientConnectionManager connectionManager,
         TimeValue sleepTime,
         @Nullable TimeValue maxIdleTime
     ) {
@@ -69,9 +71,9 @@ public class IdleConnectionEvictor implements Closeable {
 
         cancellableTask.set(threadPool.scheduleWithFixedDelay(() -> {
             try {
-                connectionManager.closeExpiredConnections();
+                connectionManager.closeExpired();
                 if (maxIdleTime.get() != null) {
-                    connectionManager.closeIdleConnections(maxIdleTime.get().millis(), TimeUnit.MILLISECONDS);
+                    connectionManager.closeIdle(org.apache.hc.core5.util.TimeValue.ofMilliseconds(maxIdleTime.get().millis()));
                 }
             } catch (Exception e) {
                 logger.warn("HTTP connection eviction failed", e);

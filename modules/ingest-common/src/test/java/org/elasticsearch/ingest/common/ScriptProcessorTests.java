@@ -38,19 +38,13 @@ public class ScriptProcessorTests extends ESTestCase {
     @Before
     public void setupScripting() {
         String scriptName = "script";
-        scriptService = new ScriptService(
-            Settings.builder().build(),
-            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
-                Integer bytesIn = (Integer) ctx.get("bytes_in");
-                Integer bytesOut = (Integer) ctx.get("bytes_out");
-                ctx.put("bytes_total", bytesIn + bytesOut);
-                ctx.put("_dynamic_templates", Map.of("foo", "bar"));
-                return null;
-            }), Map.of())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L,
-            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
-        );
+        scriptService = scriptService(scriptName, ctx -> {
+            Integer bytesIn = (Integer) ctx.get("bytes_in");
+            Integer bytesOut = (Integer) ctx.get("bytes_out");
+            ctx.put("bytes_total", bytesIn + bytesOut);
+            ctx.put("_dynamic_templates", Map.of("foo", "bar"));
+            return null;
+        });
         script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of());
         ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
     }
@@ -67,6 +61,16 @@ public class ScriptProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = randomDocument();
         processor.execute(ingestDocument);
         assertIngestDocument(ingestDocument);
+    }
+
+    private ScriptService scriptService(String scriptName, java.util.function.Function<Map<String, Object>, Object> script) {
+        return new ScriptService(
+            Settings.builder().build(),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, script), Map.of())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     private IngestDocument randomDocument() {

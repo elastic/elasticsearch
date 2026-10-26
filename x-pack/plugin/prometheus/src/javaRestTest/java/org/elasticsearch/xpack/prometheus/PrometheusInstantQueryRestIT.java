@@ -694,6 +694,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("count without (host) (sum by (host) (tx) / sum by (host) (rx))", 3);
     }
 
+    /**
+     * Prometheus reads {@code {__name__="tx",host="a"}} the same as {@code tx{host="a"}}: the position of the {@code __name__}
+     * matcher among the label matchers does not change which labels the other matchers filter on.
+     */
+    public void testInstantNameMatcherPositionDoesNotChangeTheResult() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of(
+            "tx{host=\"a\"}",
+            "{host=\"a\",__name__=\"tx\"}",
+            "{__name__=\"tx\",host=\"a\"}",
+            "{\"tx\",host=\"a\"}"
+        )) {
+            assertBinopInstantValues(query, 10);
+        }
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
@@ -701,5 +717,63 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("bottomk(1.5, tx)", 10);
         assertBinopInstantValues("topk(2.9, tx)", 30, 12);
         assertBinopInstantValues("topk(0.5, tx)");
+    }
+
+    /**
+     * A count over no element is no element, not 0: {@code count by (cluster) (rx{host="a"})} has no {@code qa} group, so the
+     * operator has no {@code qa} pair; two counts over nothing pair nothing.
+     */
+    public void testInstantCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopInstantValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopInstantValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
+    }
+
+    /**
+     * A range function over a series without a matching sample is no element: {@code rx{host="a"}} has no {@code qa}
+     * series, so neither the count nor the sum of its {@code count_over_time} has a {@code qa} element, and the count
+     * covers host a alone rather than every series the operands share.
+     */
+    public void testInstantSamplesOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups(
+            "count by (cluster) (count_over_time(tx[5m])) - count by (cluster) (count_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 1.0)
+        );
+        assertBinopInstantGroups(
+            "sum by (cluster) (count_over_time(tx[5m])) - sum by (cluster) (count_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 2.0)
+        );
+        assertBinopInstantGroups(
+            "count by (cluster) (present_over_time(tx[5m])) - count by (cluster) (present_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 1.0)
+        );
+    }
+
+    /**
+     * A series without a partner leaves the operator's result before an enclosing aggregate sees it: host c has no
+     * {@code rx{host!="c"}} partner, so {@code count by (cluster)} has no {@code qa} group rather than a count of 0.
+     */
+    public void testInstantUnmatchedPairsNeverReachTheEnclosingCount() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
+        assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
+        assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
+    }
+
+    /**
+     * {@code absent_over_time} has an element only for a series its selector selects that has no sample: every series of
+     * {@code tx} and of {@code rx{host="a"}} has samples, and the series of the other metric, or those the matchers reject,
+     * are not selected.
+     */
+    public void testInstantAbsentOverTimeOfFusedOperandsIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("max by (cluster) (absent_over_time(tx[5m])) - max by (cluster) (absent_over_time(rx{host=\"a\"}[5m]))");
+        assertBinopInstantValues("absent_over_time(rx{host=\"a\"}[5m])");
     }
 }

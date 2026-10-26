@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -46,6 +47,8 @@ public class BranchPlan extends UnionAll {
     private final LinkedHashMap<String, LogicalPlan> namedSubqueries = new LinkedHashMap<>();
     /** What each branch is — view (with its real name), subquery, or bare index — keyed like {@link #namedSubqueries}. */
     private final Map<String, BranchIdentity> branchIdentities;
+    /** The {@link #namedSubqueries} keys in child order, for positional lookups like {@link #isViewBranch(int)}. */
+    private final List<String> branchKeys;
 
     /**
      * Creates a {@link BranchPlan} with an explicit {@link BranchIdentity} per branch.
@@ -60,6 +63,8 @@ public class BranchPlan extends UnionAll {
     ) {
         super(source, children.values().stream().toList(), output);
         namedSubqueries.putAll(children);
+        // Not List.copyOf: bare branches use the null key, which it rejects.
+        this.branchKeys = Collections.unmodifiableList(new ArrayList<>(children.keySet()));
         // Never probe the caller's map by key: bare branches use the null key, which immutable maps (Map.of) reject.
         // Iterate the caller's entries instead, keeping only identities for keys that are actually branches — a caller
         // like pruneEmptyBranches passes its full pre-prune identity map and relies on the dropped keys being ignored.
@@ -134,9 +139,30 @@ public class BranchPlan extends UnionAll {
      * Returns {@code true} if the given key corresponds to an actual resolved view branch.
      * Use this instead of {@code key != null} checks; bare-index and literal-subquery branches also have non-null keys.
      * Returns {@code false} for {@code null} keys, which are always bare-plan branches.
+     * <p>
+     * Only precise before view compaction: compaction flattens nested branch plans and merges bare relations, so a view
+     * can end up in a branch of its own that is no longer marked as a view, or merged into a sibling's relation. Features
+     * that need exact information on what lies inside a view must run before compaction, or request that views are kept
+     * (see {@code ViewBoundaryPreservation}).
      */
     public boolean isViewBranch(String key) {
         return key != null && branchIdentity(key).isView();
+    }
+
+    /**
+     * Whether the child at {@code childIndex} in {@link #children()} is an actual resolved view branch; see
+     * {@link #isViewBranch(String)}. Branch keys line up with the children positionally.
+     */
+    public boolean isViewBranch(int childIndex) {
+        return isViewBranch(branchKeys.get(childIndex));
+    }
+
+    /**
+     * The {@link BranchIdentity} of the child at {@code childIndex} in {@link #children()}, positionally like
+     * {@link #isViewBranch(int)}.
+     */
+    public BranchIdentity branchIdentity(int childIndex) {
+        return branchIdentity(branchKeys.get(childIndex));
     }
 
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {

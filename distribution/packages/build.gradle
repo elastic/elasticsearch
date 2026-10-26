@@ -10,6 +10,9 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.distribution.CreateEmptyDirectories
+import org.elasticsearch.gradle.internal.distribution.PackageMetadata
+import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
@@ -56,32 +59,30 @@ plugins {
 ['deb', 'rpm'].each { type ->
   String packagingFiles = "build/packaging/${type}"
 
-  String taskName = "process${type.capitalize()}Files"
-  tasks.register(taskName, Copy) {
+  tasks.register(PackageMetadata.Type.fromExtension(type).processFilesTaskName(), Copy) {
     into packagingFiles
 
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
+      filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, false)
     }
 
-    filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
+    filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
 
-    doLast {
-      // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/elasticsearch"
-      mkdir "${packagingFiles}/var/lib/elasticsearch"
-      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
-
+    // create empty dirs, we set the permissions when configuring the packages
+    doLast(new CreateEmptyDirectories([
+      'var/log/elasticsearch',
+      'var/lib/elasticsearch',
+      'usr/share/elasticsearch/plugins',
       // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
-      mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
-    }
+      'elasticsearch',
+      'elasticsearch/jvm.options.d'
+    ]))
   }
 }
 
@@ -89,31 +90,16 @@ plugins {
 // since we have different templated files that need to be consumed, but the structure
 // is the same
 def commonPackageConfig(String type, String architecture) {
+  PackageMetadata metadata = PackageMetadata.of(type, architecture)
   return {
     onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
     }
-    dependsOn "process${type.capitalize()}Files"
-    packageName = "elasticsearch"
-    if (type == 'deb') {
-      if (architecture == 'x64') {
-        arch = 'amd64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'arm64'
-      }
-    } else {
-      assert type == 'rpm': type
-      if (architecture == 'x64') {
-        arch = 'X86_64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'aarch64'
-      }
-    }
+    dependsOn metadata.type().processFilesTaskName()
+    packageName = PackageMetadata.PACKAGE_NAME
+    arch = metadata.packageArchitecture()
     // Follow elasticsearch's file naming convention
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
-    destinationDirectory = file("${prefix}/build/distributions")
+    destinationDirectory = file("${metadata.projectName()}/build/distributions")
     archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
     String packagingFiles = "build/packaging/${type}"
 
@@ -128,7 +114,6 @@ def commonPackageConfig(String type, String architecture) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
-    String platform = 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture)
     into('/usr/share/elasticsearch') {
       into('bin') {
         with binFiles(type, false)
@@ -182,7 +167,7 @@ def commonPackageConfig(String type, String architecture) {
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
         from(layout.settingsDirectory.file('licenses').asFile) {
-          include 'ELASTIC-LICENSE-2.0.txt'
+          include TokenExpansions.licenseFileName(false)
           rename { 'LICENSE.txt' }
         }
         filePermissions {
@@ -226,7 +211,7 @@ def commonPackageConfig(String type, String architecture) {
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = expansionsForDistribution(type, false)['path.env']
+    String envFile = metadata.type().envFile()
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
@@ -327,6 +312,7 @@ ospackage {
 }
 
 Closure commonDebConfig(String architecture) {
+  PackageMetadata metadata = PackageMetadata.of('deb', architecture)
   return {
     configure(commonPackageConfig('deb', architecture))
 
@@ -334,9 +320,9 @@ Closure commonDebConfig(String architecture) {
     // ospackage silently ignores setting it. This is probably because `License`
     // is not actually a field in the Debian control file. So instead, we set
     // the license as "custom field".
-    customFields['License'] = 'Elastic-License'
+    customFields['License'] = metadata.license()
 
-    archiveVersion = project.version.replace('-', '~')
+    archiveVersion = metadata.packageVersion(project.version.toString())
     packageGroup = 'web'
 
     // versions found on oldest supported distro, centos-6
@@ -362,10 +348,11 @@ tasks.register('buildDeb', Deb) {
 }
 
 Closure commonRpmConfig(String architecture) {
+  PackageMetadata metadata = PackageMetadata.of('rpm', architecture)
   return {
     configure(commonPackageConfig('rpm', architecture))
 
-    license = 'Elastic License'
+    license = metadata.license()
 
     packageGroup = 'Application/Internet'
     requires '/bin/bash'
@@ -374,7 +361,7 @@ Closure commonRpmConfig(String architecture) {
 
     prefix '/usr'
     packager = 'Elasticsearch'
-    archiveVersion = project.version.replace('-', '_')
+    archiveVersion = metadata.packageVersion(project.version.toString())
     release = '1'
     os = 'LINUX'
     distribution = 'Elasticsearch'
@@ -405,8 +392,7 @@ Closure debFilter = { f -> f.name.endsWith('.deb') }
 subprojects {
   apply plugin: 'distribution'
 
-  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.named(buildTask)
+  ext.buildDist = parent.tasks.named(PackageMetadata.fromProjectName(it.name).buildTaskName())
   tasks.named('assemble').configure {
     dependsOn buildDist
   }

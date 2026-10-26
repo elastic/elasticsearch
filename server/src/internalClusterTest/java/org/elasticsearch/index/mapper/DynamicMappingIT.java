@@ -606,7 +606,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-        assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(2 + previousVersion));
+        assertBusy(
+            () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(2 + previousVersion))
+        );
         Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
             .get()
             .mappings()
@@ -640,9 +642,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-            assertThat(
-                clusterService.state().metadata().getProject().index("test").getMappingVersion(),
-                equalTo(previousVersion + (enabled ? 2 : numDocs))
+            final long expectedVersion = previousVersion + (enabled ? 2 : numDocs);
+            assertBusy(
+                () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(expectedVersion))
             );
             round++;
         }

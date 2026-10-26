@@ -1070,6 +1070,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      *
      * If the datafeed has aggregations, the default frequency is the
      * closest multiple of the histogram interval based on the rules above.
+     * ES|QL datafeeds snap the default to a multiple of {@code grouping_interval} the same way.
      *
      * @param bucketSpan the bucket span
      * @return the default frequency
@@ -1077,14 +1078,19 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public TimeValue defaultFrequency(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
         TimeValue defaultFrequency = defaultFrequencyTarget(bucketSpan);
         if (hasAggregations()) {
-            long histogramIntervalMillis = getHistogramIntervalMillis(xContentRegistry);
-            long targetFrequencyMillis = defaultFrequency.millis();
-            long defaultFrequencyMillis = histogramIntervalMillis > targetFrequencyMillis
-                ? histogramIntervalMillis
-                : (targetFrequencyMillis / histogramIntervalMillis) * histogramIntervalMillis;
-            defaultFrequency = TimeValue.timeValueMillis(defaultFrequencyMillis);
+            defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, getHistogramIntervalMillis(xContentRegistry));
+        } else if (getEsqlQuery() != null) {
+            defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, getGroupingInterval().millis());
         }
         return defaultFrequency;
+    }
+
+    private static TimeValue snapDefaultFrequencyToInterval(TimeValue defaultFrequency, long intervalMillis) {
+        long targetFrequencyMillis = defaultFrequency.millis();
+        long snappedMillis = intervalMillis > targetFrequencyMillis
+            ? intervalMillis
+            : (targetFrequencyMillis / intervalMillis) * intervalMillis;
+        return TimeValue.timeValueMillis(snappedMillis);
     }
 
     private static TimeValue defaultFrequencyTarget(TimeValue bucketSpan) {

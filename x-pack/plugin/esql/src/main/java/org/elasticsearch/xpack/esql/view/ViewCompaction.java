@@ -564,7 +564,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Merge the unresolved relation unless the index patterns contain matching index names, or
+     * Merge the unresolved relation unless either relation contains an exclusion (merging would widen
+     * its scope), unless the index patterns contain matching index names, or
      * unless alias resolution via {@code aliasResolver} reveals that patterns in {@code main} and
      * {@code other} map to overlapping concrete indices (e.g. one pattern is an alias that points
      * to the same index as a pattern in the other relation). Pass {@code null} to skip alias
@@ -582,8 +583,13 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         if (metadataNames(main).equals(metadataNames(other)) == false) {
             return null;
         }
+        String[] otherPatterns = other.indexPattern().indexPattern().split(",");
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
-            for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
+            for (String otherPattern : otherPatterns) {
+                // An exclusion applies to the patterns before it in the merged list, so merging would widen its scope.
+                if (isExclusion(mainPattern) || isExclusion(otherPattern)) {
+                    return null;
+                }
                 if (mainPattern.equals(otherPattern)) {
                     // A duplicate index name was found, fail this attempt to merge.
                     return null;
@@ -624,7 +630,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Merge the unresolved relation unless the index patterns overlap by string equality or wildcard.
+     * Merge the unresolved relation unless either relation contains an exclusion or the index patterns
+     * overlap by string equality or wildcard.
      * Alias resolution is not performed; this overload is used by {@link #mergeUnresolvedRelationEntries}
      * after nested {@link BranchPlan} flattening, where no alias resolver is available. In the
      * production pipeline this is always a no-op because {@code ResolveTable} has already converted
@@ -652,15 +659,19 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     private static boolean containsExclusion(UnresolvedRelation ur) {
         for (String pattern : ur.indexPattern().indexPattern().split(",")) {
-            if (pattern.startsWith("-")) {
-                return true;
-            }
-            var split = RemoteClusterAware.splitIndexName(pattern);
-            if (split.clusterAlias() != null && split.indexExpression().startsWith("-")) {
+            if (isExclusion(pattern)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean isExclusion(String pattern) {
+        if (pattern.startsWith("-")) {
+            return true;
+        }
+        var split = RemoteClusterAware.splitIndexName(pattern);
+        return split.clusterAlias() != null && split.indexExpression().startsWith("-");
     }
 
     private static void assertSubqueryDoesNotExist(Map<String, LogicalPlan> plans, String name) {

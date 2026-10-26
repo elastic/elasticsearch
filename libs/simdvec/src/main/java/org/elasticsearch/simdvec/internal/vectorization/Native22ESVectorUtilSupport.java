@@ -24,12 +24,9 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     private static final SimdVecLibrary SIMDVEC = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     /**
-     * Rows per heap bulk call in the {@code maxSimDotProduct} paths. A critical call cannot respond to
-     * a safepoint or arena-close handshake for its whole duration, so this caps the runtime of each
-     * call; with rank_vectors dims bounded by {@code DenseVectorFieldMapper.MAX_DIMS_COUNT} (4096),
-     * the worst-case slice is 32 rows x 4096 dims x 4 bytes.
+     * Byte budget per heap bulk call in the {@code maxSimDotProduct} paths.
      */
-    private static final int HEAP_BULK_ROWS = 32;
+    private static final int HEAP_BULK_BYTES = 512 * 1024;
 
     /*
      * This is technically separate to the Panama22 implementation, but there's
@@ -109,15 +106,16 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final BytesRef vectors = source.vectorBytes();
             final int count = source.vectorCount();
             final int vectorByteSize = source.vectorByteSize();
+            final int rowsPerChunk = getRowsPerChunk(vectorByteSize);
             float sum = 0f;
             for (float[] floats : query) {
-                for (int row = 0; row < count; row += HEAP_BULK_ROWS) {
+                for (int row = 0; row < count; row += rowsPerChunk) {
                     SIMDVEC.dotProductF32Bulk(
                         vectors.bytes,
                         vectors.offset + row * vectorByteSize,
                         floats,
                         source.vectorDims(),
-                        Math.min(HEAP_BULK_ROWS, count - row),
+                        Math.min(rowsPerChunk, count - row),
                         scoresScratch,
                         row
                     );
@@ -129,21 +127,34 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
         return super.maxSimDotProduct(source, query, scoresScratch);
     }
 
+    /**
+     * Returns the rows (number of vectors) that fit in a chunk.
+     * <p>
+     * Functions that call into {@link SIMDVEC} {@code critical} downcalls need to be quick
+     * ("comparable to a function with an empty body" according to the JDK docs); to avoid
+     * unlimited/unknown time, we divide the data these downcalls need to process into fixed
+     * chunks of at most {@value #HEAP_BULK_BYTES} bytes; the caller will then perform multiple calls.
+     */
+    private static int getRowsPerChunk(int vectorByteSize) {
+        return Math.max(1, HEAP_BULK_BYTES / vectorByteSize);
+    }
+
     @Override
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
         if (canUseBFloat16Path(source)) {
             final BytesRef vectors = source.vectorBytes();
             final int count = source.vectorCount();
             final int vectorByteSize = source.vectorByteSize();
+            final int rowsPerChunk = getRowsPerChunk(vectorByteSize);
             float sum = 0f;
             for (float[] floats : query) {
-                for (int row = 0; row < count; row += HEAP_BULK_ROWS) {
+                for (int row = 0; row < count; row += rowsPerChunk) {
                     SIMDVEC.dotProductDBF16QF32Bulk(
                         vectors.bytes,
                         vectors.offset + row * vectorByteSize,
                         floats,
                         source.vectorDims(),
-                        Math.min(HEAP_BULK_ROWS, count - row),
+                        Math.min(rowsPerChunk, count - row),
                         scoresScratch,
                         row
                     );
@@ -161,15 +172,16 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final BytesRef vectors = source.vectorBytes();
             final int count = source.vectorCount();
             final int vectorByteSize = source.vectorByteSize();
+            final int rowsPerChunk = getRowsPerChunk(vectorByteSize);
             float sum = 0f;
             for (byte[] bytes : query) {
-                for (int row = 0; row < count; row += HEAP_BULK_ROWS) {
+                for (int row = 0; row < count; row += rowsPerChunk) {
                     SIMDVEC.dotProductI8Bulk(
                         vectors.bytes,
                         vectors.offset + row * vectorByteSize,
                         bytes,
                         source.vectorDims(),
-                        Math.min(HEAP_BULK_ROWS, count - row),
+                        Math.min(rowsPerChunk, count - row),
                         scoresScratch,
                         row
                     );

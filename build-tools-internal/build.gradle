@@ -204,6 +204,10 @@ gradlePlugin {
       id = 'elasticsearch.repositories'
       implementationClass = 'org.elasticsearch.gradle.internal.RepositoriesSetupPlugin'
     }
+    resolveAllDependencies {
+      id = 'elasticsearch.resolve-all-dependencies'
+      implementationClass = 'org.elasticsearch.gradle.internal.ResolveAllDependenciesPlugin'
+    }
     restResources {
       id = 'elasticsearch.rest-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'

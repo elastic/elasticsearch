@@ -572,3 +572,8 @@ tests:
   - :x-pack:plugin:downsample:test
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.backwards.RareTermsIT
+  tasks:
+  - :qa:mixed-cluster:v9.1.9#yamlRestTest
+  method: testSingleValuedString
+  issue: https://github.com/elastic/elasticsearch/issues/163317

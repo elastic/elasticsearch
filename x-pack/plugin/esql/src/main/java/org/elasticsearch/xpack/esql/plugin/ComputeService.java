@@ -268,6 +268,7 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         FetchContextService fetchContextService = new FetchContextService(searchService, transportActionServices.searchTransportService());
         fetchContextService.registerTaskListener();
+        fetchContextService.registerHandlers();
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -1508,9 +1509,9 @@ public class ComputeService {
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
-        // frees once it no longer reads them, and the query once it ends
+        // frees once it no longer reads them, and the query once it ends. The fetch reads only local indices.
         final FetchContextLease.Execution fetchContexts = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
-            ? fetchPhaseServices.contextService().leaseFor(rootTask).newExecution()
+            ? fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(localOriginalIndices)
             : null;
         /*
          * Grab the output attributes here, so we can pass them to

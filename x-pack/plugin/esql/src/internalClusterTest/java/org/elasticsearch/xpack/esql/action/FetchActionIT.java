@@ -206,11 +206,15 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
      * finds where each document is, and responds, so the contexts stay open for the fetch.
      */
     private List<OpenShard> openEveryShard(String node, int shards) throws IOException {
+        SearchService searchService = internalCluster().getInstance(SearchService.class, node);
         FetchContextService contextService = new FetchContextService(
-            internalCluster().getInstance(SearchService.class, node),
+            searchService,
             internalCluster().getInstance(SearchTransportService.class, node)
         );
-        NodeFetchContexts contexts = contextService.newNodeContexts(null);
+        NodeFetchContexts contexts = contextService.newNodeContexts(
+            null,
+            TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis())
+        );
         List<SearchContext> opened = new ArrayList<>(shards);
         List<OpenShard> open = new ArrayList<>(shards);
         try {

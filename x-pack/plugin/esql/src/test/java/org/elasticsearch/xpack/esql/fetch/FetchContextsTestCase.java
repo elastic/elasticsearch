@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -15,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
@@ -27,6 +30,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.junit.After;
 import org.junit.Before;
@@ -45,6 +49,13 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     static final String INDEX = "fetch-contexts";
     protected static final int SHARDS = 3;
+    /**
+     * The index expressions of the query that opened the contexts.
+     */
+    protected static final OriginalIndices QUERY_INDICES = new OriginalIndices(
+        new String[] { INDEX },
+        SearchRequest.DEFAULT_INDICES_OPTIONS
+    );
 
     /**
      * Any request that looks a context up, like a fetch request.
@@ -88,8 +99,11 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
         contexts.close();
     }
 
+    /**
+     * The contexts of a request from a query that this node coordinates, so they get the default keep-alive of the node.
+     */
     protected NodeFetchContexts newNodeContexts() {
-        return service.newNodeContexts(null);
+        return service.newNodeContexts(null, TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis()));
     }
 
     /**
@@ -135,6 +149,16 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
 
     protected DiscoveryNode localNode() {
         return getInstanceFromNode(ClusterService.class).localNode();
+    }
+
+    /**
+     * Serves keep-alive requests on this node, as the ES|QL plugin does on a real one. The node outlives a test, so the
+     * first test to need the handler registers it.
+     */
+    protected void registerKeepAliveHandler() {
+        if (getInstanceFromNode(TransportService.class).getRequestHandler(FetchContextService.KEEP_ALIVE_ACTION_NAME) == null) {
+            service.registerHandlers();
+        }
     }
 
     /**

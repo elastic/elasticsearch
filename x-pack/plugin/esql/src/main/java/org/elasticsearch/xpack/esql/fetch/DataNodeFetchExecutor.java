@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,10 +25,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -41,7 +38,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -170,14 +166,12 @@ final class DataNodeFetchExecutor {
          * @return the open shards
          */
         private List<FetchDocsSourceOperator.ShardDocs> openShards() {
-            IndicesAccessControl accessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(
-                transportService.getThreadPool().getThreadContext()
-            );
+            IndicesAccessControl accessControl = ShardAccess.of(transportService.getThreadPool().getThreadContext());
             List<FetchDocsSourceOperator.ShardDocs> open = new ArrayList<>(request.shards().size());
             for (int position = 0; position < request.shards().size(); position++) {
                 FetchRequest.ShardDocs shard = request.shards().get(position);
                 try {
-                    checkAccess(accessControl, shard.shardId());
+                    ShardAccess.check(accessControl, shard.shardId(), FetchService.FETCH_ACTION_NAME);
                     contexts.set(position, openShard(position, shard));
                     open.add(new FetchDocsSourceOperator.ShardDocs(position, shard.segments(), shard.docs()));
                 } catch (Exception e) {
@@ -420,20 +414,6 @@ final class DataNodeFetchExecutor {
     }
 
     private record ShardDriver(Driver driver, int shard) {}
-
-    /**
-     * Without security there is no access control. With it, the index of every shard is in the access control of the
-     * request unless authorization dropped it, and reading such a shard would skip its document and field level security.
-     */
-    private static void checkAccess(@Nullable IndicesAccessControl accessControl, ShardId shardId) {
-        if (accessControl != null
-            && (accessControl.isGranted() == false || accessControl.hasIndexPermissions(shardId.getIndexName()) == false)) {
-            throw new ElasticsearchSecurityException(
-                "action [" + FetchService.FETCH_ACTION_NAME + "] is unauthorized for index [" + shardId.getIndexName() + "]",
-                RestStatus.FORBIDDEN
-            );
-        }
-    }
 
     /**
      * A document outside the reader would fail deep in the loaders, or load another document.

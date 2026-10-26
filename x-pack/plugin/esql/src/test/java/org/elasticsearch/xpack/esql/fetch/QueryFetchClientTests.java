@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,11 +18,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -204,33 +208,44 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * cut frees the context no row read, and the end of the fetch the one they read.
      */
     public void testTheEndsOfTheCutAndTheFetchReachTheLeaseOfItsExecution() {
-        // there is no node to free a context on, so the free action of _search only records what the lease frees
-        SearchTransportService searchTransport = mock(SearchTransportService.class);
-        when(searchTransport.transportService()).thenReturn(mock(TransportService.class));
-        FetchContextLease lease = new FetchContextLease(
-            new FetchContextService(null, searchTransport),
-            rootTask.getId(),
-            threadContext.newRestorableContext(false)
-        );
-        FetchContextLease.Execution fetchContexts = lease.newExecution();
-        QueryFetchClient client = new QueryFetchClient(
-            (node, request, parentTask, listener) -> fail("nothing to send"),
-            threadContext,
-            this::nodes,
-            scope(fetchContexts),
-            List.of("logs-*")
-        );
-        ShardSearchContextId read = new ShardSearchContextId("session", 1);
-        ShardSearchContextId unread = new ShardSearchContextId("session", 2);
-        fetchContexts.add(NODE, List.of(read, unread));
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            // there is no node to free a context on, so the free action of _search only records what the lease frees. The
+            // thread pool runs the refresh of the held contexts, which never comes within the keep-alive of this test.
+            TransportService transportService = mock(TransportService.class);
+            when(transportService.getThreadPool()).thenReturn(threadPool);
+            SearchTransportService searchTransport = mock(SearchTransportService.class);
+            when(searchTransport.transportService()).thenReturn(transportService);
+            FetchContextLease lease = new FetchContextLease(
+                new FetchContextService(null, searchTransport),
+                rootTask,
+                threadContext.newRestorableContext(false),
+                TimeValue.timeValueMinutes(5)
+            );
+            FetchContextLease.Execution fetchContexts = lease.newExecution(
+                new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+            );
+            QueryFetchClient client = new QueryFetchClient(
+                (node, request, parentTask, listener) -> fail("nothing to send"),
+                threadContext,
+                this::nodes,
+                scope(fetchContexts),
+                List.of("logs-*")
+            );
+            ShardSearchContextId read = new ShardSearchContextId("session", 1);
+            ShardSearchContextId unread = new ShardSearchContextId("session", 2);
+            fetchContexts.add(NODE, List.of(read, unread));
 
-        client.cutEnded(Set.of(read));
-        verify(searchTransport).sendFreeContext(any(), eq(unread), any());
-        verify(searchTransport, never()).sendFreeContext(any(), eq(read), any());
+            client.cutEnded(Set.of(read));
+            verify(searchTransport).sendFreeContext(any(), eq(unread), any());
+            verify(searchTransport, never()).sendFreeContext(any(), eq(read), any());
 
-        client.fetchEnded();
-        verify(searchTransport).sendFreeContext(any(), eq(read), any());
-        lease.close();
+            client.fetchEnded();
+            verify(searchTransport).sendFreeContext(any(), eq(read), any());
+            lease.close();
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     /**
@@ -249,10 +264,14 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     private QueryFetchScope scope() {
-        // the client holds no context in these tests, so the lease never sends a free request
+        // the client holds no context in these tests, so the lease never sends a request
         return scope(
-            new FetchContextLease(new FetchContextService(null, null), rootTask.getId(), threadContext.newRestorableContext(false))
-                .newExecution()
+            new FetchContextLease(
+                new FetchContextService(null, null),
+                rootTask,
+                threadContext.newRestorableContext(false),
+                TimeValue.timeValueMinutes(5)
+            ).newExecution(new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS))
         );
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -81,15 +82,25 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
     @Nullable
     private volatile Task task;
     /**
+     * The keep-alive of the query. The coordinator refreshes the contexts it owns every third of it, so they must not
+     * expire sooner, whatever the default keep-alive of this node.
+     */
+    private final TimeValue keepAlive;
+    /**
      * The contexts this request opened. The request holds a reference on each until it ends, so none closes before.
      */
     private final Map<ShardSearchContextId, OpenContext> contexts = new ConcurrentHashMap<>();
     private State state = State.OPEN;
     private boolean released;
 
-    NodeFetchContexts(FetchContextService service, @Nullable Task task) {
+    NodeFetchContexts(FetchContextService service, @Nullable Task task, TimeValue keepAlive) {
+        if (keepAlive.millis() <= 0) {
+            // reader contexts keep their keep-alive in milliseconds
+            throw new IllegalArgumentException("the keep-alive must be at least a millisecond but was [" + keepAlive + "]");
+        }
         this.service = service;
         this.task = task;
+        this.keepAlive = keepAlive;
     }
 
     /**
@@ -110,7 +121,7 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
             readerContext = searchService.createOrGetReaderContext(shardRequest, task);
             querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
             // taken last: the query search context already holds a reference, so the context can't be gone
-            nodeLease = readerContext.markAsUsed(-1L);
+            nodeLease = readerContext.markAsUsed(keepAlive.millis());
             register(new OpenContext(readerContext, origin(querySearchContext), nodeLease, new Flags()));
             success = true;
             return querySearchContext;

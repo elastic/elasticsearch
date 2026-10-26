@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,6 +51,36 @@ public class NodeFetchContextsTests extends FetchContextsTestCase {
         contexts.freeAll("the test is done");
         endRequest(contexts);
         assertAllFreed();
+    }
+
+    /**
+     * The coordinator refreshes the contexts every third of the keep-alive of the query, so none may expire sooner, also on
+     * a node whose default keep-alive is shorter.
+     */
+    public void testOpensEachContextWithAtLeastTheKeepAliveOfTheQuery() throws Exception {
+        createIndexWithDocs(INDEX);
+        long nodeDefault = searchService().getDefaultKeepAliveInMillis();
+        boolean longerThanTheNodes = randomBoolean();
+        long queryKeepAlive = longerThanTheNodes ? nodeDefault + between(1, 3600) * 1000L : between(1, (int) nodeDefault);
+        NodeFetchContexts contexts = service.newNodeContexts(null, TimeValue.timeValueMillis(queryKeepAlive));
+
+        List<SearchContext> opened = openEveryShard(contexts, INDEX);
+
+        for (SearchContext searchContext : opened) {
+            assertThat(searchContext.readerContext().keepAlive(), equalTo(Math.max(nodeDefault, queryKeepAlive)));
+        }
+        contexts.freeAll("the test is done");
+        endRequest(contexts);
+        assertAllFreed();
+    }
+
+    /**
+     * Reader contexts keep their keep-alive in milliseconds, so a shorter one would keep a context for no time at all.
+     */
+    public void testNeedsAKeepAliveOfAtLeastAMillisecond() {
+        TimeValue keepAlive = randomFrom(TimeValue.ZERO, TimeValue.MINUS_ONE, TimeValue.timeValueNanos(between(1, 999_999)));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.newNodeContexts(null, keepAlive));
+        assertThat(e.getMessage(), equalTo("the keep-alive must be at least a millisecond but was [" + keepAlive + "]"));
     }
 
     /**

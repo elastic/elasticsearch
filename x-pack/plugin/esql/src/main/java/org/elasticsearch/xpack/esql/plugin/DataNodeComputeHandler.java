@@ -283,7 +283,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
                                 List.of(),
-                                fetchContexts != null
+                                fetchContexts != null ? fetchContexts.keepAlive() : null
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -1499,12 +1499,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.externalSplits(),
             request.declineIfNotReady(),
             request.requiredClusterStateVersion(),
-            request.keepFetchContexts()
+            request.fetchContextsKeepAlive()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
         final NodeFetchContexts fetchContexts = request.keepFetchContexts()
-            ? computeService.fetchPhaseServices().contextService().newNodeContexts(task)
+            ? computeService.fetchPhaseServices().contextService().newNodeContexts(task, request.fetchContextsKeepAlive())
             : null;
         var computeSearchContexts = new AcquiredSearchContexts(
             request.shards().size(),

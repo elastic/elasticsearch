@@ -168,9 +168,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/160950
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)
-  issue: https://github.com/elastic/elasticsearch/issues/161067
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/161093
@@ -220,6 +217,16 @@ tests:
   - :x-pack:plugin:downsample:test
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
+  method: test {yaml=indices.get_field_mapping/20_missing_field/Return empty object if field doesn't exist, but index does}
+  issue: https://github.com/elastic/elasticsearch/issues/163303
+- class: org.elasticsearch.action.fieldcaps.FieldCapsWithFilterIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSkipUnmatchedShards
+  issue: https://github.com/elastic/elasticsearch/issues/163314
 
 # Examples:
 #

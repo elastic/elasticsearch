@@ -1227,7 +1227,7 @@ public class NodeDeprecationChecks {
         }
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Support for Java versions earlier than 25 is deprecated",
+            "Running Elasticsearch with Java 21-24 is deprecated",
             "https://www.elastic.co/support/matrix#matrix_jvm",
             "This node is running Java [" + version + "]. A future Elasticsearch 9.x release will require Java 25 or later.",
             false,

@@ -59,10 +59,7 @@ public class NodeSettingsDeprecationIT extends ESRestTestCase {
         } else {
             assertThat(nodeSettingsIssues, hasSize(1));
             assertThat(deprecations.evaluate("node_settings.0.level"), equalTo("critical"));
-            assertThat(
-                deprecations.evaluate("node_settings.0.message"),
-                equalTo("Support for Java versions earlier than 25 is deprecated")
-            );
+            assertThat(deprecations.evaluate("node_settings.0.message"), equalTo("Running Elasticsearch with Java 21-24 is deprecated"));
             // nodes info reports java.version while the issue reports the full runtime version, which may have build info appended
             final String details = deprecations.evaluate("node_settings.0.details");
             assertThat(details, startsWith("This node is running Java [" + javaVersion));

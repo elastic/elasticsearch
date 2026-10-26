@@ -4490,6 +4490,25 @@ public class EsqlCapabilities {
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         /**
+         * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
+         * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
+         * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
+         * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
+         * value read as {@code null}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/161383">#161383</a>.
+         */
+        FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
+        /**
+         * A predicate pushed to Lucene on a sub-field of a {@code nested} object (e.g. {@code n.x}, mapped as a plain
+         * {@code keyword} in another index) matches nothing on shards where {@code n} is {@code nested}, consistent
+         * with field caps and field extraction treating it as missing. Previously, with {@code include_in_root} or
+         * {@code include_in_parent}, {@code ==} and {@code IS NOT NULL} matched rows whose value read as {@code null}
+         * and {@code IS NULL} missed them.
+         */
+        FIX_NESTED_SUBFIELD_PUSHDOWN,
+
+        /**
          * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an
          * instant query can cover a dashboard's whole time range:
          * <a href="https://github.com/elastic/elasticsearch/issues/161115">#161115</a>

@@ -373,9 +373,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162373
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testBulkRequestSameOutcomeAsSeparateRequests
-  issue: https://github.com/elastic/elasticsearch/issues/162390
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   method: testCrossClusterTransform
   issue: https://github.com/elastic/elasticsearch/issues/162405
@@ -514,11 +511,6 @@ tests:
   - :x-pack:plugin:slm:internalClusterTest
   method: testSLMRetentionAfterRestore
   issue: https://github.com/elastic/elasticsearch/issues/163334
-- class: org.elasticsearch.search.builder.SearchSourceBuilderTests
-  tasks:
-  - :server:test
-  method: testSupportsParallelCollection
-  issue: https://github.com/elastic/elasticsearch/issues/163337
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
   tasks:
   - :x-pack:plugin:esql:test

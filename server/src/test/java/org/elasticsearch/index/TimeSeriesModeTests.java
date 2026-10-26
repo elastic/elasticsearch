@@ -61,6 +61,14 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
+    public void testSortExpression() {
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "a").build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort]"));
+    }
+
     public void testSortMode() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);

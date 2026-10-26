@@ -1,0 +1,90 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [index_sort_expression]
+      reason: index.sort expression setting is behind a feature flag
+
+---
+"Sort expression configures the index sort":
+  - do:
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: "rank DESC MISSING_FIRST"
+          mappings:
+            properties:
+              rank:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: sorted_index
+        flat_settings: true
+
+  - match: { sorted_index.settings.index\.sort: "rank DESC MISSING_FIRST" }
+
+  # Index a document without a rank first, then ranks in ascending order, and flush each into its own segment.
+  - do:
+      index: { index: sorted_index, id: "none", body: { other: 1 } }
+  - do:
+      indices.flush: { index: sorted_index }
+  - do:
+      index: { index: sorted_index, id: "1", body: { rank: 1 } }
+  - do:
+      indices.flush: { index: sorted_index }
+  - do:
+      index: { index: sorted_index, id: "2", body: { rank: 2 } }
+  - do:
+      indices.forcemerge: { index: sorted_index, max_num_segments: 1 }
+  - do:
+      indices.refresh: { index: sorted_index }
+
+  # Without an explicit sort, hits come back in index (sorted) order: missing first, then rank descending.
+  - do:
+      search:
+        index: sorted_index
+        body:
+          query: { match_all: {} }
+  - match: { hits.hits.0._id: "none" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Sort expression cannot be combined with index.sort.field":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "rank"
+            index.sort.field: "rank"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/cannot.be.combined.with.\\[index.sort.field\\]/" }
+
+---
+"Sort expression cannot sort on a field under a nested object":
+  - do:
+      catch: /cannot apply index sort to field \[nested_field\.foo\] under nested object \[nested_field\]/
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "nested_field.foo"
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested_field:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword

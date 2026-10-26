@@ -201,6 +201,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         return source * x == target;
     }
 
+    public void testResizeCannotChangeSortExpression() {
+        ClusterState state = createClusterState("source", 2, 0, Settings.builder().put("index.blocks.write", true).build());
+        Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).put("index.sort", "field1 DESC").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateShrinkIndex(state, "source", "target", targetSettings)
+        );
+        assertEquals("can't change setting [index.sort] during resize", e.getMessage());
+    }
+
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState(

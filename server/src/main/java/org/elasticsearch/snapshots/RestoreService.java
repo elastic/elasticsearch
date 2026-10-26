@@ -175,6 +175,7 @@ public final class RestoreService implements ClusterStateApplier {
         IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
         IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(),
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(),

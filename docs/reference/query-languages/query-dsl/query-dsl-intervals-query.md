@@ -13,7 +13,7 @@ The `intervals` query uses **matching rules**, constructed from a small set of d
 
 The definitions produce sequences of minimal intervals that span terms in a body of text. These intervals can be further combined and filtered by parent sources.
 
-The terms that rules match, and their positions, come from the field's [analyzer](docs-content://manage-data/data-store/text-analysis.md). To compare the intervals query with other ways of matching text, refer to [Full text queries](/reference/query-languages/query-dsl/full-text-queries.md).
+The terms and positions used for matching come from the field's [analyzer](docs-content://manage-data/data-store/text-analysis.md). To compare the intervals query with other ways of matching text, refer to [Full text queries](/reference/query-languages/query-dsl/full-text-queries.md).
 
 :::{tip}
 For a hands-on walkthrough with sample data and example responses, refer to [Search by term proximity and order with the Query DSL intervals query](docs-content://solutions/search/full-text/intervals-query-tutorial.md).

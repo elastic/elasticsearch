@@ -203,6 +203,62 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         assertEquals("documents with a value", present(docSlots), seen);
     }
 
+    /**
+     * The ingest cursor reads a document's payload only once something asks about its slots. A pass that
+     * only moves through the documents — a sparse column's presence — therefore reads no payload at all,
+     * and a pass that does ask reads each document's payload exactly once, whichever of the slot methods
+     * asks first, and gets what an eager split of the same payload would have given.
+     */
+    public void testDecodePayloadsReadsAPayloadOnlyWhenAsked() throws IOException {
+        final BytesRef[][] docSlots = randomDocSlots(between(50, 400), 5, true, true);
+        final long[] reads = new long[1];
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.decodePayloads(counting(payloadsOver(docSlots), reads));
+
+        // Moving alone reads nothing, by nextDoc and by advance.
+        int moved = 0;
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = randomBoolean()
+            ? cursor.nextDoc()
+            : cursor.advance(doc + 1)) {
+            assertEquals("docID follows the field", doc, cursor.docID());
+            moved++;
+        }
+        assertEquals("documents moved through", present(docSlots), moved);
+        assertEquals("payloads read by a walk that asks nothing", 0L, reads[0]);
+
+        // Asking reads once per document, and answers as an eager split would.
+        final StringColumnValues asked = ColumnarStringBinaryDocValues.decodePayloads(counting(payloadsOver(docSlots), reads));
+        final StringBinaryPayload.Decoder eager = new StringBinaryPayload.Decoder();
+        long expectedReads = 0;
+        for (int doc = asked.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = asked.nextDoc()) {
+            expectedReads++;
+            final int eagerCount = eager.reset(encode(docSlots[doc]));
+            final int eagerNulls = eager.nullSlotCount();
+            // Whichever is asked first splits the payload; the others find it split.
+            switch (between(0, 2)) {
+                case 0 -> {
+                    assertEquals("slot count at doc " + doc, eagerCount, asked.valueCount());
+                    assertEquals("null count at doc " + doc, eagerNulls, asked.nullCount());
+                }
+                case 1 -> {
+                    assertEquals("null count at doc " + doc, eagerNulls, asked.nullCount());
+                    assertEquals("slot count at doc " + doc, eagerCount, asked.valueCount());
+                }
+                default -> {
+                    // Straight to the slots, as a walk that trusts the count it was given would.
+                }
+            }
+            for (int slot = 0; slot < eagerCount; slot++) {
+                asked.nextValue();
+                final BytesRef expected = eager.next();
+                assertEquals("doc " + doc + " slot " + slot, expected, asked.value());
+                assertEquals("doc " + doc + " slot " + slot, expected == null ? -1 : expected.length, asked.valueLength());
+            }
+            assertEquals("slot count asked after the slots at doc " + doc, eagerCount, asked.valueCount());
+            assertEquals("payloads read so far", expectedReads, reads[0]);
+        }
+        assertEquals("one read a document", present(docSlots), reads[0]);
+    }
+
     /** The same cursor driven by {@code advance}, which ingest and merge never use. */
     public void testDecodePayloadsAdvances() throws IOException {
         final BytesRef[][] docSlots = randomDocSlots(between(50, 400), 3, true, true);
@@ -525,6 +581,42 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             @Override
             public long cost() {
                 return present(docSlots);
+            }
+        };
+    }
+
+    /** {@code in} with every {@code binaryValue} call counted into {@code reads}; the positions pass straight through. */
+    private static BinaryDocValues counting(BinaryDocValues in, long[] reads) {
+        return new BinaryDocValues() {
+            @Override
+            public BytesRef binaryValue() throws IOException {
+                reads[0]++;
+                return in.binaryValue();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return in.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                return in.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return in.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return in.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return in.cost();
             }
         };
     }

@@ -102,6 +102,11 @@ the ids it was written with, older data lists only old ids and a newer reader re
 
   Where a document's slots begin is shared by both: a slot count per document in the addressing, with a
   base per block of counts in the navigation. No skip index yet.
+
+  Either layout is written in two reads of the values: one pass counts the column and surveys what it
+  repeats, which picks the layout, and one pass writes it. A sparse column walks its documents once more
+  for its presence, and that walk reads no value — on ingest every value read is a copy out of Lucene's
+  indexing buffer, so the passes are what the flush costs.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 

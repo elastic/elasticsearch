@@ -1176,16 +1176,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /// Metrics on the source node just after shutdown is requested.
-    ///
-    /// Relocation is counted on the destination, so the relocation counter must still be empty here. Completion and
-    /// duration metrics are recorded on the source only when a reindex finishes normally. Manual slicing is one task
-    /// per slice, and a slice can finish in the window before shutdown relocates the rest, so some — but not all —
-    /// operations may already have completed on the source. {@code reindexOperationCount} is 1 for a non-sliced,
-    /// auto-sliced, or fixed-sliced reindex, because those record a single completion.
     private void assertNoReindexMetricsOnSourceNode(final String nodeName, final int reindexOperationCount) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         final List<Measurement> completions = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
+        // Manual slicing is one task per slice, and a slice can finish in the window before shutdown relocates the rest,
+        // so some — but not all — operations may already have completed on the source.
+        // reindexOperationCount is 1 for a non-sliced, auto-sliced, or fixed-sliced reindex.
         assertThat(
             "source node [" + nodeName + "] completed every reindex operation before relocation",
             completions,
@@ -1202,6 +1199,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             assertThat(duration.getLong(), greaterThanOrEqualTo(0L));
             assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(false));
         });
+        // Relocation is counted on the destination, so the relocation counter must be empty.
         assertThat(
             "relocation metric should not be updated on the source node [" + nodeName + "]",
             plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER),

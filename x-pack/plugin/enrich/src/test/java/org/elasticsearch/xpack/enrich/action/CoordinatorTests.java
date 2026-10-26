@@ -37,13 +37,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction.Coordinator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -211,6 +214,62 @@ public class CoordinatorTests extends ESTestCase {
         } finally {
             res.decRef();
         }
+    }
+
+    /**
+     * Each slot must be released as soon as its listener returned, so that a finished document is not kept reachable by the batch's
+     * slot list until all listeners of the batch ran.
+     */
+    public void testSlotsReleasedAfterNotification() {
+        final boolean failWholeBatch = randomBoolean();
+        final int batchSize = between(2, 10);
+        final Coordinator coordinator = new Coordinator(new MockLookupFunction(), batchSize, 1, 100);
+        final List<Coordinator.Slot> slots = new ArrayList<>();
+        final AtomicInteger notified = new AtomicInteger();
+        for (int i = 0; i < batchSize; i++) {
+            final int index = i;
+            final ActionListener<SearchResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse response) {
+                    assertThat(failWholeBatch, is(false));
+                    assertSlotsReleasedUpTo(index);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(failWholeBatch, is(true));
+                    assertSlotsReleasedUpTo(index);
+                }
+
+                private void assertSlotsReleasedUpTo(int lastReleased) {
+                    assertThat(notified.getAndIncrement(), equalTo(lastReleased));
+                    for (int j = 0; j < slots.size(); j++) {
+                        // an entry is nulled once its own listener returned, so the current one is still set
+                        assertThat(slots.get(j), j < lastReleased ? nullValue() : notNullValue());
+                    }
+                }
+            };
+            slots.add(new Coordinator.Slot(new SearchRequest("my-index"), listener));
+        }
+        // handleResponse releases the permit that coordinateLookups acquired
+        assertTrue(coordinator.remoteRequestPermits.tryAcquire());
+
+        if (failWholeBatch) {
+            coordinator.handleResponse(slots, null, new RuntimeException("simulated"));
+        } else {
+            final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[batchSize];
+            for (int i = 0; i < batchSize; i++) {
+                items[i] = new MultiSearchResponse.Item(emptySearchResponse(), null);
+            }
+            final MultiSearchResponse response = new MultiSearchResponse(items, 1L);
+            try {
+                coordinator.handleResponse(slots, response, null);
+            } finally {
+                response.decRef();
+            }
+        }
+        assertThat(notified.get(), equalTo(batchSize));
+        assertThat(slots, everyItem(nullValue(Coordinator.Slot.class)));
     }
 
     public void testNoBlockingWhenQueueing() {

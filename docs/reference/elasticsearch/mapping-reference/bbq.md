@@ -509,7 +509,7 @@ The following abbreviated response groups the segments of the `my_vector` field 
                     "calibrated": false, <7>
                     "type": "osq",
                     "number_of_vectors": 14500,
-                    ...
+                    "size_in_bytes": 60040000,
                     "number_of_segments": 2
                   }
                 ]
@@ -526,8 +526,8 @@ The following abbreviated response groups the segments of the `my_vector` field 
 1. One entry exists for each DiskBBQ `dense_vector` field in the index, keyed by field name.
 2. Each `auto_calibration` entry represents one unique set of auto-calibration parameters.
 3. `calibrated` reports whether the segments were calibrated when they were merged.
-4. `type` defines the parameters used for auto-calibration.
-5. `number_of_segments` is the number of segments auto-calibrated with this parameter set. `number_of_vectors` is the total number of vectors in those segments and `size_in_bytes` is their off-heap size.
+4. `type` identifies the kind of calibration parameters returned. It is currently always `osq` (optimized scalar quantization).
+5. `number_of_segments` is the number of segments auto-calibrated with this parameter set. `number_of_vectors` is the total number of vectors in those segments and `size_in_bytes` is the on-disk size of this field's vector data in those segments.
 6. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
    Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
 7. Segments of this field that were not calibrated.
@@ -592,8 +592,8 @@ The following abbreviated response shows two segments of the same shard:
 
 1. One entry exists for each DiskBBQ `dense_vector` field in the segment, keyed by field name.
 2. `calibrated` reports if the segment was calibrated when it was merged.
-3. `type` defines the parameters used for auto-calibration.
-4. `number_of_vectors` is the total number of vectors in the segment and `size_in_bytes` is their off-heap size.
+3. `type` identifies the kind of calibration parameters returned. It is currently always `osq` (optimized scalar quantization).
+4. `number_of_vectors` is the total number of vectors in the segment and `size_in_bytes` is the on-disk size of this field's vector data in the segment.
 5. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
    Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
 6. An uncalibrated `dense_vector` field in a segment.

@@ -19,11 +19,15 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class VectorBuilderTests extends ESTestCase {
     @ParametersFactory
@@ -78,6 +82,32 @@ public class VectorBuilderTests extends ESTestCase {
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Fills exactly the room the builder starts with so it never grows. Before building, the breaker
+     * and {@link Vector.Builder#estimatedBytes} should both account for about as many bytes as the
+     * vector that the builder builds.
+     */
+    public void testAccountsForTheVectorItBuilds() {
+        // Enough values that undercounting each one by even a few bytes falls well outside the tolerance
+        int size = between(1_000, 50_000);
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        try (Vector.Builder builder = vectorBuilder(size, blockFactory)) {
+            RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
+            fill(builder, random.block().asVector());
+            long usedBeforeBuild = blockFactory.breaker().getUsed();
+            long estimatedBytes = builder.estimatedBytes();
+            try (Vector built = builder.build()) {
+                assertThat(usedBeforeBuild, closeToBytes(built.ramBytesUsed()));
+                assertThat(estimatedBytes, closeToBytes(built.ramBytesUsed()));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static Matcher<Long> closeToBytes(long bytes) {
+        return both(greaterThan(bytes - 1024)).and(lessThan(bytes + 1024));
     }
 
     public void testDoubleBuild() {

@@ -7,16 +7,13 @@
 
 package org.elasticsearch.xpack.querysampling.capture;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchLogContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.logging.activity.ActivityLogListener;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
@@ -40,7 +37,9 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged.
+ * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged. It follows
+ * searches through the query log, at the point where the log sees them, whether or not the log is enabled: the decision
+ * to capture is made when the search starts, so a search that is not captured is not followed.
  * Eligible: a single top-level {@code knn} with a literal float vector, and nothing that changes which documents are
  * searched (routing, any preference, PIT, scroll) or which hits come back or how they are ranked (an offset, no hits,
  * {@code search_after}, {@code terminate_after}, a minimum score, a post filter, collapsing, rescoring, boosts of indices,
@@ -48,13 +47,13 @@ import java.util.function.Supplier;
  * (cross-cluster or internal) are skipped, and so are answers that are partial: a timeout, a search that stopped early or
  * shards that failed would count as a low recall.
  * <p>
- * The filter sees the request before the search rewrites it, so a vector that is only known after the rewrite (a query
+ * The query log sees the request before the search rewrites it, so a vector that is only known after the rewrite (a query
  * vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not captured.
  * Capturing those would need a hook after the rewrite.
  */
-public final class QueryCaptureFilter implements MappedActionFilter {
+public final class QueryCaptureListener implements ActivityLogListener<SearchLogContext, SearchRequest> {
 
-    private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
+    private static final Logger logger = LogManager.getLogger(QueryCaptureListener.class);
 
     private static final int DEFAULT_SIZE = SearchService.DEFAULT_SIZE;
 
@@ -80,15 +79,15 @@ public final class QueryCaptureFilter implements MappedActionFilter {
 
     /**
      * @param millis a clock in milliseconds that is cheap to read: it is read by every kNN search, and a call to the system
-     *               clock costs far more than the rest of the filter when many threads make it at once, so the cached time of
-     *               the thread pool is the one to give
+     *               clock costs far more than the rest of the listener when many threads make it at once, so the cached time
+     *               of the thread pool is the one to give
      */
-    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, LongSupplier millis) {
+    public QueryCaptureListener(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, LongSupplier millis) {
         this(clusterSettings, consumer, millis, Randomness::get);
     }
 
     /** {@code random} is for the benchmark: {@link Randomness#get()} does not work in a JVM that has the test framework but no test. */
-    public QueryCaptureFilter(
+    public QueryCaptureListener(
         ClusterSettings clusterSettings,
         Consumer<CapturedSearch> consumer,
         LongSupplier millis,
@@ -127,57 +126,49 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         return captureRate.effective();
     }
 
+    /**
+     * Decides when the search starts whether it is captured, so a search that is not is not followed.
+     */
     @Override
-    public String actionName() {
-        return TransportSearchAction.NAME;
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-        Task task,
-        String action,
-        Request request,
-        ActionListener<Response> listener,
-        ActionFilterChain<Request, Response> chain
-    ) {
-        ActionListener<Response> searchListener = listener;
-        if (enabled && request instanceof SearchRequest searchRequest && task.getParentTaskId().isSet() == false) {
-            KnnSearchBuilder knn = eligibleKnn(searchRequest);
-            if (knn != null) {
-                knnSearches.increment();
-                updateRateIfDue();
-            }
-            // read once: the draw and the rate recorded with the search must be the same value
-            double rate = captureRate.effective();
-            if (knn != null && random.get().nextDouble() < rate) {
-                captured.increment();
-                try {
-                    searchListener = withResults(listener, capture(task, searchRequest, knn), rate);
-                } catch (Exception e) {
-                    // capturing must never fail the search
-                    warn("failed to capture kNN search", e);
-                }
-            }
+    @Nullable
+    public Consumer<SearchLogContext> start(Task task, SearchRequest request) {
+        if (enabled == false || task.getParentTaskId().isSet()) {
+            return null;
         }
-        chain.proceed(task, action, request, searchListener);
+        KnnSearchBuilder knn = eligibleKnn(request);
+        if (knn == null) {
+            return null;
+        }
+        knnSearches.increment();
+        updateRateIfDue();
+        // read once: the draw and the rate recorded with the search must be the same value
+        double rate = captureRate.effective();
+        if (random.get().nextDouble() >= rate) {
+            return null;
+        }
+        captured.increment();
+        CapturedQuery query;
+        try {
+            query = capture(task, request, knn);
+        } catch (Exception e) {
+            // capturing must never fail the search
+            warn("failed to capture kNN search", e);
+            return null;
+        }
+        return context -> completed(context, query, rate);
     }
 
-    private <Response extends ActionResponse> ActionListener<Response> withResults(
-        ActionListener<Response> listener,
-        CapturedQuery query,
-        double rate
-    ) {
-        return listener.delegateFailure((l, response) -> {
-            // a partial answer (shards that failed, a timeout, a search that stopped early) would count as a low recall
-            if (response instanceof SearchResponse searchResponse && isComplete(searchResponse)) {
-                try {
-                    consumer.accept(captureResults(query, searchResponse, rate));
-                } catch (Exception e) {
-                    warn("failed to capture kNN search results", e);
-                }
-            }
-            l.onResponse(response);
-        });
+    private void completed(SearchLogContext context, CapturedQuery query, double rate) {
+        // a failure or a partial answer (shards that failed, a timeout, a search that stopped early) would count as a low recall
+        SearchResponse response = context.getResponse();
+        if (response == null || isComplete(response) == false) {
+            return;
+        }
+        try {
+            consumer.accept(captureResults(query, response, rate));
+        } catch (Exception e) {
+            warn("failed to capture kNN search results", e);
+        }
     }
 
     private static boolean isComplete(SearchResponse response) {

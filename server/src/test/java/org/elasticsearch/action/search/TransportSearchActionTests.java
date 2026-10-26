@@ -2111,6 +2111,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new UsageService(),
                 new TestActionActionLoggingFieldsProvider(),
                 ActivityLogWriterProvider.NOOP,
+                SearchLogListeners.NONE,
                 CrossProjectModeDecider.NOOP
             );
 

@@ -9,9 +9,8 @@
 
 package org.elasticsearch.benchmark.querysampling;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchLogContext;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,7 +21,7 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
-import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
+import org.elasticsearch.xpack.querysampling.capture.QueryCaptureListener;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -43,11 +42,12 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 
 /**
- * What the capture filter of the query sampling framework adds to a search, which is the one part of the framework that
- * runs on the search path. The filter is applied to the search with the rest of the chain doing nothing, so what is
- * measured is the filter and not the search.
+ * What the capture listener of the query sampling framework adds to a search, which is the one part of the framework that
+ * runs on the search path. The query log calls {@code start} of the listener when every search starts, and that call is
+ * what is measured, not the search.
  * <p>
  * The scenarios are the ones a search can be in:
  * <ul>
@@ -55,28 +55,29 @@ import java.util.concurrent.locks.LockSupport;
  * <li>{@code not_a_knn_search}: sampling is on and the search is not eligible;</li>
  * <li>{@code knn_not_captured}: an eligible kNN search that the coin flip leaves alone, which is nearly all of them at
  * the default capture rate;</li>
- * <li>{@code knn_captured}: an eligible kNN search that is captured, so that its query is copied and its listener is
- * wrapped.</li>
+ * <li>{@code knn_captured}: an eligible kNN search that is captured, so that its query is copied and a callback is made
+ * for the end of the search.</li>
  * </ul>
- * The filter is shared and its counters are contended, so run it with several threads too, for example
+ * The listener is shared and its counters are contended, so run it with several threads too, for example
  * {@code -t 8}, to see how it behaves with many searches at once.
  * <p>
- * Results (average time of one {@code apply}, ns; Apple M4 Pro, 14 cores, JDK 27-ea, JMH 1.37, 1 fork, 3 warmup and 5
+ * Results (average time of one {@code start}, ns; Apple M4 Pro, 14 cores, JDK 27-ea, JMH 1.37, 1 fork, 3 warmup and 5
  * measurement iterations of 1 s, with an idle Elasticsearch node running beside it):
  * <pre>
  * scenario            1 thread          8 threads
- * disabled              0.6 ± 0.00        0.6 ± 0.02
- * not_a_knn_search      1.1 ± 0.03        1.2 ± 0.09
- * knn_not_captured      7.4 ± 0.06        8.8 ± 0.63
- * knn_captured         68.0 ± 0.55      217.4 ± 4.13
+ * disabled              0.6 ± 0.05        0.6 ± 0.01
+ * not_a_knn_search      1.1 ± 0.03        1.2 ± 0.04
+ * knn_not_captured      7.5 ± 0.03        9.6 ± 0.21
+ * knn_captured         73.7 ± 6.93      224.3 ± 12.05
  * </pre>
- * A search that is not captured pays a few nanoseconds, against search times in milliseconds. A captured one copies its
- * query and wraps its listener, which costs about 70 ns alone and about 220 ns with eight threads at once, as they
- * contend on the shared counters and the handoff.
+ * A search that is not captured pays a few nanoseconds, against search times in milliseconds, and the query log does not
+ * follow it. A captured one copies its query and makes the callback for the end of the search, which costs about 75 ns
+ * alone and about 225 ns with eight threads at once; the wrapper and the context that the query log adds for a search it
+ * follows are not part of this measurement.
  * <p>
- * The filter reads a clock on every kNN search, to bring its capture rate up to date once in a while. With
+ * The listener reads a clock on every kNN search, to bring its capture rate up to date once in a while. With
  * {@code System.nanoTime()} that read alone made {@code knn_not_captured} cost about 395 ns with eight threads on this
- * machine, so the filter is given a cached clock, like the cached time of the thread pool, which the benchmark mimics.
+ * machine, so the listener is given a cached clock, like the cached time of the thread pool, which the benchmark mimics.
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 1)
@@ -84,25 +85,24 @@ import java.util.concurrent.locks.LockSupport;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-public class QueryCaptureFilterBenchmark {
+public class QueryCaptureListenerBenchmark {
 
     private static final int DIMENSIONS = 768;
 
     @Param({ "disabled", "not_a_knn_search", "knn_not_captured", "knn_captured" })
     public String scenario;
 
-    // like the cached time of the thread pool, which is what the filter is given: one thread updates it, the searches read it
+    // like the cached time of the thread pool, which is what the listener is given: one thread updates it, the searches read it
     private volatile long cachedMillis;
     private Thread clockThread;
 
-    private QueryCaptureFilter filter;
+    private QueryCaptureListener listener;
     private SearchRequest request;
     private Task task;
-    private final ActionListener<SearchResponse> listener = ActionListener.noop();
 
     @Setup
     public void setUp() {
-        BenchmarkLogging.configure(); // the filter logs, so it needs a logger factory
+        BenchmarkLogging.configure(); // the listener logs, so it needs a logger factory
         cachedMillis = System.nanoTime() / 1_000_000;
         clockThread = new Thread(() -> {
             while (Thread.currentThread().isInterrupted() == false) {
@@ -118,7 +118,7 @@ public class QueryCaptureFilterBenchmark {
             .put(QuerySamplingSettings.ENABLED.getKey(), enabled)
             .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), captureRate)
             .build();
-        filter = new QueryCaptureFilter(
+        listener = new QueryCaptureListener(
             new ClusterSettings(
                 settings,
                 Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
@@ -150,7 +150,7 @@ public class QueryCaptureFilterBenchmark {
     }
 
     @Benchmark
-    public void apply() {
-        filter.apply(task, TransportSearchAction.NAME, request, listener, (t, action, r, l) -> {});
+    public Consumer<SearchLogContext> start() {
+        return listener.start(task, request);
     }
 }

@@ -13,11 +13,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.search.SearchLogContext;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.common.logging.activity.ActivityLogListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
@@ -62,6 +65,14 @@ public interface ActionPlugin {
      * Action filters applying to a single action added by this plugin.
      */
     default Collection<MappedActionFilter> getMappedActionFilters() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Listeners that follow searches at the point where the query log sees them, whether or not the query log is enabled.
+     * Called once the plugin's components have been created.
+     */
+    default Collection<ActivityLogListener<SearchLogContext, SearchRequest>> getSearchLogListeners() {
         return Collections.emptyList();
     }
 

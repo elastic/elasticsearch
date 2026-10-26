@@ -16,16 +16,24 @@ import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
  * Generic wrapper to log completion (whether successful or not) of any action, with necessary details.
  * Specific details are added in the specific context types for each action, such as search, ESQL query, etc.
+ * <p>
+ * The methods that take {@code followers} also hand the context of the completed action to what the
+ * {@link ActivityLogListener}s following it want called, whether or not logging is enabled and whatever its threshold.
  * @param <Context> Logging context type
  */
 public class ActivityLogger<Context extends ActivityLoggerContext> {
+    private static final Logger logger = LogManager.getLogger(ActivityLogger.class);
+
     private final ActivityLogProducer<Context> producer;
     private final ActivityLogWriter writer;
     private final ActionLoggingFields additionalFields;
@@ -65,12 +73,25 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
 
     // Accessible for tests
     void logAction(Context context) {
-        if (shouldLog(context) == false) {
-            return;
+        logAction(context, List.of());
+    }
+
+    // Accessible for tests
+    void logAction(Context context, List<Consumer<Context>> followers) {
+        // enabled first: with only followers, the checks of shouldLog (such as for system indices) are not needed
+        if (enabled && shouldLog(context)) {
+            Optional<ESLogMessage> event = producer.produce(context, additionalFields);
+            event.ifPresent(logMessage -> addFields(context, logMessage));
+            event.ifPresent(logMessage -> writer.write(logLevel, logMessage));
         }
-        Optional<ESLogMessage> event = producer.produce(context, additionalFields);
-        event.ifPresent(logMessage -> addFields(context, logMessage));
-        event.ifPresent(logMessage -> writer.write(logLevel, logMessage));
+        // followers do not depend on the log being enabled or on its threshold, and must never fail the action
+        for (Consumer<Context> follower : followers) {
+            try {
+                follower.accept(context);
+            } catch (Exception e) {
+                logger.warn(() -> "a listener of a [" + context.getType() + "] action failed", e);
+            }
+        }
     }
 
     protected void addFields(Context context, ESLogMessage logMessage) {}
@@ -81,7 +102,19 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
      * If logging is disabled, it's a no-op.
      */
     public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
-        if (enabled == false) {
+        return wrap(listener, contextBuilder, List.of());
+    }
+
+    /**
+     * Wrap a listener, adding logging to either outcome of it and handing its context to {@code followers}.
+     * If logging is disabled and there are no followers, it's a no-op.
+     */
+    public <Req, R> ActionListener<R> wrap(
+        ActionListener<R> listener,
+        final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder,
+        List<Consumer<Context>> followers
+    ) {
+        if (enabled == false && followers.isEmpty()) {
             return listener;
         }
         return new DelegatingActionListener<>(listener) {
@@ -99,12 +132,12 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
 
             private void log(R r) {
                 Context ctx = contextBuilder.build(r);
-                logAction(ctx);
+                logAction(ctx, followers);
             }
 
             private void log(Exception e) {
                 Context ctx = contextBuilder.build(e);
-                logAction(ctx);
+                logAction(ctx, followers);
             }
 
             @Override
@@ -127,22 +160,43 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         ActivityLoggerContextBuilder<Context, Req, R> contextBuilder,
         Consumer<ActionListener<R>> action
     ) {
-        if (enabled == false) {
+        wrapAndRun(listener, contextBuilder, List.of(), action);
+    }
+
+    /**
+     * Like {@link #wrapAndRun(ActionListener, ActivityLoggerContextBuilder, Consumer)}, also handing the context of the
+     * completed action to {@code followers}. If logging is disabled and there are no followers, it's a no-op.
+     */
+    public <Req, R> void wrapAndRun(
+        ActionListener<R> listener,
+        ActivityLoggerContextBuilder<Context, Req, R> contextBuilder,
+        List<Consumer<Context>> followers,
+        Consumer<ActionListener<R>> action
+    ) {
+        if (enabled == false && followers.isEmpty()) {
             action.accept(listener);
             return;
         }
         try {
-            action.accept(wrap(listener, contextBuilder));
+            action.accept(wrap(listener, contextBuilder, followers));
         } catch (Exception e) {
-            handleException(e, contextBuilder);
+            handleException(e, contextBuilder, followers);
             throw e;
         }
     }
 
     public <Req, R> void handleException(Exception e, ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
-        if (enabled) {
+        handleException(e, contextBuilder, List.of());
+    }
+
+    public <Req, R> void handleException(
+        Exception e,
+        ActivityLoggerContextBuilder<Context, Req, R> contextBuilder,
+        List<Consumer<Context>> followers
+    ) {
+        if (enabled || followers.isEmpty() == false) {
             Context ctx = contextBuilder.build(e);
-            logAction(ctx);
+            logAction(ctx, followers);
         }
     }
 }

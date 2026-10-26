@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.querysampling.capture;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchLogContext;
+import org.elasticsearch.action.search.SearchLogContextBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -43,16 +43,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class QueryCaptureFilterTests extends ESTestCase {
+public class QueryCaptureListenerTests extends ESTestCase {
 
     private final List<CapturedSearch> captured = new ArrayList<>();
 
     public void testCapturesKnnSearch() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        QueryCaptureListener listener = listener(true, 1.0, captured::add);
         float[] vector = randomVector(8);
         SearchRequest request = knnSearch(vector);
 
-        assertTrue(applyFilter(filter, request, TaskId.EMPTY_TASK_ID));
+        search(listener, request, TaskId.EMPTY_TASK_ID);
 
         assertThat(captured.size(), equalTo(1));
         CapturedQuery query = captured.get(0).query();
@@ -68,7 +68,7 @@ public class QueryCaptureFilterTests extends ESTestCase {
     }
 
     public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        QueryCaptureListener listener = listener(true, 1.0, captured::add);
         List<SearchRequest> notComparable = new ArrayList<>();
         notComparable.add(knnSearch(randomVector(8)).routing("a"));
         notComparable.add(knnSearch(randomVector(8)).preference("_shards:0"));
@@ -85,48 +85,46 @@ public class QueryCaptureFilterTests extends ESTestCase {
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().indexBoost("idx", 2f)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().size(0)));
         for (SearchRequest request : notComparable) {
-            assertTrue(applyFilter(filter, request, TaskId.EMPTY_TASK_ID));
+            search(listener, request, TaskId.EMPTY_TASK_ID);
         }
 
         assertTrue(captured.isEmpty());
-        assertThat(filter.knnSearches(), equalTo(0L));
+        assertThat(listener.knnSearches(), equalTo(0L));
     }
 
     public void testASearchSortedByItsScoreIsTheDefaultOrderAndIsCaptured() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        QueryCaptureListener listener = listener(true, 1.0, captured::add);
 
-        assertTrue(
-            applyFilter(filter, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID)
-        );
+        search(listener, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID);
 
         assertThat(captured.size(), equalTo(1));
     }
 
     public void testTheCaptureRateFollowsTheTrafficWhenSearchesComeInWithoutAScheduledTask() {
         AtomicLong millis = new AtomicLong();
-        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings(true, 0.0, 3600), captured::add, millis::get);
-        assertThat("no traffic known yet, and none configured", filter.effectiveCaptureRate(), equalTo(0.0));
+        QueryCaptureListener listener = new QueryCaptureListener(clusterSettings(true, 0.0, 3600), captured::add, millis::get);
+        assertThat("no traffic known yet, and none configured", listener.effectiveCaptureRate(), equalTo(0.0));
 
         for (int i = 0; i < 20; i++) {
-            assertTrue(applyFilter(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
+            search(listener, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
         }
-        assertThat("an interval has not passed", filter.effectiveCaptureRate(), equalTo(0.0));
+        assertThat("an interval has not passed", listener.effectiveCaptureRate(), equalTo(0.0));
 
         millis.addAndGet(TimeUnit.SECONDS.toMillis(10));
-        assertTrue(applyFilter(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
-        assertThat("21 searches in 10 s, and 3600 captures an hour are wanted", filter.effectiveCaptureRate(), closeTo(1 / 2.1, 1e-9));
+        search(listener, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        assertThat("21 searches in 10 s, and 3600 captures an hour are wanted", listener.effectiveCaptureRate(), closeTo(1 / 2.1, 1e-9));
 
         millis.addAndGet(TimeUnit.SECONDS.toMillis(60));
-        assertTrue(applyFilter(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
+        search(listener, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
         assertThat(
             "after a quiet spell what came before is forgotten, and whatever arrives is wanted",
-            filter.effectiveCaptureRate(),
+            listener.effectiveCaptureRate(),
             equalTo(1.0)
         );
     }
 
-    private static QueryCaptureFilter filter(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
-        return new QueryCaptureFilter(clusterSettings(enabled, rate), consumer, () -> 0L);
+    private static QueryCaptureListener listener(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
+        return new QueryCaptureListener(clusterSettings(enabled, rate), consumer, () -> 0L);
     }
 
     private static ClusterSettings clusterSettings(boolean enabled, double rate) {
@@ -166,35 +164,19 @@ public class QueryCaptureFilterTests extends ESTestCase {
         }
     }
 
-    private static Consumer<ActionListener<SearchResponse>> respondWith(SearchResponse response) {
-        return listener -> {
-            try {
-                listener.onResponse(response);
-            } finally {
-                response.decRef();
-            }
-        };
-    }
-
-    private static boolean applyFilter(QueryCaptureFilter filter, SearchRequest request, TaskId parent) {
-        return applyFilter(filter, request, parent, respondWith(response(1)), ActionListener.noop());
-    }
-
-    private static boolean applyFilter(
-        QueryCaptureFilter filter,
-        SearchRequest request,
-        TaskId parent,
-        Consumer<ActionListener<SearchResponse>> restOfChain,
-        ActionListener<SearchResponse> downstream
-    ) {
+    /** What the query log does with a listener: start it when the search starts, and hand it the context when it completes. */
+    private static void search(QueryCaptureListener listener, SearchRequest request, TaskId parent) {
         Task task = new Task(1, "transport", TransportSearchAction.NAME, "", parent, Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, "q7"));
-        AtomicBoolean proceeded = new AtomicBoolean();
-        ActionFilterChain<SearchRequest, SearchResponse> chain = (t, action, r, listener) -> {
-            proceeded.set(true);
-            restOfChain.accept(listener);
-        };
-        filter.apply(task, TransportSearchAction.NAME, request, downstream, chain);
-        return proceeded.get();
+        Consumer<SearchLogContext> follower = listener.start(task, request);
+        if (follower == null) {
+            return;
+        }
+        SearchResponse response = response(1);
+        try {
+            follower.accept(new SearchLogContextBuilder(task, new NamedWriteableRegistry(List.of()), request).build(response));
+        } finally {
+            response.decRef();
+        }
     }
 
     private static float[] randomVector(int dims) {

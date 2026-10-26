@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchLogContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.activity.ActivityLogListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +30,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
-import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
+import org.elasticsearch.xpack.querysampling.capture.QueryCaptureListener;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
@@ -72,7 +73,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     private static final int MAX_PENDING_WRITES = 1000;
     private static final TimeValue WRITE_INTERVAL = TimeValue.timeValueSeconds(1);
 
-    private final SetOnce<QueryCaptureFilter> captureFilter = new SetOnce<>();
+    private final SetOnce<QueryCaptureListener> captureListener = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -190,8 +191,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         );
         groundTruthWorker.start(services.threadPool(), generic, clusterSettings);
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
-        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis);
-        captureFilter.set(filter);
+        captureListener.set(new QueryCaptureListener(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis));
         return List.of();
     }
 
@@ -214,11 +214,11 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     }
 
     @Override
-    public Collection<MappedActionFilter> getMappedActionFilters() {
+    public Collection<ActivityLogListener<SearchLogContext, SearchRequest>> getSearchLogListeners() {
         // settings stay registered, but without the flag nothing may act on them
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }
-        return List.of(captureFilter.get());
+        return List.of(captureListener.get());
     }
 }

@@ -33,15 +33,15 @@ import java.util.List;
  * -----------------------------------------------
  * |   Extent (var-encoding)                     |
  * -----------------------------------------------
- * |   Triangle Tree Length (VInt)                |
+ * |   Triangle Tree Length (VInt)               |
  * -----------------------------------------------
  * |   Triangle Tree (ordinal-based)             |
  * -----------------------------------------------
- * |   Connectivity Length (4 bytes)               |
+ * |   Connectivity Length (VInt)                |
  * -----------------------------------------------
- * |   Vertex Connectivity                       |
+ * |   Vertex Connectivity (types and counts)    |
  * -----------------------------------------------
- * |   Vertex Lookup Table                       |
+ * |   Vertex Lookup Table (geometry order)      |
  * |   numVertices(VInt) + [x(4),y(4)]...        |
  * -----------------------------------------------
  * </pre>
@@ -63,13 +63,12 @@ import java.util.List;
  * -----------------------------------------------
  * </pre>
  *
- * <p>The vertex lookup table is placed last because the connectivity writer may add
- * vertices not present in the tessellated triangles (e.g. for degenerate geometries).
- * Writing the table after connectivity ensures it includes all vertices. The connectivity
- * length is written as a fixed 4-byte int (with the actual value patched in after
- * writing the connectivity data) to avoid buffering. The reader uses the tree length
- * and connectivity length to skip to the vertex table. Reading just the centroid
- * and/or extent (common for analytics) does not require loading the vertex table.
+ * <p>The vertex lookup table starts with the original geometry vertices in geometry order, followed by
+ * any vertices only referenced by the triangle tree (e.g. from dateline normalization). This lets the
+ * connectivity hold only type tags and counts, and reconstruction read the table sequentially. The
+ * table is placed last because it is only complete once both the geometry and the tree have been
+ * processed. The reader uses the tree length and connectivity length to skip to the vertex table.
+ * Reading just the centroid and/or extent (common for analytics) does not require loading the vertex table.
  *
  * <p>The {@link #write} method automatically selects the optimal format: point-only
  * geometries (Point, MultiPoint) use the legacy format since vertex ordering is irrelevant
@@ -125,21 +124,20 @@ public class GeometryDocValueWriter {
         centroidCalculator.getDimensionalShapeType().writeV2To(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
 
-        // 2. Build and write extent + treeLength + tree (vertex table builder is populated during tree build)
+        // 2. Build connectivity first, so the original geometry vertices take the first ordinals in geometry order.
+        // It only holds type tags and counts, so it is small enough to buffer until it is written after the tree.
         final VertexLookupTable.Builder vertexTableBuilder = VertexLookupTable.builder();
+        final BytesStreamOutput connectivity = new BytesStreamOutput();
+        GeometryConnectivityWriter.writeTo(connectivity, geometries, coordinateEncoder, vertexTableBuilder);
+
+        // 3. Build and write extent + treeLength + tree (may append vertices only used by the tree)
         V2TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
 
-        // 3. Write connectivity (may add vertices to the builder for coordinates in the original geometry
-        // that don't appear in any tessellated triangle). We write a dummy length before the data, which we fill in later.
-        long connectivityPosition = out.position();
-        out.writeInt(0); // placeholder for connectivity length
-        GeometryConnectivityWriter.writeTo(out, geometries, coordinateEncoder, vertexTableBuilder);
-        long vertexTablePosition = out.position();
-        out.seek(connectivityPosition);
-        out.writeInt((int) (vertexTablePosition - connectivityPosition) - 4);
-        out.seek(vertexTablePosition);
+        // 4. Write connectivity, prefixed by its length so readers can skip to the vertex table
+        out.writeVInt(Math.toIntExact(connectivity.position()));
+        connectivity.bytes().writeTo(out);
 
-        // 5. Write vertex lookup table last (includes all vertices from both tree and connectivity)
+        // 5. Write vertex lookup table last (includes all vertices from both geometry and tree)
         vertexTableBuilder.writeTo(out);
 
         return out.bytes().toBytesRef();

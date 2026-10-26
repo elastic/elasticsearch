@@ -27,21 +27,22 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Writes the vertex connectivity/ordering information for a geometry using vertex ordinals
- * from a {@link VertexLookupTable}. This captures the structure of the original geometry
- * (which rings belong to which polygon, the order of vertices in each ring/line, etc.)
- * so that the geometry can be faithfully reconstructed from the doc-values.
+ * Writes the structure of a geometry (which rings belong to which polygon, how many vertices each
+ * ring or line has, etc.) so that the geometry can be faithfully reconstructed from the doc-values.
+ * The vertices themselves are appended to a {@link VertexLookupTable} in geometry order while writing,
+ * so the connectivity only needs to hold type tags and counts, similar to GeoArrow offsets.
  *
- * <p>The connectivity is encoded as a recursive structure matching the geometry type hierarchy:
+ * <p>The connectivity is encoded as a recursive structure matching the geometry type hierarchy.
+ * Each entry consumes the stated number of vertices from the table, in order:
  * <pre>
- *   POINT(0):            ordinal(VInt)
- *   LINE(1):             numVertices(VInt), ordinals...(VInt)
- *   POLYGON(2):          numRings(VInt), [numVertices(VInt), ordinals...(VInt)]...
- *   MULTIPOINT(3):       count(VInt), ordinals...(VInt)
- *   MULTILINE(4):        count(VInt), [numVertices(VInt), ordinals...(VInt)]...
- *   MULTIPOLYGON(5):     count(VInt), [POLYGON encoding]...
+ *   POINT(0):              (1 vertex)
+ *   LINE(1):               numVertices(VInt)
+ *   POLYGON(2):            numRings(VInt), [numVertices(VInt)]...
+ *   MULTIPOINT(3):         count(VInt)
+ *   MULTILINE(4):          count(VInt), [numVertices(VInt)]...
+ *   MULTIPOLYGON(5):       count(VInt), [POLYGON encoding]...
  *   GEOMETRYCOLLECTION(6): count(VInt), [recursive geometry]...
- *   RECTANGLE(7):        minOrdinal(VInt), maxOrdinal(VInt)
+ *   RECTANGLE(7):          (2 vertices: min, max)
  * </pre>
  *
  * <p>Polygon rings are stored WITHOUT the closing vertex (which always equals the first vertex)
@@ -61,12 +62,13 @@ public class GeometryConnectivityWriter {
     private GeometryConnectivityWriter() {}
 
     /**
-     * Writes connectivity for a list of geometries using vertex ordinals from the given
-     * lookup table builder. The original (pre-normalization) geometries are used so that
+     * Writes connectivity for a list of geometries, appending their vertices to the given lookup table
+     * builder in geometry order. This must be called before the triangle tree is built, so the geometry
+     * vertices take the first ordinals. The original (pre-normalization) geometries are used so that
      * reconstruction produces output as close to the source as possible. This should only differ
      * from normalized geometries when crossing the dateline, in which case the normalization
      * splits the geometry before we create and store the triangle tree. For these cases,
-     * the vertex table will contain some additional elements not in the triangle tree.
+     * the vertex table will contain some additional vertices only referenced by the triangle tree.
      */
     public static void writeTo(
         StreamOutput out,
@@ -93,51 +95,48 @@ public class GeometryConnectivityWriter {
         }
 
         /**
-         * Maps a geometry coordinate to its vertex ordinal, adding to the table if needed.
-         * Coordinates are normalized before encoding, so original geometry coordinates
-         * (e.g. longitude &gt; 180 for dateline-crossing shapes) map correctly.
+         * Appends a geometry coordinate to the vertex table. Coordinates are normalized before encoding,
+         * so original geometry coordinates (e.g. longitude &gt; 180 for dateline-crossing shapes) are
+         * shared with the tessellated triangles where possible.
          */
-        private int resolveOrdinal(double x, double y) {
-            int encodedX = encoder.encodeX(encoder.normalizeX(x));
-            int encodedY = encoder.encodeY(encoder.normalizeY(y));
-            int ordinal = vertexTableBuilder.getOrdinal(encodedX, encodedY);
-            if (ordinal == -1) {
-                // Vertex from the original geometry that wasn't in any tessellated triangle.
-                // This happens for degenerate geometries (co-linear tessellation) and for
-                // dateline-crossing shapes where the original has different vertices than
-                // the normalized/tessellated form.
-                ordinal = vertexTableBuilder.addVertex(encodedX, encodedY);
-            }
-            return ordinal;
+        private void appendVertex(double x, double y) {
+            vertexTableBuilder.appendVertex(encoder.encodeX(encoder.normalizeX(x)), encoder.encodeY(encoder.normalizeY(y)));
         }
 
         @Override
         public Void visit(Point point) throws IOException {
             out.writeByte(TYPE_POINT);
-            out.writeVInt(resolveOrdinal(point.getX(), point.getY()));
+            appendVertex(point.getX(), point.getY());
             return null;
         }
 
         @Override
         public Void visit(Line line) throws IOException {
             out.writeByte(TYPE_LINE);
+            writeLine(line);
+            return null;
+        }
+
+        private void writeLine(Line line) throws IOException {
             out.writeVInt(line.length());
             for (int i = 0; i < line.length(); i++) {
-                out.writeVInt(resolveOrdinal(line.getX(i), line.getY(i)));
+                appendVertex(line.getX(i), line.getY(i));
             }
-            return null;
         }
 
         @Override
         public Void visit(Polygon polygon) throws IOException {
             out.writeByte(TYPE_POLYGON);
-            int numRings = 1 + polygon.getNumberOfHoles();
-            out.writeVInt(numRings);
+            writePolygon(polygon);
+            return null;
+        }
+
+        private void writePolygon(Polygon polygon) throws IOException {
+            out.writeVInt(1 + polygon.getNumberOfHoles());
             writeRing(polygon.getPolygon());
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                 writeRing(polygon.getHole(i));
             }
-            return null;
         }
 
         /** Writes a ring without the closing vertex (which equals the first vertex). */
@@ -145,7 +144,7 @@ public class GeometryConnectivityWriter {
             int numVertices = ring.length() - 1; // exclude closing vertex
             out.writeVInt(numVertices);
             for (int i = 0; i < numVertices; i++) {
-                out.writeVInt(resolveOrdinal(ring.getX(i), ring.getY(i)));
+                appendVertex(ring.getX(i), ring.getY(i));
             }
         }
 
@@ -154,7 +153,7 @@ public class GeometryConnectivityWriter {
             out.writeByte(TYPE_MULTIPOINT);
             out.writeVInt(multiPoint.size());
             for (int i = 0; i < multiPoint.size(); i++) {
-                out.writeVInt(resolveOrdinal(multiPoint.get(i).getX(), multiPoint.get(i).getY()));
+                appendVertex(multiPoint.get(i).getX(), multiPoint.get(i).getY());
             }
             return null;
         }
@@ -164,10 +163,7 @@ public class GeometryConnectivityWriter {
             out.writeByte(TYPE_MULTILINE);
             out.writeVInt(multiLine.size());
             for (Line line : multiLine) {
-                out.writeVInt(line.length());
-                for (int i = 0; i < line.length(); i++) {
-                    out.writeVInt(resolveOrdinal(line.getX(i), line.getY(i)));
-                }
+                writeLine(line);
             }
             return null;
         }
@@ -177,12 +173,7 @@ public class GeometryConnectivityWriter {
             out.writeByte(TYPE_MULTIPOLYGON);
             out.writeVInt(multiPolygon.size());
             for (Polygon polygon : multiPolygon) {
-                int numRings = 1 + polygon.getNumberOfHoles();
-                out.writeVInt(numRings);
-                writeRing(polygon.getPolygon());
-                for (int j = 0; j < polygon.getNumberOfHoles(); j++) {
-                    writeRing(polygon.getHole(j));
-                }
+                writePolygon(polygon);
             }
             return null;
         }
@@ -200,8 +191,8 @@ public class GeometryConnectivityWriter {
         @Override
         public Void visit(Rectangle rectangle) throws IOException {
             out.writeByte(TYPE_RECTANGLE);
-            out.writeVInt(resolveOrdinal(rectangle.getMinX(), rectangle.getMinY()));
-            out.writeVInt(resolveOrdinal(rectangle.getMaxX(), rectangle.getMaxY()));
+            appendVertex(rectangle.getMinX(), rectangle.getMinY());
+            appendVertex(rectangle.getMaxX(), rectangle.getMaxY());
             return null;
         }
 

@@ -9,20 +9,21 @@
 
 package org.elasticsearch.lucene.spatial;
 
+import org.apache.lucene.internal.hppc.LongIntHashMap;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
- * A lookup table that stores unique vertex coordinates, each assigned a sequential ordinal.
- * Both the triangle tree and the vertex connectivity structure reference vertices by ordinal
- * instead of storing coordinate values directly. This deduplicates shared vertices (a vertex
- * typically appears in ~6 adjacent triangles) and enables compact storage of the connectivity
- * information needed to reconstruct the original geometry.
+ * A lookup table that stores vertex coordinates, each assigned a sequential ordinal.
+ * The table starts with the vertices of the original geometry in geometry order (ring by ring,
+ * without closing vertices), so the geometry can be reconstructed by reading it sequentially,
+ * guided only by the part and ring counts in the connectivity section. The triangle tree references
+ * vertices by ordinal instead of storing coordinate values directly, which deduplicates shared
+ * vertices (a vertex typically appears in ~6 adjacent triangles). Vertices only needed by the tree
+ * (e.g. from dateline normalization) are appended after the geometry vertices.
  *
  * <p>Each entry is fixed-size (4 bytes x + 4 bytes y = 8 bytes), enabling O(1) random access
  * by ordinal during triangle tree traversal. The read path avoids allocating separate coordinate
@@ -52,7 +53,7 @@ public class VertexLookupTable {
         return readIntBE(bytes, dataOffset + ordinal * BYTES_PER_VERTEX + 4);
     }
 
-    /** Returns the number of unique vertices in the table. */
+    /** Returns the number of vertices in the table. */
     public int size() {
         return numVertices;
     }
@@ -91,16 +92,31 @@ public class VertexLookupTable {
     }
 
     /**
-     * Builder that collects unique vertices and assigns sequential ordinals.
-     * Uses a hash map keyed on the packed (x, y) coordinate pair to detect duplicates.
-     * Vertex data is stored in a single packed byte array (x, y pairs in big-endian format)
-     * rather than separate int arrays, matching the on-disk format and enabling efficient
-     * bulk writes.
+     * Builder that collects vertices and assigns sequential ordinals.
+     * Uses a hash map keyed on the packed (x, y) coordinate pair so that the triangle tree can find
+     * the ordinal of an existing vertex. Vertex data is stored in a single packed byte array (x, y pairs
+     * in big-endian format) rather than separate int arrays, matching the on-disk format and enabling
+     * efficient bulk writes.
+     *
+     * <p>The original geometry vertices are added first with {@link #appendVertex}, in geometry order and
+     * including repeated coordinates, so the table can be read back sequentially to reconstruct the geometry.
+     * The triangle tree then resolves its vertices with {@link #addVertex}, which only appends vertices that
+     * are not already present (e.g. those created by dateline normalization).
      */
     public static class Builder {
-        private final Map<Long, Integer> coordToOrdinal = new HashMap<>();
+        private final LongIntHashMap coordToOrdinal = new LongIntHashMap(64);
         private int nextOrdinal = 0;
         private byte[] vertexData = new byte[64 * BYTES_PER_VERTEX];
+
+        /**
+         * Appends a vertex at the next ordinal, even if the same coordinates were already added.
+         * The first ordinal for each coordinate is the one returned by later {@link #addVertex} calls.
+         */
+        public int appendVertex(int x, int y) {
+            int ordinal = append(x, y);
+            coordToOrdinal.putIfAbsent(packCoordinates(x, y), ordinal);
+            return ordinal;
+        }
 
         /**
          * Adds a vertex to the table. If the vertex already exists, returns its existing ordinal.
@@ -108,10 +124,16 @@ public class VertexLookupTable {
          */
         public int addVertex(int x, int y) {
             long key = packCoordinates(x, y);
-            Integer existing = coordToOrdinal.get(key);
-            if (existing != null) {
-                return existing;
+            int index = coordToOrdinal.indexOf(key);
+            if (coordToOrdinal.indexExists(index)) {
+                return coordToOrdinal.indexGet(index);
             }
+            int ordinal = append(x, y);
+            coordToOrdinal.indexInsert(index, key, ordinal);
+            return ordinal;
+        }
+
+        private int append(int x, int y) {
             int ordinal = nextOrdinal++;
             int byteOffset = ordinal * BYTES_PER_VERTEX;
             if (byteOffset + BYTES_PER_VERTEX > vertexData.length) {
@@ -119,21 +141,10 @@ public class VertexLookupTable {
             }
             writeIntBE(vertexData, byteOffset, x);
             writeIntBE(vertexData, byteOffset + 4, y);
-            coordToOrdinal.put(key, ordinal);
             return ordinal;
         }
 
-        /**
-         * Looks up the ordinal for a vertex with the given encoded coordinates.
-         * Returns -1 if no such vertex exists in the table.
-         */
-        public int getOrdinal(int x, int y) {
-            long key = packCoordinates(x, y);
-            Integer ordinal = coordToOrdinal.get(key);
-            return ordinal != null ? ordinal : -1;
-        }
-
-        /** Returns the number of unique vertices added so far. */
+        /** Returns the number of vertices added so far. */
         public int size() {
             return nextOrdinal;
         }

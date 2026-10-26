@@ -112,7 +112,7 @@ public class GeoShapeDocValues {
             input.setPosition(treeOffset + v2TreeLength);
             int connectivityLength = input.readVInt();
             input.skipBytes(connectivityLength);
-            vertices = VertexLookupTable.readFrom(input, bytes);
+            vertices = VertexLookupTable.readFrom(input, bytes, extent);
         }
         return vertices;
     }

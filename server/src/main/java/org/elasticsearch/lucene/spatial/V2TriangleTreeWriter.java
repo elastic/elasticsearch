@@ -30,14 +30,17 @@ class V2TriangleTreeWriter extends TriangleTreeWriter {
      * with unique vertices, then writes the extent, tree length, and tree to the output.
      * The tree length prefix allows the reader to skip past the tree to reach subsequent sections
      * (vertex table, connectivity) without traversing it.
+     *
+     * @return the extent that was written, which the vertex table coordinates are relative to
      */
-    static void writeTo(StreamOutput out, List<IndexableField> fields, VertexLookupTable.Builder vertexTableBuilder) throws IOException {
+    static Extent writeTo(StreamOutput out, List<IndexableField> fields, VertexLookupTable.Builder vertexTableBuilder) throws IOException {
         final Extent extent = new Extent();
         final TriangleTreeNode node = build(fields, extent, c -> new V2Node(c, vertexTableBuilder));
         extent.writeCompressed(out);
         CountingStreamOutput countingBuffer = new CountingStreamOutput();
         out.writeVInt(Math.toIntExact(node.totalSize(countingBuffer)));
         node.writeTo(out);
+        return extent;
     }
 
     static class V2Node extends TriangleTreeNode {

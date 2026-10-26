@@ -131,14 +131,14 @@ public class GeometryDocValueWriter {
         GeometryConnectivityWriter.writeTo(connectivity, geometries, coordinateEncoder, vertexTableBuilder);
 
         // 3. Build and write extent + treeLength + tree (may append vertices only used by the tree)
-        V2TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
+        final Extent extent = V2TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
 
         // 4. Write connectivity, prefixed by its length so readers can skip to the vertex table
         out.writeVInt(Math.toIntExact(connectivity.position()));
         connectivity.bytes().writeTo(out);
 
         // 5. Write vertex lookup table last (includes all vertices from both geometry and tree)
-        vertexTableBuilder.writeTo(out);
+        vertexTableBuilder.writeTo(out, extent);
 
         return out.bytes().toBytesRef();
     }

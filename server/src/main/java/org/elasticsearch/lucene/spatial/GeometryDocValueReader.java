@@ -151,7 +151,7 @@ public class GeometryDocValueReader {
             int connectivityLength = input.readVInt();
             connectivityOffset = input.getPosition();
             input.setPosition(connectivityOffset + connectivityLength);
-            vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
+            vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes, extent);
         }
     }
 

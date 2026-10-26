@@ -42,8 +42,8 @@ public class TriangleTreeTests extends ESTestCase {
         // Write using V2 format: tree + vertex table
         VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
         BytesStreamOutput output = new BytesStreamOutput();
-        V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
-        vtBuilder.writeTo(output);
+        Extent writtenExtent = V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
+        vtBuilder.writeTo(output, writtenExtent);
 
         // Read tree (extent → treeLength → tree) then vertex table
         ByteArrayStreamInput input = new ByteArrayStreamInput();
@@ -54,7 +54,7 @@ public class TriangleTreeTests extends ESTestCase {
         int treeLength = input.readVInt();
         int treeStart = input.getPosition();
         input.skipBytes(treeLength);
-        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes, extent);
 
         input.setPosition(treeStart);
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
@@ -91,13 +91,13 @@ public class TriangleTreeTests extends ESTestCase {
 
         VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
         BytesStreamOutput output = new BytesStreamOutput();
-        V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
+        Extent writtenExtent = V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
 
         // Builder should have 4 unique vertices, regardless of how many triangles reference them
         assertThat(vtBuilder.size(), equalTo(4));
 
         // Write the vertex table and read it back to verify the round-trip
-        vtBuilder.writeTo(output);
+        vtBuilder.writeTo(output, writtenExtent);
         ByteArrayStreamInput input = new ByteArrayStreamInput();
         BytesRef bytesRef = output.bytes().toBytesRef();
         input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
@@ -105,7 +105,7 @@ public class TriangleTreeTests extends ESTestCase {
         Extent.readFromCompressed(input, extent);
         int treeLength = input.readVInt();
         input.skipBytes(treeLength);
-        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes, extent);
         assertThat(vertexTable.size(), equalTo(4));
 
         // Should have at least 2 triangles

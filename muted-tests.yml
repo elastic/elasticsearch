@@ -437,11 +437,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  tasks:
-  - :integTest
-  method: falls back to local build when mode=auto and DRA manifest commit does not match remote tracking ref
-  issue: https://github.com/elastic/elasticsearch/issues/163172
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v9.2.8#mixedClusterTest
@@ -451,3 +446,4 @@ tests:
   - :server:internalClusterTest
   method: testIndexMode
   issue: https://github.com/elastic/elasticsearch/issues/163329
+  

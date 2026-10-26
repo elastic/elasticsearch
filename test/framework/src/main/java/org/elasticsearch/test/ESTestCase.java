@@ -1113,9 +1113,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
-    public static Settings.Builder randomBatchIndexing(Random random, Settings.Builder settings) {
+    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
         if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
-            int choice = random.nextInt(3);
+            int choice = randomIntBetween(0, 2);
             if (choice == 0) {
                 settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
             } else if (choice == 1) {
@@ -1123,11 +1123,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         }
         return settings;
-    }
-
-    /** Like {@link #randomBatchIndexing(Random, Settings.Builder)} using the test's random. */
-    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
-        return randomBatchIndexing(random(), settings);
     }
 
     public static Boolean randomOptionalBoolean() {

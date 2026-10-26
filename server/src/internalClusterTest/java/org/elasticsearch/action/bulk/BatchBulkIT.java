@@ -2691,6 +2691,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", numShards)
                         .put("index.number_of_replicas", 1)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)

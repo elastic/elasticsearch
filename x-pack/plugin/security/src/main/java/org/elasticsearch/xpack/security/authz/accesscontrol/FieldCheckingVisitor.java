@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -20,7 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
- * Clears {@code cacheable} if a query touches a field not granted by FLS, or has a leaf that does not report a field.
+ * Clears {@code cacheable} if a query touches a field not granted by FLS, has a leaf that does not report a field,
+ * or wraps a value source it does not report.
  */
 final class FieldCheckingVisitor extends QueryVisitor {
     private final IndicesAccessControl.IndexAccessControl permissions;
@@ -34,6 +36,12 @@ final class FieldCheckingVisitor extends QueryVisitor {
     @Override
     public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
         if (cacheable.get() == false) {
+            return EMPTY_VISITOR;
+        }
+
+        // CoveringQuery doesn't report the field its minimum match count comes from (e.g. terms_set minimum_should_match_field)
+        if (parent instanceof CoveringQuery) {
+            cacheable.set(false);
             return EMPTY_VISITOR;
         }
 

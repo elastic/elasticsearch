@@ -703,6 +703,14 @@ public abstract class FullTextFunction extends Function
         return isRuntimeSearch() == false;
     }
 
+    /**
+     * Whether {@code expression} holds a search that adds to {@code _score}. A filter adds its searches' scores after
+     * it has filtered, so a predicate on {@code _score} has to run after that to see them.
+     */
+    public static boolean containsScoringSearch(Expression expression) {
+        return expression.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.contributesToScore());
+    }
+
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
         return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }

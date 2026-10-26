@@ -244,7 +244,7 @@ public final class DocumentParser {
     }
 
     private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
-        return mapperMode.isPresent() ? mapperMode.get() : context.sourceKeepModeFromIndexSettings();
+        return FallbackPostMapper.effectiveKeepMode(mapperMode, context.indexSettings());
     }
 
     private static void throwNotAtEnd(XContentParser.Token token) {
@@ -325,7 +325,8 @@ public final class DocumentParser {
         }
 
         var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
-        if (sourceKeepMode == Mapper.SourceKeepMode.ALL || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
+        if (FallbackPostMapper.capturesWholeObject(sourceKeepMode)
+            || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
             context = FallbackPostMapper.captureScope(context, context.parent());
             token = context.parser().currentToken();
             parser = context.parser();
@@ -820,8 +821,7 @@ public final class DocumentParser {
             IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
             context.getVectorFormatProviders(),
-            context.indexSettings().isIndexDisabledByDefault(),
-            context.indexSettings().getPostFilterSelectivityThreshold()
+            context.indexSettings().isIndexDisabledByDefault()
         );
         builder.dimensions(arraySize);
         context.updateDynamicMappers(fullFieldName, List.of(builder));

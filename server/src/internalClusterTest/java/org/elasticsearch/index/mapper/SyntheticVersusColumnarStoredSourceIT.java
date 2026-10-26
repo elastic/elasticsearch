@@ -173,10 +173,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -200,10 +198,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            .startObject("doc_values")
             .field("nullability", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -227,10 +223,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("kw")
             .field("type", "keyword")
             .field("normalizer", "lowercase")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -249,10 +243,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("num")
             .field("type", "long")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

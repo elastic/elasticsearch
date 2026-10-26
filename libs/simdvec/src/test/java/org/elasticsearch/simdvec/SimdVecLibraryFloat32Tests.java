@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -46,11 +45,6 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {
@@ -115,118 +109,6 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
-    public void testFloat32BulkWithOffsets() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var vectors = new float[numVecs][];
-        var vectorsSegment = arena.allocate((long) dims * numVecs * Float.BYTES);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            vectors[i] = randomFloatArray(dims);
-            long dstOffset = (long) i * dims * Float.BYTES;
-            MemorySegment.copy(vectors[i], 0, vectorsSegment, LAYOUT_LE_FLOAT, dstOffset, dims);
-        }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, offsets, expectedScores);
-
-        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        similarityBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims * Float.BYTES, offsetsSegment, numVecs, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
-    }
-
-    public void testFloat32BulkWithOffsetsAndPitch() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var vectors = new float[numVecs][];
-
-        // Mimics extra data at the end
-        var pitch = dims * Float.BYTES + Float.BYTES;
-        var vectorsSegment = arena.allocate((long) numVecs * pitch);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            vectors[i] = randomFloatArray(dims);
-            long dstOffset = (long) i * pitch;
-            MemorySegment.copy(vectors[i], 0, vectorsSegment, LAYOUT_LE_FLOAT, dstOffset, dims);
-        }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, offsets, expectedScores);
-
-        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * pitch, pitch);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        similarityBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, pitch, offsetsSegment, numVecs, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
-    }
-
-    public void testFloat32BulkWithOffsetsHeapSegments() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var values = new float[numVecs][];
-        var segment = arena.allocate((long) dims * numVecs * Float.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            values[i] = randomFloatArray(dims);
-            long dstOffset = (long) i * dims * Float.BYTES;
-            MemorySegment.copy(values[i], 0, segment, LAYOUT_LE_FLOAT, dstOffset, dims);
-        }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, offsets, expectedScores);
-
-        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
-
-        float[] bulkScores = new float[numVecs];
-        similarityBulkWithOffsets(
-            segment,
-            nativeQuerySeg,
-            dims,
-            dims * Float.BYTES,
-            MemorySegment.ofArray(offsets),
-            numVecs,
-            MemorySegment.ofArray(bulkScores)
-        );
-        assertArrayEquals(expectedScores, bulkScores, delta);
-    }
-
-    // Verifies that individual offset values are bounds-checked against the data segment.
-    public void testBulkOffsetsOutOfRange() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = 3;
-        final int pitch = dims * Float.BYTES;
-        var vectorsSegment = arena.allocate((long) pitch * numVecs);
-        var query = arena.allocate((long) dims * Float.BYTES);
-        var scores = arena.allocate((long) numVecs * Float.BYTES);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
-        Exception ex = expectThrows(
-            IOOBE,
-            () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores)
-        );
-        assertThat(ex.getMessage(), containsString("out of bounds for length"));
-
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-        ex = expectThrows(IOOBE, () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores));
-        assertThat(ex.getMessage(), containsString("out of bounds for length"));
-    }
-
     // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,
     // verifying correct lookup and scoring via an address array with random ordinals.
     public void testFloat32BulkSparse() {
@@ -244,7 +126,7 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         }
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, values[queryOrd], values, ordinals, expectedScores);
 
         var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
@@ -284,7 +166,7 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         }
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, values[queryOrd], values, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -388,22 +270,6 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         switch (function) {
             case DOT_PRODUCT -> getVectorDistance().dotProductF32Bulk(a, b, dims, count, result);
             case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32Bulk(a, b, dims, count, result);
-            case COSINE -> throw new UnsupportedOperationException(function.toString());
-        }
-    }
-
-    void similarityBulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int dims,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment result
-    ) {
-        switch (function) {
-            case DOT_PRODUCT -> getVectorDistance().dotProductF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
             case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }

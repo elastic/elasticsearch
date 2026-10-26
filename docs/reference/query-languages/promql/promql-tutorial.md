@@ -45,6 +45,13 @@ export API_KEY="your-api-key"
 
 This tutorial uses fixed sample timestamps on 2026-10-22 so that every query returns the same result whenever you run it. To accept those timestamps, it stores the samples in a dedicated time series index with explicit time bounds instead of the default Prometheus data stream. The index mapping is a reduced version of the built-in `metrics-prometheus@mappings` component template that remote write uses: it only maps `_total` metrics as counters and omits the gauge and other counter mappings, so don't reuse it for production data. Metrics that you ingest with [Prometheus remote write](#promql-tutorial-remote-write) use current timestamps and don't need this setup.
 
+You can also get help from your coding agent to write PromQL queries:
+
+:::{agent-skill}
+:url: https://github.com/elastic/agent-skills@elasticsearch-esql
+Agent skill that assists with ES|QL query generation including the PROMQL command.
+:::
+
 ## Step 0: Add sample Prometheus metrics
 
 This tutorial uses an example counter metric, `requests_total`, that tracks HTTP requests for two instances, `us-east-1` and `us-west-1`. Each instance has three samples, one minute apart. The `us-east-1` counter increases by 7 requests per minute, and the `us-west-1` counter increases by 3 requests per minute.
@@ -56,42 +63,8 @@ Create the `promql-tutorial` time series index:
 
 :::{tab-item} Console
 :sync: console
-```console
-PUT /promql-tutorial
-{
-  "settings": {
-    "index": {
-      "mode": "time_series", <1>
-      "routing_path": ["labels.*"], <2>
-      "time_series": {
-        "start_time": "2026-10-22T11:00:00Z", <3>
-        "end_time": "2026-10-22T13:00:00Z"
-      }
-    }
-  },
-  "mappings": {
-    "dynamic_templates": [
-      {
-        "counter": {
-          "path_match": ["metrics.*_total"], <4>
-          "mapping": { "type": "double", "time_series_metric": "counter" }
-        }
-      }
-    ],
-    "properties": {
-      "@timestamp": { "type": "date" },
-      "labels": { "type": "passthrough", "priority": 10, "time_series_dimension": true }, <5>
-      "metrics": { "type": "passthrough", "priority": 20 } <6>
-    }
-  }
-}
-```
-1. PromQL queries only run against time series indices and [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
-2. Route documents by their label dimensions.
-3. Accept the fixed sample timestamps that this tutorial uses.
-4. Map metrics with names that end in `_total`, such as `requests_total`, as counters.
-5. Store each Prometheus label, including the `__name__` metric name label, as a time series dimension.
-6. Expose each field under `metrics` by its short name, so `metrics.requests_total` is queryable as `requests_total`.
+:::{include} _snippets/promql-tutorial/create-index.md
+:::
 :::
 
 :::{tab-item} curl
@@ -139,21 +112,8 @@ Add the sample metrics with the bulk API:
 
 :::{tab-item} Console
 :sync: console
-```console
-POST /promql-tutorial/_bulk?refresh
-{ "create": {} }
-{"@timestamp":"2026-10-22T12:05:49Z","labels":{"__name__":"requests_total","job":"tutorial","instance":"us-east-1"},"metrics":{"requests_total":170}}
-{ "create": {} }
-{"@timestamp":"2026-10-22T12:05:49Z","labels":{"__name__":"requests_total","job":"tutorial","instance":"us-west-1"},"metrics":{"requests_total":80}}
-{ "create": {} }
-{"@timestamp":"2026-10-22T12:06:49Z","labels":{"__name__":"requests_total","job":"tutorial","instance":"us-east-1"},"metrics":{"requests_total":177}}
-{ "create": {} }
-{"@timestamp":"2026-10-22T12:04:49Z","labels":{"__name__":"requests_total","job":"tutorial","instance":"us-east-1"},"metrics":{"requests_total":163}}
-{ "create": {} }
-{"@timestamp":"2026-10-22T12:04:49Z","labels":{"__name__":"requests_total","job":"tutorial","instance":"us-west-1"},"metrics":{"requests_total":77}}
-{ "create": {} }
-{"@timestamp":"2026-10-22T12:06:49Z","labels":{"__name__":"requests_total","job":"tutorial","instance":"us-west-1"},"metrics":{"requests_total":83}}
-```
+:::{include} _snippets/promql-tutorial/bulk-ingest-samples.md
+:::
 :::
 
 :::{tab-item} curl
@@ -218,9 +178,8 @@ Retrieve the latest value of `requests_total` for each instance:
 
 :::{tab-item} Console
 :sync: console
-```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=requests_total&time=1792670839
-```
+:::{include} _snippets/promql-tutorial/query-instant.md
+:::
 :::
 
 :::{tab-item} curl
@@ -275,9 +234,8 @@ Use label matchers to select specific series. The following query only returns t
 
 :::{tab-item} Console
 :sync: console
-```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=requests_total%7Binstance%3D%22us-east-1%22%7D&time=1792670839
-```
+:::{include} _snippets/promql-tutorial/query-label-matcher.md
+:::
 :::
 
 :::{tab-item} curl
@@ -303,9 +261,8 @@ Aggregate values across instances with `sum()`. The `by(job)` clause groups the 
 
 :::{tab-item} Console
 :sync: console
-```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=sum%20by(job)(requests_total)&time=1792670839
-```
+:::{include} _snippets/promql-tutorial/query-sum-by-job.md
+:::
 :::
 
 :::{tab-item} curl
@@ -333,9 +290,8 @@ Use `topk()` to select the series with the largest values. The following query r
 
 :::{tab-item} Console
 :sync: console
-```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=topk(1,requests_total)&time=1792670839
-```
+:::{include} _snippets/promql-tutorial/query-topk.md
+:::
 :::
 
 :::{tab-item} curl
@@ -361,9 +317,8 @@ Use `rate()` to calculate the per-second increase of a counter over a time windo
 
 :::{tab-item} Console
 :sync: console
-```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=sum(rate(requests_total[5m]))&time=1792670839
-```
+:::{include} _snippets/promql-tutorial/query-rate.md
+:::
 :::
 
 :::{tab-item} curl
@@ -408,16 +363,8 @@ The following query calculates the combined request rate every minute for a twel
 
 :::{tab-item} Console
 :sync: console
-```console
-POST /_query?format=txt
-{
-  "query": """
-    PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s
-      http_rate=(sum(rate(requests_total[5m])))
-    | SORT step DESC
-    """
-}
-```
+:::{include} _snippets/promql-tutorial/esql-promql-range.md
+:::
 :::
 
 :::{tab-item} curl
@@ -452,17 +399,8 @@ Extend the same query with {{esql}} to filter out low rates and calculate the av
 
 :::{tab-item} Console
 :sync: console
-```console
-POST /_query
-{
-  "query": """
-    PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s
-      http_rate=(sum(rate(requests_total[5m])))
-    | WHERE http_rate > 0.07
-    | STATS avg_rate = AVG(http_rate), peak_rate = MAX(http_rate)
-  """
-}
-```
+:::{include} _snippets/promql-tutorial/esql-promql-stats.md
+:::
 :::
 
 :::{tab-item} curl
@@ -532,9 +470,8 @@ Delete the tutorial index and its sample data:
 
 :::{tab-item} Console
 :sync: console
-```console
-DELETE /promql-tutorial
-```
+:::{include} _snippets/promql-tutorial/delete-index.md
+:::
 :::
 
 :::{tab-item} curl

@@ -1418,9 +1418,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = new QueryStringQueryBuilder("the* quick fox").field(TEXT_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        BooleanQuery expected = new BooleanQuery.Builder().add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "the")), Occur.SHOULD)
-            .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
+        BooleanQuery remainingTerms = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
+        BooleanQuery expected = new BooleanQuery.Builder().add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "the")), Occur.SHOULD)
+            .add(remainingTerms, Occur.SHOULD)
             .build();
         assertEquals(expected, query);
     }

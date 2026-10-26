@@ -387,6 +387,15 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /// When computing the equal-share warming timeout for a relocation whose source is shutting down, exclude shards on the source
+    /// that are relocating to a different target from the per-shard divisor.
+    public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING = Setting.boolSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_filter_source_shards_by_target",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<ByteSizeValue> UPLOAD_PREWARM_MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "stateless.blob_cache_warming.upload_prewarm_max_size",
         ByteSizeValue.ofMb(16),

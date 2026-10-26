@@ -156,7 +156,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final ThreadPool threadPool;
 
-    private final Map<Snapshot, List<ActionListener<SnapshotInfo>>> snapshotCompletionListeners = new ConcurrentHashMap<>();
+    private final Map<Snapshot, List<ActionListener<SnapshotInfo>>> snapshotFinalizationListeners = new ConcurrentHashMap<>();
 
     /**
      * Listeners for snapshot deletion keyed by delete uuid as returned from {@link SnapshotDeletionsInProgress.Entry#uuid()}
@@ -301,33 +301,29 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // Snapshot creation
     // ------------------------------------------------------------------------------------------------------------------------------------
 
-    /**
-     * Same as {@link #createSnapshot(ProjectId, CreateSnapshotRequest, ActionListener)} but invokes its callback on completion of
-     * the snapshot.
-     *
-     * @param projectId the project for creating the snapshot
-     * @param request snapshot request
-     * @param listener snapshot completion listener
-     */
-    public void executeSnapshot(
+    /// Create a snapshot.
+    ///
+    /// @param projectId Project in which the snapshot is created.
+    /// @param request Details of the snapshot to create.
+    /// @param listener Completed when the creation completes:
+    ///
+    /// * If [CreateSnapshotRequest#waitForCompletion()] is `true`, completed with the resulting [SnapshotInfo] when the snapshot has been
+    /// finalized.
+    ///
+    /// * If [CreateSnapshotRequest#waitForCompletion()] is `false`, completed with `null` when the [SnapshotsInProgress.Entry] has been
+    /// added to the [ClusterState].
+    ///
+    /// * Completed exceptionally if the snapshot cannot be created, or if this node stops being the elected master before the snapshot
+    /// completes.
+    public void createSnapshot(
         final ProjectId projectId,
         final CreateSnapshotRequest request,
         final ActionListener<SnapshotInfo> listener
     ) {
-        createSnapshot(projectId, request, listener.delegateFailureAndWrap((l, snapshot) -> addListener(snapshot, l)));
-    }
+        final ActionListener<Snapshot> snapshotStartListener = request.waitForCompletion()
+            ? listener.delegateFailureAndWrap((l, snapshot) -> addSnapshotFinalizationListener(snapshot, l))
+            : listener.safeMap(ignored -> null);
 
-    /**
-     * Initializes the snapshotting process.
-     * <p>
-     * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and
-     * creates a snapshot record in cluster state metadata.
-     *
-     * @param projectId the project for creating the snapshot
-     * @param request  snapshot request
-     * @param listener snapshot creation listener
-     */
-    public void createSnapshot(final ProjectId projectId, final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
         final String repositoryName = request.repository();
         final String snapshotName = IndexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         SnapshotsServiceUtils.validate(repositoryName, snapshotName);
@@ -339,19 +335,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             return;
         }
-        submitCreateSnapshotRequest(
+        submitCreateSnapshotTask(
             request,
-            listener,
+            snapshotStartListener,
             repository,
             new Snapshot(projectId, repositoryName, snapshotId),
             repository.getMetadata()
         );
     }
 
-    /**
-     * Updates the cluster state with the new {@link CreateSnapshotRequest}, which triggers async snapshot creation.
-     */
-    private void submitCreateSnapshotRequest(
+    /// Creates and submits a task to the [MasterService] to insert into the [ClusterState] a [SnapshotsInProgress.Entry] for the given
+    /// [CreateSnapshotRequest]. This task carries the repository's [RepositoryData] captured at submission time. If the [RepositoryData]
+    /// changes before the task is executed, it will resubmit itself.
+    ///
+    /// @param listener Completed successfully when the new [SnapshotsInProgress.Entry] has been committed in the [ClusterState].
+    private void submitCreateSnapshotTask(
         CreateSnapshotRequest request,
         ActionListener<Snapshot> listener,
         Repository repository,
@@ -370,6 +368,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
     }
 
+    /// [ClusterState] update task to insert a [SnapshotsInProgress.Entry] for the given [CreateSnapshotRequest].
     private record CreateSnapshotTask(
         Repository repository,
         RepositoryData repositoryData,
@@ -391,14 +390,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    /**
-     * Adds snapshot completion listener
-     *
-     * @param snapshot Snapshot to listen for
-     * @param listener listener
-     */
-    private void addListener(Snapshot snapshot, ActionListener<SnapshotInfo> listener) {
-        snapshotCompletionListeners.computeIfAbsent(snapshot, k -> new CopyOnWriteArrayList<>())
+    /// Subscribe the given listener to the finalization of the given snapshot. The listener will be completed with the resulting
+    /// [SnapshotInfo] if the snapshot is successfully finalized by this node. If this node stops being the elected master before
+    /// the snapshot is finalized, this listener may be completed exceptionally even while the snapshot continues running to its eventual
+    /// success.
+    private void addSnapshotFinalizationListener(Snapshot snapshot, ActionListener<SnapshotInfo> listener) {
+        assert MasterService.assertMasterUpdateOrTestThread();
+        assert SnapshotsInProgress.get(clusterService.state()).asStream().anyMatch(entry -> entry.snapshot().equals(snapshot));
+        snapshotFinalizationListeners.computeIfAbsent(snapshot, k -> new CopyOnWriteArrayList<>())
             .add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
     }
 
@@ -501,7 +500,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             @Override
             public void clusterStateProcessed(ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot clone [{}] started", snapshot);
-                addListener(snapshot, listener.delegateFailureAndWrap((l, r) -> l.onResponse(null)));
+                addSnapshotFinalizationListener(snapshot, listener.delegateFailureAndWrap((l, r) -> l.onResponse(null)));
                 startCloning(repository, newEntry);
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
@@ -1450,7 +1449,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     // We have snapshot listeners but are not the master anymore. Fail all waiting listeners except for those that
                     // already have their snapshots finalizing (those that are already finalizing will fail on their own from to update
                     // the cluster state).
-                    for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
+                    for (final Snapshot snapshot : snapshotFinalizationListeners.keySet()) {
                         if (endingSnapshots.add(snapshot)) {
                             failSnapshotCompletionListeners(
                                 snapshot,
@@ -1525,7 +1524,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot),
                             endingSnapshots.stream()
                         ).collect(Collectors.toSet());
-                        final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
+                        final Set<Snapshot> snapshotListenerKeys = snapshotFinalizationListeners.keySet();
                         assert runningSnapshots.containsAll(snapshotListenerKeys)
                             : "Saw completion listeners for unknown snapshots in "
                                 + snapshotListenerKeys
@@ -2186,7 +2185,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             // Repository data changed in between starting the task and executing this cluster state update.
                             // Register a callback to resubmit the task after the cluster state is successfully published.
                             taskContext.success(
-                                () -> submitCreateSnapshotRequest(
+                                () -> submitCreateSnapshotTask(
                                     task.createSnapshotRequest,
                                     task.listener,
                                     task.repository,
@@ -2767,7 +2766,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private List<ActionListener<SnapshotInfo>> endAndGetListenersToResolve(Snapshot snapshot) {
         // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
         // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
-        final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
+        final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotFinalizationListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
         return listenersToComplete;
     }
@@ -3042,7 +3041,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /**
      * Cluster state update task that removes all {@link SnapshotsInProgress.Entry} and {@link SnapshotDeletionsInProgress.Entry} for a
-     * given repository from the cluster state and afterwards fails all relevant listeners in {@link #snapshotCompletionListeners} and
+     * given repository from the cluster state and afterwards fails all relevant listeners in {@link #snapshotFinalizationListeners} and
      * {@link #snapshotDeletionListeners}.
      */
     private final class FailPendingRepoTasksTask extends ClusterStateUpdateTask {
@@ -3147,7 +3146,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         synchronized (repositoriesRunningRepositoryDataWriteTasks) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
-                for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
+                for (final Snapshot snapshot : snapshotFinalizationListeners.keySet()) {
                     failSnapshotCompletionListeners(
                         snapshot,
                         new SnapshotException(snapshot, "no longer master"),
@@ -3249,8 +3248,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     public boolean assertAllListenersResolved() {
         final DiscoveryNode localNode = clusterService.localNode();
         assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots + " on [" + localNode + "]";
-        assert snapshotCompletionListeners.isEmpty()
-            : "Found leaked snapshot completion listeners " + snapshotCompletionListeners + " on [" + localNode + "]";
+        assert snapshotFinalizationListeners.isEmpty()
+            : "Found leaked snapshot finalization listeners " + snapshotFinalizationListeners + " on [" + localNode + "]";
         assert repositoriesRunningRepositoryDataWriteTasks.isEmpty()
             : "Found leaked RepositoryData write tasks " + repositoriesRunningRepositoryDataWriteTasks + " on [" + localNode + "]";
         assert snapshotDeletionListeners.isEmpty()

@@ -260,9 +260,9 @@ public class MasterService extends AbstractLifecycleComponent {
             "count",
             "Total number of cluster states published by this node while it was the elected master",
             measurement -> {
-                final var publicationCounts = clusterStateUpdateStatsTracker.getPublicationCounts();
-                measurement.record(publicationCounts.successCount(), Map.of("es_cluster_state_publication_outcome", "success"));
-                measurement.record(publicationCounts.failureCount(), Map.of("es_cluster_state_publication_outcome", "failure"));
+                final var stats = clusterStateUpdateStatsTracker.getStatistics();
+                measurement.record(stats.getPublicationSuccessCount(), Map.of("es_cluster_state_publication_outcome", "success"));
+                measurement.record(stats.getPublicationFailureCount(), Map.of("es_cluster_state_publication_outcome", "failure"));
             }
         );
     }
@@ -1406,8 +1406,6 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private record PublicationCounts(long successCount, long failureCount) {}
-
     private static class ClusterStateUpdateStatsTracker {
 
         private long unchangedTaskCount;
@@ -1467,10 +1465,6 @@ public class MasterService extends AbstractLifecycleComponent {
             failedCompletionElapsedMillis += clusterStatePublicationEvent.maybeGetPublicationCompletionElapsedMillis();
             failedMasterApplyElapsedMillis += clusterStatePublicationEvent.maybeGetMasterApplyElapsedMillis();
             failedNotificationElapsedMillis += notificationMillis;
-        }
-
-        synchronized PublicationCounts getPublicationCounts() {
-            return new PublicationCounts(publicationSuccessCount, publicationFailureCount);
         }
 
         synchronized ClusterStateUpdateStats getStatistics() {

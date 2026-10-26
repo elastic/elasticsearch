@@ -74,6 +74,7 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                 assertThat(merge, not(sameInstance(reader)));
                 assertVectors(vectors, merge.getFloatVectorValues("field"));
                 reader.getMergeInstance();
+                assertVectors(vectors, merge.getMergeInstance().getFloatVectorValues("field", DataAccessHint.SEQUENTIAL));
 
                 assertThat(dir.opens, hasSize(1));
                 IOContext context = dir.opens.get(0);
@@ -215,6 +216,11 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                 @Override
                 public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
                     return in.slice(sliceDescription, offset, length);
+                }
+
+                @Override
+                public boolean isEfficientFor(IOContext context) {
+                    return in.isEfficientFor(context);
                 }
             };
         }

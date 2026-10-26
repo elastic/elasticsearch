@@ -163,8 +163,7 @@ public class DiskUsageTests extends ESTestCase {
             shardDataSetSizes,
             routingToPath,
             new HashMap<>(),
-            shardWriteLoadType,
-            true
+            shardWriteLoadType
         );
 
         assertThat(

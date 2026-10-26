@@ -2464,6 +2464,7 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testIgnoreIndicesWithoutSlices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final ProjectId projectId = randomProjectIdOrDefault();
         final ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
         for (String index : List.of("sliced", "plain")) {

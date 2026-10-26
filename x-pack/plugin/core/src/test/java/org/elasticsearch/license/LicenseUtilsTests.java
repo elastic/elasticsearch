@@ -77,6 +77,49 @@ public class LicenseUtilsTests extends ESTestCase {
         assertThat(status.expiryWarning(), containsStringIgnoringCase("license expired"));
     }
 
+    public void testGetDaysUntilExpiry() {
+        // Test null license
+        assertEquals(0.0, LicenseUtils.getDaysUntilExpiry(null, 0), 0.01);
+
+        // Test basic license (should return infinity)
+        License basicLicense = License.builder()
+            .uid("test")
+            .type(License.LicenseType.BASIC)
+            .issueDate(System.currentTimeMillis())
+            .expiryDate(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS)
+            .issuedTo("test")
+            .issuer("test")
+            .maxNodes(1000)
+            .build();
+        assertEquals(Double.POSITIVE_INFINITY, LicenseUtils.getDaysUntilExpiry(basicLicense, System.currentTimeMillis()), 0.01);
+
+        // Test regular license with 30 days remaining
+        long now = System.currentTimeMillis();
+        long thirtyDaysInMillis = TimeUnit.DAYS.toMillis(30);
+        License trialLicense = License.builder()
+            .uid("test")
+            .type(License.LicenseType.TRIAL)
+            .issueDate(now)
+            .expiryDate(now + thirtyDaysInMillis)
+            .issuedTo("test")
+            .issuer("test")
+            .maxNodes(1000)
+            .build();
+        assertEquals(30.0, LicenseUtils.getDaysUntilExpiry(trialLicense, now), 0.01);
+
+        // Test expired license (should return negative days)
+        License expiredLicense = License.builder()
+            .uid("test")
+            .type(License.LicenseType.TRIAL)
+            .issueDate(now - thirtyDaysInMillis)
+            .expiryDate(now - thirtyDaysInMillis)
+            .issuedTo("test")
+            .issuer("test")
+            .maxNodes(1000)
+            .build();
+        assertEquals(-30.0, LicenseUtils.getDaysUntilExpiry(expiredLicense, now), 0.01);
+    }
+
     private License getLicense(License.LicenseType type, long issueDate, long expiryDate) {
         License.Builder builder = License.builder()
             .uid(UUIDs.randomBase64UUID(random()))

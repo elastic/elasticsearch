@@ -62,6 +62,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -79,7 +80,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
@@ -226,6 +227,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         public final AtomicReference<Semaphore> newIndexEngineStartedSemaphoreReference = new AtomicReference<>();
         public final AtomicReference<Semaphore> newIndexEngineContinueSemaphoreReference = new AtomicReference<>();
 
+        public final AtomicReference<Semaphore> closeShardStartedSemaphoreReference = new AtomicReference<>();
+        public final AtomicReference<Semaphore> closeShardContinueSemaphoreReference = new AtomicReference<>();
+
         public TestStatelessPluginCatchUnhollow(Settings settings) {
             super(settings);
         }
@@ -264,6 +268,20 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                         safeAcquire(uploadContinueSemaphore);
                     }
                     super.ensureMaxGenerationToUploadForFlush(shardId, generation);
+                }
+
+                @Override
+                public void closeShard(ShardId shardId) {
+                    // Called from afterIndexShardClosed, after the engine has closed and before the ingestion blocker is removed
+                    Semaphore closeShardStartedSemaphore = closeShardStartedSemaphoreReference.get();
+                    if (closeShardStartedSemaphore != null) {
+                        closeShardStartedSemaphore.release();
+                    }
+                    Semaphore closeShardContinueSemaphore = closeShardContinueSemaphoreReference.get();
+                    if (closeShardContinueSemaphore != null) {
+                        safeAcquire(closeShardContinueSemaphore);
+                    }
+                    super.closeShard(shardId);
                 }
             };
         }
@@ -826,36 +844,55 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
     }
 
-
-    public void testCloseHollowShardsServiceBeforeShardEnginesClose() throws Exception {
-        final var clusterInfo = startNodesAndHollowShards();
-        final var indicesService = internalCluster().getInstance(IndicesService.class, clusterInfo.indexNodeB);
-        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, clusterInfo.indexNodeB);
-        final var telemetryPlugin = getTelemetryPlugin(clusterInfo.indexNodeB);
-        final List<Runnable> pendingCloses = new ArrayList<>();
-        final var shardsClosed = new PlainActionFuture<Void>();
-
-        // Relocation removes the index from IndicesService before its engines close asynchronously. Hold those
-        // closes so that the hollow shards service closes first, as it can during node shutdown.
-        indicesService.removeIndex(
-            clusterInfo.index,
-            IndexRemovalReason.NO_LONGER_ASSIGNED,
-            "test delayed engine close",
-            pendingCloses::add,
-            shardsClosed
+    public void testStopNodeWhileHollowShardClosesArePending() throws Exception {
+        final var clusterInfo = startNodesAndHollowShards(
+            Settings.builder().put(IndicesClusterStateService.CONCURRENT_SHARD_CLOSE_LIMIT.getKey(), 5).build(),
+            1
         );
+        final var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, clusterInfo.indexNodeB);
+        final var telemetryPluginB = getTelemetryPlugin(clusterInfo.indexNodeB);
+        final var testStatelessPluginB = findPlugin(clusterInfo.indexNodeB, TestStatelessPluginCatchUnhollow.class);
+
+        final var closeShardStartedSemaphore = new Semaphore(0);
+        final var closeShardContinueSemaphore = new Semaphore(0);
+        testStatelessPluginB.closeShardStartedSemaphoreReference.set(closeShardStartedSemaphore);
+        testStatelessPluginB.closeShardContinueSemaphoreReference.set(closeShardContinueSemaphore);
+
+        final var nodeBStopped = new PlainActionFuture<Void>();
         try {
-            assertNull(indicesService.indexService(clusterInfo.index));
-            assertEquals(clusterInfo.numberOfShards, pendingCloses.size());
-            assertFalse(shardsClosed.isDone());
-            hollowShardsService.close();
-            assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPlugin), equalTo(0L));
+            updateIndexSettings(
+                Settings.builder().put("index.routing.allocation.exclude._name", clusterInfo.indexNodeB),
+                clusterInfo.indexName
+            );
+            internalCluster().awaitNodeVacated(clusterInfo.indexName, clusterInfo.indexNodeB);
+            ensureGreen(clusterInfo.indexName);
+
+            // All shard closes on node B are held before removing their ingestion blockers
+            safeAcquire(clusterInfo.numberOfShards, closeShardStartedSemaphore);
+            for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+                hollowShardsServiceB.ensureHollowShard(new ShardId(clusterInfo.index, i), true);
+            }
+            assertThat(
+                getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
+                equalTo((long) clusterInfo.numberOfShards)
+            );
+
+            new Thread(() -> ActionListener.completeWith(nodeBStopped, () -> {
+                internalCluster().stopNode(clusterInfo.indexNodeB);
+                return null;
+            }), "stop-" + clusterInfo.indexNodeB).start();
+
+            assertBusy(() -> assertThat(hollowShardsServiceB.lifecycleState(), equalTo(Lifecycle.State.CLOSED)));
+            for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+                hollowShardsServiceB.ensureHollowShard(new ShardId(clusterInfo.index, i), false);
+            }
+            assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
         } finally {
-            pendingCloses.forEach(Runnable::run);
-            safeGet(shardsClosed);
+            testStatelessPluginB.closeShardContinueSemaphoreReference.set(null);
+            closeShardContinueSemaphore.release(clusterInfo.numberOfShards);
         }
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPlugin), equalTo(0L));
-        assertAcked(indicesAdmin().prepareDelete(clusterInfo.indexName));
+        safeGet(nodeBStopped);
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
     }
 
     public void testCloseWhileShardsAreHollowed() throws Exception {
@@ -1673,7 +1710,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final var indexShardRelocated = findIndexShard(indexName);
         var engine = indexShardRelocated.getEngineOrNull();
         assertThat(engine, instanceOf(HollowIndexEngine.class));
-        // Removed via afterIndexShardClosing callback
+        // Removed via afterIndexShardClosed callback
         assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false));
         hollowShardsServiceB.ensureHollowShard(indexShardRelocated.shardId(), true);
 

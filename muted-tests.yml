@@ -62,18 +62,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards
   issue: https://github.com/elastic/elasticsearch/issues/156063
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156079
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
-  method: testSimple
-  issue: https://github.com/elastic/elasticsearch/issues/155069
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldGetProperty
   issue: https://github.com/elastic/elasticsearch/issues/157330

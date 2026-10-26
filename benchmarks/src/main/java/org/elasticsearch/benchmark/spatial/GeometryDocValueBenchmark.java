@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.spatial;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
@@ -25,10 +26,10 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
-import org.elasticsearch.lucene.spatial.VertexLookupTable;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -134,29 +135,28 @@ public class GeometryDocValueBenchmark {
     }
 
     private void reportV2Breakdown() throws IOException {
-        // Count unique vertices by building a vertex table the same way the writer does
-        VertexLookupTable.Builder vtb = VertexLookupTable.builder();
-        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "benchmark");
-        Geometry norm = indexer.normalize(geometry);
-        List<IndexableField> fields = indexer.getIndexableFields(norm);
-        byte[] scratch = new byte[7 * Integer.BYTES];
-        for (IndexableField field : fields) {
-            BytesRef br = field.binaryValue();
-            System.arraycopy(br.bytes, br.offset, scratch, 0, 7 * Integer.BYTES);
-            org.apache.lucene.document.ShapeField.DecodedTriangle dt = new org.apache.lucene.document.ShapeField.DecodedTriangle();
-            org.apache.lucene.document.ShapeField.decodeTriangle(scratch, dt);
-            vtb.addVertex(dt.aX, dt.aY);
-            vtb.addVertex(dt.bX, dt.bY);
-            vtb.addVertex(dt.cX, dt.cY);
-        }
-        int numVertices = vtb.size();
-
-        org.elasticsearch.common.io.stream.BytesStreamOutput vtTableOut = new org.elasticsearch.common.io.stream.BytesStreamOutput();
-        vtb.writeTo(vtTableOut);
-        int vertexTableSize = (int) vtTableOut.position();
+        // Walk the V2 layout: centroid(8) | type(1) | sumWeight(VLong) | extent | treeLength(VInt) | tree |
+        // connectivityLength(VInt) | connectivity | numVertices(VInt) | vertices
+        ByteArrayStreamInput input = new ByteArrayStreamInput();
+        input.reset(v2Bytes.bytes, v2Bytes.offset, v2Bytes.length);
+        input.skipBytes(9);
+        input.readVLong();
+        Extent.readFromCompressed(input, new Extent());
+        int headerSize = input.getPosition() - v2Bytes.offset;
+        int treeLength = input.readVInt();
+        input.skipBytes(treeLength);
+        int connectivityStart = input.getPosition();
+        int connectivityLength = input.readVInt();
+        input.skipBytes(connectivityLength);
+        int vertexTableStart = input.getPosition();
+        int numVertices = input.readVInt();
+        int vertexTableSize = v2Bytes.offset + v2Bytes.length - vertexTableStart;
 
         System.out.println("  --- V2 breakdown ---");
-        System.out.println("  Unique vertices:      " + numVertices);
+        System.out.println("  Header+extent bytes:  " + headerSize);
+        System.out.println("  Tree bytes:           " + (connectivityStart - v2Bytes.offset - headerSize));
+        System.out.println("  Connectivity bytes:   " + (vertexTableStart - connectivityStart));
+        System.out.println("  Vertices:             " + numVertices);
         System.out.println("  Vertex table bytes:   " + vertexTableSize);
         System.out.printf("  V2/Legacy:            %.1f%%%n", (double) v2Bytes.length / legacyBytes.length * 100);
     }

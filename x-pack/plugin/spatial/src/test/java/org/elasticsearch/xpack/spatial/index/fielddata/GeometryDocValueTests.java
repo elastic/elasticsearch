@@ -54,6 +54,7 @@ import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPolygon;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPolygon;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
@@ -246,6 +247,38 @@ public class GeometryDocValueTests extends ESTestCase {
             assertNotNull("Iteration " + i + ": expected non-null geometry for " + geometry.type(), extracted);
             assertThat("Iteration " + i + ": equivalent geometry for " + geometry.type(), extracted, equivalentTo(geometry));
         }
+    }
+
+    /**
+     * The vertex table is written in geometry order, so repeated coordinates (a line revisiting a vertex,
+     * polygons sharing vertices) must be stored positionally, while vertices that only exist in the
+     * tessellated triangles (here the dateline split points) must not disturb the geometry order.
+     */
+    public void testReconstructionWithRepeatedAndTreeOnlyVertices() throws IOException {
+        Line revisiting = new Line(new double[] { 0, 10, 10, 0, 10 }, new double[] { 0, 0, 10, 10, 0 });
+        MultiPolygon adjacent = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 })),
+                new Polygon(new LinearRing(new double[] { 10, 20, 20, 10, 10 }, new double[] { 0, 0, 10, 10, 0 }))
+            )
+        );
+        Polygon datelineCrossing = new Polygon(
+            new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 })
+        );
+        Polygon datelineCrossingNormalized = new Polygon(
+            new LinearRing(new double[] { 170, -170, -170, 170, 170 }, new double[] { -10, -10, 10, 10, -10 })
+        );
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(
+            List.of(new Point(5, 5), revisiting, adjacent, new Rectangle(-20, -10, 10, 0))
+        );
+        for (Geometry geometry : List.of(revisiting, adjacent, collection)) {
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
+            assertThat(reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(geometry));
+        }
+        GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(datelineCrossing, CoordinateEncoder.GEO);
+        assertThat(reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(datelineCrossingNormalized));
+        // The split at the dateline adds vertices that are only referenced by the triangle tree
+        assertThat(reader.getVertexTable().size(), greaterThan(4));
     }
 
     private Geometry loadResourceAsGeometry(String filename) throws IOException, ParseException {

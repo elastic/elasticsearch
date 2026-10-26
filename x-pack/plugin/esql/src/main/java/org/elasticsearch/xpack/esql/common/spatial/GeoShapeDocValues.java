@@ -106,11 +106,11 @@ public class GeoShapeDocValues {
         }
     }
 
-    /** The V2 layout after the tree is {@code connectivityLength(4) | connectivity | vertexTable}. */
+    /** The V2 layout after the tree is {@code connectivityLength(VInt) | connectivity | vertexTable}. */
     private VertexLookupTable vertices() throws IOException {
         if (vertices == null) {
             input.setPosition(treeOffset + v2TreeLength);
-            int connectivityLength = input.readInt();
+            int connectivityLength = input.readVInt();
             input.skipBytes(connectivityLength);
             vertices = VertexLookupTable.readFrom(input, bytes);
         }

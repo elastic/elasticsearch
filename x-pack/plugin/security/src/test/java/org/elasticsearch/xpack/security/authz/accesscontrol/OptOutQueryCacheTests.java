@@ -15,7 +15,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
@@ -229,6 +232,14 @@ public class OptOutQueryCacheTests extends ESTestCase {
                     RandomQuery query = randomQuery(flsSearcher, allowedFields, disallowedFields).rewrite(flsSearcher);
                     Weight weight = query.query().createWeight(flsSearcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     assertEquals(query.query().toString(), query.cacheable(), OptOutQueryCache.cachingIsSafe(weight, permissions));
+
+                    // ESToParentBlockJoinQuery visits its child but its weight reports a Lucene query that doesn't, so a compound query
+                    // that visits it is checked more precisely than the bare query's weight. Only the bare query is asserted for it.
+                    if (query.query() instanceof ESToParentBlockJoinQuery == false) {
+                        Query wrapped = wrapInCompoundQuery(query.query());
+                        Weight wrappedWeight = wrapped.createWeight(flsSearcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                        assertEquals(wrapped.toString(), query.cacheable(), OptOutQueryCache.cachingIsSafe(wrappedWeight, permissions));
+                    }
                 }
             }
         }
@@ -366,6 +377,21 @@ public class OptOutQueryCacheTests extends ESTestCase {
             disallowedFields,
             randomValueOtherThanMany(QueryType::wraps, () -> randomFrom(QueryType.values()))
         );
+    }
+
+    /** Wraps the query in a randomly chosen compound query, adding only clauses that are always safe to cache. */
+    private static Query wrapInCompoundQuery(Query query) {
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST).build();
+            case 1 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD).build();
+            case 2 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER).build();
+            case 3 -> new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+                .add(query, BooleanClause.Occur.MUST_NOT)
+                .build();
+            case 4 -> new DisjunctionMaxQuery(List.of(query), randomFloat());
+            case 5 -> new ConstantScoreQuery(new BoostQuery(query, randomFloat()));
+            default -> throw new AssertionError("unexpected wrapper");
+        };
     }
 
     private enum QueryType {

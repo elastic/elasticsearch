@@ -64,20 +64,24 @@ public record IvfSegmentConfig(
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
         public static final int DEFAULT_BITS_PER_DIM = 2;
         public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
-        public static final int DEFAULT_TRAINING_ITERATIONS = 5;
+        /**
+         * Procrustes iterations used to refine the rotation applied to the PCA subspace. With zero, the default, the
+         * rotation is a random orthogonal matrix and no projected training sample is needed; any positive value runs
+         * that many iterations on a projected training sample.
+         */
+        public static final int DEFAULT_TRAINING_ITERATIONS = 0;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
 
         /**
-         * Training-sample factor used on the flush path only. Flush segments are transient and are
-         * re-trained at merge, so W is learned on a smaller sample there (cheaper training, smaller
-         * temporary allocations) while keeping the recall-critical PCA subspace. Merge uses the full
-         * {@link #trainingFactor()}.
+         * Training-sample factor used on the flush path. Training streams the sample through a
+         * {@code originalDim x originalDim} second-moment matrix, so its memory no longer grows with the
+         * sample size and flush can use the same factor as merge.
          */
-        public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 5;
+        public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 10;
 
         /**
-         * Returns the training-sample factor to use when learning W at flush time (a reduced
-         * training sample). Merge uses {@link #trainingFactor()}.
+         * Returns the training-sample factor to use when learning W at flush time. Merge uses
+         * {@link #trainingFactor()}.
          */
         public int flushTrainingFactor() {
             return DEFAULT_FLUSH_TRAINING_FACTOR;

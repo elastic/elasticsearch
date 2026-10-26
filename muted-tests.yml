@@ -212,9 +212,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159043
-- class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
-  method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/158357
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
@@ -296,9 +293,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
-- class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/160423
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
@@ -397,9 +391,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
   method: testSourceNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/162540
-- class: org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHashTests
-  method: testLookup
-  issue: https://github.com/elastic/elasticsearch/issues/162546
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
   method: testSearchesAgainstNonMatchingIndices
   issue: https://github.com/elastic/elasticsearch/issues/162565
@@ -483,3 +474,77 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163244
+- class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSlowConsumerUnderNetworkDelay
+  issue: https://github.com/elastic/elasticsearch/issues/163264
+- class: org.elasticsearch.xpack.logsdb.OversizedArrayOffsetsRollingUpgradeIT
+  tasks:
+  - :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.0.8#bwcTest
+  method: testOversizedArraysAcrossUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/163295
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStressWithoutFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148310
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  tasks:
+  - :x-pack:qa:rolling-upgrade-multi-cluster:v9.6.0#bwcTest
+  method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=2 followerNodesUpgraded=3}
+  issue: https://github.com/elastic/elasticsearch/issues/163301
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecChangePointIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#csvSpecTestsOldCoordinator
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/163319
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
+  method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
+  issue: https://github.com/elastic/elasticsearch/issues/163321
+- class: org.elasticsearch.xpack.stateless.cache.SearchShardCacheWarmingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
+  issue: https://github.com/elastic/elasticsearch/issues/163325
+- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
+  tasks:
+  - :x-pack:plugin:slm:internalClusterTest
+  method: testSLMRetentionAfterRestore
+  issue: https://github.com/elastic/elasticsearch/issues/163334
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  issue: https://github.com/elastic/elasticsearch/issues/163299
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#oldToNew
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
+  issue: https://github.com/elastic/elasticsearch/issues/163410
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#oldToNew
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_counter_ts_with_explicit_window}
+  issue: https://github.com/elastic/elasticsearch/issues/163412
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#oldToNew
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts}
+  issue: https://github.com/elastic/elasticsearch/issues/163414
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_counter_ts_with_explicit_window}
+  issue: https://github.com/elastic/elasticsearch/issues/163416
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts}
+  issue: https://github.com/elastic/elasticsearch/issues/163418
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
+  issue: https://github.com/elastic/elasticsearch/issues/163420

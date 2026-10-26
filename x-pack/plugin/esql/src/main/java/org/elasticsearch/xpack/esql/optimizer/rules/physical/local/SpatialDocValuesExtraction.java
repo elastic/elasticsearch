@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -74,6 +76,8 @@ import java.util.Set;
 public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     UnaryExec,
     LocalPhysicalOptimizerContext> {
+    private static final Logger log = LogManager.getLogger(SpatialDocValuesExtraction.class);
+
     @Override
     protected PhysicalPlan rule(UnaryExec planNode, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = findAttributesFromAggregatesAndEvals(planNode, ctx);
@@ -190,11 +194,11 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 });
                 field.forEachDown(BinarySpatialGeometryFunction.class, spatialFunction -> {
                     if (spatialFunction.left() instanceof FieldAttribute leftField
-                        && allowedForDocValues(leftField, ctx.searchStats(), exec, foundAttributes)) {
+                        && allowedForDocValues(leftField, ctx.searchStats(), exec, foundAttributes, false)) {
                         foundAttributes.add(leftField);
                     }
                     if (spatialFunction.right() instanceof FieldAttribute rightField
-                        && allowedForDocValues(rightField, ctx.searchStats(), exec, foundAttributes)) {
+                        && allowedForDocValues(rightField, ctx.searchStats(), exec, foundAttributes, false)) {
                         foundAttributes.add(rightField);
                     }
                 });

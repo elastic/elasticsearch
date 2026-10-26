@@ -570,8 +570,13 @@ public final class QuerySettings {
         }
     }
 
-    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
-    static ResolvedSettings resolve(
+    /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)} over {@code defs} only; every other
+     * setting reads as its registry default. A view definition resolves the settings it may {@code SET} with this, so that
+     * its body sees them folded exactly as a query would. Parameterized over the registry also so the fold is testable
+     * against a purpose-built setting, as byName(List) is.
+     */
+    public static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
         Settings clusterState,
         Settings nodeSettings,

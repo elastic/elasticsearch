@@ -474,8 +474,9 @@ teardown:
   - match: { hits.hits.4._source.textbody: "first text" }
   - match: { hits.hits.5._source.textbody: "sixth text" }
   - match: { hits.hits.6._source.textbody: "ninth text" }
-  - match: { hits.hits.7._source.textbody: "third text other" }
-  - match: { hits.hits.8._source.textbody: "third text duplicate other" }
+  # ids 15 and 16 share a vector, but their scores can differ in the last bit depending on how they are batched for scoring
+  - match: { hits.hits.7._source.textbody: "/^third\\ text\\ (duplicate\\ )?other$/" }
+  - match: { hits.hits.8._source.textbody: "/^third\\ text\\ (duplicate\\ )?other$/" }
   - match: { hits.hits.9._source.textbody: "sixth text other" }
 
   - do:

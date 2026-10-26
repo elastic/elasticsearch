@@ -26,6 +26,9 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 
 public final class ShardSearchStats implements SearchOperationListener {
+    /** Fixed point units in one task, so a task shared between shards can be counted fractionally in a long. */
+    private static final long QUEUE_TIME_TASK_WEIGHT = 1_000_000;
+
     private final StatsHolder totalStats;
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
@@ -59,6 +62,40 @@ public final class ShardSearchStats implements SearchOperationListener {
             }
         }
         return new SearchStats(total, openContexts.count(), groupsSt);
+    }
+
+    /**
+     * Records the time one task for this shard spent waiting in a thread pool queue. A task is a search phase request or an ES|QL
+     * driver time slice, so the mean wait per task is {@link #totalQueueTimeInMicros()} over {@link #totalQueuedTasks()}.
+     */
+    public void onQueueTime(long queueTimeMicros) {
+        onQueueTimeShare(queueTimeMicros, 1);
+    }
+
+    /**
+     * Records this shard's share of a task's wait when the task worked for {@code shardCount} shards. Each shard gets
+     * {@code 1 / shardCount} of the wait and of a task, so sums over the shards approximately add up to the task's wait and to one task.
+     * Integer division truncates, losing under {@code shardCount} microseconds and a negligible fraction of a task per call.
+     */
+    public void onQueueTimeShare(long queueTimeMicros, int shardCount) {
+        assert shardCount > 0 : "shardCount must be positive but was " + shardCount;
+        totalStats.queueTimeMicros.inc(queueTimeMicros / shardCount);
+        totalStats.queueTimeTaskWeight.inc(QUEUE_TIME_TASK_WEIGHT / shardCount);
+    }
+
+    /**
+     * Number of tasks whose wait was recorded by {@link #onQueueTime} and {@link #onQueueTimeShare}, fractional for tasks that were
+     * shared between shards.
+     */
+    public double totalQueuedTasks() {
+        return (double) totalStats.queueTimeTaskWeight.count() / QUEUE_TIME_TASK_WEIGHT;
+    }
+
+    /**
+     * Total wait in microseconds of the tasks counted by {@link #totalQueuedTasks()}.
+     */
+    public long totalQueueTimeInMicros() {
+        return totalStats.queueTimeMicros.count();
     }
 
     @Override
@@ -190,6 +227,8 @@ public final class ShardSearchStats implements SearchOperationListener {
          */
         final MeanMetric scrollMetric = new MeanMetric();
         final MeanMetric suggestMetric = new MeanMetric();
+        final CounterMetric queueTimeMicros = new CounterMetric();
+        final CounterMetric queueTimeTaskWeight = new CounterMetric();
         final CounterMetric queryCurrent = new CounterMetric();
         final CounterMetric fetchCurrent = new CounterMetric();
         final CounterMetric scrollCurrent = new CounterMetric();

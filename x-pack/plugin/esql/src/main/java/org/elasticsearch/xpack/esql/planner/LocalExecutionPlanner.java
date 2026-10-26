@@ -101,6 +101,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
@@ -234,6 +235,7 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
@@ -252,6 +254,7 @@ import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -3018,6 +3021,10 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.maxOverReservedBytes()
             );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
+            // node_reduce shares the shard contexts but does not read them
+            if (ComputeService.DATA_DESCRIPTION.equals(description) && shardContexts.isEmpty() == false) {
+                driverContext.setQueueTimeListener(shareQueueTimeAcrossShards(shardContexts));
+            }
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
@@ -3043,6 +3050,25 @@ public class LocalExecutionPlanner {
                     Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
                 }
             }
+        }
+
+        /**
+         * A data driver reads slices from a queue shared by all the shards of its batch, so each wait is shared evenly between them,
+         * and sums over the shards approximately add up to the wait and to one task. Shards without stats are skipped.
+         */
+        private static LongConsumer shareQueueTimeAcrossShards(IndexedByShardId<? extends ShardContext> shardContexts) {
+            final List<ShardSearchStats> statsList = new ArrayList<>(shardContexts.size());
+            for (ShardContext shardContext : shardContexts.iterable()) {
+                ShardSearchStats shardStats = shardContext.stats();
+                if (shardStats != null) {
+                    statsList.add(shardStats);
+                }
+            }
+            return queueTimeMicros -> {
+                for (ShardSearchStats shardStats : statsList) {
+                    shardStats.onQueueTimeShare(queueTimeMicros, statsList.size());
+                }
+            };
         }
 
         @Override

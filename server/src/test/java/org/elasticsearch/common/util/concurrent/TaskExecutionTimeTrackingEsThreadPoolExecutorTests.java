@@ -24,7 +24,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
 import static org.hamcrest.Matchers.allOf;
@@ -379,6 +382,119 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             );
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /** A task queued behind a blocked one is told its wait once, through the executor's wrappers. */
+    public void testQueueTimeAwareTaskIsToldQueueTime() throws Exception {
+        var executor = buildExecutor(
+            "queue-time-aware",
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
+        );
+        try {
+            final var blockerStarted = new CountDownLatch(1);
+            final var releaseBlocker = new CountDownLatch(1);
+            executor.execute(() -> {
+                blockerStarted.countDown();
+                safeAwait(releaseBlocker);
+            });
+            safeAwait(blockerStarted);
+
+            final var recordedQueueTimes = new AtomicLongArray(2);
+            final var ran = new CountDownLatch(1);
+            executor.execute(new QueueTimeAwareRunnable(queueTimeMicros -> {
+                recordedQueueTimes.incrementAndGet(0);
+                recordedQueueTimes.set(1, queueTimeMicros);
+            }, ran::countDown));
+
+            final long queuedAtLeastNanos = TimeUnit.MILLISECONDS.toNanos(20);
+            final long startNanos = System.nanoTime();
+            while (System.nanoTime() - startNanos < queuedAtLeastNanos) {
+                Thread.sleep(1);
+            }
+            releaseBlocker.countDown();
+            safeAwait(ran);
+
+            assertThat("callback must be invoked exactly once", recordedQueueTimes.get(0), equalTo(1L));
+            assertThat(recordedQueueTimes.get(1), greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMicros(queuedAtLeastNanos)));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /** A throwing callback must not stop the task running or leak its ongoing task entry. */
+    public void testThrowingQueueTimeCallbackStillRunsTask() throws Exception {
+        var executor = buildExecutor(
+            "throwing-callback",
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackOngoingTasks()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .build()
+        );
+        try {
+            final var ran = new CountDownLatch(1);
+            executor.execute(
+                new QueueTimeAwareRunnable(queueTimeMicros -> { throw new IllegalStateException("callback failure"); }, ran::countDown)
+            );
+            safeAwait(ran);
+            assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
+
+            final var ranAgain = new CountDownLatch(1);
+            executor.execute(ranAgain::countDown);
+            safeAwait(ranAgain);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /** Only a {@link QueueTimeAware} task gets the callback, and plain tasks run alongside it as before. */
+    public void testOnlyQueueTimeAwareTaskGetsCallback() throws Exception {
+        var executor = buildExecutor(
+            "plain-and-aware",
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
+        );
+        try {
+            final var callbacks = new AtomicInteger();
+            final var plainRan = new CountDownLatch(1);
+            executor.execute(plainRan::countDown);
+            final var awareRan = new CountDownLatch(1);
+            executor.execute(new QueueTimeAwareRunnable(queueTimeMicros -> callbacks.incrementAndGet(), awareRan::countDown));
+            safeAwait(plainRan);
+            safeAwait(awareRan);
+            assertThat(callbacks.get(), equalTo(1));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static final class QueueTimeAwareRunnable extends AbstractRunnable implements QueueTimeAware {
+        private final LongConsumer onQueueTime;
+        private final Runnable body;
+
+        QueueTimeAwareRunnable(LongConsumer onQueueTime, Runnable body) {
+            this.onQueueTime = onQueueTime;
+            this.body = body;
+        }
+
+        @Override
+        public void onQueueTime(long queueTimeMicros) {
+            onQueueTime.accept(queueTimeMicros);
+        }
+
+        @Override
+        protected void doRun() {
+            body.run();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            throw new AssertionError(e);
         }
     }
 

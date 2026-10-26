@@ -82,14 +82,17 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.KeyFilteredSlots;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -1196,6 +1199,81 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     syntheticSource(mapper, reader, doc.docs().size() - 1)
                 );
             }
+        }
+    }
+
+    /**
+     * A columnar_stored index keeps the whole {@code _source} of a document in one {@code _ignored_source} entry named {@code _source}.
+     * That name is not a field path and, starting with {@code _}, is always granted, so filtering the entry under it would hand out every
+     * field of the document. The fields it holds have to be filtered on their own paths instead, mapped, unmapped and nested alike.
+     */
+    public void testColumnarStoredSourceKeepsOnlyGrantedFields() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            // Without the time series doc values format the whole-document entry is a stored field rather than a binary doc value.
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), randomBoolean())
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("name").field("type", "keyword").endObject();
+            b.startObject("secret").field("type", "keyword").endObject();
+            b.startObject("n").field("type", "nested").endObject();
+        }));
+        String name = randomAlphanumericOfLength(8);
+        String secret = randomAlphanumericOfLength(8);
+        String k = randomAlphanumericOfLength(8);
+        String visible = randomAlphanumericOfLength(8);
+        String hidden = randomAlphanumericOfLength(8);
+        String shown = randomAlphanumericOfLength(8);
+        String nestedHidden = randomAlphanumericOfLength(8);
+        String nestedShown = randomAlphanumericOfLength(8);
+        try (Directory directory = newDirectory()) {
+            ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+                b.field("name", name).field("secret", secret).field("k", k).field("visible", visible);
+                b.startObject("obj").field("hidden", hidden).field("shown", shown).endObject();
+                b.startArray("n").startObject().field("hidden", nestedHidden).field("shown", nestedShown).endObject().endArray();
+            }));
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+            }
+            int rootDoc = doc.docs().size() - 1;
+
+            String[] denied = new String[] { "secret", "k", "obj.hidden", "n.hidden" };
+            assertThat(
+                columnarStoredSource(mapperService, directory, rootDoc, new String[] { "*" }, denied),
+                equalTo(Map.of("name", name, "visible", visible, "obj.shown", shown, "n", Map.of("shown", nestedShown)))
+            );
+            assertThat(
+                columnarStoredSource(mapperService, directory, rootDoc, new String[] { "name", "obj.shown", "n.shown" }, null),
+                equalTo(Map.of("name", name, "obj.shown", shown, "n", Map.of("shown", nestedShown)))
+            );
+            // Nothing granted is in the document, which still reads as an empty source rather than failing on a missing entry.
+            assertThat(columnarStoredSource(mapperService, directory, rootDoc, new String[] { "missing" }, null), equalTo(Map.of()));
+        }
+    }
+
+    private static Map<String, Object> columnarStoredSource(
+        MapperService mapperService,
+        Directory directory,
+        int docId,
+        String[] granted,
+        String[] denied
+    ) throws IOException {
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(granted, denied));
+        try (
+            DirectoryReader reader = FieldSubsetReader.wrap(
+                wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                filter,
+                mapperService.mappingLookup().getMapping().ignoredSourceFormat(),
+                fieldName -> mapperService.fieldType(fieldName) != null
+            )
+        ) {
+            var provider = SourceProvider.fromLookup(mapperService.mappingLookup(), null, SourceFieldMetrics.NOOP, null);
+            return provider.getSource(getOnlyLeafReader(reader).getContext(), docId).source();
         }
     }
 

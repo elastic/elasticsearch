@@ -433,7 +433,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
         // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
         MappedNameValue mappedNameValue = nameValueToMapped(nameValue);
-        Map<String, Object> transformedField = filter.apply(mappedNameValue.map());
+        Map<String, Object> transformedField = filterMapped(mappedNameValue, filter);
         if (transformedField.isEmpty()) {
             // All values were filtered
             return null;
@@ -441,6 +441,26 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
         // Reconstruct the value from the transformed map in case any subfield has been filtered out.
         return SingularIgnoredSourceEncoding.encodeFromMap(mappedNameValue.withMap(transformedField));
+    }
+
+    /**
+     * Applies a field-level security filter to one decoded entry. The whole-document entry of a {@code columnar_stored} index holds the
+     * entire {@code _source} under the name {@link SourceFieldMapper#NAME}, which is not a field path: filtered under it, every field of
+     * the document would pass along with the {@code _} prefixed metadata fields that field-level security always grants. So its fields are
+     * filtered on their own paths instead, and the entry is never dropped, as the root reads exactly one; a document left with no field
+     * reads as an empty object.
+     */
+    private static Map<String, Object> filterMapped(
+        MappedNameValue mappedNameValue,
+        Function<Map<String, Object>, Map<String, Object>> filter
+    ) {
+        NameValue nameValue = mappedNameValue.nameValue();
+        if (nameValue.parentOffset() == 0 && SourceFieldMapper.NAME.equals(nameValue.name())) {
+            @SuppressWarnings("unchecked") // the entry always holds the source as an object, written by SourceFieldMapper#postParse
+            Map<String, Object> source = (Map<String, Object>) mappedNameValue.map().get(SourceFieldMapper.NAME);
+            return Map.of(SourceFieldMapper.NAME, filter.apply(source));
+        }
+        return filter.apply(mappedNameValue.map());
     }
 
     public enum IgnoredSourceFormat {
@@ -566,7 +586,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 List<MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
                 boolean maybeDidFilter = false;
                 for (var mappedNameValue : mappedNameValues) {
-                    Map<String, Object> transformedField = filter.apply(mappedNameValue.map());
+                    Map<String, Object> transformedField = filterMapped(mappedNameValue, filter);
                     if (transformedField.isEmpty()) {
                         maybeDidFilter = true;
                         continue;

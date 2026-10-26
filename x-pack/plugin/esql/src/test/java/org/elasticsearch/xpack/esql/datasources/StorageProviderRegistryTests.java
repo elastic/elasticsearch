@@ -14,7 +14,11 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -29,9 +33,11 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for {@link StorageProviderRegistry}: wrap-order, throttle-scope, and the {@code file://}
@@ -146,6 +152,109 @@ public class StorageProviderRegistryTests extends ESTestCase {
             throw new AssertionError(e);
         }
         assertEquals(1, closes.get());
+    }
+
+    /**
+     * Federated identity is gated at provider build on the resolved configuration, not on the {@code auth} string: an
+     * explicit {@code auth=federated_identity} and an {@code auto} config carrying a federated field are both refused
+     * while the setting is off, before any provider is constructed, and both build once it is on. The gate rides the
+     * {@link CredentialPolicy} the plugin receives, applied by {@code StorageProviderFactory.of(..., policy)}.
+     */
+    public void testFederatedIdentityRefusedAtProviderBuildWhenDisabled() {
+        AtomicInteger built = new AtomicInteger();
+        AtomicBoolean federatedEnabled = new AtomicBoolean(false);
+        CredentialPolicy policy = CredentialPolicy.of(() -> true, federatedEnabled::get);
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
+            registry.registerFactory(
+                "stub",
+                StorageProviderFactory.of(StubStorageProvider::new, StubConfiguration::fromQueryConfig, cfg -> {
+                    built.incrementAndGet();
+                    return new StubStorageProvider();
+                }, policy)
+            );
+
+            for (Map<String, Object> federated : List.of(
+                Map.<String, Object>of("auth", "federated_identity", "role_arn", "arn:aws:iam::123456789012:role/reader"),
+                Map.<String, Object>of("role_arn", "arn:aws:iam::123456789012:role/reader")
+            )) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> registry.createProvider("stub", Settings.EMPTY, federated)
+                );
+                assertThat(e.getMessage(), equalTo(FileDataSourceValidator.FEDERATED_IDENTITY_DISABLED_MESSAGE));
+            }
+            assertEquals("a refused mode must not construct a provider", 0, built.get());
+
+            // Static credentials are unaffected by the federated gate.
+            StorageProviderCache.closeLease(
+                registry.createProvider("stub", Settings.EMPTY, Map.of("access_key", "AKIA", "secret_key", "s3cr3t"))
+            );
+            assertEquals(1, built.get());
+
+            federatedEnabled.set(true);
+            StorageProviderCache.closeLease(
+                registry.createProvider("stub", Settings.EMPTY, Map.of("auth", "federated_identity", "role_arn", "arn:aws:iam::1:role/r"))
+            );
+            assertEquals(2, built.get());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** The policy also carries the managed-identity gate, for the typed check that mirrors the PUT validator. */
+    public void testManagedIdentityRefusedByPolicyWhenDisabled() {
+        AtomicInteger built = new AtomicInteger();
+        CredentialPolicy policy = CredentialPolicy.of(() -> false, () -> true);
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
+            registry.registerFactory(
+                "stub",
+                StorageProviderFactory.of(StubStorageProvider::new, StubConfiguration::fromQueryConfig, cfg -> {
+                    built.incrementAndGet();
+                    return new StubStorageProvider();
+                }, policy)
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> registry.createProvider("stub", Settings.EMPTY, Map.of("auth", "managed_identity", "region", "us-east-1"))
+            );
+            assertThat(e.getMessage(), equalTo(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE));
+            assertEquals(0, built.get());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Minimal file-type configuration with one static credential pair and one federated field. */
+    private static final class StubConfiguration extends FileDataSourceConfiguration {
+        private static final DataSourceConfigDefinition ACCESS_KEY = DataSourceConfigDefinition.secret("access_key");
+        private static final DataSourceConfigDefinition SECRET_KEY = DataSourceConfigDefinition.secret("secret_key");
+        private static final DataSourceConfigDefinition REGION = DataSourceConfigDefinition.plaintext("region");
+        private static final DataSourceConfigDefinition ROLE_ARN = DataSourceConfigDefinition.plaintext("role_arn").asFederatedAuth();
+        private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+            AUTH,
+            ACCESS_KEY,
+            SECRET_KEY,
+            REGION,
+            ROLE_ARN
+        );
+
+        private StubConfiguration(Map<String, Object> raw) {
+            super(raw, FIELDS);
+        }
+
+        static Configured<StubConfiguration> fromQueryConfig(Map<String, Object> raw) {
+            return filterAndConstruct(raw, FIELDS, StubConfiguration::new);
+        }
+
+        @Override
+        public boolean hasCredentials() {
+            return get("access_key") != null && get("secret_key") != null;
+        }
+
+        @Override
+        public String unresolvedAuthMessage() {
+            return "stub requires credentials or role_arn";
+        }
     }
 
     /**

@@ -30,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -76,6 +77,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -207,6 +209,77 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testStopAfterExtractionShouldRetainCursorForNextWindow() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            DataExtractor.Result result = new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+            datafeedJob.stop();
+            return result;
+        }).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+
+        currentTime = 3000L;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), anyLong());
+        assertThat(startTimeCaptor.getAllValues(), equalTo(List.of(0L, 0L)));
+    }
+
+    public void testIsolateDuringActiveExtractionCancelsExtractorExactlyOnce() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.isolate();
+            return new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor, times(1)).cancel();
+        verify(dataExtractor, times(1)).next();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testTaskCancelledWhileRunningShouldRaiseExtractionProblem() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        when(dataExtractor.isCancelled()).thenReturn(false);
+        doThrow(new TaskCancelledException("cancelled")).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+    }
+
+    public void testCancellationExceptionWhileRunningShouldRaiseExtractionProblem() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        when(dataExtractor.isCancelled()).thenReturn(false);
+        doThrow(new CancellationException()).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+    }
+
+    public void testStopBeforeExtractorThrowsShouldReturnQuietly() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.stop();
+            throw new TaskCancelledException("cancelled");
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {
@@ -1099,6 +1172,17 @@ public class DatafeedJobTests extends ESTestCase {
         verify(auditor, times(1)).warning(eq(jobId), warningCaptor.capture());
         assertThat(warningCaptor.getValue(), containsString("linked"));
         assertThat(warningCaptor.getValue(), containsString("flapping"));
+    }
+
+    public void testRealtimeWhenEndEqualsStartShouldNotExtractOrFlush() throws Exception {
+        long hourMs = TimeValue.timeValueHours(1).millis();
+        currentTime = hourMs + TimeValue.timeValueMinutes(30).millis();
+        DatafeedJob datafeedJob = createDatafeedJob(hourMs, 0L, hourMs - 1, -1, true, DELAYED_DATA_FREQ);
+
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testBaselineCycleDoesNotTriggerAnnotation() throws Exception {

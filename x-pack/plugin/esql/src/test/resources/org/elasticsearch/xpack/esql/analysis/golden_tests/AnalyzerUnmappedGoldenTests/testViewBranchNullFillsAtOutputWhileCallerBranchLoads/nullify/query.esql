@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees, scaled_emp_view
+| KEEP emp_no, scaled, does_not_exist

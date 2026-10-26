@@ -140,6 +140,13 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     }
 
     @Override
+    protected boolean checkDeprecations(Settings repositorySettings) {
+        // Opting into the deprecated conditional-writes setting is critically deprecated and would fail analysis. Skip that check so
+        // these tests can still exercise the MPU-based implementation.
+        return repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes") == false;
+    }
+
+    @Override
     protected String repositoryType() {
         return "s3";
     }

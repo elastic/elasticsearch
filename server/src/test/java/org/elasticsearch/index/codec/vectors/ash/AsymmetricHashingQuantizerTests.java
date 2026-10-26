@@ -27,14 +27,13 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
 /**
- * Tests for the core ASH algorithm components: SVD, quantizers, and the full pipeline.
+ * Tests for the core ASH algorithm components: subspace training, quantizers, and the full pipeline.
  */
 public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
@@ -71,6 +70,237 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 assertEquals(expected, dot, 1e-4f);
             }
         }
+    }
+
+    public void testProcrustesIsOrthogonalAndKeepsTheObjective() {
+        // M = U diag(s) V^T with a known spectrum, so the exact polar factor U V^T and its objective sum(s) are known. The
+        // singular values fall from 1 to 1e-3, as they do for the matrices the Procrustes loop works on, and it is the small
+        // ones that take Newton-Schulz the most steps to bring up to 1
+        int k = 128;
+        float[] u = AshUtils.randomOrthogonal(random(), k, executor());
+        float[] v = AshUtils.randomOrthogonal(random(), k, executor());
+        double[] s = new double[k];
+        double sumOfSingularValues = 0;
+        for (int i = 0; i < k; i++) {
+            s[i] = Math.pow(1e-3, i / (double) (k - 1));
+            sumOfSingularValues += s[i];
+        }
+        float[] m = new float[k * k];
+        float[] exact = new float[k * k];
+        for (int a = 0; a < k; a++) {
+            for (int b = 0; b < k; b++) {
+                double polar = 0;
+                double matrix = 0;
+                for (int i = 0; i < k; i++) {
+                    double product = (double) u[a * k + i] * v[b * k + i];
+                    polar += product;
+                    matrix += product * s[i];
+                }
+                exact[a * k + b] = (float) polar;
+                m[a * k + b] = (float) matrix;
+            }
+        }
+
+        float[] r = new float[k * k];
+        AshUtils.procrustes(m, k, r, executor());
+
+        // R^T R = I, to the tolerance the iteration stops at
+        double worstOffOrthogonal = 0;
+        for (int i = 0; i < k; i++) {
+            for (int j = 0; j < k; j++) {
+                double dot = 0;
+                for (int l = 0; l < k; l++) {
+                    dot += (double) r[l * k + i] * r[l * k + j];
+                }
+                worstOffOrthogonal = Math.max(worstOffOrthogonal, Math.abs(dot - (i == j ? 1 : 0)));
+            }
+        }
+        assertThat("distance of R^T R from I", worstOffOrthogonal, lessThan(2.0 * AshUtils.ORTHOGONALITY_TOLERANCE));
+        // the objective tr(R^T M) is that of the exact polar factor, which maximizes it over all orthogonal matrices
+        double objective = 0;
+        double worstDifference = 0;
+        for (int i = 0; i < k * k; i++) {
+            objective += (double) r[i] * m[i];
+            worstDifference = Math.max(worstDifference, Math.abs(r[i] - exact[i]));
+        }
+        assertEquals("objective relative to the exact polar factor's", 1.0, objective / sumOfSingularValues, 1e-5);
+        assertThat("largest entry of R minus the exact polar factor", worstDifference, lessThan(2e-3));
+    }
+
+    public void testProcrustesOfAWellConditionedMatrixIsOrthogonal() {
+        int k = 96;
+        float[] m = AshUtils.randomGaussians(random(), k * k);
+        float[] r = new float[k * k];
+
+        AshUtils.procrustes(m, k, r, executor());
+
+        // The columns of R, since the iteration bounds the largest entry of R^T R - I. Nothing bounds R R^T, which for a
+        // random matrix can be about three times worse and made this test fail for about one seed in a thousand
+        assertOrthonormalRows(ESVectorUtil.transposeMatrix(r, k, k), k, k, 2.0f * AshUtils.ORTHOGONALITY_TOLERANCE);
+    }
+
+    public void testProcrustesDoesNotStopWhileASmallSingularValueIsBeingBroughtUp() {
+        // M = I - 0.99 s s^T with s spread evenly over the coordinates has one singular value of 0.01, along s, and all the
+        // others 1, so its exact polar factor is I. The largest entry of X^T X - I stays at about 1 / k while that singular
+        // value is brought up, which at k = 1024 is below a stopping gate of 1e-3: stopping on "the error stopped
+        // decreasing" there returned the matrix with the singular value still at 0.01
+        int k = 1024;
+        float[] s = new float[k];
+        Arrays.fill(s, (float) (1.0 / Math.sqrt(k)));
+        float[] m = new float[k * k];
+        for (int i = 0; i < k; i++) {
+            for (int j = 0; j < k; j++) {
+                m[i * k + j] = (i == j ? 1f : 0f) - 0.99f * s[i] * s[j];
+            }
+        }
+        float[] r = new float[k * k];
+
+        AshUtils.procrustes(m, k, r, executor());
+
+        // R is symmetric here, so R s is the singular value of R along s times s
+        float[] rs = ESVectorUtil.matrixVectorMultiply(r, k, k, s);
+        double singularValue = Math.sqrt(ESVectorUtil.dotProduct(rs, rs));
+        assertThat("singular value of R along the direction that was small", singularValue, greaterThan(0.9));
+    }
+
+    public void testRandomOrthogonal() {
+        int n = 5;
+        float[] r = AshUtils.randomOrthogonal(random(), n, executor());
+        assertOrthonormalRows(r, n, n, 1e-4f);
+    }
+
+    public void testDominantSubspaceOfDiagonalMatrix() {
+        // Second-moment matrix with descending diagonal: the dominant 2-d subspace is the first two axes
+        int n = 4;
+        int k = 2;
+        float[] c = new float[n * n];
+        c[0 * n + 0] = 16f;
+        c[1 * n + 1] = 9f;
+        c[2 * n + 2] = 4f;
+        c[3 * n + 3] = 1f;
+
+        float[] bT = AshUtils.dominantSubspace(c, n, k, 42L, executor());
+        assertEquals(k * n, bT.length);
+        assertOrthonormalRows(bT, k, n, 1e-4f);
+        for (int j = 0; j < k; j++) {
+            // all of each basis vector's energy sits in the first two coordinates
+            float inSpan = bT[j * n] * bT[j * n] + bT[j * n + 1] * bT[j * n + 1];
+            assertEquals("row " + j + " leaves the dominant subspace", 1f, inSpan, 1e-3f);
+        }
+    }
+
+    public void testDominantSubspaceRecoversPlantedSubspace() {
+        int n = 64;
+        int rank = 8;
+        float[] planted = plantedSubspace(n, rank);
+        // C = 10 * sum(u u^T) + 0.01 * I: a clear gap, so the planted subspace is the dominant one
+        float[] c = new float[n * n];
+        for (int u = 0; u < rank; u++) {
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    c[i * n + j] += 10f * planted[u * n + i] * planted[u * n + j];
+                }
+            }
+        }
+        for (int i = 0; i < n; i++) {
+            c[i * n + i] += 0.01f;
+        }
+
+        float[] bT = AshUtils.dominantSubspace(c, n, rank, randomLong(), executor());
+        assertOrthonormalRows(bT, rank, n, 1e-3f);
+        assertThat(capturedEnergy(planted, rank, bT, rank, n), greaterThan(rank - 1e-2f));
+    }
+
+    public void testOrthonormalizeRowsKeepsSpan() {
+        // more rows than one block, so the blocked path with its inter-block projections is exercised
+        int n = 300;
+        int k = AshUtils.ORTHONORMALIZE_BLOCK + 72;
+        float[] original = AshUtils.randomGaussians(random(), k * n);
+        float[] rows = original.clone();
+
+        AshUtils.orthonormalizeRows(rows, n, k, executor());
+
+        assertOrthonormalRows(rows, k, n, 1e-4f);
+        // every original row lies in the span of the result: projecting onto it keeps the whole norm
+        for (int i = 0; i < k; i++) {
+            float[] row = Arrays.copyOfRange(original, i * n, (i + 1) * n);
+            float[] coordinates = ESVectorUtil.matrixVectorMultiply(rows, k, n, row);
+            float norm = ESVectorUtil.dotProduct(row, row);
+            assertEquals("row " + i + " left the span", norm, ESVectorUtil.dotProduct(coordinates, coordinates), norm * 1e-4f);
+        }
+        // and the leading rows still span what the leading original rows spanned
+        int leading = 10;
+        float[] leadingRows = Arrays.copyOf(rows, leading * n);
+        for (int i = 0; i < leading; i++) {
+            float[] row = Arrays.copyOfRange(original, i * n, (i + 1) * n);
+            float[] coordinates = ESVectorUtil.matrixVectorMultiply(leadingRows, leading, n, row);
+            float norm = ESVectorUtil.dotProduct(row, row);
+            assertEquals("leading row " + i, norm, ESVectorUtil.dotProduct(coordinates, coordinates), norm * 1e-4f);
+        }
+    }
+
+    public void testOrthonormalizeRowsOfNearlyParallelRows() {
+        // what repeated multiplication by a second-moment matrix produces: every row is dominated by the same direction
+        int n = 512;
+        int k = AshUtils.ORTHONORMALIZE_BLOCK * 2 + 30;
+        float[] common = AshUtils.randomGaussians(random(), n);
+        float[] rows = AshUtils.randomGaussians(random(), k * n);
+        for (int i = 0; i < k; i++) {
+            ESVectorUtil.linearCombination(300f, common, 0, rows, i * n, n);
+        }
+
+        AshUtils.orthonormalizeRows(rows, n, k, executor());
+
+        assertOrthonormalRows(rows, k, n, 1e-3f);
+    }
+
+    public void testDominantSubspaceOfSlowlyDecayingSpectrum() {
+        // eigenvalues 0.97^i: no clear gap at k, like the edge of the subspace in real embeddings. The subspace is not
+        // resolved there, but the energy it captures must be close to the best possible
+        int n = 128;
+        int k = 32;
+        float[] c = new float[n * n];
+        double total = 0;
+        double best = 0;
+        for (int i = 0; i < n; i++) {
+            double lambda = Math.pow(0.97, i);
+            c[i * n + i] = (float) lambda;
+            total += lambda;
+            if (i < k) {
+                best += lambda;
+            }
+        }
+
+        float[] bT = AshUtils.dominantSubspace(c, n, k, randomLong(), executor());
+
+        assertOrthonormalRows(bT, k, n, 1e-3f);
+        double captured = 0;
+        for (int j = 0; j < k; j++) {
+            for (int i = 0; i < n; i++) {
+                captured += (double) c[i * n + i] * bT[j * n + i] * bT[j * n + i];
+            }
+        }
+        assertThat("captured energy fraction", captured / total, greaterThan(best / total - 2e-3));
+    }
+
+    public void testRefineSubspaceWithSingleMultiplyIsOrthonormal() {
+        int n = 40;
+        int k = 10;
+        float[] planted = plantedSubspace(n, k);
+        float[] c = new float[n * n];
+        for (int u = 0; u < k; u++) {
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    c[i * n + j] += planted[u * n + i] * planted[u * n + j];
+                }
+            }
+        }
+        float[] start = AshUtils.randomGaussians(random(), k * n);
+        AshUtils.orthonormalizeRows(start, n, k, executor());
+
+        float[] refined = AshUtils.refineSubspace(c, n, k, start, 1, executor());
+
+        assertOrthonormalRows(refined, k, n, 1e-4f);
     }
 
     public void testReconstructedDotProductApproximatesTrueDotProduct() throws IOException {
@@ -185,7 +415,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             0.25f,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
-            5,
+            0,
             10,
             42L,
             executor()
@@ -215,7 +445,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             0.5f,
             2,
             AsymmetricHashingQuantizer.Method.RANDOM,
-            5,
+            0,
             10,
             42L,
             executor()
@@ -227,7 +457,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             0.5f,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
-            5,
+            0,
             10,
             42L,
             executor()
@@ -258,63 +488,506 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(floatScore, multiBitScore, 1e-4f);
     }
 
-    public void testTopKRightSingularVectors() {
-        // Known matrix: diagonal with descending values
-        int m = 6;
-        int n = 4;
-        int k = 2;
-        float[] a = new float[m * n];
-        a[0 * n + 0] = 4.0f;
-        a[1 * n + 1] = 3.0f;
-        a[2 * n + 2] = 2.0f;
-        a[3 * n + 3] = 1.0f;
+    public void testTrainRecoversPlantedSubspace() throws IOException {
+        int dim = 32;
+        int rank = 8;
+        float[] planted = plantedSubspace(dim, rank);
+        float[][] vectors = plantedVectors(dim, rank, 400, planted);
+        float[] centroid = new float[dim];
 
-        // Top-2 right singular vectors returned as columns (n x k)
-        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L, executor());
-        assertEquals(n * k, topK.length);
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.25f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> centroid);
 
-        // First column should be dominated by row 0 (corresponding to singular value 4)
-        assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
-        // Second column should be dominated by row 1 (singular value 3)
-        assertThat(Math.abs(topK[1 * k + 1]), greaterThan(0.9f));
+        int nDims = quantizer.nDims(dim);
+        assertEquals(rank, nDims);
+        assertTrue(trained.learned());
+        assertEquals(dim * nDims, trained.wT().length);
+        assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
+        for (int i = 0; i < dim; i++) {
+            for (int j = 0; j < nDims; j++) {
+                assertEquals(trained.wT()[j * dim + i], trained.w()[i * nDims + j], 0f);
+            }
+        }
+        assertThat(capturedEnergy(planted, rank, trained.wT(), nDims, dim), greaterThan(rank * 0.99f));
     }
 
-    public void testTopKRightSingularVectorsWideMatrix() {
-        // Fewer rows than columns takes the A A^T path, which iterates on the left singular
-        // vectors and recovers the right singular vectors afterwards as V = A^T U. Same diagonal
-        // entries as above, so the top right singular vectors are still the first two axes.
-        int m = 4;
-        int n = 6;
-        int k = 2;
-        float[] a = new float[m * n];
-        a[0 * n + 0] = 4.0f;
-        a[1 * n + 1] = 3.0f;
-        a[2 * n + 2] = 2.0f;
-        a[3 * n + 3] = 1.0f;
+    public void testTrainWarmStartKeepsPlantedSubspace() throws IOException {
+        int dim = 32;
+        int rank = 8;
+        float[] planted = plantedSubspace(dim, rank);
+        float[][] vectors = plantedVectors(dim, rank, 400, planted);
+        float[] centroid = new float[dim];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
 
-        // Top-2 right singular vectors returned as columns (n x k)
-        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L, executor());
-        assertEquals(n * k, topK.length);
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.25f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        float[] inherited = train(quantizer, vectors, centroidGetter).wT();
+        float[] inheritedCopy = inherited.clone();
 
-        // First column should be dominated by row 0 (corresponding to singular value 4)
-        assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
-        // Second column should be dominated by row 1 (singular value 3)
-        assertThat(Math.abs(topK[1 * k + 1]), greaterThan(0.9f));
+        var refined = quantizer.trainWarmStart(ord -> vectors[ord], vectors.length, dim, centroidGetter, inherited, 2);
 
-        // A^T U comes out orthogonal but scaled by the singular values, so the recovery step has
-        // to normalize the columns
-        for (int j = 0; j < k; j++) {
-            float normSq = 0;
-            for (int i = 0; i < n; i++) {
-                normSq = Math.fma(topK[i * k + j], topK[i * k + j], normSq);
+        assertArrayEquals("the inherited matrix is owned by the caller and must not be modified", inheritedCopy, inherited, 0f);
+        assertTrue(refined.learned());
+        assertOrthonormalRows(refined.wT(), rank, dim, 1e-3f);
+        assertThat(capturedEnergy(planted, rank, refined.wT(), rank, dim), greaterThan(rank * 0.99f));
+    }
+
+    public void testTrainWithProcrustesIterationsKeepsTheSubspace() throws IOException {
+        // The Procrustes iterations only rotate within the PCA subspace, so the subspace is what it is without them
+        int dim = 32;
+        int rank = 8;
+        float[] planted = plantedSubspace(dim, rank);
+        float[][] vectors = plantedVectors(dim, rank, 400, planted);
+        float[] centroid = new float[dim];
+
+        for (int iterations : new int[] { 1, 3 }) {
+            AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+                0.25f,
+                2,
+                AsymmetricHashingQuantizer.Method.LEARNED,
+                iterations,
+                10,
+                42L,
+                executor()
+            );
+            var trained = train(quantizer, vectors, i -> centroid);
+
+            int nDims = quantizer.nDims(dim);
+            assertTrue(trained.learned());
+            assertEquals(dim * nDims, trained.wT().length);
+            assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
+            for (int i = 0; i < dim; i++) {
+                for (int j = 0; j < nDims; j++) {
+                    assertEquals(trained.wT()[j * dim + i], trained.w()[i * nDims + j], 0f);
+                }
             }
-            assertThat("column " + j + " is not unit length", Math.sqrt(normSq), closeTo(1.0, 1e-5));
+            assertThat("iterations=" + iterations, capturedEnergy(planted, rank, trained.wT(), nDims, dim), greaterThan(rank * 0.99f));
         }
-        float dot = 0;
-        for (int i = 0; i < n; i++) {
-            dot = Math.fma(topK[i * k], topK[i * k + 1], dot);
+    }
+
+    public void testNegativeProcrustesIterationsAreRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new AsymmetricHashingQuantizer(0.5f, 2, AsymmetricHashingQuantizer.Method.LEARNED, -1, 10, 42L, executor())
+        );
+    }
+
+    public void testTrainWithoutDimensionalityReductionIsRotation() throws IOException {
+        int dim = 16;
+        float[][] vectors = new float[200][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
         }
-        assertThat("columns are not orthogonal", Math.abs(dot), lessThan(1e-5f));
+        float[] centroid = new float[dim];
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            1.0f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> centroid);
+
+        assertTrue("a full-dimension rotation is as good as a learned one", trained.learned());
+        assertOrthonormalRows(trained.wT(), dim, dim, 1e-4f);
+    }
+
+    public void testTrainFromFewerVectorsThanProjectedDimensionsStillLearnsTheData() throws IOException {
+        // 20 vectors for 16 projected dimensions: fewer than the 2 * 16 needed to be inherited, but plenty to find the
+        // 4-dimensional subspace the vectors live in, which a random projection would only half capture
+        int dim = 32;
+        int rank = 4;
+        float[] planted = plantedSubspace(dim, rank);
+        float[][] vectors = plantedVectors(dim, rank, 20, planted);
+        float[] centroid = new float[dim];
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> centroid);
+
+        int nDims = quantizer.nDims(dim);
+        assertEquals(16, nDims);
+        assertFalse("too few vectors for the projection to be inherited at merge", trained.learned());
+        assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
+        assertThat(capturedEnergy(planted, rank, trained.wT(), nDims, dim), greaterThan(rank * 0.95f));
+    }
+
+    public void testTrainWithFewerVectorsThanProjectedDimensionsCompletesTheBasis() throws IOException {
+        // fewer vectors than projected dimensions: the sample supplies only as many directions as it has vectors
+        int dim = 64;
+        float[][] vectors = new float[AsymmetricHashingQuantizer.MIN_PCA_VECTORS][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
+        }
+        float[] centroid = new float[dim];
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> centroid);
+
+        int nDims = quantizer.nDims(dim);
+        assertTrue("more projected dimensions than vectors", nDims > vectors.length);
+        assertEquals(dim * nDims, trained.wT().length);
+        assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
+        assertFalse(trained.learned());
+    }
+
+    public void testLearnedFlagNeedsTwiceAsManyVectorsAsProjectedDimensions() throws IOException {
+        int dim = 32;
+        int rank = 4;
+        float[] planted = plantedSubspace(dim, rank);
+        float[][] vectors = plantedVectors(dim, rank, 40, planted);
+        float[] centroid = new float[dim];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        int nDims = quantizer.nDims(dim);
+
+        assertFalse(quantizer.train(ord -> vectors[ord], 2 * nDims - 1, dim, centroidGetter).learned());
+        assertTrue(quantizer.train(ord -> vectors[ord], 2 * nDims, dim, centroidGetter).learned());
+        // below the floor there is nothing to learn from
+        var tiny = quantizer.train(ord -> vectors[ord], AsymmetricHashingQuantizer.MIN_PCA_VECTORS - 1, dim, centroidGetter);
+        assertFalse(tiny.learned());
+        assertOrthonormalRows(tiny.wT(), nDims, dim, 1e-4f);
+    }
+
+    public void testOrthonormalizeRowsRepairsRowsInTheSpanOfEarlierOnes() {
+        // Axis vectors are exactly representable, so duplicates of earlier rows cancel to exactly zero when projected off.
+        // Small blocks put the duplicates in blocks other than the one holding the row they duplicate
+        int n = 64;
+        int k = 20;
+        float[] rows = new float[k * n];
+        for (int i = 0; i < k; i++) {
+            rows[i * n + (i % 3)] = 1f;
+        }
+        // and some zero rows
+        Arrays.fill(rows, 7 * n, 8 * n, 0f);
+        Arrays.fill(rows, 13 * n, 14 * n, 0f);
+
+        AshUtils.orthonormalizeRows(rows, n, k, 4, executor());
+
+        assertOrthonormalRows(rows, k, n, 1e-4f);
+        // the first three rows are the first three axes, and keep spanning them
+        float[] axes = new float[3 * n];
+        for (int i = 0; i < 3; i++) {
+            axes[i * n + i] = 1f;
+        }
+        assertThat(capturedEnergy(axes, 3, Arrays.copyOf(rows, 3 * n), 3, n), greaterThan(3 - 1e-4f));
+    }
+
+    public void testTrainWithExactlyRankDeficientDataIsOrthonormal() throws IOException {
+        // exactly representable vectors: three distinct axes, and then a single axis repeated. Rounding can give no
+        // direction to the dimensions the data does not span
+        int dim = 64;
+        float[] zero = new float[dim];
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        int nDims = quantizer.nDims(dim);
+        float[][] axes = new float[3][dim];
+        for (int i = 0; i < 3; i++) {
+            axes[i][i] = 1f;
+        }
+        var threeAxes = quantizer.train(ord -> axes[ord % 3], 300, dim, ord -> zero);
+        assertOrthonormalRows(threeAxes.wT(), nDims, dim, 1e-3f);
+        assertThat(capturedEnergy(identityRows(3, dim), 3, threeAxes.wT(), nDims, dim), greaterThan(3 - 1e-3f));
+
+        var oneAxis = quantizer.train(ord -> axes[0], 300, dim, ord -> zero);
+        assertOrthonormalRows(oneAxis.wT(), nDims, dim, 1e-3f);
+        assertThat(capturedEnergy(identityRows(1, dim), 1, oneAxis.wT(), nDims, dim), greaterThan(1 - 1e-3f));
+    }
+
+    public void testWarmStartRotatesTheRefinedBasis() throws IOException {
+        // Variance falls geometrically with the coordinate. The multiplications of the warm start keep the subspace but
+        // pull the basis toward the leading eigenvectors, which, without a new rotation, leaves the first projected
+        // coordinates with hundreds of times the variance of the last. A rotation spreads it
+        int dim = 32;
+        float[][] vectors = new float[400][dim];
+        for (float[] vector : vectors) {
+            for (int j = 0; j < dim; j++) {
+                vector[j] = (float) (random().nextGaussian() * Math.pow(0.8, j));
+            }
+        }
+        float[] centroid = new float[dim];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        int nDims = quantizer.nDims(dim);
+        var cold = quantizer.train(ord -> vectors[ord], vectors.length, dim, centroidGetter);
+
+        var warm = quantizer.trainWarmStart(ord -> vectors[ord], vectors.length, dim, centroidGetter, cold.wT(), 2);
+
+        assertTrue(warm.learned());
+        assertOrthonormalRows(warm.wT(), nDims, dim, 1e-3f);
+        double coldRatio = coordinateVarianceRatio(cold.wT(), nDims, dim, vectors);
+        double warmRatio = coordinateVarianceRatio(warm.wT(), nDims, dim, vectors);
+        assertThat("cold-trained variance ratio", coldRatio, lessThan(100.0));
+        assertThat("warm-started variance ratio (cold was " + coldRatio + ")", warmRatio, lessThan(100.0));
+    }
+
+    public void testWarmStartWithoutVarianceReturnsTheInheritedMatrix() throws IOException {
+        // every merged vector is its own centroid: there is no second moment to refine the inherited matrix with
+        int dim = 32;
+        float[] planted = plantedSubspace(dim, 4);
+        float[][] vectors = plantedVectors(dim, 4, 100, planted);
+        float[] zero = new float[dim];
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        float[] inherited = train(quantizer, vectors, i -> zero).wT();
+        float[] inheritedCopy = inherited.clone();
+
+        var warm = quantizer.trainWarmStart(ord -> zero, 100, dim, ord -> zero, inherited, 2);
+
+        assertArrayEquals(inheritedCopy, warm.wT(), 0f);
+        assertTrue(warm.learned());
+        for (float v : warm.wT()) {
+            assertTrue(Float.isFinite(v));
+        }
+    }
+
+    public void testProcrustesWithFewerVectorsThanProjectedDimensionsStaysOrthonormal() throws IOException {
+        // the Procrustes step needs at least as many vectors as projected dimensions; below that the rotation is random
+        int dim = 32;
+        float[] zero = new float[dim];
+        for (int count : new int[] { 2, 3, 5 }) {
+            float[][] vectors = new float[count][];
+            for (int i = 0; i < count; i++) {
+                vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
+            }
+            AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+                0.5f,
+                2,
+                AsymmetricHashingQuantizer.Method.LEARNED,
+                2,
+                10,
+                42L,
+                executor()
+            );
+
+            var trained = train(quantizer, vectors, i -> zero);
+
+            assertOrthonormalRows(trained.wT(), quantizer.nDims(dim), dim, 1e-3f);
+        }
+    }
+
+    public void testProcrustesIterationsApplyWithoutDimensionalityReduction() throws IOException {
+        // With no dimensionality reduction W is just a rotation, which without iterations is random. Configured iterations
+        // must still refine it, so with the same seed and data they must change the result
+        int dim = 16;
+        float[][] vectors = new float[200][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
+        }
+        float[] zero = new float[dim];
+        var randomRotation = train(
+            new AsymmetricHashingQuantizer(1.0f, 2, AsymmetricHashingQuantizer.Method.LEARNED, 0, 10, 42L, executor()),
+            vectors,
+            i -> zero
+        );
+        var refined = train(
+            new AsymmetricHashingQuantizer(1.0f, 2, AsymmetricHashingQuantizer.Method.LEARNED, 2, 10, 42L, executor()),
+            vectors,
+            i -> zero
+        );
+
+        assertTrue(refined.learned());
+        assertOrthonormalRows(refined.wT(), dim, dim, 1e-3f);
+        assertFalse("Procrustes iterations were ignored", Arrays.equals(randomRotation.wT(), refined.wT()));
+    }
+
+    public void testSecondMomentOfAMultiBlockSampleMatchesAnIndependentSum() throws IOException {
+        // 1280 vectors are one full block of 1024 rows and a partial block of 256. The provider hands out one reused
+        // buffer, as the merge path does, so a vector must be copied out before the next is requested, and the vectors
+        // have different centroids
+        int dim = 128;
+        int count = 1280;
+        float[][] source = new float[count][];
+        for (int i = 0; i < count; i++) {
+            source[i] = VectorTestUtils.randomFloatVector(random(), dim);
+        }
+        float[][] centroids = new float[3][];
+        for (int c = 0; c < centroids.length; c++) {
+            centroids[c] = VectorTestUtils.randomFloatVector(random(), dim);
+        }
+        float[] sharedBuffer = new float[dim];
+        CheckedIntFunction<float[], IOException> sharedBufferVectors = ord -> {
+            System.arraycopy(source[ord], 0, sharedBuffer, 0, dim);
+            return sharedBuffer;
+        };
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+
+        // as many vectors as the sample needs, so all of them are used
+        float[] actual = quantizer.buildSecondMoment(sharedBufferVectors, count, ord -> centroids[ord % 3], dim, count);
+
+        double[] expected = new double[dim * dim];
+        for (int i = 0; i < count; i++) {
+            double[] residual = new double[dim];
+            double normSq = 0;
+            for (int j = 0; j < dim; j++) {
+                residual[j] = (double) source[i][j] - centroids[i % 3][j];
+                normSq += residual[j] * residual[j];
+            }
+            for (int a = 0; a < dim; a++) {
+                for (int b = 0; b < dim; b++) {
+                    expected[a * dim + b] += residual[a] * residual[b] / normSq;
+                }
+            }
+        }
+        double differenceSq = 0;
+        double expectedSq = 0;
+        for (int i = 0; i < expected.length; i++) {
+            double difference = actual[i] - expected[i];
+            differenceSq += difference * difference;
+            expectedSq += expected[i] * expected[i];
+        }
+        assertThat("relative error of the second-moment matrix", Math.sqrt(differenceSq / expectedSq), lessThan(1e-4));
+    }
+
+    public void testSegmentWithNoMoreVectorsThanProjectedDimensionsIsProjectedWithoutLoss() throws IOException {
+        // A flat segment is centered on the mean of its own vectors and encoded with a projection learned from them.
+        // Their residuals span at most (count - 1) dimensions, so with that few vectors the projection keeps all of every
+        // residual; a random projection would keep about half of each
+        int dim = 64;
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        int nDims = quantizer.nDims(dim);
+        for (int count : new int[] { AsymmetricHashingQuantizer.MIN_PCA_VECTORS, 3, 10, nDims - 1, nDims }) {
+            float[][] vectors = new float[count][];
+            float[] mean = new float[dim];
+            for (int i = 0; i < count; i++) {
+                vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
+                ESVectorUtil.linearCombination(1f / count, vectors[i], mean);
+            }
+
+            var trained = train(quantizer, vectors, i -> mean);
+
+            assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
+            for (int i = 0; i < count; i++) {
+                float[] residual = vectors[i].clone();
+                ESVectorUtil.linearCombination(-1f, mean, residual);
+                float[] projected = ESVectorUtil.matrixVectorMultiply(trained.wT(), nDims, dim, residual);
+                float kept = ESVectorUtil.dotProduct(projected, projected);
+                float total = ESVectorUtil.dotProduct(residual, residual);
+                assertEquals("count " + count + ", vector " + i, total, kept, total * 1e-3f);
+            }
+        }
+    }
+
+    public void testTrainWithoutAnyVarianceFallsBackToRandom() throws IOException {
+        // every vector is its own centroid, so every residual is zero
+        int dim = 32;
+        float[][] vectors = new float[100][dim];
+        float[] centroid = new float[dim];
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> centroid);
+
+        assertFalse(trained.learned());
+        assertOrthonormalRows(trained.wT(), quantizer.nDims(dim), dim, 1e-4f);
+        for (float v : trained.wT()) {
+            assertTrue(Float.isFinite(v));
+        }
+    }
+
+    public void testCompleteBasisKeepsTheLeadingSpan() {
+        int n = 40;
+        int have = 6;
+        int want = 20;
+        float[] leading = plantedSubspace(n, have);
+
+        float[] full = AshUtils.completeBasis(leading, n, have, want, random(), executor());
+
+        assertEquals(want * n, full.length);
+        assertOrthonormalRows(full, want, n, 1e-4f);
+        assertThat(capturedEnergy(leading, have, full, want, n), greaterThan(have - 1e-3f));
+        // the extra rows lie outside the span of the first ones
+        float[] firstRows = Arrays.copyOf(full, have * n);
+        for (int i = have; i < want; i++) {
+            float[] row = Arrays.copyOfRange(full, i * n, (i + 1) * n);
+            float[] coordinates = ESVectorUtil.matrixVectorMultiply(firstRows, have, n, row);
+            assertThat(ESVectorUtil.dotProduct(coordinates, coordinates), lessThan(1e-4f));
+        }
     }
 
     public void testScoreReconstructsDotProduct() throws IOException {
@@ -365,7 +1038,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             projectedDimsFraction,
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.LEARNED,
-            5,
+            0,
             10,
             seed,
             executor()
@@ -487,7 +1160,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             projectedDimsFraction,
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.LEARNED,
-            5,
+            0,
             10,
             42L,
             executor()
@@ -520,6 +1193,79 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 assertThat(encoder.vecCentroidDot(j), equalTo(ESVectorUtil.dotProduct(vectors[start + j], centroid)));
             }
         }
+    }
+
+    /** An orthonormal set of {@code rank} vectors of length {@code dim}, one per row. */
+    private float[] plantedSubspace(int dim, int rank) {
+        float[] rows = AshUtils.randomGaussians(random(), rank * dim);
+        AshUtils.qrOrthogonalize(rows, dim, rank);
+        return rows;
+    }
+
+    /** Vectors that are strong in the planted subspace plus a little isotropic noise. */
+    private float[][] plantedVectors(int dim, int rank, int count, float[] planted) {
+        float[][] vectors = new float[count][dim];
+        for (float[] vector : vectors) {
+            for (int u = 0; u < rank; u++) {
+                float coefficient = 3f * (float) random().nextGaussian();
+                ESVectorUtil.linearCombination(coefficient, planted, u * dim, vector, 0, dim);
+            }
+            for (int i = 0; i < dim; i++) {
+                vector[i] += 0.05f * (float) random().nextGaussian();
+            }
+        }
+        return vectors;
+    }
+
+    /**
+     * How much of the {@code rank} orthonormal vectors in {@code planted} lies in the span of the
+     * {@code nDims} orthonormal rows of {@code basisT}: {@code rank} when the span contains them all.
+     */
+    private static float capturedEnergy(float[] planted, int rank, float[] basisT, int nDims, int dim) {
+        float captured = 0;
+        for (int u = 0; u < rank; u++) {
+            float[] vector = Arrays.copyOfRange(planted, u * dim, (u + 1) * dim);
+            float[] coordinates = ESVectorUtil.matrixVectorMultiply(basisT, nDims, dim, vector);
+            captured += ESVectorUtil.dotProduct(coordinates, coordinates);
+        }
+        return captured;
+    }
+
+    private static void assertOrthonormalRows(float[] rows, int count, int length, float tolerance) {
+        for (int i = 0; i < count; i++) {
+            for (int j = 0; j < count; j++) {
+                float dot = ESVectorUtil.dotProduct(rows, i * length, rows, j * length, length);
+                assertEquals("rows " + i + " and " + j, i == j ? 1f : 0f, dot, tolerance);
+            }
+        }
+    }
+
+    /** The first {@code count} axes as rows of length {@code dim}. */
+    private static float[] identityRows(int count, int dim) {
+        float[] rows = new float[count * dim];
+        for (int i = 0; i < count; i++) {
+            rows[i * dim + i] = 1f;
+        }
+        return rows;
+    }
+
+    /**
+     * The ratio between the largest and smallest variance over the coordinates of the projection {@code wT} of the vectors
+     * once normalized to unit length (zero centroid): how unevenly the variance is spread over the projected coordinates.
+     */
+    private static double coordinateVarianceRatio(float[] wT, int nDims, int dim, float[][] vectors) {
+        double[] variance = new double[nDims];
+        for (float[] vector : vectors) {
+            float[] normalized = vector.clone();
+            ESVectorUtil.l2Normalize(normalized, 0, dim);
+            float[] projected = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, normalized);
+            for (int j = 0; j < nDims; j++) {
+                variance[j] += (double) projected[j] * projected[j];
+            }
+        }
+        double max = Arrays.stream(variance).max().orElseThrow();
+        double min = Arrays.stream(variance).min().orElseThrow();
+        return max / min;
     }
 
     private static AsymmetricHashingQuantizer.TrainedProjection train(

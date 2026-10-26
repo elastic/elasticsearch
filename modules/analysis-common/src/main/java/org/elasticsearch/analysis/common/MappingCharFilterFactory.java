@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 public class MappingCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final NormalizeCharMap normMap;
+    private final Object sharingKey;
 
     MappingCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -38,6 +39,8 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
         NormalizeCharMap.Builder normMapBuilder = new NormalizeCharMap.Builder();
         parseRules(rules, normMapBuilder);
         normMap = normMapBuilder.build();
+        // NormalizeCharMap is an FST without value equality; the rules it is built from determine it.
+        this.sharingKey = new Key(List.copyOf(rules));
     }
 
     @Override
@@ -94,4 +97,10 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
         return new String(out, 0, writePos);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(List<String> mappings) {}
 }

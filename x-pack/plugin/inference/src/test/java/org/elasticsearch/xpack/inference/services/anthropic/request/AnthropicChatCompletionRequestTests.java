@@ -7,63 +7,58 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AnthropicChatCompletionRequestTests extends ESTestCase {
 
-    public void testCreateRequest() throws IOException {
+    public void testCreateRequest() throws IOException, URISyntaxException {
         var request = createRequest("secret", "abc", "model", 2);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(buildAnthropicUri()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(buildAnthropicUri()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(AnthropicRequestUtils.X_API_KEY).getValue(), is("secret"));
         assertThat(
             httpPost.getLastHeader(AnthropicRequestUtils.VERSION).getValue(),
             is(AnthropicRequestUtils.ANTHROPIC_VERSION_2023_06_01)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("max_tokens"), is(2));
     }
 
-    public void testCreateRequest_TestUrl() throws IOException {
+    public void testCreateRequest_TestUrl() throws IOException, URISyntaxException {
         var request = createRequest("fake_url", "secret", "abc", "model", 2);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("fake_url"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is("fake_url"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(AnthropicRequestUtils.X_API_KEY).getValue(), is("secret"));
         assertThat(
             httpPost.getLastHeader(AnthropicRequestUtils.VERSION).getValue(),
             is(AnthropicRequestUtils.ANTHROPIC_VERSION_2023_06_01)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         assertThat(requestMap.get("model"), is("model"));
@@ -77,10 +72,9 @@ public class AnthropicChatCompletionRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is(buildAnthropicUri()));
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
 
         // We do not truncate for Anthropic chat completions

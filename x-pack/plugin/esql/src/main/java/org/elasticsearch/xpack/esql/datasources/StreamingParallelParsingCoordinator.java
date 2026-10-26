@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Coordinates parallel parsing of a sequential (non-seekable) decompressed stream
@@ -724,6 +725,11 @@ public final class StreamingParallelParsingCoordinator {
         /** Executor used to spawn one parser task per dispatched chunk. */
         private final Executor executor;
         private final AtomicInteger chunksDispatched = new AtomicInteger();
+        /**
+         * Test-only. Invoked after a chunk is offered and before {@link #chunksDispatched} is
+         * incremented. Null in production.
+         */
+        volatile IntConsumer afterOfferBeforeDispatchCount;
         /**
          * Bounds how far ahead of the consumer the segmentator may dispatch. {@link #pageQueues} is
          * indexed by {@code chunk.index % pageQueueRingSize}; without this semaphore a fast parser
@@ -1438,8 +1444,10 @@ public final class StreamingParallelParsingCoordinator {
          * behind a parser task that cannot run.
          * <p>
          * Never {@code put}s a chunk and then parses that same chunk inline: the inlined chunk is
-         * always the current FIFO head, which was offered with a matching {@code execute} (that
-         * task then empty-polls). Rejected {@code execute} does not increment {@link #tasksOutstanding}.
+         * always the current FIFO head, which was offered with a matching {@code execute}. That leftover
+         * task may empty-poll, or it may pick up a later chunk that has been offered but not yet counted
+         * in {@link #chunksDispatched}. {@link #pageReadyNow()} must ignore pages from uncounted chunks.
+         * Rejected {@code execute} does not increment {@link #tasksOutstanding}.
          *
          * @return {@link DispatchOutcome#SUBMITTED} if a parser task was submitted (caller must not
          *         release {@code buffer}); {@link DispatchOutcome#ABORTED} if dispatch stopped before
@@ -1477,6 +1485,10 @@ public final class StreamingParallelParsingCoordinator {
                     dispatchPermits.release();
                     runOneQueuedInline();
                     continue;
+                }
+                IntConsumer afterOffer = afterOfferBeforeDispatchCount;
+                if (afterOffer != null) {
+                    afterOffer.accept(index);
                 }
                 chunksDispatched.incrementAndGet();
                 // Wake any consumer that was previously parked at currentChunk == chunksDispatched.
@@ -1554,10 +1566,12 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * One-shot parser: takes one queued chunk, parses it, emits its pages and POISON, and exits.
-         * An empty poll is the inline-steal case: {@link #runOneQueuedInline} already parsed the
-         * FIFO head this task was submitted for.
+         * An empty poll is the usual inline-steal case: {@link #runOneQueuedInline} already parsed the
+         * FIFO head this task was submitted for. A leftover task can also poll a later chunk that has
+         * been offered but not yet counted; {@link #pageReadyNow()} treats that slot as not ready until
+         * {@link #chunksDispatched} catches up.
          */
-        private void runParserOnce() {
+        void runParserOnce() {
             consumeChunk(chunkQueue.poll());
         }
 
@@ -2243,6 +2257,22 @@ public final class StreamingParallelParsingCoordinator {
 
         private boolean pageReadyNow() {
             skipDrainedPoison();
+            // A leftover parser task can publish into the slot of a chunk that is offered but not yet
+            // counted (dispatchChunk offers before incrementing chunksDispatched). takeNextPage will not
+            // read that slot until the count catches up, so readiness must not report it either.
+            return currentChunk < chunksDispatched.get() && pageQueues[currentChunk % pageQueueRingSize].peek() != null;
+        }
+
+        /** Test-only: consumer-thread chunk cursor after POISON skips. */
+        int consumerChunkIndex() {
+            return currentChunk;
+        }
+
+        /**
+         * Test-only: unguarded peek of the consumer slot. The old {@link #pageReadyNow()} predicate;
+         * used to prove a leftover parser published into an offered-but-uncounted chunk.
+         */
+        boolean uncountedSlotHasPage() {
             return pageQueues[currentChunk % pageQueueRingSize].peek() != null;
         }
 
@@ -2272,25 +2302,34 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public SubscribableListener<Void> waitForReady() {
-            if (isReadyNow()) {
-                return SubscribableListener.newSucceeded(null);
+            while (true) {
+                if (isReadyNow()) {
+                    return SubscribableListener.newSucceeded(null);
+                }
+                // Install a listener for the next state-change event (page enqueued, POISON enqueued,
+                // chunk dispatched, EOF, or error). Re-check after CAS to close the gap where state
+                // flipped to ready between the first {@link #isReadyNow} call and the install.
+                SubscribableListener<Void> existing = pendingReady.get();
+                if (existing != null) {
+                    return existing;
+                }
+                SubscribableListener<Void> fresh = new SubscribableListener<>();
+                if (pendingReady.compareAndSet(null, fresh) == false) {
+                    return pendingReady.get();
+                }
+                if (isReadyNow()) {
+                    signalReady();
+                    return SubscribableListener.newSucceeded(null);
+                }
+                // A leftover parser can signal on a page in an offered-but-uncounted slot.
+                // That fires {@code fresh} while {@link #isReadyNow()} is still false. Do not
+                // hand a done listener to the drain; install a new one. Increment's signalReady
+                // is the wakeup that makes the replacement complete for real.
+                if (fresh.isDone()) {
+                    continue;
+                }
+                return fresh;
             }
-            // Install a listener for the next state-change event (page enqueued, POISON enqueued,
-            // chunk dispatched, EOF, or error). Re-check after CAS to close the gap where state
-            // flipped to ready between the first {@link #isReadyNow} call and the install.
-            SubscribableListener<Void> existing = pendingReady.get();
-            if (existing != null) {
-                return existing;
-            }
-            SubscribableListener<Void> fresh = new SubscribableListener<>();
-            if (pendingReady.compareAndSet(null, fresh) == false) {
-                return pendingReady.get();
-            }
-            if (isReadyNow()) {
-                signalReady();
-                return SubscribableListener.newSucceeded(null);
-            }
-            return fresh;
         }
 
         /**

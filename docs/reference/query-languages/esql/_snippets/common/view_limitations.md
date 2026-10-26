@@ -36,11 +36,17 @@ Views are available in serverless and [cross-project search](/reference/query-la
 Query parameters are not allowed in the view definition, and therefore query
 parameters in the main query will never impact the view results.
 
-#### Views with METADATA
+#### Time series data in views
 
-`METADATA` directives inside and outside a view definition behave the same
-as they do for
-[`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
+```{applies_to}
+stack: ga 9.6
+serverless: ga
+```
+
+A view that starts with [`TS`](/reference/query-languages/esql/commands/ts.md)
+must also contain a `STATS` command after it. A view without `STATS` is
+rejected when you create or update it. This ensures the view returns plain
+tabular results. A `PROMQL` view must also use an aggregation function.
 
 #### Known issues (tech preview)
 

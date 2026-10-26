@@ -39,8 +39,7 @@ public class ColumnarKeywordWildcardHeapPressureIT extends HeapPressureTestCase 
 
     private static final String INDEX = "columnar-heap-pressure";
     private static final int SHARDS = 5;
-    // More than the REST client's default of 10 connections per route, so no more than that many are parked at once and the rest wait
-    // for one to be freed. Five shards each, even ten are enough to occupy the whole search pool.
+    // Create 8 parallel requests, to create enough heap pressure.
     private static final int THREAD_COUNT = 8;
     // '*a' followed by N '?' determinizes to 2^N states: 8192 for N=11, the most the default 10,000 work limit accepts. The inner '?'
     // keeps the pattern from being rewritten to a term, prefix or contains query, which need no automaton.
@@ -68,8 +67,8 @@ public class ColumnarKeywordWildcardHeapPressureIT extends HeapPressureTestCase 
         .build();
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     @Before
@@ -117,7 +116,7 @@ public class ColumnarKeywordWildcardHeapPressureIT extends HeapPressureTestCase 
         blockPauseField();
         try {
             futures = submit(THREAD_COUNT, () -> errorBodyOrNull(wildcardSearch(HEAVY_WILDCARD, caseInsensitive, true)));
-            waitForOverlappingRequests(2);
+            waitForOverlappingRequests(8);
         } finally {
             unblockPauseField();
         }

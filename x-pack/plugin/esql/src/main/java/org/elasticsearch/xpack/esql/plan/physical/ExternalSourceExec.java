@@ -105,9 +105,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Integer estimatedRowSize;
     private final List<ExternalSplit> splits;
     // Registered dataset identifier when this exec came from FROM <dataset>, null for a bare glob.
-    // Nothing on this version's data node reads it: _name is answered on the coordinator from
-    // ExternalRelation.datasetName(), and _index answers SQL NULL. It stays serialized because a 9.5
-    // data node composes _index from this slot.
+    // The data node rebinds config and sourcePath from the definition this names before it builds a
+    // reader (DatasetConfigResolver), so a plan shipped over the wire never chooses its own storage
+    // credentials; a null name is refused there on release builds. A 9.5 data node also composes
+    // _index from this slot.
     @Nullable
     private final String datasetName;
     // Declared read-instructions (renames, per-column date formats), or DeclaredReadSpec.NONE. An execution input:
@@ -880,6 +881,35 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Returns a copy of this source reading {@code newSourcePath} with {@code newConfig}. Applied on the executing node by
+     * {@code DatasetConfigResolver}, which replaces both with the registered dataset's definition so the plan carried over
+     * the wire decides neither what is read nor with which credentials. Both are execution inputs that flow through
+     * {@link #info()}, so a node-reflection rebuild keeps the rebound values.
+     */
+    public ExternalSourceExec withSourcePathAndConfig(String newSourcePath, Map<String, Object> newConfig) {
+        return new ExternalSourceExec(
+            source(),
+            newSourcePath,
+            sourceType,
+            attributes,
+            newConfig,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec
+        );
+    }
+
+    /**
      * The declared read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}. Consumed on the data
      * node by {@code FileSourceFactory} (physicalization) and the pushdown rules; see the field Javadoc.
      */
@@ -953,10 +983,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and it
-        // is what a 9.5 data node reads to compose _index during a rolling upgrade; excluding it
-        // would drop the slot whenever a generic rule reconstructs this node via node reflection.
-        // No node on this version reads it: _name is folded on the logical relation by
+        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and the
+        // executing node rebinds config and sourcePath from the definition it names
+        // (DatasetConfigResolver); a 9.5 data node also reads it to compose _index during a rolling
+        // upgrade. Excluding it would drop the slot whenever a generic rule reconstructs this node via
+        // node reflection. _name itself is folded on the logical relation by
         // MaterializeRelationClassAndName, and _index is a null constant here.
         // Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute

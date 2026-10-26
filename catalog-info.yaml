@@ -477,7 +477,7 @@ spec:
     kind: Pipeline
     metadata:
       description: ":elasticsearch: Compares PromQL compliance with Prometheus between a pull request and its merge base"
-      name: elasticsearch / pull-request / promcheck
+      name: elasticsearch / pull-request / validate-prometheus-compliance
     spec:
       repository: elastic/elasticsearch
       pipeline_file: .buildkite/pipelines/pull-request-validate-prometheus-compliance.yml

@@ -62,7 +62,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
 
     @Override
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
-        var statusCode = result.response().getStatusLine().getStatusCode();
+        var statusCode = result.response().getCode();
         var restStatus = toRestStatus(statusCode);
         var errorResponse = ElasticInferenceServiceErrorResponseEntity.fromResponse(result);
 

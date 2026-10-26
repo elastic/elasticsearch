@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
@@ -17,6 +19,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -40,7 +43,9 @@ import java.util.function.Supplier;
  *   <li>Uses <strong>only</strong> range reads ({@code newStream(position, length)}) — never full-object GET</li>
  *   <li>Sliding window sized to {@code min(requested, file length)} (default request 4MB) to amortize
  *       seeks and avoid {@code InputStream.skip}. A file that fits in that window is filled from offset 0
- *       so parquet-mr's tail-first seek is one whole-file range GET.</li>
+ *       so parquet-mr's tail-first seek is one whole-file range GET. A file that also fits the footer
+ *       prefetch ({@link ParquetFormatReader#FOOTER_TAIL_PREFETCH_BYTES}) is stored by that fill in the
+ *       {@link FooterByteCache} as its footer; see {@link #refillWholeFileFooter()}.</li>
  *   <li>Optimized for remote storage (S3, HTTP) where full GET and skip-download are expensive</li>
  *   <li>No Hadoop dependencies — uses pure Java InputStream</li>
  * </ul>
@@ -53,6 +58,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final FooterByteCache.Key cacheKey;
     private final FooterByteCache footerBytes;
     private final int windowSize;
+    /**
+     * Whether a whole-file fill of this object is stored in {@link #footerBytes} as its footer. True for an
+     * object no larger than {@link ParquetFormatReader#FOOTER_TAIL_PREFETCH_BYTES} that the cache admits: the
+     * async footer prefetch reads {@code min(FOOTER_TAIL_PREFETCH_BYTES, length)} and stores it, so for such an
+     * object the cached "footer" already is the whole object and the scan is served from it. Storing the same
+     * bytes from the window keeps that entry alive after it expires on its own clock while the parsed footer
+     * stays warm; the footer path's own writer (the async prefetch) runs only on a parsed-footer miss. Larger
+     * whole-file fills (up to the window) are not stored: they would displace genuine footers from the byte budget.
+     */
+    private final boolean wholeFileIsFooter;
     private final CircuitBreaker breaker;
     @Nullable
     private final ParquetIoWatermark ioWatermark;
@@ -223,15 +238,68 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // (pos >= length). For length > 0 this equals min(requested, length), so
         // length <= windowSize iff the object fits in the window (whole-file fill below).
         this.windowSize = ExternalSourceSettings.ioFillBytes(windowSize, this.length);
+        this.wholeFileIsFooter = this.length > 0
+            && this.length <= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+            && this.length <= footerBytes.maxEntryBytes()
+            // The store happens on the whole-file branch of fetchWindowAt, which needs the object to fit the
+            // window; and a cache entry is read back as the suffix of cacheKey.fileLength(), so this object
+            // must be the whole file rather than a view over part of one (RangeStorageObject).
+            && this.length <= this.windowSize
+            // An object with no version has no key at all (Key.keyFor returns null) and its footer is never
+            // cached, so it can never be served from footerBytes either.
+            && this.cacheKey != null
+            && this.length == this.cacheKey.fileLength();
     }
 
     /**
-     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * Returns the cache key identifying this file by {@code (path, length, version)}. Shared with
      * {@link FooterByteCache} and the parsed-footer cache held by {@link ParquetFormatReader} so
      * that callers reusing this adapter can hit those caches without recomputing the key.
      */
     FooterByteCache.Key cacheKey() {
         return cacheKey;
+    }
+
+    /**
+     * Stores this object in {@link #footerBytes} when it is its own footer ({@link #wholeFileIsFooter}) and the
+     * entry is absent. Nothing else on the scan path writes that entry back: the optimized scan only peeks the
+     * cache ({@code CoalescedRangeReader.lookupFooterCacheHit}) and the parsed footer it opens with reads no
+     * bytes, so once the entry is gone — expired on its write cap, or evicted against the byte budget — every
+     * scan issues ranged GETs for as long as the parsed entry lives. One whole-file fill here, coalesced with
+     * concurrent openers of the same key by {@link FooterByteCache#getOrLoad}, restores the zero-GET scan.
+     * No-op for an object larger than the footer prefetch: its data pages are never served from the cache, and
+     * the page indexes in its tail are re-read by the preload's own coalesced GET.
+     *
+     * <p>A read failure is logged at {@code debug} and abandoned. These bytes have no consumer of their own —
+     * the scan's own coalesced GETs fetch what they need — so a failure here leaves the query slow rather than
+     * breaking it, and no memo is kept, so the next scan tries again. Three classes are absorbed, and each is
+     * reachable: {@code StorageObject.newStream} declares {@link IOException}; a provider maps a retryable
+     * status to an unchecked {@link ExternalException} ({@code GcsStorageObject.mapReadFailure} turns 5xx and
+     * 429 into {@code ExternalUnavailableException}); and {@code QueryBudgetedStorageObject}, which
+     * {@code FileSourceFactory} installs above the retry layer, turns a budget-permit timeout into an
+     * {@link EsRejectedExecutionException}.
+     *
+     * <p>A {@link org.elasticsearch.common.breaker.CircuitBreakingException} is deliberately not absorbed. It is
+     * not an {@code ExternalException}; it means the request breaker is already at its limit while the scan is
+     * about to ask for buffers far larger than this one, and raising it at the first small charge is more
+     * legible to an operator than hiding it here and failing later from somewhere with less context.
+     */
+    void refillWholeFileFooter() {
+        if (wholeFileIsFooter == false || footerBytes.get(cacheKey) != null) {
+            return;
+        }
+        try (SeekableInputStream stream = newStream()) {
+            // The seek is the whole-file fill: an object that fits the window is fetched from offset 0.
+            stream.seek(0);
+        } catch (IOException | ExternalException | EsRejectedExecutionException e) {
+            logger.debug(
+                () -> Strings.format(
+                    "footer byte cache refill failed for [%s]; this scan and any later one read ranged GETs until a refill succeeds",
+                    cacheKey.path()
+                ),
+                e
+            );
+        }
     }
 
     @Override
@@ -444,6 +512,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
 
             final boolean wholeFileFill = length <= windowSize;
+            // See wholeFileIsFooter for the admission rule and why larger whole-file fills stay out.
+            final boolean wholeFileFillIsCacheable = wholeFileFill == false || adapter.wholeFileIsFooter;
             final long fetchPos;
             final long toRead;
             if (wholeFileFill) {
@@ -459,13 +529,10 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
 
-            // Whole-file fills must not become FooterByteCache entries: isTailRead would otherwise
-            // be true (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would
-            // evict genuine footers from the configured per-reader footer cache budget.
             // Charge before getOrLoad so a breaker trip does not issue that cold-tail GET.
             getOrAllocateWindow();
-            boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
-            if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
+            boolean isTailRead = wholeFileFillIsCacheable && fetchPos + toRead == length;
+            if (cacheKey != null && isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(fetchPos, (int) toRead));
                     if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchPos, (int) toRead)) {
@@ -521,9 +588,10 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 throw e;
             }
 
-            // put() copies the window. Skip that copy when the entry would be rejected, and never
-            // cache a whole-file fill (see isTailRead above).
-            if (wholeFileFill == false
+            // put() copies the window. Skip that copy when the entry would be rejected, and cache a
+            // whole-file fill only when the object is its own footer (see isTailRead above).
+            if (cacheKey != null
+                && wholeFileFillIsCacheable
                 && windowLength > 0
                 && windowStart + windowLength == length
                 && windowLength <= tailCache.maxEntryBytes()) {
@@ -551,21 +619,39 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     if (n < 0) {
                         break;
                     }
+                    if (n == 0 && chunk > 0) {
+                        // The window fill in fetchWindowAt above rejects this too; without it the loop would
+                        // spin forever on a stream that answers a non-zero request with zero.
+                        throw new IOException("InputStream.read returned 0 while " + chunk + " bytes were requested");
+                    }
                     totalRead += n;
                 }
-                if (totalRead <= 0) {
-                    return new byte[0];
+                if (totalRead != toRead) {
+                    // Every consumer reads a cache entry as the file's SUFFIX: fillFromCachedTail and
+                    // lookupFooterCacheHit both derive the entry's start as length - entry.length, so a prefix
+                    // stored here would be served at the wrong offset, silently, as column-chunk data for an
+                    // object small enough to be cached whole. The window fill in fetchWindowAt above rejects
+                    // the same event.
+                    throw new IOException(
+                        "Unexpected end of stream while reading ["
+                            + toRead
+                            + "] bytes at position ["
+                            + pos
+                            + "] of ["
+                            + length
+                            + "]: read ["
+                            + totalRead
+                            + "]"
+                    );
                 }
-                if (totalRead == toRead) {
-                    return buf;
-                }
-                byte[] result = UninitializedArrays.newByteArray(totalRead);
-                System.arraycopy(buf, 0, result, 0, totalRead);
-                return result;
+                return buf;
             }
         }
 
         private boolean fillFromTailCache(FooterByteCache tailCache, long pos, int toRead) {
+            if (cacheKey == null) {
+                return false;
+            }
             byte[] cached = tailCache.get(cacheKey);
             return cached != null && fillFromCachedTail(cached, pos, toRead);
         }

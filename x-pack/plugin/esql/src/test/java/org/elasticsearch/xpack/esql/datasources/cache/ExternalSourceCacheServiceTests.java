@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -85,6 +85,93 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", ttl)
             .build();
+    }
+
+    /**
+     * A dataset is cached under one listing key per filter-hint set. A failed query drops every key of the datasets it read,
+     * including a hint-set key the query itself did not record. It leaves another dataset's listings alone, and those of another
+     * store that happens to use the same bucket and prefix.
+     */
+    public void testInvalidateDropsEveryHintVariantOfAUsedDataset() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger loads = new AtomicInteger();
+            ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(4, loads.get());
+
+            service.invalidateListings(List.of(recorded));
+
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(
+                "the recorded and the hinted listing of the used dataset are read again, the other dataset and store are not",
+                6,
+                loads.get()
+            );
+        }
+    }
+
+    /**
+     * A failed query drops only the listings and file-metadata entries it read. Another dataset's listing, which was not part of the
+     * failed query, stays cached, so one rewritten object does not cost every dataset a re-listing.
+     */
+    public void testInvalidateDropsOnlyTheGivenListingsAndFileMetadata() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey failed = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey failedFile = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+            FileMetadataCacheKey otherFile = new FileMetadataCacheKey("s3://other/data/file.parquet", "");
+            for (ListingCacheKey key : List.of(failed, other)) {
+                service.getOrComputeListing(key, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            for (FileMetadataCacheKey key : List.of(failedFile, otherFile)) {
+                service.getOrComputeFileMetadata(key, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L, "e1");
+                });
+            }
+
+            service.invalidateListings(List.of(failed));
+            service.invalidateFileMetadata(List.of(failedFile));
+
+            service.getOrComputeListing(failed, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeListing(other, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(failedFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            service.getOrComputeFileMetadata(otherFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            assertEquals("only the failed query's listing is read again", 3, listingLoads.get());
+            assertEquals("only the failed query's file metadata is read again", 3, metadataLoads.get());
+        }
     }
 
     /**

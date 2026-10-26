@@ -47,6 +47,8 @@ public interface LeafQueryGenerator {
         if (configuredValue instanceof Boolean b) {
             return b;
         } else if (configuredValue instanceof Map) {
+            // New mappings use the top-level multi_value/nullability/on_failure attributes, but the legacy nested
+            // doc_values object form is still accepted (and emitted by older nodes), so mixed-version tests can see it.
             return true;
         } else {
             throw new IllegalArgumentException("Unexpected value [" + configuredValue + "] for mapping parameter [doc_values]");

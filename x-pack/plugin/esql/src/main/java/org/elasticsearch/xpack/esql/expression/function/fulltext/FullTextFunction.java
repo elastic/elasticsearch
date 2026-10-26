@@ -232,8 +232,6 @@ public abstract class FullTextFunction extends Function
      * Whether this function can search an expression at all, as opposed to {@link #isRuntimeSearch()}, which says
      * whether the call in hand does. A function that cannot has no alternative to offer when it is rejected for
      * needing the index, so error messages naming that restriction only qualify it for functions that can.
-     * <p>
-     * Not necessarily constant per class: {@code KNN} answers from its configuration.
      */
     public abstract boolean supportsRuntimeSearch();
 
@@ -524,7 +522,7 @@ public abstract class FullTextFunction extends Function
             if (function.isRuntimeSearch()) {
                 return;
             }
-
+            // TODO: Can be removed. QSTR and KQL are the only functions with no runtime support, but they do not reach this method.
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
@@ -703,6 +701,14 @@ public abstract class FullTextFunction extends Function
         // Runtime search is evaluated per row rather than through a Lucene query, and does not contribute to the
         // score (yet).
         return isRuntimeSearch() == false;
+    }
+
+    /**
+     * Whether {@code expression} holds a search that adds to {@code _score}. A filter adds its searches' scores after
+     * it has filtered, so a predicate on {@code _score} has to run after that to see them.
+     */
+    public static boolean containsScoringSearch(Expression expression) {
+        return expression.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.contributesToScore());
     }
 
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {

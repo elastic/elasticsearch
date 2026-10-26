@@ -90,7 +90,7 @@ public interface RangeAwareFormatReader extends FormatReader {
      * A miss (including formats with no parsed-footer cache) must go through
      * {@link #discoverSplitRangesAsync}. An empty list is a hit that is not range-splittable.
      * <p>
-     * Must not I/O. The cache key is {@code (path, length)} from the listing, so the caller can
+     * Must not I/O. The cache key is {@code (path, length, version)} from the listing, so the caller can
      * peek before acquiring a {@link org.elasticsearch.common.util.concurrent.ThrottledIterator}
      * permit. Phase-2 uses this to keep cache hits off the GET throttle.
      */

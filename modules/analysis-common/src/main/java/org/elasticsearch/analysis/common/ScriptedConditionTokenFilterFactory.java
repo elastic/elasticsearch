@@ -58,6 +58,14 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     }
 
     @Override
+    public Object sharingKey() {
+        // Identity: the filters named in [filter] are resolved against the index's own filter map and need
+        // not appear in the analyzer's chain, so the analyzer key does not cover them. Keying on the names
+        // would let two indices whose same-named filters differ share one analyzer.
+        return this;
+    }
+
+    @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
         IndexCreationContext context,
         TokenizerFactory tokenizer,

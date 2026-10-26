@@ -79,7 +79,6 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     /**
      * These functions take the thing to search as an argument, so it can be an expression rather than a field.
-     * {@code KNN} narrows this to what its configuration allows.
      */
     @Override
     public boolean supportsRuntimeSearch() {

@@ -219,6 +219,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
             case AUDIO -> INPUT_AUDIO_FIELD;
             case VIDEO -> INPUT_VIDEO_FIELD;
             case PDF -> INPUT_PDF_FIELD;
+            case HTML -> throw new AssertionError("Unsupported data type [" + inferenceString.dataType() + "] for embedding request");
         };
         builder.startObject();
         builder.field(fieldName, inferenceString.value());

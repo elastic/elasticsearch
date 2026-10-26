@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -52,6 +55,7 @@ import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -183,9 +187,9 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     /**
-     * Builds a boolean query from random clauses and checks that it is cacheable only if every clause is.
+     * Checks that each random query is cacheable only when it is safe to cache, using a searcher over an FLS-filtered reader as in production.
      */
-    public void testCachingIsSafeRandomClauses() throws IOException {
+    public void testCachingIsSafeRandomQueries() throws IOException {
         final Set<String> allowedFields = Set.of("foo", "bar");
         final Set<String> disallowedFields = Set.of(
             randomValueOtherThanMany(allowedFields::contains, () -> randomAlphaOfLengthBetween(3, 10)),
@@ -196,19 +200,31 @@ public class OptOutQueryCacheTests extends ESTestCase {
             DocumentPermissions.allowAll()
         );
 
-        for (int i = 0; i < 20; i++) {
-            int numClauses = between(1, 10);
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            boolean expectedCacheable = true;
-            for (int j = 0; j < numClauses; j++) {
-                Clause clause = randomClause(allowedFields, disallowedFields);
-                builder.add(clause.query(), randomFrom(BooleanClause.Occur.values()));
-                expectedCacheable &= clause.cacheable();
+        try (Directory flsDir = newDirectory()) {
+            DirectoryReader unfilteredReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), flsDir)) {
+                Document doc = new Document();
+                for (String field : allowedFields) {
+                    doc.add(new KeywordField(field, "x", Field.Store.NO));
+                }
+                for (String field : disallowedFields) {
+                    doc.add(new KeywordField(field, "x", Field.Store.NO));
+                }
+                writer.addDocument(doc);
+                unfilteredReader = writer.getReader();
             }
 
-            // don't rewrite, it could collapse the clauses
-            Weight weight = builder.build().createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-            assertEquals(expectedCacheable, OptOutQueryCache.cachingIsSafe(weight, permissions));
+            try (
+                DirectoryReader flsReader = permissions.getFieldPermissions()
+                    .filter(unfilteredReader, IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), field -> true)
+            ) {
+                IndexSearcher flsSearcher = newSearcher(flsReader);
+                for (int i = 0; i < 100; i++) {
+                    RandomQuery query = randomQuery(flsSearcher, allowedFields, disallowedFields);
+                    Weight weight = query.query().createWeight(flsSearcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    assertEquals(query.query().toString(), query.cacheable(), OptOutQueryCache.cachingIsSafe(weight, permissions));
+                }
+            }
         }
     }
 
@@ -241,59 +257,63 @@ public class OptOutQueryCacheTests extends ESTestCase {
         verify(indicesQueryCache).doCache(same(weight), same(policy));
     }
 
-    private Clause randomClause(Set<String> allowedFields, Set<String> disallowedFields) throws IOException {
-        return randomClause(allowedFields, disallowedFields, randomFrom(QueryType.values()));
+    private RandomQuery randomQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields) throws IOException {
+        return randomQuery(searcher, allowedFields, disallowedFields, randomFrom(QueryType.values()));
     }
 
-    private Clause randomClause(Set<String> allowedFields, Set<String> disallowedFields, QueryType type) throws IOException {
+    private RandomQuery randomQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields, QueryType type)
+        throws IOException {
         boolean fieldAllowed = randomBoolean();
         String field = randomFrom(fieldAllowed ? allowedFields : disallowedFields);
         BitSetProducer parents = new QueryBitSetProducer(new TermQuery(new Term("parent", "true")));
 
         return switch (type) {
-            case TERM -> new Clause(new TermQuery(new Term(field, "x")), fieldAllowed);
-            case PHRASE -> new Clause(new PhraseQuery(field, "a", "b"), fieldAllowed);
-            case FIELD_EXISTS -> new Clause(new FieldExistsQuery(field), fieldAllowed);
+            case TERM -> new RandomQuery(new TermQuery(new Term(field, "x")), fieldAllowed);
+            case PHRASE -> new RandomQuery(new PhraseQuery(field, "a", "b"), fieldAllowed);
+            case FIELD_EXISTS -> new RandomQuery(new FieldExistsQuery(field), fieldAllowed);
             // multi-term queries must be rewritten before creating a weight
-            case PREFIX -> new Clause(searcher.rewrite(new PrefixQuery(new Term(field, "a"))), fieldAllowed);
-            case WILDCARD -> new Clause(searcher.rewrite(new WildcardQuery(new Term(field, "a*b"))), fieldAllowed);
-            case REGEXP -> new Clause(searcher.rewrite(new RegexpQuery(new Term(field, "a.*b"))), fieldAllowed);
-            case TERM_IN_SET -> new Clause(
+            case PREFIX -> new RandomQuery(searcher.rewrite(new PrefixQuery(new Term(field, "a"))), fieldAllowed);
+            case WILDCARD -> new RandomQuery(searcher.rewrite(new WildcardQuery(new Term(field, "a*b"))), fieldAllowed);
+            case REGEXP -> new RandomQuery(searcher.rewrite(new RegexpQuery(new Term(field, "a.*b"))), fieldAllowed);
+            case TERM_IN_SET -> new RandomQuery(
                 searcher.rewrite(new TermInSetQuery(field, List.of(new BytesRef("a"), new BytesRef("b")))),
                 fieldAllowed
             );
-            case TERMS_MATCHING_ONLY -> new Clause(new ConsumeTermsMatchingQuery(field), fieldAllowed);
-            case MATCH_ALL -> new Clause(new MatchAllDocsQuery(), true);
-            case MATCH_NONE -> new Clause(new MatchNoDocsQuery(), true);
+            case TERMS_MATCHING_ONLY -> new RandomQuery(new ConsumeTermsMatchingQuery(field), fieldAllowed);
+            case MATCH_ALL -> new RandomQuery(new MatchAllDocsQuery(), true);
+            case MATCH_NONE -> new RandomQuery(new MatchNoDocsQuery(), true);
             // MinDocQuery doesn't report a field, and must be rewritten against the reader before creating a weight
-            case MIN_DOC -> new Clause(searcher.rewrite(new MinDocQuery(randomNonNegativeInt())), false);
+            case MIN_DOC -> new RandomQuery(searcher.rewrite(new MinDocQuery(randomNonNegativeInt())), false);
             // Lucene's block join queries don't visit the query they wrap
-            case TO_PARENT_BLOCK_JOIN -> new Clause(
+            case TO_PARENT_BLOCK_JOIN -> new RandomQuery(
                 new ToParentBlockJoinQuery(
-                    randomInnerClause(allowedFields, disallowedFields).query(),
+                    randomInnerQuery(searcher, allowedFields, disallowedFields).query(),
                     parents,
                     org.apache.lucene.search.join.ScoreMode.None
                 ),
                 false
             );
-            case TO_CHILD_BLOCK_JOIN -> new Clause(
-                new ToChildBlockJoinQuery(randomInnerClause(allowedFields, disallowedFields).query(), parents),
+            case TO_CHILD_BLOCK_JOIN -> new RandomQuery(
+                new ToChildBlockJoinQuery(randomInnerQuery(searcher, allowedFields, disallowedFields).query(), parents),
                 false
             );
-            case ES_TO_PARENT_BLOCK_JOIN -> {
-                Clause inner = randomInnerClause(allowedFields, disallowedFields);
-                yield new Clause(
-                    new ESToParentBlockJoinQuery(inner.query(), parents, org.apache.lucene.search.join.ScoreMode.None, "nested"),
-                    inner.cacheable()
-                );
-            }
+            // ESToParentBlockJoinQuery visits its child, but createWeight returns the Lucene query's weight, which doesn't
+            case ES_TO_PARENT_BLOCK_JOIN -> new RandomQuery(
+                new ESToParentBlockJoinQuery(
+                    randomInnerQuery(searcher, allowedFields, disallowedFields).query(),
+                    parents,
+                    org.apache.lucene.search.join.ScoreMode.None,
+                    "nested"
+                ),
+                false
+            );
             // DenseVectorQuery and VectorSimilarityQuery don't report their field yet, so they are never cacheable
-            case DENSE_VECTOR -> new Clause(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), false);
-            case VECTOR_SIMILARITY -> new Clause(
+            case DENSE_VECTOR -> new RandomQuery(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), false);
+            case VECTOR_SIMILARITY -> new RandomQuery(
                 new VectorSimilarityQuery(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), 0.5f, 1f),
                 false
             );
-            case FILTERED_DENSE_VECTOR -> new Clause(
+            case FILTERED_DENSE_VECTOR -> new RandomQuery(
                 new FilteredDenseVectorQuery(
                     DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field),
                     new TermQuery(new Term(randomFrom(randomBoolean() ? allowedFields : disallowedFields), "x"))
@@ -305,7 +325,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 boolean innerCacheable = true;
                 int numQueries = between(1, 3);
                 for (int i = 0; i < numQueries; i++) {
-                    Clause inner = randomInnerClause(allowedFields, disallowedFields);
+                    RandomQuery inner = randomInnerQuery(searcher, allowedFields, disallowedFields);
                     queries.add(inner.query());
                     innerCacheable &= inner.cacheable();
                 }
@@ -326,13 +346,15 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 // CoveringQuery doesn't report the field its minimum match count comes from, so field and script sources are never
                 // cacheable, even when the field is granted.
                 boolean cacheable = constant && (rewritten instanceof MatchNoDocsQuery || innerCacheable);
-                yield new Clause(rewritten, cacheable);
+                yield new RandomQuery(rewritten, cacheable);
             }
         };
     }
 
-    private Clause randomInnerClause(Set<String> allowedFields, Set<String> disallowedFields) throws IOException {
-        return randomClause(
+    private RandomQuery randomInnerQuery(IndexSearcher searcher, Set<String> allowedFields, Set<String> disallowedFields)
+        throws IOException {
+        return randomQuery(
+            searcher,
             allowedFields,
             disallowedFields,
             randomValueOtherThanMany(QueryType::wraps, () -> randomFrom(QueryType.values()))
@@ -374,7 +396,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         return new FieldPermissionsDefinition(granted, denied);
     }
 
-    private record Clause(Query query, boolean cacheable) {}
+    private record RandomQuery(Query query, boolean cacheable) {}
 
     /**
      * Real multi-term queries call {@code acceptField} before {@code consumeTermsMatching}, so a hidden field is rejected before

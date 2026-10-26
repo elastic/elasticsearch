@@ -42,9 +42,19 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     }
 
     public void testShardsWithLocalRetriesAreReported() {
-        var shard1 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
-        var shard2 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
-        var shardWithoutRetries = shard(randomShardId(), 0, randomIncompleteStage(), ShardRoutingState.INITIALIZING);
+        var shard1 = shard(
+            randomShardId(),
+            randomIntBetween(1, 10),
+            randomFrom(RecoveryState.Stage.values()),
+            ShardRoutingState.INITIALIZING
+        );
+        var shard2 = shard(
+            randomShardId(),
+            randomIntBetween(1, 10),
+            randomFrom(RecoveryState.Stage.values()),
+            ShardRoutingState.INITIALIZING
+        );
+        var shardWithoutRetries = shard(randomShardId(), 0, randomFrom(RecoveryState.Stage.values()), ShardRoutingState.INITIALIZING);
 
         var health = determineHealth(List.of(shard1, shard2, shardWithoutRetries));
 
@@ -65,7 +75,12 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     /// which are not active in the routing table, so there is no need to report it for shards which are.
     public void testShardsWhichAreActiveAreOmitted() {
         var active = shard(randomShardId(), randomIntBetween(1, 10), RecoveryState.Stage.DONE, ShardRoutingState.STARTED);
-        var inactive = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
+        var inactive = shard(
+            randomShardId(),
+            randomIntBetween(1, 10),
+            randomFrom(RecoveryState.Stage.values()),
+            ShardRoutingState.INITIALIZING
+        );
 
         var health = determineHealth(List.of(active, inactive));
 
@@ -83,8 +98,18 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     }
 
     public void testShardsFromMultipleIndicesAreReported() {
-        var shard1 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
-        var shard2 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
+        var shard1 = shard(
+            randomShardId(),
+            randomIntBetween(1, 10),
+            randomFrom(RecoveryState.Stage.values()),
+            ShardRoutingState.INITIALIZING
+        );
+        var shard2 = shard(
+            randomShardId(),
+            randomIntBetween(1, 10),
+            randomFrom(RecoveryState.Stage.values()),
+            ShardRoutingState.INITIALIZING
+        );
 
         var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.of(List.of(shard1), List.of(shard2))));
         var health = tracker.determineCurrentHealth();
@@ -159,10 +184,6 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         }
         assertThat(recoveryState.getStage(), equalTo(stage));
         return recoveryState;
-    }
-
-    private static RecoveryState.Stage randomIncompleteStage() {
-        return RecoveryState.Stage.DONE;
     }
 
     private static ShardId randomShardId() {

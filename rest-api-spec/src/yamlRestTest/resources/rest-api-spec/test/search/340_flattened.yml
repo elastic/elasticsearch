@@ -508,11 +508,7 @@ setup:
           - '{ "labels": { "priority": 2, "name": "medium" } }'
   - match: { errors: false }
 
-<<<<<<< HEAD
-  # force merge to guarantee sort order
-=======
   # index sort orders docs only within a segment and _doc order follows segment order, so merge to one segment.
->>>>>>> d479021a6136 (Fix index sort yaml test race with replicas (#162836))
   - do:
       indices.forcemerge:
         index: test

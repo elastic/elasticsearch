@@ -120,9 +120,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
-  issue: https://github.com/elastic/elasticsearch/issues/154602
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
@@ -308,9 +305,6 @@ tests:
 - class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
   method: testWebhook
   issue: https://github.com/elastic/elasticsearch/issues/160935
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - secondary sort field}
-  issue: https://github.com/elastic/elasticsearch/issues/161280
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
@@ -438,9 +432,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/30_multi_value/Index Sort with index.mapping.doc_values.multi_value false - keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/163014
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -545,3 +536,13 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
   method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
   issue: https://github.com/elastic/elasticsearch/issues/163420
+- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
+  tasks:
+  - :server:heapPressureTest
+  method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/163460
+- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
+  tasks:
+  - :server:test
+  method: testAMultiValuedFieldCountsTheSame
+  issue: https://github.com/elastic/elasticsearch/issues/163464

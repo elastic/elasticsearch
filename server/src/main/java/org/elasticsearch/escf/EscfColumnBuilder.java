@@ -472,11 +472,10 @@ public final class EscfColumnBuilder implements Releasable {
         if (times == 0) {
             return;
         }
-        if (lastWrittenRow == (current == null ? leadingAbsents : current.rowsConsumed()) - 1) {
+        if (current != null && lastWrittenRow == current.rowsConsumed() - 1) {
             current.repeatLastRow(times);
             lastWrittenRow += times;
         } else {
-            // The last row is absent, so the copies are absent too: no payload and no offsets to replicate.
             addAbsents(times);
         }
     }

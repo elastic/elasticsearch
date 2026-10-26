@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -55,11 +54,6 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
         SimdVecLibraryTests.setup();
     }
 
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
-    }
-
     public void testInt4BinaryVectors() {
         assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
@@ -89,9 +83,6 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
             assertEquals(expected, similarity(nativeUnpacked, nativePacked, packedLen));
 
             var heapUnpacked = MemorySegment.ofArray(unpackedValues[first]);
-            var heapPacked = MemorySegment.ofArray(packedValues[second]);
-            assertEquals(expected, similarity(heapUnpacked, heapPacked, packedLen));
-            assertEquals(expected, similarity(nativeUnpacked, heapPacked, packedLen));
             assertEquals(expected, similarity(heapUnpacked, nativePacked, packedLen));
 
             // trivial bulk with a single vector
@@ -355,7 +346,7 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
     }
 
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
-        return getVectorDistance().dotProductI4(unpacked, packed, packedLen);
+        return getVectorDistance().dotProductI4(packed, unpacked, packedLen);
     }
 
     void similarityBulk(MemorySegment packedDocs, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {

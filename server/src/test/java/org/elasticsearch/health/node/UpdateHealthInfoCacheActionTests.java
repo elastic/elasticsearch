@@ -125,6 +125,17 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
     }
 
+    public void testOlderTransportVersionOmitsDataRecoveryHealthInfo() throws Exception {
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
+            .dataRecoveryHealthInfo(HealthInfoTests.randomDataRecoveryHealthInfo())
+            .build();
+        // Version that supports dlm_frozen_transitions_health_info but not data_recovery_health_info.
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_recovery_health_info"));
+        Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
+        assertThat(copy.getDataRecoveryHealthInfo(), nullValue());
+        assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
+    }
+
     public void testRequestSerialization() {
         // We start off with an "empty" request (i.e. only nodeId set), and let #mutateRequest change one of the fields at a time.
         Request request = new Request.Builder().nodeId(randomAlphaOfLength(10)).build();
@@ -142,7 +153,8 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         var repoHealthInfo = request.getRepositoriesHealthInfo();
         var fileSettingsHealthInfo = request.getFileSettingsHealthInfo();
         var dlmFrozenTransitionsHealthInfo = request.getDlmFrozenTransitionsHealthInfo();
-        switch (randomInt(5)) {
+        var dataRecoveryHealthInfo = request.getDataRecoveryHealthInfo();
+        switch (randomInt(6)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
@@ -154,6 +166,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
                 dlmFrozenTransitionsHealthInfo,
                 HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
             );
+            case 6 -> dataRecoveryHealthInfo = randomValueOtherThan(dataRecoveryHealthInfo, HealthInfoTests::randomDataRecoveryHealthInfo);
             default -> throw new IllegalStateException();
         }
         return new Request.Builder().nodeId(nodeId)
@@ -162,6 +175,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             .repositoriesHealthInfo(repoHealthInfo)
             .fileSettingsHealthInfo(fileSettingsHealthInfo)
             .dlmFrozenTransitionsHealthInfo(dlmFrozenTransitionsHealthInfo)
+            .dataRecoveryHealthInfo(dataRecoveryHealthInfo)
             .build();
     }
 }

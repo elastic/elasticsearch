@@ -22,6 +22,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -41,8 +42,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -101,6 +104,8 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullAutomatonQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
@@ -115,7 +120,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -880,8 +884,55 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         @Override
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            if (caseInsensitive == false && indexType.hasOnlyDocValues() == false) {
+                return super.prefixQuery(value, method, false, context);
+            }
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[prefix] queries cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false. For optimised prefix queries on text "
+                        + "fields please enable [index_prefixes]."
+                );
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            Automaton prefix = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(value)
+                : Operations.concatenate(List.of(Automata.makeString(value), Automata.makeAnyString()));
+            return keyedQuery(value + "*", prefix, method);
+        }
+
+        @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            String text = BytesRefs.toString(value);
+            Automaton automaton = Operations.concatenate(text.codePoints().mapToObj(Automata::makeCaseInsensitiveChar).toList());
+            return keyedQuery(text, automaton, null);
+        }
+
+        /**
+         * A query for the values of this key that {@code value} accepts. Only the value is matched by {@code value}: the key
+         * matches exactly, so a case-insensitive query does not match the other keys of the field.
+         */
+        private Query keyedQuery(String pattern, Automaton value, @Nullable MultiTermQuery.RewriteMethod method) {
+            Automaton keyed = Operations.concatenate(List.of(Automata.makeString(FlattenedFieldParser.createKeyedValue(key, "")), value));
+            Automaton automaton = Operations.determinize(keyed, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
+            if (indexType.hasOnlyDocValues() == false) {
+                return method == null ? new AutomatonQuery(term, automaton) : new AutomatonQuery(term, automaton, false, method);
+            }
+            if (usesArrayOrderBinaryDocValues) {
+                return new KeyedArrayOrderInlineNullAutomatonQuery(name(), automaton, term.text());
+            }
+            if (usesBinaryDocValues) {
+                return BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.SEPARATE_COUNT).automaton(name(), automaton, term.text());
+            }
+            return new AutomatonQuery(term, automaton, false, MultiTermQuery.DOC_VALUES_REWRITE);
         }
 
         @Override
@@ -1941,7 +1992,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        try (EscfColumnBuilder keyed = mergeStringColumn(); EscfColumnBuilder counts = mergeLongColumn()) {
+        try (EscfColumnBuilder keyed = mergeStringColumn(ctx.recycler()); EscfColumnBuilder counts = mergeLongColumn(ctx.recycler())) {
             final BytesRefBuilder docBlob = new BytesRefBuilder();
             int seedEstimate = 0;
             for (int k = 0; k < columnCount; k++) {
@@ -2020,15 +2071,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -2107,5 +2157,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    /**
+     * The synthetic source loader of the {@code _unmapped} sink that wraps this mapper. It reads the doc values with exactly the
+     * configuration this mapper wrote them with.
+     */
+    UnmappedSinkSyntheticFieldLoader unmappedSinkSyntheticFieldLoader() {
+        return new UnmappedSinkSyntheticFieldLoader(
+            fullPath(),
+            fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            builder.usesBinaryDocValues,
+            builder.storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays,
+            fieldType().usesArrayOrderBinaryDocValues()
+        );
     }
 }

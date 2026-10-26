@@ -9,23 +9,30 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -253,7 +260,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
      * in the analyzer before: the reference to an unmapped field resolves one pass after the identical conversion of the WHERE.
      */
     public void testLoadAllSameConversionResolvedOnLaterPassOverViewAndIndex() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_VIEWS", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS.isEnabled());
         setupUnmappedIndices();
         assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
         try (var resp = run("""
@@ -268,7 +275,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLoadAllViewOutputsNullUnmappedFieldsAndCallerPatternLoadsThem() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_VIEWS", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS.isEnabled());
         setupUnmappedIndices();
         assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
         try (var resp = run("""
@@ -278,7 +285,9 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             """)) {
             assertThat(columnNames(resp), equalTo(List.of("id", "_unmapped_fields")));
             // The caller's own index returns its unmapped field, the view's rows get none.
-            assertThat(getValuesList(resp).stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows.stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+            assertThat(rows.get(2).get(1), equalTo(Map.of("extra", "e3")));
         }
     }
 
@@ -438,45 +447,277 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A view body is not subject to the cluster default either: inside it a wildcard never matches views, so the view returns the
-     * same rows whatever the cluster is configured with.
+     * Unlike the caller's {@code SET}, the cluster default reaches a view body whose definition does not {@code SET} the flag:
+     * it is the operator's default for every query, inside views too. The view's own {@code SET} still overrides it.
      */
-    public void testClusterDefaultOfWildcardsMatchViewsDoesNotReachViewBody() {
+    public void testClusterDefaultOfWildcardsMatchViewsReachesViewBody() throws Exception {
         setupWildcardViewsData();
-        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0"));
+        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0 | KEEP id"));
+        assertAcked(createView("opted_out_view", """
+            SET wildcards_match_views=false;
+            FROM wcv_* | WHERE id > 0 | KEEP id
+            """));
         String key = "esql.query.settings.wildcards_match_views";
-        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, true));
+        updateClusterSettings(Settings.builder().put(key, true));
         try {
-            // The cluster default does apply to the caller's own wildcard: the index and the matched view.
+            // The cluster default applies to the caller's own wildcard: the index and the matched view.
             try (var resp = run("FROM wcv_* | KEEP id | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
             }
+            // And to the view body's: the same rows as the body run on its own.
             try (var resp = run("FROM body_view | SORT id")) {
-                assertThat(columnNames(resp), not(hasItem("marker")));
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            // The caller's SET does not reach inside, so turning it off at the caller does not change the view.
+            try (var resp = run("SET wildcards_match_views=false; FROM body_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            // The view's own SET beats the cluster default.
+            try (var resp = run("FROM opted_out_view | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
             }
+            // The caller and the view body agree, so no boundary stopped anything and nothing is reported.
+            assertThat(warningHeaders("FROM body_view"), not(hasItem(containsString("does not affect the contents of view"))));
         } finally {
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+            updateClusterSettings(Settings.builder().putNull(key));
         }
     }
 
     /**
-     * A cluster default of {@code unmapped_fields=nullify} applies to a query run on its own. The same text stored as a
-     * view does not pick it up: a definition that does not {@code SET} the mode keeps the registry default, so the
-     * view does not change if the cluster default later changes.
+     * A cluster default of {@code wildcards_match_views=true} lets a view body's wildcard match the view itself, which is a
+     * circular reference, as it is when the definition {@code SET}s the flag. A definition that excludes itself from its
+     * wildcard, or {@code SET}s the flag off, is unaffected.
      */
-    public void testClusterDefaultOfUnmappedFieldsDoesNotReachViewBody() {
+    public void testClusterDefaultOfWildcardsMatchViewsMakesSelfMatchingViewCircular() throws Exception {
+        setupWildcardViewsData();
+        assertAcked(createView("wcv_self", "FROM wcv_* | WHERE id > 0 | KEEP id"));
+        assertAcked(createView("wcv_self_set", """
+            SET wildcards_match_views=true;
+            FROM wcv_data, wcv_self_s* | WHERE id > 0 | KEEP id
+            """));
+        assertAcked(createView("wcv_excluding", "FROM wcv_data, wcv_l*, wcv_e*, -wcv_excluding | WHERE id > 0 | KEEP id"));
+        assertAcked(createView("wcv_opted_out", """
+            SET wildcards_match_views=false;
+            FROM wcv_d*, wcv_o* | WHERE id > 0 | KEEP id
+            """));
+        // Without the cluster default, only the view that SETs the flag matches itself.
+        try (var resp = run("FROM wcv_self | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+        }
+        expectThrows(VerificationException.class, containsString("circular view reference 'wcv_self_set'"), () -> {
+            run("FROM wcv_self_set").close();
+        });
+        String key = "esql.query.settings.wildcards_match_views";
+        updateClusterSettings(Settings.builder().put(key, true));
+        try {
+            // The body also matches wcv_self_set, itself circular, so either view may be the one reported.
+            expectThrows(
+                VerificationException.class,
+                containsString("circular view reference 'wcv_self"),
+                () -> { run("FROM wcv_self").close(); }
+            );
+            try (var resp = run("FROM wcv_excluding | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            try (var resp = run("FROM wcv_opted_out | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(key));
+        }
+    }
+
+    /**
+     * A caller who knows a view's contents may expect their {@code SET wildcards_match_views=true} to reach the view's wildcards.
+     * When a view's wildcard would then have matched more views, the response says so, naming the view and what was missed.
+     */
+    public void testWildcardsMatchViewsWarnsWhenViewBoundaryStopsIt() throws Exception {
+        setupWildcardViewsData();
+        assertAcked(createView("wcv_other", "FROM wcv_data"));
+        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0"));
+        assertAcked(createView("exact_view", "FROM wcv_data, wcv_leak"));
+        assertAcked(createView("index_only_view", "FROM wcv_d*"));
+        assertAcked(createView("opted_in_view", """
+            SET wildcards_match_views=true;
+            FROM wcv_* | KEEP id
+            """));
+        assertAcked(createView("inner_plain_view", "FROM wcv_* | KEEP id"));
+        assertAcked(createView("outer_opted_in_view", """
+            SET wildcards_match_views=true;
+            FROM inner_plain_view
+            """));
+        assertAcked(createView(IndexNameExpressionResolver.resolveDateMathExpression("<wcvdm-{now/d}>"), "FROM wcv_data"));
+        assertAcked(createView("date_math_view", "FROM wcvdm-*, \"<wcvdm-{now/d}>\" | WHERE id > 0"));
+
+        assertThat(
+            warningHeaders("SET wildcards_match_views=true; FROM body_view"),
+            hasItem(wildcardsStoppedWarning("views", "body_view", "views [wcv_leak], [wcv_other]"))
+        );
+        // The enclosing view's SET stops at the nested view in the same way, and the warning names the view that SETs it.
+        assertThat(
+            warningHeaders("FROM outer_opted_in_view"),
+            hasItem(wildcardsStoppedWarning("views", "outer_opted_in_view", "inner_plain_view", "views [wcv_leak], [wcv_other]", ""))
+        );
+
+        for (String query : List.of(
+            // The caller did not SET it, so nothing would have matched.
+            "FROM body_view",
+            // The view SETs it itself.
+            "SET wildcards_match_views=true; FROM opted_in_view",
+            // The view names the views it reads exactly.
+            "SET wildcards_match_views=true; FROM exact_view",
+            // The view names the view its wildcard matches exactly, through date math.
+            "SET wildcards_match_views=true; FROM date_math_view",
+            // The view's wildcard matches no view.
+            "SET wildcards_match_views=true; FROM index_only_view"
+        )) {
+            assertThat(query, warningHeaders(query), not(hasItem(containsString("does not affect the contents of view"))));
+        }
+
+        // Created last, since the other views' wildcards would match it too. Following the plain advice would make the view's
+        // wildcard match the view itself, which fails every query on it as a circular reference.
+        assertAcked(createView("wcv_self", "FROM wcv_* | WHERE id > 0"));
+        assertThat(
+            warningHeaders("SET wildcards_match_views=true; FROM wcv_self"),
+            hasItem(
+                wildcardsStoppedWarning(
+                    "views",
+                    null,
+                    "wcv_self",
+                    "views [wcv_leak], [wcv_other]",
+                    ", excluding view [wcv_self] from its wildcards since matching it would be a circular reference"
+                )
+            )
+        );
+    }
+
+    private static Matcher<String> wildcardsStoppedWarning(String kind, String viewName, String matched) {
+        return wildcardsStoppedWarning(kind, null, viewName, matched, "");
+    }
+
+    private static Matcher<String> wildcardsStoppedWarning(
+        String kind,
+        @Nullable String settingView,
+        String viewName,
+        String matched,
+        String adviceSuffix
+    ) {
+        return equalTo(
+            "SET wildcards_match_"
+                + kind
+                + "=true"
+                + (settingView == null ? "" : " in view [" + settingView + "]")
+                + " does not affect the contents of view ["
+                + viewName
+                + "], so its wildcards did not match "
+                + matched
+                + "; use that setting inside the view definition if you wish to change the view behaviour"
+                + adviceSuffix
+        );
+    }
+
+    /**
+     * A cluster default of {@code unmapped_fields} applies to a query run on its own, and the same text stored as a view
+     * picks it up too: a definition that does not {@code SET} the mode takes the cluster default, like a query that does not.
+     * The caller's own {@code SET} still stops at the view boundary.
+     */
+    public void testClusterDefaultOfUnmappedFieldsReachesViewBody() throws Exception {
         setupUnmappedIndices();
         assertAcked(createView("plain_view", "FROM view_source | KEEP id, extra"));
         String key = "esql.query.settings.unmapped_fields";
-        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "nullify"));
+        updateClusterSettings(Settings.builder().put(key, "nullify"));
         try {
             try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
             }
-            expectThrows(VerificationException.class, containsString("Unknown column [extra]"), () -> run("FROM plain_view").close());
+            try (var resp = run("FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            // The caller's SET does not reach inside: the view keeps the cluster default.
+            try (var resp = run("SET unmapped_fields=\"default\"; FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            try (var resp = run("SET unmapped_fields=\"load\"; FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+
+            updateClusterSettings(Settings.builder().put(key, "load"));
+            try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+            }
+            try (var resp = run("FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+            }
+            // The caller and the view body agree, so no boundary stopped anything and nothing is reported.
+            assertThat(warningHeaders("FROM plain_view"), not(hasItem(containsString("does not affect the contents of view"))));
+            // As with a view's own SET unmapped_fields="load", the body loads only the fields it references itself.
+            assertAcked(createView("pass_view", "FROM view_source"));
+            try (var resp = run("FROM pass_view | KEEP id, extra | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
         } finally {
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+            updateClusterSettings(Settings.builder().putNull(key));
+        }
+    }
+
+    /**
+     * {@code time_zone} is not scoped at view boundaries: the caller's {@code SET} applies to the whole query, view bodies
+     * included. Its cluster default must behave the same way, so a view's date logic follows the cluster's time zone.
+     * Truncating to the day is time-zone sensitive, and the instant is just past midnight in UTC, still the previous day at -05:00.
+     */
+    public void testClusterDefaultOfTimeZoneReachesViewBody() {
+        assertAcked(indicesAdmin().prepareCreate("tz_source").setMapping("d", "type=date"));
+        prepareIndex("tz_source").setSource("d", "2026-01-01T00:30:00Z").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertAcked(createView("tz_view", "FROM tz_source | EVAL truncated = DATE_TRUNC(1 day, d) | KEEP truncated"));
+        String utc = "2026-01-01T00:00:00.000Z";
+        String minusFive = "2025-12-31T00:00:00.000-05:00";
+
+        assertThat(firstValue("FROM tz_view"), equalTo(utc));
+        // The caller's SET reaches inside the view.
+        assertThat(firstValue("SET time_zone=\"-05:00\"; FROM tz_view"), equalTo(minusFive));
+
+        String key = "esql.query.settings.time_zone";
+        updateClusterSettings(Settings.builder().put(key, "-05:00"));
+        try {
+            // The cluster default reaches inside the view exactly as the caller's SET does, also nested and next to an index.
+            assertAcked(createView("tz_outer_view", "FROM tz_view"));
+            assertThat(firstValue("FROM tz_view"), equalTo(minusFive));
+            assertThat(firstValue("FROM tz_outer_view"), equalTo(minusFive));
+            assertThat(
+                firstValue("FROM tz_source, tz_view | EVAL truncated = COALESCE(truncated, DATE_TRUNC(1 day, d)) | KEEP truncated"),
+                equalTo(minusFive)
+            );
+            // And the caller's SET still beats it, inside the view too.
+            assertThat(firstValue("SET time_zone=\"Z\"; FROM tz_view"), equalTo(utc));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(key));
+        }
+    }
+
+    /**
+     * {@code approximation} is not scoped at view boundaries either: a query over a view is approximated, or not, the same way
+     * whether the caller's {@code SET} or the cluster default turned it on.
+     */
+    public void testClusterDefaultOfApproximationActsLikeSetOverView() {
+        setupWildcardViewsData();
+        assertAcked(createView("approx_view", "FROM wcv_data | STATS c = COUNT(*)"));
+        Boolean viaSet;
+        try (var resp = run("SET approximation=true; FROM approx_view")) {
+            viaSet = resp.approximationApplied();
+        }
+        String key = "esql.query.settings.approximation";
+        updateClusterSettings(Settings.builder().put(key, "true"));
+        try (var resp = run("FROM approx_view")) {
+            assertThat(resp.approximationApplied(), equalTo(viaSet));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(key));
+        }
+        assertThat("SET approximation applies to a query over a view", viaSet, org.hamcrest.Matchers.notNullValue());
+    }
+
+    private String firstValue(String query) {
+        try (var resp = run(query)) {
+            return getValuesList(resp).get(0).get(0).toString();
         }
     }
 
@@ -537,6 +778,72 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         assertAcked(createView("outer_plain", "FROM inner_load"));
         try (var resp = run("FROM outer_plain | SORT id")) {
             assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+        }
+    }
+
+    /**
+     * The view body is analysed without the caller's setting, so its RENAME stays as written when the caller's reference is
+     * null-filled at the view's output: the renamed column keeps its values and the original name does not come back.
+     */
+    public void testNullFillAtOutputOfViewEndingInRename() {
+        setupUnmappedIndices();
+        assertAcked(createView("rename_view", "FROM view_source | RENAME id AS ident"));
+        for (String mode : List.of("nullify", "load")) {
+            String set = "SET unmapped_fields=\"" + mode + "\"; ";
+            try (var resp = run(set + "FROM rename_view | KEEP ident, extra | SORT ident")) {
+                assertThat(mode, getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            try (var resp = run(set + "FROM rename_view | EVAL x = other | SORT ident")) {
+                assertThat(mode, columnNames(resp), equalTo(List.of("ident", "other", "x")));
+                assertThat(mode, getValuesList(resp), equalTo(List.of(Arrays.asList(1, null, null), Arrays.asList(2, null, null))));
+            }
+        }
+    }
+
+    /**
+     * The view's own SET loads {@code extra} under a new name, and the caller's setting, whichever mode, only null-fills a
+     * further reference at the view's output.
+     */
+    public void testNullFillAtOutputOfLoadViewEndingInRename() {
+        setupUnmappedIndices();
+        assertAcked(createView("rename_load", """
+            SET unmapped_fields="load";
+            FROM view_source | RENAME extra AS e
+            """));
+        try (var resp = run("FROM rename_load | SORT id")) {
+            assertThat(columnNames(resp), equalTo(List.of("id", "e")));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+        }
+        for (String mode : List.of("nullify", "load")) {
+            try (var resp = run("SET unmapped_fields=\"" + mode + "\"; FROM rename_load | KEEP id, e, other | SORT id")) {
+                assertThat(mode, getValuesList(resp), equalTo(List.of(Arrays.asList(1, "e1", null), Arrays.asList(2, "e2", null))));
+            }
+        }
+    }
+
+    /**
+     * The enclosing view's SET stops at the nested view, so its reference to {@code extra} is null-filled at the nested view's
+     * output. The nested view did not SET a mode, so its RENAME must stay as written, whether or not the caller SETs a mode too.
+     */
+    public void testSetInsideViewNullFillsAtOutputOfNestedViewEndingInRename() {
+        setupUnmappedIndices();
+        assertAcked(createView("inner_rename", "FROM view_source | RENAME id AS ident"));
+        for (String viewMode : List.of("nullify", "load")) {
+            assertAcked(createView("outer_set", "SET unmapped_fields=\"" + viewMode + "\";\nFROM inner_rename | KEEP ident, extra"));
+            for (String query : List.of(
+                "FROM outer_set | SORT ident",
+                "SET unmapped_fields=\"nullify\"; FROM outer_set | SORT ident",
+                "SET unmapped_fields=\"load\"; FROM outer_set | SORT ident"
+            )) {
+                try (var resp = run(query)) {
+                    assertThat(viewMode + ": " + query, columnNames(resp), equalTo(List.of("ident", "extra")));
+                    assertThat(
+                        viewMode + ": " + query,
+                        getValuesList(resp),
+                        equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null)))
+                    );
+                }
+            }
         }
     }
 
@@ -633,6 +940,135 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A caller who knows a view's contents may expect their {@code SET unmapped_fields="load"} to load from the view's indices.
+     * When an outer reference is null-filled at the view's output for that reason, the response says so, naming the view.
+     */
+    public void testLoadWarnsWhenViewBoundaryNullFillsReference() throws Exception {
+        setupUnmappedIndices();
+        assertAcked(createView("pass_through_view", "FROM view_source"));
+        assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
+        assertAcked(createView("stats_view", "FROM view_source | STATS c = COUNT(*) BY id"));
+        assertAcked(createView("keep_view", "FROM view_source | KEEP id"));
+        assertAcked(createView("load_view", """
+            SET unmapped_fields="load";
+            FROM view_source
+            """));
+        assertAcked(createView("inner_plain", "FROM view_source | WHERE id > 0"));
+        assertAcked(createView("outer_load", """
+            SET unmapped_fields="load";
+            FROM inner_plain | KEEP id, extra
+            """));
+        assertAcked(createView("multi_plain", "FROM pass_through_view, filtered_view"));
+        assertAcked(createView("top_plain", "FROM multi_plain, caller_idx"));
+        assertAcked(createView("union_keep_view", "FROM (FROM caller_idx | KEEP id), (FROM view_source | KEEP id) | WHERE id > 0"));
+
+        assertThat(
+            warningHeaders("SET unmapped_fields=\"load\"; FROM pass_through_view | KEEP id, extra"),
+            hasItem(viewBoundaryWarning("load", "pass_through_view", "field [extra] is"))
+        );
+        List<String> mixed = warningHeaders("SET unmapped_fields=\"load\"; FROM caller_idx, filtered_view | KEEP id, extra, other");
+        assertThat(mixed, hasItem(viewBoundaryWarning("load", "filtered_view", "fields [extra], [other] are")));
+        assertThat(mixed, not(hasItem(containsString("caller_idx"))));
+        // A field referenced only by a later command is null-filled in a later pass, under the alignment the earlier fill caused.
+        assertThat(
+            warningHeaders("SET unmapped_fields=\"load\"; FROM caller_idx, filtered_view | EVAL a = extra | KEEP id, a, other"),
+            hasItem(viewBoundaryWarning("load", "filtered_view", "fields [extra], [other] are"))
+        );
+        assertThat(
+            warningHeaders("SET unmapped_fields=\"load\"; FROM filtered_view | DROP extra | KEEP id, other"),
+            hasItem(viewBoundaryWarning("load", "filtered_view", "field [other] is"))
+        );
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()) {
+            assertThat(
+                warningHeaders("SET unmapped_fields=\"load_all\"; FROM filtered_view | KEEP id, extra"),
+                hasItem(viewBoundaryWarning("load_all", "filtered_view", "field [extra] is"))
+            );
+        }
+        // The enclosing view's SET stops at the nested view in the same way, and the warning names the view that SETs it.
+        assertThat(
+            warningHeaders("FROM outer_load"),
+            hasItem(viewBoundaryWarning("load", "outer_load", "inner_plain", null, "field [extra] is"))
+        );
+        // The view already SETs load, so it only has to reference the field.
+        assertThat(
+            warningHeaders("SET unmapped_fields=\"load\"; FROM load_view | KEEP id, extra"),
+            hasItem(loadingViewBoundaryWarning("load_view", "field [extra] is"))
+        );
+        // A nested view keeps its own name only while its rows stay apart from the enclosing view's: the rows of a pass-through
+        // view merge into the enclosing view's, so those are reported under the enclosing view.
+        List<String> nested = warningHeaders("SET unmapped_fields=\"load\"; FROM multi_plain | KEEP id, extra");
+        assertThat(nested, hasItem(viewBoundaryWarning("load", null, "filtered_view", "multi_plain", "field [extra] is")));
+        assertThat(nested, hasItem(viewBoundaryWarning("load", "multi_plain", "field [extra] is")));
+        // Lifted through two levels, a nested view is named with the view that reads it, not the outermost one.
+        List<String> twoLevels = warningHeaders("SET unmapped_fields=\"load\"; FROM top_plain | KEEP id, extra");
+        assertThat(twoLevels, hasItem(viewBoundaryWarning("load", null, "filtered_view", "multi_plain", "field [extra] is")));
+        assertThat(twoLevels, hasItem(viewBoundaryWarning("load", null, "multi_plain", "top_plain", "field [extra] is")));
+        assertThat(twoLevels, hasItem(viewBoundaryWarning("load", "top_plain", "field [extra] is")));
+
+        for (String query : List.of(
+            // No loading mode at the caller: nothing would have been loaded.
+            "SET unmapped_fields=\"nullify\"; FROM filtered_view | KEEP id, extra",
+            // The view aggregates the field away, so it would be null whatever the mode inside.
+            "SET unmapped_fields=\"load\"; FROM stats_view | KEEP id, extra",
+            // The view's KEEP hides the field, whether alone or under the alignment of a union with the caller's index.
+            "SET unmapped_fields=\"load\"; FROM keep_view | KEEP id, extra",
+            "SET unmapped_fields=\"load\"; FROM caller_idx, keep_view | KEEP id, extra",
+            "SET unmapped_fields=\"load\"; FROM caller_idx, keep_view | EVAL a = extra | KEEP id, a, other",
+            // Every branch of the view's union hides the field.
+            "SET unmapped_fields=\"load\"; FROM union_keep_view | KEEP id, extra",
+            // The caller references nothing the view lacks.
+            "SET unmapped_fields=\"load\"; FROM filtered_view | KEEP id",
+            // The caller drops the field, so it is not in the result either way.
+            "SET unmapped_fields=\"load\"; FROM caller_idx, filtered_view | DROP extra"
+        )) {
+            assertThat(query, warningHeaders(query), not(hasItem(containsString("does not affect the contents of view"))));
+        }
+    }
+
+    private static Matcher<String> viewBoundaryWarning(String mode, String viewName, String fields) {
+        return viewBoundaryWarning(mode, null, viewName, null, fields);
+    }
+
+    private static Matcher<String> viewBoundaryWarning(
+        String mode,
+        @Nullable String settingView,
+        String viewName,
+        @Nullable String enclosingView,
+        String fields
+    ) {
+        return viewBoundaryWarning(mode, settingView, viewName, enclosingView, fields, "SET unmapped_fields=\"load\" and reference");
+    }
+
+    private static Matcher<String> loadingViewBoundaryWarning(String viewName, String fields) {
+        return viewBoundaryWarning("load", null, viewName, null, fields, "reference");
+    }
+
+    private static Matcher<String> viewBoundaryWarning(
+        String mode,
+        @Nullable String settingView,
+        String viewName,
+        @Nullable String enclosingView,
+        String fields,
+        String remedy
+    ) {
+        return equalTo(
+            "SET unmapped_fields=\""
+                + mode
+                + "\""
+                + (settingView == null ? "" : " in view [" + settingView + "]")
+                + " does not affect the contents of view ["
+                + viewName
+                + "]"
+                + (enclosingView == null ? "" : " nested in view [" + enclosingView + "]")
+                + ", so "
+                + fields
+                + " null in its rows; to load such fields, the view definition must "
+                + remedy
+                + " them itself"
+        );
+    }
+
     public void testLoadSetInsideViewLoadsPartiallyUnmappedField() {
         setupPunkIndices();
         assertAcked(createView("punk_load", """
@@ -726,22 +1162,30 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     private List<String> warningHeaders(String query) throws InterruptedException {
         String node = internalCluster().getRandomNodeName();
         List<String> warnings = new CopyOnWriteArrayList<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        client(node).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
-            try {
-                internalCluster().getInstance(TransportService.class, node)
-                    .getThreadPool()
-                    .getThreadContext()
-                    .getResponseHeaders()
-                    .getOrDefault("Warning", List.of())
-                    .stream()
-                    .map(w -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(w, false)))
-                    .forEach(warnings::add);
-            } finally {
-                latch.countDown();
-            }
-        }));
+        client(node).execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest(query),
+            new LatchedActionListener<>(
+                ActionListener.wrap(
+                    response -> internalCluster().getInstance(TransportService.class, node)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .map(w -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(w, false)))
+                        .forEach(warnings::add),
+                    failure::set
+                ),
+                latch
+            )
+        );
         assertTrue("query did not complete", latch.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError("query failed: " + query, failure.get());
+        }
         return warnings;
     }
 

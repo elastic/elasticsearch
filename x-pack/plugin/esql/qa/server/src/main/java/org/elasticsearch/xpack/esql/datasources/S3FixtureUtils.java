@@ -20,6 +20,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -91,8 +92,16 @@ public final class S3FixtureUtils {
      * Add a blob to the S3 fixture.
      */
     public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content) {
+        addBlobToFixture(handler, key, content, Instant.now());
+    }
+
+    /**
+     * Add a blob to the S3 fixture with an explicit modification time, for tests whose outcome depends on two blobs
+     * sharing one: a default timestamp is taken at upload, so two uploads can land either side of a second boundary.
+     */
+    public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content, Instant lastModified) {
         String fullPath = "/" + BUCKET + "/" + key;
-        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD"));
+        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD", lastModified));
         logRequest("PUT_OBJECT", fullPath, content.length);
     }
 

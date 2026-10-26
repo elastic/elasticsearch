@@ -70,11 +70,7 @@ public class TransportEsqlQueryActionTests extends ComputeTestCase {
         );
     }
 
-    /**
-     * A cancellation that lands after the drivers finished but before the response is built must not leak the result's
-     * blocks: nothing upstream releases them once the exception is thrown here. {@link ComputeTestCase#allBreakersEmpty()}
-     * fails the test if either page is still live.
-     */
+    /** Nothing upstream releases the pages once the helper throws; {@link ComputeTestCase#allBreakersEmpty()} catches a leak. */
     public void testFailIfCancelledReleasesPages() {
         Result result = resultWithTwoPages();
         CancellableTask task = newTask();

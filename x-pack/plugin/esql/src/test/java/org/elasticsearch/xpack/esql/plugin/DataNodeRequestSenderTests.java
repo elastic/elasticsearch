@@ -254,10 +254,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     private volatile CancellableTask lastRootTask;
 
-    /**
-     * With partial results allowed, a cancelled root task must still fail the data-node phase instead of
-     * reporting the cancellation as one more shard failure.
-     */
+    /** Cancellation must fail the phase even with partial results allowed (#162919). */
     public void testCancelledRootTaskWithPartialResults() {
         var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2));
         var future = sendRequests(true, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {

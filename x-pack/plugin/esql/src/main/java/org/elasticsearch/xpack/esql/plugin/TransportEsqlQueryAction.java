@@ -600,11 +600,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    /**
-     * Whatever the data nodes managed to return, a cancelled query is not a (partial) success. The pages are released here
-     * because the surrounding {@link ActionListener#wrap} catches the exception, so the release-on-failure path in
-     * {@code ComputeService} never sees it and no {@link EsqlQueryResponse} takes them over.
-     */
+    /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
     static void failIfCancelled(Task task, Result result) {
         if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
             Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

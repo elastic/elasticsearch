@@ -76,7 +76,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // the production default; cancellation must win over partial results (#162919)
+            // production default (#162919)
             .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), true)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();

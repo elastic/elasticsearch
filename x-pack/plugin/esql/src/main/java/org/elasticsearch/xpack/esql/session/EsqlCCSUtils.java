@@ -482,7 +482,6 @@ public class EsqlCCSUtils {
      */
     public static boolean canAllowPartial(Exception e) {
         Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-        // a cancelled query must not be downgraded to a partial success
         if (unwrapped instanceof IndexNotFoundException
             || unwrapped instanceof ElasticsearchSecurityException
             || unwrapped instanceof TaskCancelledException) {

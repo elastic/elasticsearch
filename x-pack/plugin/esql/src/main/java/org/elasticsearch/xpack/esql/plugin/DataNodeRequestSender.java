@@ -261,7 +261,7 @@ abstract class DataNodeRequestSender {
         assert sendingLock.isHeldByCurrentThread();
         assert reportedFailure;
         if (rootTask.isCancelled() && reportedCancellation == false) {
-            // a cancelled query fails as cancelled whatever allow_partial_results says, and before any data node has reported back
+            // cancellation is not a shard failure, so allow_partial_results does not apply
             reportedCancellation = true;
             computeListener.acquireAvoid().onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
         }

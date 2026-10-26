@@ -27,6 +27,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -59,6 +60,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -80,17 +83,20 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchService.ResultsType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -104,6 +110,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
@@ -136,9 +143,12 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -157,6 +167,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -2728,9 +2739,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        // Increased timeout to avoid cancelling the search task prior to its completion,
-        // as we expect to raise an Exception. Timeout itself is tested on the following `testWaitOnRefreshTimeout` test.
-        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueMillis(randomIntBetween(200, 300)));
+        // The invalid checkpoint is rejected synchronously when the refresh listener is registered, before any wait timeout is
+        // scheduled, so the rejection wins even with a zero timeout. Timeout handling itself is tested on the following
+        // `testWaitOnRefreshTimeout` test.
+        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueMillis(0));
         searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] { 1 }));
 
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
@@ -2796,6 +2808,132 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
+    }
+
+    public void testWaitOnRefreshCompletesWhileTimeoutIsBeingScheduled() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
+        prepareIndex("index").setSource("id", "1").get();
+        // only used to recognize the wait timeout among the other scheduled tasks, its value has no other meaning
+        final TimeValue waitTimeout = TimeValue.timeValueSeconds(31);
+        final PlainActionFuture<Long> future = new PlainActionFuture<>();
+        final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
+
+        // the search threads must be named after the node, as checked by the search operation listener of this test
+        final String nodeName = Node.NODE_NAME_SETTING.get(node().settings());
+        try (TestThreadPool threadPool = new TestThreadPool(nodeName) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.equals(waitTimeout) == false) {
+                    return super.schedule(command, delay, executor);
+                }
+                // the refresh completes the registered listener, and with it the request, before the timeout task is handed back
+                indicesAdmin().prepareRefresh("index").get();
+                future.actionGet(TimeValue.timeValueSeconds(30));
+                timeoutTask.set(super.schedule(command, delay, executor));
+                return timeoutTask.get();
+            }
+        }) {
+            final SearchService service = newSearchService(threadPool);
+            try {
+                service.executeQueryPhase(
+                    waitForCheckpointRequest(waitTimeout),
+                    newSearchShardTask(),
+                    future.map(r -> r.queryResult().getTotalHits().value())
+                );
+                assertEquals(1L, (long) future.actionGet(TimeValue.timeValueSeconds(30)));
+                assertNotNull("the wait timeout must be scheduled", timeoutTask.get());
+                assertTrue(
+                    "the timeout task must be cancelled when the request completed before it was stored",
+                    timeoutTask.get().isCancelled()
+                );
+            } finally {
+                service.stop();
+                service.close();
+            }
+        }
+    }
+
+    public void testWaitOnRefreshFailsWhenSchedulingTimeoutFails() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
+        prepareIndex("index").setSource("id", "1").get();
+        // only used to recognize the wait timeout among the other scheduled tasks, its value has no other meaning
+        final TimeValue waitTimeout = TimeValue.timeValueSeconds(31);
+        final AtomicInteger completions = new AtomicInteger();
+
+        try (TestThreadPool threadPool = new TestThreadPool(Node.NODE_NAME_SETTING.get(node().settings())) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.equals(waitTimeout)) {
+                    throw new EsRejectedExecutionException("simulated rejection");
+                }
+                return super.schedule(command, delay, executor);
+            }
+        }) {
+            final SearchService service = newSearchService(threadPool);
+            try {
+                final PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
+                service.executeQueryPhase(
+                    waitForCheckpointRequest(waitTimeout),
+                    newSearchShardTask(),
+                    ActionListener.runBefore(future, completions::incrementAndGet)
+                );
+                expectThrows(EsRejectedExecutionException.class, future::actionGet);
+
+                // the refresh listener is still registered, and it must not complete the request a second time
+                indicesAdmin().prepareRefresh("index").get();
+                final ThreadPoolExecutor searchExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+                assertBusy(() -> {
+                    assertThat(searchExecutor.getActiveCount(), equalTo(0));
+                    assertThat(searchExecutor.getQueue().size(), equalTo(0));
+                });
+                assertThat(completions.get(), equalTo(1));
+            } finally {
+                service.stop();
+                service.close();
+            }
+        }
+    }
+
+    private SearchService newSearchService(ThreadPool threadPool) {
+        final SearchService service = new SearchService(
+            getInstanceFromNode(ClusterService.class),
+            getInstanceFromNode(IndicesService.class),
+            threadPool,
+            getInstanceFromNode(ScriptService.class),
+            getInstanceFromNode(BigArrays.class),
+            new FetchPhase(Collections.emptyList()),
+            getInstanceFromNode(CircuitBreakerService.class),
+            getInstanceFromNode(ExecutorSelector.class),
+            Tracer.NOOP,
+            OnlinePrewarmingService.NOOP
+        );
+        service.start();
+        return service;
+    }
+
+    private static SearchShardTask newSearchShardTask() {
+        return new SearchShardTask(123L, "", "", "", null, emptyMap());
+    }
+
+    private ShardSearchRequest waitForCheckpointRequest(TimeValue timeout) {
+        final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setWaitForCheckpointsTimeout(timeout);
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] { 0 }));
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId(resolveIndex("index"), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            null,
+            null,
+            SplitShardCountSummary.UNSET,
+            true
+        );
     }
 
     public void testCreateAndPutRelocatedPitContext() {

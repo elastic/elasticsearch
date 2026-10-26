@@ -302,7 +302,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                             merged.column().name()
                         )
                     );
-                } else if (merged.mappedField() != null && AnalyzedTextExpression.valuesAnalyzerOf(merged.column()) == null) {
+                } else if (merged.mappedField() != null) {
                     failures.add(
                         fail(
                             this,

@@ -350,6 +350,18 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(err, containsString("different analyzers [simple] and [whitespace]"));
     }
 
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfMappedAndStandardDeclaredColumn() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // declaring the standard analyzer in the other branch does not restore the mapped rows' analyzer, whichever
+        // branch comes first and so lends the merged column its declaration
+        String declared = "| EVAL title = to_text(concat(title, \"\"), {\"analyzer\": \"standard\"})";
+        for (var branches : List.of(List.of("", declared), List.of(declared, ""))) {
+            var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE match(title, \"data\")"));
+            assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+            assertThat(err, containsString("rather than the analyzer mapped for [title]"));
+        }
+    }
+
     public void testRuntimeTextSearchAllowedAfterUnionAllWithAgreeingAnalyzers() {
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String declared = "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})";

@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 163346
+summary: Run wildcard, regexp and fuzzy queries on flattened keys
+type: enhancement

@@ -76,6 +76,8 @@ public final class SearchCapabilities {
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
     /** Case-insensitive queries on keyed {@code flattened} subfields match their key exactly, and prefix queries run on doc values. */
     private static final String KEYED_FLATTENED_EXACT_KEY_QUERIES = "keyed_flattened_exact_key_queries";
+    /** Keyed {@code flattened} subfields answer wildcard, regexp and fuzzy queries. */
+    private static final String KEYED_FLATTENED_PATTERN_QUERIES = "keyed_flattened_pattern_queries";
     /** {@code BinaryDocValuesRangeQuery} descriptions (e.g. in {@code _explanation}) name the queried range field. */
     private static final String RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD = "range_field_dv_query_description_has_field";
 
@@ -123,6 +125,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         capabilities.add(KEYED_FLATTENED_EXACT_KEY_QUERIES);
+        capabilities.add(KEYED_FLATTENED_PATTERN_QUERIES);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);

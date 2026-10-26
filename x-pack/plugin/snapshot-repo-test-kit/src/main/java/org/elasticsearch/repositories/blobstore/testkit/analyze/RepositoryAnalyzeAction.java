@@ -908,7 +908,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 ensureConsistentListing();
                 final long deleteStartTimeNanos = System.nanoTime();
                 deleteContainer();
-                ensureNoDeprecations();
+                ensureNoDeprecations(); // Run last so that relevant deprecation warnings have been emitted by earlier activity.
                 sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
             }));
         }
@@ -926,6 +926,10 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         private void ensureNoDeprecations() {
             if (isRunning() && minClusterTransportVersion.supports(REPO_ANALYSIS_CHECK_DEPRECATIONS) && request.checkDeprecations()) {
+                // NB isRunning() to deliberately skip this check if the analysis already failed. If we didn't, it'd be reported as a
+                // suppressed exception that typically users don't notice anyway, and many failure modes exhaust the innerFailures limit
+                // so there'd be no guarantee of seeing this message anyway.
+
                 for (var info : repository.getDeprecationInfos()) {
                     if (info.level() == RepositoryDeprecationInfo.Level.CRITICAL) {
                         // Maybe seems slightly odd to check for deprecations here rather than earlier, but we want to wrap these messages

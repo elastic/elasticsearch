@@ -328,6 +328,42 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("[QSTR] function cannot be used after EVAL because [content] redefines a field"));
     }
 
+    /**
+     * QSTR searches the fields of the index, never a column that another command added, so a field that only exists after
+     * the join matches nothing, even though several joined rows contain the term. This is a documented limitation, see
+     * "Position restriction on indexed fields" in limitations.md. Changing it, for example to an error, should be deliberate.
+     */
+    public void testQstrDoesNotSearchLookupJoinFields() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE QSTR("lookup_content: brown")
+            | KEEP id, lookup_content
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "lookup_content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    /**
+     * Same limitation for a column computed by EVAL: it is not a field of the index, so QSTR on it matches nothing.
+     */
+    public void testQstrDoesNotSearchComputedColumns() {
+        var query = """
+            FROM test
+            | EVAL label = "brown"
+            | WHERE QSTR("label: brown")
+            | KEEP id, label
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "label"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
     public void testQstrAfterInlineStats() {
         assumeTrue(
             "requires full-text functions after INLINE STATS support",

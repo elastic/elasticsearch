@@ -321,6 +321,42 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("[KQL] function cannot be used after EVAL because [content] redefines a field"));
     }
 
+    /**
+     * KQL searches the fields of the index, never a column that another command added, so a field that only exists after
+     * the join matches nothing, even though several joined rows contain the term. This is a documented limitation, see
+     * "Position restriction on indexed fields" in limitations.md. Changing it, for example to an error, should be deliberate.
+     */
+    public void testKqlDoesNotSearchLookupJoinFields() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE KQL("lookup_content: brown")
+            | KEEP id, lookup_content
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "lookup_content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    /**
+     * Same limitation for a column computed by EVAL: it is not a field of the index, so KQL on it matches nothing.
+     */
+    public void testKqlDoesNotSearchComputedColumns() {
+        var query = """
+            FROM test
+            | EVAL label = "brown"
+            | WHERE KQL("label: brown")
+            | KEEP id, label
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "label"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
     public void testKqlBeforeSample() {
         var query = """
             FROM test

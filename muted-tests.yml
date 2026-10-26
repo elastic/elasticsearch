@@ -513,3 +513,8 @@ tests:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/163321
+- class: org.elasticsearch.xpack.stateless.cache.SearchShardCacheWarmingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
+  issue: https://github.com/elastic/elasticsearch/issues/163325

@@ -15,10 +15,12 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,9 +37,12 @@ import java.util.Set;
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
+    @Nullable
+    private final SourceFilter sourceFilter;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
         this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+        this.sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
     }
 
     private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
@@ -84,7 +89,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        return new TimeSeriesReader(breaker, metadataFields, sourceFilter);
     }
 
     @Override
@@ -111,8 +116,19 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private final Set<String> metadataFields;
+        /** {@code null} when {@link #metadataFields} is empty, where there is nothing to narrow the source to. */
+        @Nullable
+        private final SourceFilter sourceFilter;
+        /** The paths of the source last read from, and whether it has to be narrowed, see {@link #read}. */
+        @Nullable
+        private Set<String> cachedSourcePaths;
+        private boolean cachedNarrowSource = true;
+
+        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields, @Nullable SourceFilter sourceFilter) {
             super(breaker);
+            this.metadataFields = metadataFields;
+            this.sourceFilter = sourceFilter;
         }
 
         /**
@@ -146,7 +162,20 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            ((BytesRefBuilder) builder).appendBytesReference(toJson(storedFields.source()));
+            Source source = storedFields.source();
+            if (sourceFilter != null) {
+                // We expect that read() is called many times with the same sourcePaths() Set and we assume it is immutable
+                // So we cache it to avoid an expensive Set equality check on every read
+                // In general we check that we only apply the source filter if the paths don't match, as SourceFilter is expensive
+                if (storedFields.sourcePaths() != cachedSourcePaths) {
+                    cachedSourcePaths = storedFields.sourcePaths();
+                    cachedNarrowSource = metadataFields.equals(cachedSourcePaths) == false;
+                }
+                if (cachedNarrowSource) {
+                    source = sourceFilter.filterBytes(source);
+                }
+            }
+            ((BytesRefBuilder) builder).appendBytesReference(toJson(source));
         }
 
         @Override

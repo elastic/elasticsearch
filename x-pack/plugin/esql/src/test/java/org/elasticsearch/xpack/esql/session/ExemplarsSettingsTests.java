@@ -32,7 +32,26 @@ public class ExemplarsSettingsTests extends AbstractWireSerializingTestCase<Exem
     }
 
     public void testParseMapWithLimit() {
-        assertThat(ExemplarsSettings.parse(mapExpression("limit", 1234)), equalTo(new ExemplarsSettings(true, 1234)));
+        assertThat(ExemplarsSettings.parse(mapExpression("limit", 1234)), equalTo(new ExemplarsSettings(true, 1234, false)));
+    }
+
+    public void testParseMapWithIncludeTimeseries() {
+        assertThat(
+            ExemplarsSettings.parse(mapExpression("include_timeseries", Literal.TRUE)),
+            equalTo(new ExemplarsSettings(true, null, true))
+        );
+        assertThat(
+            ExemplarsSettings.parse(mapExpression("include_timeseries", Literal.FALSE)),
+            equalTo(new ExemplarsSettings(true, null, false))
+        );
+    }
+
+    public void testParseMapIncludeTimeseriesNotABoolean() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ExemplarsSettings.parse(mapExpression("include_timeseries", 1))
+        );
+        assertThat(e.getMessage(), containsString("[include_timeseries] must be a boolean value"));
     }
 
     public void testParseEmptyMapEnablesWithoutLimit() {
@@ -70,7 +89,9 @@ public class ExemplarsSettingsTests extends AbstractWireSerializingTestCase<Exem
     public void testFromXContent() throws IOException {
         assertThat(fromJson("true"), equalTo(ExemplarsSettings.ENABLED));
         assertThat(fromJson("false"), equalTo(ExemplarsSettings.DISABLED));
-        assertThat(fromJson("{\"limit\": 1234}"), equalTo(new ExemplarsSettings(true, 1234)));
+        assertThat(fromJson("{\"limit\": 1234}"), equalTo(new ExemplarsSettings(true, 1234, false)));
+        assertThat(fromJson("{\"include_timeseries\": true}"), equalTo(new ExemplarsSettings(true, null, true)));
+        assertThat(fromJson("{\"limit\": 1234, \"include_timeseries\": true}"), equalTo(new ExemplarsSettings(true, 1234, true)));
         assertThat(fromJson("{}"), equalTo(ExemplarsSettings.ENABLED));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromJson("{\"unknown_key\": 42}"));
         assertThat(e.getMessage(), containsString("unknown key [unknown_key]"));
@@ -99,16 +120,20 @@ public class ExemplarsSettingsTests extends AbstractWireSerializingTestCase<Exem
     protected ExemplarsSettings createTestInstance() {
         return randomBoolean()
             ? ExemplarsSettings.DISABLED
-            : new ExemplarsSettings(true, randomBoolean() ? null : randomIntBetween(1, 10000));
+            : new ExemplarsSettings(true, randomBoolean() ? null : randomIntBetween(1, 10000), randomBoolean());
     }
 
     @Override
     protected ExemplarsSettings mutateInstance(ExemplarsSettings instance) {
         if (instance.enabled() == false) {
-            return new ExemplarsSettings(true, randomBoolean() ? null : randomIntBetween(1, 10000));
+            return new ExemplarsSettings(true, randomBoolean() ? null : randomIntBetween(1, 10000), randomBoolean());
         }
-        return instance.limit() == null ? new ExemplarsSettings(true, randomIntBetween(1, 10000))
-            : randomBoolean() ? ExemplarsSettings.ENABLED
-            : new ExemplarsSettings(true, instance.limit() + 1);
+        Integer otherLimit = instance.limit() == null ? randomIntBetween(1, 10000) : null;
+        return switch (between(0, 2)) {
+            case 0 -> ExemplarsSettings.DISABLED;
+            case 1 -> new ExemplarsSettings(true, otherLimit, instance.includeTimeseries());
+            case 2 -> new ExemplarsSettings(true, instance.limit(), instance.includeTimeseries() == false);
+            default -> throw new AssertionError("unreachable");
+        };
     }
 }

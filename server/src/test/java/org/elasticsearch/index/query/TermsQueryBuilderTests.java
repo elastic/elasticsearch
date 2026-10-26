@@ -463,21 +463,38 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext firstShard = new SearchExecutionContext(createSearchExecutionContext(), cb);
         SearchExecutionContext secondShard = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        SearchExecutionContext parsedShard = new SearchExecutionContext(createSearchExecutionContext(), cb);
         long before = cb.getUsed();
         try {
+            original.toQuery(parsedShard);
+            assertFalse("parsed terms register no shared charge", parsedShard.hasQueryConstructionReleasables());
+
             deserialized.toQuery(firstShard);
+            assertTrue("deserialized terms register a shared charge", firstShard.hasQueryConstructionReleasables());
             long firstShardQuery = firstShard.getQueryConstructionMemoryUsed();
-            assertEquals(decodedBytes + firstShardQuery, cb.getUsed() - before);
+            long parsedShardQuery = parsedShard.getQueryConstructionMemoryUsed();
+            assertEquals(decodedBytes + firstShardQuery + parsedShardQuery, cb.getUsed() - before);
 
             deserialized.toQuery(secondShard);
+            assertTrue("every context using the copy registers its own release", secondShard.hasQueryConstructionReleasables());
             long secondShardQuery = secondShard.getQueryConstructionMemoryUsed();
-            assertEquals("the shared copy is charged once", decodedBytes + firstShardQuery + secondShardQuery, cb.getUsed() - before);
+            assertEquals(
+                "the shared copy is charged once",
+                decodedBytes + firstShardQuery + secondShardQuery + parsedShardQuery,
+                cb.getUsed() - before
+            );
 
             firstShard.releaseQueryConstructionMemory();
-            assertEquals("still charged while a context uses it", decodedBytes + secondShardQuery, cb.getUsed() - before);
+            assertFalse("release drops the context's shared charge", firstShard.hasQueryConstructionReleasables());
+            assertEquals(
+                "still charged while a context uses it",
+                decodedBytes + secondShardQuery + parsedShardQuery,
+                cb.getUsed() - before
+            );
         } finally {
             firstShard.releaseQueryConstructionMemory();
             secondShard.releaseQueryConstructionMemory();
+            parsedShard.releaseQueryConstructionMemory();
         }
         assertEquals(before, cb.getUsed());
     }

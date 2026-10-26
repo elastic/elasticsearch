@@ -790,9 +790,12 @@ public class SearchExecutionContextTests extends ESTestCase {
             new TrackingCircuitBreaker()
         );
         AtomicInteger runs = new AtomicInteger();
+        assertFalse(context.hasQueryConstructionReleasables());
         context.addQueryConstructionReleasable(runs::incrementAndGet);
+        assertTrue(context.hasQueryConstructionReleasables());
 
         context.releaseQueryConstructionMemory();
+        assertFalse(context.hasQueryConstructionReleasables());
         context.releaseQueryConstructionMemory();
         assertEquals(1, runs.get());
     }

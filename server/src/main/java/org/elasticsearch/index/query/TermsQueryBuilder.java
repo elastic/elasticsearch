@@ -567,6 +567,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
                 if (decodedBytesHolders == 0) {
                     breaker.addEstimateBytesAndMaybeBreak(decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
                     decodedBytesBreaker = breaker;
+                } else {
+                    assert decodedBytesBreaker == breaker : "decoded terms shared by contexts with different breakers";
                 }
                 decodedBytesHolders++;
             }

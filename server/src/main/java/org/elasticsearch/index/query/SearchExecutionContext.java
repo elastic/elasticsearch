@@ -997,6 +997,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Whether a query built with this context registered a shared breaker charge that is still held. Lets callers that never
+     * release a context, such as the rewrite copy in {@code SearchService}, assert that no query was built with it.
+     */
+    public boolean hasQueryConstructionReleasables() {
+        synchronized (queryConstructionReleasables) {
+            return queryConstructionReleasables.isEmpty() == false;
+        }
+    }
+
+    /**
      * Drops all pre-charge markers and shared automata and runs the registered releasables. An override of
      * {@link #releaseQueryConstructionMemory()} must call this, or it keeps automata alive that the breaker no longer accounts for.
      */

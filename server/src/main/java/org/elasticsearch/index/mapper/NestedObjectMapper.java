@@ -453,19 +453,9 @@ public class NestedObjectMapper extends ObjectMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(
-            filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
-            NOOP,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
-        );
-        // Some synthetic source use cases require using _ignored_source field
-        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
-        // force sequential access since nested fields are indexed per block
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
         return new NestedSyntheticFieldLoader(
-            storedFieldLoader,
-            sourceLoader,
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
+            filter,
             () -> bitsetProducer.apply(parentTypeFilter),
             nestedTypeFilter
         );
@@ -476,6 +466,10 @@ public class NestedObjectMapper extends ObjectMapper {
         private final SourceLoader sourceLoader;
         private final Supplier<BitSetProducer> parentBitSetProducer;
         private final Query childFilter;
+
+        // The loader of the fields inside the nested object, behind the leaf currently in use (read-time or columnar). The leaf
+        // is reused across parent documents, so a reset of this loader has to reach it too.
+        private SourceLoader.SyntheticFieldLoader innerLoader;
 
         // Read-time (real segment) reconstruction state: children are doc-ids found via a child scorer.
         private LeafStoredFieldLoader leafStoredFieldLoader;
@@ -490,13 +484,23 @@ public class NestedObjectMapper extends ObjectMapper {
         private final List<LuceneDocument> columnarChildren = new ArrayList<>();
 
         private NestedSyntheticFieldLoader(
-            org.elasticsearch.index.fieldvisitor.StoredFieldLoader storedFieldLoader,
-            SourceLoader sourceLoader,
+            Supplier<SourceLoader.SyntheticFieldLoader> innerLoaderSupplier,
+            SourceFilter filter,
             Supplier<BitSetProducer> parentBitSetProducer,
             Query childFilter
         ) {
-            this.storedFieldLoader = storedFieldLoader;
-            this.sourceLoader = sourceLoader;
+            // The supplier is called once here, for the required stored fields, and once per leaf; the last loader it produced
+            // is the one the leaf uses.
+            this.sourceLoader = new SourceLoader.Synthetic(
+                filter,
+                () -> innerLoader = innerLoaderSupplier.get(),
+                NOOP,
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+            );
+            // Some synthetic source use cases require using _ignored_source field
+            var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+            // force sequential access since nested fields are indexed per block
+            this.storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
             this.parentBitSetProducer = parentBitSetProducer;
             this.childFilter = childFilter;
         }
@@ -625,6 +629,9 @@ public class NestedObjectMapper extends ObjectMapper {
         public void reset() {
             children.clear();
             columnarChildren.clear();
+            if (innerLoader != null) {
+                innerLoader.reset();
+            }
         }
     }
 

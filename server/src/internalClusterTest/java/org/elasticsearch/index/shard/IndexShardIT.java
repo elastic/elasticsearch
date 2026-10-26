@@ -77,7 +77,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.BoostProfileEnabled;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -408,9 +407,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         updateClusterSettings(Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build());
     }
 
-    public void testShardSearchLoadsArePresent() {
-        assumeTrue("Collecting shard search loads requires the boost_profile feature flag", BoostProfileEnabled.FEATURE_FLAG.isEnabled());
-
+    public void testShardSearchLoadsArePresent() throws Exception {
         // Create some indices and some search load
         final int numIndices = randomIntBetween(1, 5);
         final String indexPrefix = randomIdentifier();
@@ -424,16 +421,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-        try {
-            // Stats should not be collected while collection is disabled, even though the searches above have already run
-            {
-                ClusterInfoServiceUtils.refresh(clusterInfoService);
-                assertThat(clusterInfoService.getClusterInfo().getShardSearchLoads(), equalTo(Map.of()));
-            }
-
-            // Turn on collection of search-load stats.
-            updateClusterSettings(Settings.builder().put(BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING.getKey(), true).build());
-
+        assertBusy(() -> {
             // Force a ClusterInfo refresh to run collection of the search-load stats.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             final Map<ShardId, Double> shardSearchLoads = clusterInfoService.getClusterInfo().getShardSearchLoads();
@@ -451,9 +439,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 // Each index should have seen some search-load
                 assertThat(maximumLoadRecorded, greaterThan(0.0));
             }
-        } finally {
-            updateClusterSettings(Settings.builder().putNull(BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING.getKey()).build());
-        }
+        });
     }
 
     public void testMaxHeapPerNodeIsPresent() {

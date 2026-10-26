@@ -159,7 +159,7 @@ public class DocVectorDetachTests extends ComputeTestCase {
             DocVector detached = local.detach(origins::get)
         ) {
             IllegalStateException e = expectThrows(IllegalStateException.class, () -> detached.detach(origins::get));
-            assertThat(e.getMessage(), equalTo("the documents already left the node that read them"));
+            assertThat(e.getMessage(), equalTo("DocVector is already detached"));
         }
     }
 
@@ -184,9 +184,9 @@ public class DocVectorDetachTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         try (DocVector local = docVector(blockFactory, blockFactory.newConstantIntVector(0, 1), 1)) {
             assertNull(local.origins());
-            local.ensureOnTheNodeThatReadThem("test");
+            local.ensureAttached("test");
             IllegalStateException e = expectThrows(IllegalStateException.class, () -> local.origin(0));
-            assertThat(e.getMessage(), equalTo("the documents are still on the node that read them, so they have no origin"));
+            assertThat(e.getMessage(), equalTo("DocVector has no origins"));
         }
     }
 
@@ -199,8 +199,8 @@ public class DocVectorDetachTests extends ComputeTestCase {
             DocVector local = docVector(blockFactory, blockFactory.newConstantIntVector(0, 1), 1);
             DocVector detached = local.detach(origins::get)
         ) {
-            IllegalStateException e = expectThrows(IllegalStateException.class, () -> detached.ensureOnTheNodeThatReadThem("reader"));
-            assertThat(e.getMessage(), equalTo("[reader] can't read documents that left the node that read them"));
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> detached.ensureAttached("reader"));
+            assertThat(e.getMessage(), equalTo("[reader] can't read a detached DocVector"));
         }
     }
 
@@ -215,7 +215,7 @@ public class DocVectorDetachTests extends ComputeTestCase {
                 IllegalArgumentException.class,
                 () -> new DocVector(refCounteds(), ordinals, segments, docs, config)
             );
-            assertThat(e.getMessage(), equalTo("a vector with origins references no shard"));
+            assertThat(e.getMessage(), equalTo("DocVector with origins can't reference shards"));
         } finally {
             Releasables.close(ordinals, segments, docs);
         }

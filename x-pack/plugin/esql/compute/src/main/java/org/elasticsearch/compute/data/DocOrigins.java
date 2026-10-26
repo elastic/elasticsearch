@@ -9,7 +9,11 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -19,7 +23,7 @@ import java.util.Set;
  * The origins the rows of a vector point at by ordinal, once the rows left the node that read them. Immutable and free
  * of duplicates, so vectors filtered or sliced from one vector share it.
  */
-public final class DocOrigins implements Accountable {
+public final class DocOrigins implements Writeable, Accountable {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocOrigins.class);
 
     public static final DocOrigins EMPTY = new DocOrigins(new DocOrigin[0]);
@@ -50,6 +54,15 @@ public final class DocOrigins implements Accountable {
             }
         }
         return new DocOrigins(origins.toArray(DocOrigin[]::new));
+    }
+
+    public static DocOrigins readFrom(StreamInput in) throws IOException {
+        return of(in.readCollectionAsList(DocOrigin::readFrom));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeCollection(Arrays.asList(origins));
     }
 
     public int size() {

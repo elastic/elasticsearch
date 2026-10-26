@@ -608,7 +608,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         try (Operator operator = simple().get(driverContext)) {
             Page page = new Page(RandomBlock.randomDetachedDocBlock(driverContext.blockFactory(), between(1, 10), between(1, 3)).block());
             IllegalStateException e = expectThrows(IllegalStateException.class, () -> operator.addInput(page));
-            assertThat(e.getMessage(), equalTo("[ValuesSourceReaderOperator] can't read documents that left the node that read them"));
+            assertThat(e.getMessage(), equalTo("[ValuesSourceReaderOperator] can't read a detached DocVector"));
         }
     }
 

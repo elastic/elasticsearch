@@ -37,7 +37,7 @@ public enum ElementType {
 
     /**
      * Blocks that reference individual lucene documents. Only blocks whose rows left the node that read them travel, see
-     * {@link DocBlock#writeTo}.
+     * {@link DocVector#writeTo}.
      */
     DOC(7, "Doc", DocBlock::newBlockBuilder, DocBlock::readFrom),
 

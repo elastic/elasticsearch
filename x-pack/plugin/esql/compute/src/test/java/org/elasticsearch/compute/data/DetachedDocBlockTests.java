@@ -8,18 +8,17 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.test.RandomBlock;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -65,55 +64,13 @@ public class DetachedDocBlockTests extends SerializationTestCase {
         }
     }
 
-    public void testCopyFromInternsOnlyReferencedOrigins() {
+    public void testCopyFromRejectsDetachedBlocks() {
         try (
-            DocBlock source = build(List.of(a, b, c), true, new int[][] { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 5, 6 }, { 0, 7, 8 } });
-            DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 2)
+            DocBlock detached = build(List.of(a), false, new int[][] { { 0, 1, 2 } });
+            DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 1)
         ) {
-            builder.copyFrom(source, 2, 4);
-            try (DocBlock copy = builder.build(DocVector.config().mayContainDuplicates()); Block expected = source.slice(2, 4)) {
-                assertThat(copy.asVector().origins().size(), equalTo(2));
-                assertThat(copy, equalTo(expected));
-            }
-        }
-    }
-
-    /**
-     * Rows copied from vectors with different dictionaries share one dictionary in the copy.
-     */
-    public void testCopyFromMergesDictionaries() {
-        try (
-            DocBlock first = build(List.of(a, b), false, new int[][] { { 0, 1, 1 }, { 1, 2, 2 } });
-            DocBlock second = build(List.of(c, b), false, new int[][] { { 0, 3, 3 }, { 1, 4, 4 } });
-            DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 4)
-        ) {
-            builder.copyFrom(first, 0, 2);
-            builder.copyFrom(second, 0, 2);
-            try (DocBlock copy = builder.build()) {
-                assertThat(copy.asVector().origins().size(), equalTo(3));
-                assertThat(BlockUtils.toJavaObject(copy, 0), equalTo(new BlockUtils.DocRef(a, 1, 1)));
-                assertThat(BlockUtils.toJavaObject(copy, 1), equalTo(new BlockUtils.DocRef(b, 2, 2)));
-                assertThat(BlockUtils.toJavaObject(copy, 2), equalTo(new BlockUtils.DocRef(c, 3, 3)));
-                assertThat(BlockUtils.toJavaObject(copy, 3), equalTo(new BlockUtils.DocRef(b, 4, 4)));
-            }
-        }
-    }
-
-    public void testCopyFromCantMixRowsOfThisNodeWithRowsThatLeftTheirs() {
-        try (
-            DocBlock detached = build(List.of(a), false, new int[][] { { 0, 1, 1 } });
-            DocBlock local = local(new int[][] { { 0, 2, 2 } })
-        ) {
-            try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 2)) {
-                builder.copyFrom(local, 0, 1);
-                IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.copyFrom(detached, 0, 1));
-                assertThat(e.getMessage(), equalTo("can't mix documents of this node with documents that left their node"));
-            }
-            try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 2)) {
-                builder.copyFrom(detached, 0, 1);
-                IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.copyFrom(local, 0, 1));
-                assertThat(e.getMessage(), equalTo("can't mix documents of this node with documents that left their node"));
-            }
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.copyFrom(detached, 0, 1));
+            assertThat(e.getMessage(), equalTo("[DocBlock.Builder#copyFrom] can't read a detached DocVector"));
         }
     }
 
@@ -144,7 +101,7 @@ public class DetachedDocBlockTests extends SerializationTestCase {
     public void testSerialization() throws IOException {
         int positions = between(0, 1000);
         RandomBlock random = RandomBlock.randomDetachedDocBlock(blockFactory, positions, between(1, 10));
-        TransportVersion version = TransportVersionUtils.randomVersionSupporting(DocBlock.ESQL_DOC_ORIGINS);
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(DocVector.ESQL_DOC_ORIGINS);
         try (DocBlock block = (DocBlock) random.block(); DocBlock read = serializeDeserializeBlockWithVersion(block, version)) {
             assertThat(read, equalTo(block));
             assertThat(read.asVector().mayContainDuplicates(), equalTo(block.asVector().mayContainDuplicates()));
@@ -153,54 +110,49 @@ public class DetachedDocBlockTests extends SerializationTestCase {
         }
     }
 
-    public void testSerializationDropsOriginsNoRowUses() throws IOException {
-        RandomBlock random = RandomBlock.randomDetachedDocBlock(blockFactory, 1000, 100);
+    /**
+     * A filtered or sliced vector shares the dictionary of its source, so it may hold origins no row references. They are
+     * written as they are.
+     */
+    public void testSerializationKeepsOriginsNoRowReferences() throws IOException {
         try (
-            DocBlock block = (DocBlock) random.block();
-            DocBlock filtered = (DocBlock) block.filter(true, 0, 500, 999);
-            DocBlock read = serializeDeserializeBlockWithVersion(filtered, DocBlock.ESQL_DOC_ORIGINS)
+            DocBlock block = build(List.of(a, b, c), false, new int[][] { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 5, 6 } });
+            DocBlock filtered = (DocBlock) block.filter(false, 1);
+            DocBlock read = serializeDeserializeBlockWithVersion(filtered, DocVector.ESQL_DOC_ORIGINS)
         ) {
-            assertThat(filtered.asVector().origins().size(), equalTo(100));
-            assertThat(read.asVector().origins().size(), lessThanOrEqualTo(3));
+            DocOrigins origins = read.asVector().origins();
+            assertThat(List.of(origins.get(0), origins.get(1), origins.get(2)), equalTo(List.of(a, b, c)));
+            assertThat(read.asVector().shards().getInt(0), equalTo(1));
             assertThat(read, equalTo(filtered));
         }
     }
 
     /**
-     * Rows of one origin need no ordinal on the wire, however their shard vector was built. They read back as constant
-     * ordinals.
+     * The input ends inside the shard, segment or doc vectors, after the reader allocated some of them.
      */
-    public void testOneOriginWritesNoOrdinals() throws IOException {
-        int positions = between(100, 500);
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, positions)) {
-            for (int p = 0; p < positions; p++) {
-                builder.appendShard(1).appendSegment(between(0, 20)).appendDoc(p);
+    public void testTruncatedInputLeavesNothingOnTheBreaker() throws IOException {
+        RandomBlock random = RandomBlock.randomDetachedDocBlock(blockFactory, between(10, 100), between(2, 5));
+        try (
+            DocBlock block = (DocBlock) random.block();
+            BytesStreamOutput out = new BytesStreamOutput();
+            BytesStreamOutput header = new BytesStreamOutput();
+            BytesStreamOutput truncated = new BytesStreamOutput()
+        ) {
+            block.writeTo(out);
+            header.writeBoolean(block.asVector().mayContainDuplicates());
+            block.asVector().origins().writeTo(header);
+            byte[] bytes = BytesReference.toBytes(out.bytes());
+            truncated.writeBytes(bytes, 0, between(header.size() + 1, bytes.length - 1));
+            long usedBeforeRead = blockFactory.breaker().getUsed();
+            try (BlockStreamInput in = blockStreamInput(truncated)) {
+                expectThrows(EOFException.class, () -> DocBlock.readFrom(in));
             }
-            DocVector.Config config = DocVector.config().origins(DocOrigins.of(List.of(a, b)));
-            try (
-                DocBlock block = builder.build(config);
-                BytesStreamOutput out = new BytesStreamOutput();
-                BytesStreamOutput parts = new BytesStreamOutput()
-            ) {
-                assertFalse(block.asVector().shards().isConstant());
-                Block.writeTypedBlock(block, out);
-                b.writeTo(parts);
-                block.asVector().segments().writeTo(parts);
-                block.asVector().docs().writeTo(parts);
-                // the element type, the flags and the two counts
-                assertThat(out.bytes().length() - parts.bytes().length(), lessThan(8));
-
-                try (DocBlock read = serializeDeserializeBlockWithVersion(block, DocBlock.ESQL_DOC_ORIGINS)) {
-                    assertTrue(read.asVector().shards().isConstant());
-                    assertThat(read.asVector().origins().size(), equalTo(1));
-                    assertThat(read, equalTo(block));
-                }
-            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(usedBeforeRead));
         }
     }
 
     public void testOlderNodesCantReadIt() {
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(DocBlock.ESQL_DOC_ORIGINS);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(DocVector.ESQL_DOC_ORIGINS);
         try (DocBlock block = build(List.of(a), false, new int[][] { { 0, 0, 0 } }); BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(old);
             IllegalStateException e = expectThrows(IllegalStateException.class, () -> Block.writeTypedBlock(block, out));
@@ -211,7 +163,7 @@ public class DetachedDocBlockTests extends SerializationTestCase {
     public void testRowsOfThisNodeCantBeWritten() {
         try (DocBlock block = local(new int[][] { { 0, 0, 0 } }); BytesStreamOutput out = new BytesStreamOutput()) {
             IllegalStateException e = expectThrows(IllegalStateException.class, () -> Block.writeTypedBlock(block, out));
-            assertThat(e.getMessage(), equalTo("can't write documents that are still on the node that read them, detach them first"));
+            assertThat(e.getMessage(), equalTo("DocVector has no origins"));
         }
     }
 
@@ -219,97 +171,13 @@ public class DetachedDocBlockTests extends SerializationTestCase {
      * An empty block names no shard, so it can cross the wire. It arrives as a block whose rows left their node.
      */
     public void testEmptyBlockOfThisNode() throws IOException {
-        try (DocBlock block = local(new int[0][]); DocBlock read = serializeDeserializeBlockWithVersion(block, DocBlock.ESQL_DOC_ORIGINS)) {
+        try (
+            DocBlock block = local(new int[0][]);
+            DocBlock read = serializeDeserializeBlockWithVersion(block, DocVector.ESQL_DOC_ORIGINS)
+        ) {
             assertThat(read.getPositionCount(), equalTo(0));
             assertThat(read.asVector().origins().size(), equalTo(0));
         }
-    }
-
-    public void testRejectsUnknownFlags() {
-        expectCorrupt("unknown doc block flags", out -> {
-            out.writeByte((byte) 2);
-            out.writeVInt(0);
-            out.writeVInt(0);
-        });
-    }
-
-    public void testRejectsMoreOriginsThanRows() {
-        expectCorrupt("invalid doc block with [2] positions and [3] origins", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(3);
-        });
-    }
-
-    public void testRejectsRowsWithoutOrigins() {
-        expectCorrupt("invalid doc block with [2] positions and [0] origins", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(0);
-        });
-    }
-
-    public void testRejectsOriginsOfAnEmptyBlock() {
-        expectCorrupt("invalid doc block with [0] positions and [1] origins", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(0);
-            out.writeVInt(1);
-        });
-    }
-
-    public void testRejectsDuplicateOrigins() {
-        expectCorrupt("duplicate origin", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(2);
-            a.writeTo(out);
-            a.writeTo(out);
-        });
-    }
-
-    public void testRejectsOrdinalsOutOfRange() {
-        expectCorrupt("origin ordinal [5] out of [0, 2)", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(2);
-            a.writeTo(out);
-            b.writeTo(out);
-            out.writeVInt(0);
-            out.writeVInt(5);
-        });
-    }
-
-    public void testRejectsNegativeSegments() {
-        expectCorrupt("negative value [-3] in segments", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(1);
-            a.writeTo(out);
-            writeIntVector(out, 0, -3);
-            writeIntVector(out, 7, 8);
-        });
-    }
-
-    public void testRejectsNegativeDocs() {
-        expectCorrupt("negative value [-1] in docs", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(1);
-            a.writeTo(out);
-            writeIntVector(out, 0, 0);
-            writeIntVector(out, 7, -1);
-        });
-    }
-
-    public void testRejectsVectorsOfTheWrongLength() {
-        expectCorrupt("expected [2] segments but got [3]", out -> {
-            out.writeByte((byte) 0);
-            out.writeVInt(2);
-            out.writeVInt(1);
-            a.writeTo(out);
-            writeIntVector(out, 0, 0, 0);
-            writeIntVector(out, 1, 2);
-        });
     }
 
     private DocBlock build(List<DocOrigin> origins, boolean mayContainDuplicates, int[][] rows) {
@@ -331,29 +199,5 @@ public class DetachedDocBlockTests extends SerializationTestCase {
             }
             return builder.build();
         }
-    }
-
-    private void writeIntVector(StreamOutput out, int... values) throws IOException {
-        try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(values.length)) {
-            for (int value : values) {
-                builder.appendInt(value);
-            }
-            try (IntVector vector = builder.build()) {
-                vector.writeTo(out);
-            }
-        }
-    }
-
-    private void expectCorrupt(String message, CheckedConsumer<StreamOutput, IOException> writer) {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                writer.accept(out);
-                try (BlockStreamInput in = blockStreamInput(out); DocBlock read = DocBlock.readFrom(in)) {
-                    fail("read a corrupt block " + read);
-                }
-            }
-        });
-        assertThat(e.getMessage(), containsString(message));
-        assertThat("a rejected block leaves nothing on the breaker", blockFactory.breaker().getUsed(), equalTo(0L));
     }
 }

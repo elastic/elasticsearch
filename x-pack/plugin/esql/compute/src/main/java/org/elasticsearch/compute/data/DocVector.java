@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -21,6 +24,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -38,6 +42,11 @@ import java.util.function.IntFunction;
  * context keeps the reader, so it can cross the network and come back to the node that loads the documents.
  */
 public final class DocVector extends AbstractVector implements Vector {
+    /**
+     * The first version that can read a {@link DocBlock}. Code that sends one checks the version of the receiving node
+     * first, so the check in {@link Block#writeTypedBlock} only catches bugs in that code.
+     */
+    public static final TransportVersion ESQL_DOC_ORIGINS = TransportVersion.fromName("esql_doc_origins");
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
 
@@ -134,7 +143,7 @@ public final class DocVector extends AbstractVector implements Vector {
         this.mayContainDuplicates = config.mayContainDuplicates;
 
         if (origins != null && refCounteds != AlwaysReferencedIndexedByShardId.INSTANCE) {
-            throw new IllegalArgumentException("a vector with origins references no shard");
+            throw new IllegalArgumentException("DocVector with origins can't reference shards");
         }
         if (shards.getPositionCount() != segments.getPositionCount()) {
             throw new IllegalArgumentException(
@@ -156,7 +165,8 @@ public final class DocVector extends AbstractVector implements Vector {
         }
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED + originsRamBytesUsed());
 
-        if (config.incrementShardRefCounts) {
+        // a vector with origins references no shard, so it has no refs to take or release
+        if (origins == null && config.incrementShardRefCounts) {
             boolean success = false;
             try {
                 incrementShardRefCounts();
@@ -181,25 +191,25 @@ public final class DocVector extends AbstractVector implements Vector {
     /**
      * The origin of the document at {@code position}.
      *
-     * @throws IllegalStateException if the rows are still on the node that read them
+     * @throws IllegalStateException if the vector isn't detached
      */
     public DocOrigin origin(int position) {
         if (origins == null) {
-            throw new IllegalStateException("the documents are still on the node that read them, so they have no origin");
+            throw new IllegalStateException("DocVector has no origins");
         }
         return origins.get(shards.getInt(position));
     }
 
     /**
-     * Fails if the rows left the node that read them, because their shard slots don't name shard contexts of this node.
+     * Fails if the vector is {@link #detach detached}, because its shard ordinals don't name shard contexts of this node.
      * Code that reads documents through the shard contexts of the node calls this first, so a vector that comes back from
      * another node fails instead of reading another shard.
      *
      * @param reader what reads the documents, for the message
      */
-    public void ensureOnTheNodeThatReadThem(String reader) {
+    public void ensureAttached(String reader) {
         if (origins != null) {
-            throw new IllegalStateException("[" + reader + "] can't read documents that left the node that read them");
+            throw new IllegalStateException("[" + reader + "] can't read a detached DocVector");
         }
     }
 
@@ -212,7 +222,7 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     public DocVector detach(IntFunction<DocOrigin> originOfSlot) {
         if (origins != null) {
-            throw new IllegalStateException("the documents already left the node that read them");
+            throw new IllegalStateException("DocVector is already detached");
         }
         int positions = getPositionCount();
         // A TopN builds the shard vector as an array even when every row comes from one shard, so the check runs on the
@@ -262,6 +272,51 @@ public final class DocVector extends AbstractVector implements Vector {
         } finally {
             if (result == null) {
                 Releasables.closeExpectNoException(ordinals, shared ? segments : null, shared ? docs : null);
+            }
+        }
+    }
+
+    /**
+     * Writes a {@link #detach detached} vector. An empty vector names no shard, so it is written even if it isn't detached,
+     * and reads back as a detached one. Wire format:
+     * <ol>
+     *     <li>{@code boolean} {@link #mayContainDuplicates()}</li>
+     *     <li>the {@link DocOrigins}, including those no row references</li>
+     *     <li>the shards, which are ordinals into the origins, the segments and the docs, as {@link IntVector}s</li>
+     * </ol>
+     */
+    public void writeTo(StreamOutput out) throws IOException {
+        if (origins == null && getPositionCount() > 0) {
+            // the shard slots of a node mean nothing to another node
+            throw new IllegalStateException("DocVector has no origins");
+        }
+        out.writeBoolean(mayContainDuplicates);
+        (origins == null ? DocOrigins.EMPTY : origins).writeTo(out);
+        shards.writeTo(out);
+        segments.writeTo(out);
+        docs.writeTo(out);
+    }
+
+    /**
+     * Reads a vector written by {@link #writeTo}.
+     */
+    public static DocVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+        boolean mayContainDuplicates = in.readBoolean();
+        DocOrigins origins = DocOrigins.readFrom(in);
+        IntVector shards = null;
+        IntVector segments = null;
+        IntVector docs = null;
+        DocVector result = null;
+        try {
+            shards = IntVector.readFrom(blockFactory, in);
+            segments = IntVector.readFrom(blockFactory, in);
+            docs = IntVector.readFrom(blockFactory, in);
+            Config config = config().origins(origins).mayContainDuplicates(mayContainDuplicates);
+            result = new DocVector(AlwaysReferencedIndexedByShardId.INSTANCE, shards, segments, docs, config);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(shards, segments, docs);
             }
         }
     }
@@ -650,7 +705,9 @@ public final class DocVector extends AbstractVector implements Vector {
             segments,
             docs
         );
-        decrementShardRefCounts();
+        if (origins == null) {
+            decrementShardRefCounts();
+        }
     }
 
     public RefCounted shardRefCounted(int position) {
@@ -804,8 +861,8 @@ public final class DocVector extends AbstractVector implements Vector {
 
         /**
          * The shard vector holds ordinals into {@code origins}, because the rows left the node that read them. Such a vector
-         * references no shard, so it takes {@link AlwaysReferencedIndexedByShardId}. {@code null} keeps the rows on their
-         * node.
+         * references no shard, so it takes {@link AlwaysReferencedIndexedByShardId} and takes and releases no shard refs.
+         * {@code null} keeps the rows on their node.
          */
         public Config origins(@Nullable DocOrigins origins) {
             this.origins = origins;

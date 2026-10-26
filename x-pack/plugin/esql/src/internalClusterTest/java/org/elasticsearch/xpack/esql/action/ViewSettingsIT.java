@@ -638,6 +638,72 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * The view body is analysed without the caller's setting, so its RENAME stays as written when the caller's reference is
+     * null-filled at the view's output: the renamed column keeps its values and the original name does not come back.
+     */
+    public void testNullFillAtOutputOfViewEndingInRename() {
+        setupUnmappedIndices();
+        assertAcked(createView("rename_view", "FROM view_source | RENAME id AS ident"));
+        for (String mode : List.of("nullify", "load")) {
+            String set = "SET unmapped_fields=\"" + mode + "\"; ";
+            try (var resp = run(set + "FROM rename_view | KEEP ident, extra | SORT ident")) {
+                assertThat(mode, getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            try (var resp = run(set + "FROM rename_view | EVAL x = other | SORT ident")) {
+                assertThat(mode, columnNames(resp), equalTo(List.of("ident", "other", "x")));
+                assertThat(mode, getValuesList(resp), equalTo(List.of(Arrays.asList(1, null, null), Arrays.asList(2, null, null))));
+            }
+        }
+    }
+
+    /**
+     * The view's own SET loads {@code extra} under a new name, and the caller's setting, whichever mode, only null-fills a
+     * further reference at the view's output.
+     */
+    public void testNullFillAtOutputOfLoadViewEndingInRename() {
+        setupUnmappedIndices();
+        assertAcked(createView("rename_load", """
+            SET unmapped_fields="load";
+            FROM view_source | RENAME extra AS e
+            """));
+        try (var resp = run("FROM rename_load | SORT id")) {
+            assertThat(columnNames(resp), equalTo(List.of("id", "e")));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+        }
+        for (String mode : List.of("nullify", "load")) {
+            try (var resp = run("SET unmapped_fields=\"" + mode + "\"; FROM rename_load | KEEP id, e, other | SORT id")) {
+                assertThat(mode, getValuesList(resp), equalTo(List.of(Arrays.asList(1, "e1", null), Arrays.asList(2, "e2", null))));
+            }
+        }
+    }
+
+    /**
+     * The enclosing view's SET stops at the nested view, so its reference to {@code extra} is null-filled at the nested view's
+     * output. The nested view did not SET a mode, so its RENAME must stay as written, whether or not the caller SETs a mode too.
+     */
+    public void testSetInsideViewNullFillsAtOutputOfNestedViewEndingInRename() {
+        setupUnmappedIndices();
+        assertAcked(createView("inner_rename", "FROM view_source | RENAME id AS ident"));
+        for (String viewMode : List.of("nullify", "load")) {
+            assertAcked(createView("outer_set", "SET unmapped_fields=\"" + viewMode + "\";\nFROM inner_rename | KEEP ident, extra"));
+            for (String query : List.of(
+                "FROM outer_set | SORT ident",
+                "SET unmapped_fields=\"nullify\"; FROM outer_set | SORT ident",
+                "SET unmapped_fields=\"load\"; FROM outer_set | SORT ident"
+            )) {
+                try (var resp = run(query)) {
+                    assertThat(viewMode + ": " + query, columnNames(resp), equalTo(List.of("ident", "extra")));
+                    assertThat(
+                        viewMode + ": " + query,
+                        getValuesList(resp),
+                        equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null)))
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * {@code foo} is {@code double} in {@code mt_a}, {@code long} in {@code mt_b}, and present only in {@code _source} in
      * {@code mt_c}. The view loads it, so {@code TO_DEGREES(foo)} is a type conflict even when the caller set nothing.
      */

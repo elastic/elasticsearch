@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
@@ -189,22 +190,20 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         if (mergesScoreAsMetadata() == false) {
             return converted;
         }
-        int index = -1;
-        for (int i = 0; i < converted.size(); i++) {
-            if (converted.get(i).name().equals(MetadataAttribute.SCORE)) {
-                index = i;
-                break;
-            }
-        }
+        int index = IntStream.range(0, converted.size())
+            .filter(i -> converted.get(i).name().equals(MetadataAttribute.SCORE))
+            .findFirst()
+            .orElse(-1);
         if (index < 0) {
             return converted;
         }
+
         boolean live = false;
         boolean userDefined = false;
         for (LogicalPlan branch : branches) {
             switch (branchScore(branch)) {
-                case LIVE -> live = true;
                 case USER_DEFINED -> userDefined = true;
+                case LIVE -> live = true;
                 case EMPTY -> {
                 }
             }

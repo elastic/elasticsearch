@@ -1169,6 +1169,52 @@ book_no:keyword | _score:double
 6760            | null
 ;
 
+// A nested union whose branches all null-fill _score leaves the scored sibling in charge: the runtime match still adds
+// its score to the sibling's rows, and the nested union's rows stay null.
+subqueryInFromWithNestedNullScoreUnionThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: outer_metadata_null_injection
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM (FROM books), (FROM books) METADATA _score), (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+5469            | null
+6760            | 1.0
+6760            | null
+6760            | null
+;
+
+// A null column renamed to _score is as empty as one null-filled under that name.
+subqueryInFromWithRenamedNullScoreThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score), (FROM books | EVAL s = null::double | RENAME s AS _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+6760            | 1.0
+6760            | null
+;
+
 subqueryInFromWithUnionTypesWithCommonTypes
 required_capability: subquery_in_from_command
 

@@ -4626,7 +4626,7 @@ public class EsqlCapabilities {
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
         /**
-         * The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays the live score when every
+         * The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays as live score when every
          * branch either asked for {@code METADATA _score} or leaves the column null, so a scoring search after the merge,
          * such as a runtime {@code MATCH}, adds to it instead of being dropped. Rows from a branch without a score stay
          * {@code null} through that search. A branch that computed its own {@code _score} keeps the merged column out

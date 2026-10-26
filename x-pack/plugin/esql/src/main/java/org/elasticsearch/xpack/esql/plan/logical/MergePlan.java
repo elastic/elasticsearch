@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,10 +30,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -271,36 +268,65 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * a later one shadows answer for the column. The assignment is looked for in {@link Eval}s and, since the optimizer
      * folds an alignment {@link Eval} into the {@link Project} above it, in {@link Project}s as well.
      * <p>
+     * Null-only values are followed through the branch, bottom-up: an alias of a null-only attribute is null-only too,
+     * which covers {@code RENAME} and {@code EVAL x = y}, and a nested {@link MergePlan}'s output column is null-only
+     * when that column is null-only in every one of its branches. A nested union whose branches all null-fill a column
+     * outputs it as a fresh attribute that no alias defines, so without the latter it would look like a computed value.
+     * <p>
      * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
      */
     public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
-        Map<NameId, Boolean> onlyNull = new HashMap<>();
-        branch.forEachDown(plan -> {
-            List<? extends NamedExpression> assigned = List.of();
-            if (plan instanceof Eval eval) {
-                assigned = eval.fields();
-            } else if (plan instanceof Project project) {
-                assigned = project.projections();
-            }
-            for (NamedExpression ne : assigned) {
-                if (ne instanceof Alias alias) {
-                    onlyNull.put(alias.id(), isGuaranteedNull(alias.child()));
+        Set<NameId> onlyNull = new HashSet<>();
+        branch.forEachUp(plan -> {
+            switch (plan) {
+                case Eval eval -> eval.fields().forEach(alias -> markIfOnlyNull(alias, onlyNull));
+                case Project project -> project.projections().forEach(ne -> {
+                    if (ne instanceof Alias alias) {
+                        markIfOnlyNull(alias, onlyNull);
+                    }
+                });
+                case MergePlan merge -> {
+                    if (merge.children().isEmpty() == false) {
+                        for (Attribute out : merge.output()) {
+                            if (merge.children().stream().allMatch(child -> columnOnlyNull(child, out.name(), onlyNull))) {
+                                onlyNull.add(out.id());
+                            }
+                        }
+                    }
+                }
+                default -> {
                 }
             }
         });
-        return attr -> onlyNull.getOrDefault(attr.id(), false);
+        return attr -> onlyNull.contains(attr.id());
+    }
+
+    private static void markIfOnlyNull(Alias alias, Set<NameId> onlyNull) {
+        if (isGuaranteedNull(alias.child(), onlyNull)) {
+            onlyNull.add(alias.id());
+        }
+    }
+
+    /** Whether {@code plan} outputs a column named {@code name} that holds nothing but nulls. */
+    private static boolean columnOnlyNull(LogicalPlan plan, String attrName, Set<NameId> onlyNull) {
+        for (Attribute attr : plan.output()) {
+            if (attr.name().equals(attrName)) {
+                return onlyNull.contains(attr.id());
+            }
+        }
+        return false;
     }
 
     /**
-     * {@link Expressions#isGuaranteedNull}, also looking through functions that are null whenever an argument is: a
-     * typed null such as {@code null::double}, which is how a null gets the type of the sibling branches' column, is
-     * a cast of a null literal until the optimizer folds it.
+     * {@link Expressions#isGuaranteedNull}, also accepting an attribute already known to be null-only and looking through
+     * functions that are null whenever an argument is: a typed null such as {@code null::double}, which is how a null
+     * gets the type of the sibling branches' column, is a cast of a null literal until the optimizer folds it.
      */
-    private static boolean isGuaranteedNull(Expression e) {
-        if (Expressions.isGuaranteedNull(e)) {
+    private static boolean isGuaranteedNull(Expression e, Set<NameId> onlyNull) {
+        if (Expressions.isGuaranteedNull(e) || (e instanceof Attribute attr && onlyNull.contains(attr.id()))) {
             return true;
         }
-        return e instanceof AnyNullIsNull && e.children().stream().anyMatch(MergePlan::isGuaranteedNull);
+        return e instanceof AnyNullIsNull && e.children().stream().anyMatch(child -> isGuaranteedNull(child, onlyNull));
     }
 
     private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {

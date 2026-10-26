@@ -2229,7 +2229,11 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             "FROM (FROM test METADATA _score), (FROM test)",
             "FROM test, (FROM test METADATA _score)",
             "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double)",
-            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double), (FROM test | KEEP emp_no)"
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double), (FROM test | KEEP emp_no)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | RENAME s AS _score)",
+            "FROM (FROM test | EVAL s = null::double | RENAME s AS _score), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | EVAL _score = s)",
+            "FROM (FROM test | EVAL s = null::double | EVAL _score = s), (FROM test METADATA _score)"
         )) {
             Attribute score = mergedScore(from);
             assertThat(from, score, instanceOf(MetadataAttribute.class));
@@ -2261,6 +2265,24 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         )) {
             Attribute score = mergedScore(from);
             assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * Test null-only {@code _score} branch in a nested UnionAll is recognized correctly.
+     * For the test queries below, the analyzer injects null-filled _score columns in the nested UnionAll. The output _score attribute
+     * of nested UnionAll should be correctly recognized as null-only _score branches and since other branch of
+     * outer UnionAll has {@code METADATA _score}, the merged _score column should be a MetadataAttribute.
+     */
+    public void testUnionAllMergesScoreAsMetadataWhenTheOtherBranchesAreNullThroughNesting() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test), (FROM test) METADATA _score | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM (FROM test), (FROM test) METADATA _score), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test) METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
     }

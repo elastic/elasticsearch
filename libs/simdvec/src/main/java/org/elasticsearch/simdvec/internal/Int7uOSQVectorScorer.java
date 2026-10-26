@@ -154,7 +154,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         long vectorOffset = (long) node * vectorPitch;
         input.seek(vectorOffset);
         return IndexInputUtils.withFloatSlice(input, (int) vectorPitch, scratch, seg -> {
-            int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(seg, query, vectorByteSize);
             return applyCorrections(dotProduct, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
         });
     }
@@ -188,7 +188,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             final int idx = i;
             input.seek(offsets[i]);
             IndexInputUtils.withVoidSlice(input, (int) vectorPitch, scratch, seg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
+                int rawScore = DISTANCE_FUNCS.dotProductI7u(seg, query, vectorByteSize);
                 scores[idx] = applyCorrections(rawScore, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
             });
             maxScore = Math.max(maxScore, scores[idx]);

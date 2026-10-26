@@ -97,7 +97,11 @@ public class ArrowFormatIT extends ESRestTestCase {
     }
 
     private VectorSchemaRoot esql(String query) throws IOException {
-        Request request = new Request("POST", "/_query?format=arrow");
+        return esql(query, false);
+    }
+
+    private VectorSchemaRoot esql(String query, boolean dropNullColumns) throws IOException {
+        Request request = new Request("POST", "/_query?format=arrow&drop_null_columns=" + dropNullColumns);
         request.setJsonEntity(query);
         Response response = client().performRequest(request);
 
@@ -165,6 +169,19 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertValues(root);
             assertIp(root);
             assertVersion(root);
+        }
+    }
+
+    public void testDropNullColumns() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | EVAL empty = null::keyword | KEEP empty, description, value"
+            }""", true)) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(List.of("description", "value"), fields.stream().map(Field::getName).toList());
+
+            assertDescription(root);
+            assertValues(root);
         }
     }
 

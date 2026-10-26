@@ -395,9 +395,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/10_basic/Index Sort}
-  issue: https://github.com/elastic/elasticsearch/issues/162591
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/161602
@@ -419,4 +416,3 @@ tests:
   - :server:internalClusterTest
   method: testIndexMode
   issue: https://github.com/elastic/elasticsearch/issues/163329
-

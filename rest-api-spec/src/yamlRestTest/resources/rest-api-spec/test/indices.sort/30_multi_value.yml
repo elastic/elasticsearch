@@ -17,6 +17,10 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # The _doc order checks need every copy merged, but force merge fails on copies that are still recovering.
+            # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+            # keep a replica for stateless searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: rank
             # ensure no relocation as tests rely on segments.
@@ -31,6 +35,7 @@
       cluster.health:
         index: test
         # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -160,6 +165,8 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: tag
             routing.rebalance.enable: "none"
@@ -173,6 +180,7 @@
   - do:
       cluster.health:
         index: test_kw
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -295,6 +303,8 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: ["category", "rank"]
             index.sort.order: ["asc", "asc"]
@@ -311,6 +321,7 @@
   - do:
       cluster.health:
         index: test_secondary
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 

@@ -538,9 +538,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         // A translog-upload might be slow or might even hang, so once the first try of an `UploadTranslogTask` actually starts its blob
         // write (see `tryAction`), we schedule a hedge upload that will be fired after `UPLOAD_HEDGE_DELAY_SETTING` seconds.
-        // - If the hedge upload completes first, then `isDone` is set, and we'll stop retrying this `UploadTranslogTask`. Note this is
-        // because the `listener` passed in `hedge(listener)` is the same `RetryingListener` passed in `tryAction` and hence
-        // `RetryableAction`'s `isDone` is set to true.
+        // - If the hedge upload completes first, then `isDone` is set in the `RetryableAction` of the `UploadTranslogTask`, so we will
+        // stop retrying this `UploadTranslogTask`.
         // - If the normal (i.e., non-hedge) upload completes first (e.g., in less than `UPLOAD_HEDGE_DELAY_SETTING` seconds),
         // then `onFinished` is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
         private void hedge(ActionListener<UploadTranslogTask> listener) {
@@ -577,12 +576,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 // translog upload (i.e., after any time the upload spent queued behind other translog uploads in the object store service).
                 // By doing this we start the hedge only when the other upload is indeed slow and not just waiting in a queue, something
                 // that would have exacerbated the situation.
-                // Also note that `hedge` gets the same `listener` as the one passed as an argument in `tryAction`. This means that if
-                // the `hedge` completes the upload first, `RetryingListener.onResponse` is called that sets
-                // the `isDone` of `RetryingAction` to true. As a result, we stop retrying (i.e., `tryAction`) to upload a translog.
+                // Also note that `hedge` receives the listener from `tryAction`. If the `hedge` completes the upload first,
+                // `RetryingListener.onResponse` sets `isDone` on the `RetryableAction`. An upcoming retry attempt (i.e., `tryAction`)
+                // checks `isDone` is not set before executing, so the successful `hedge` stops all subsequent retries.
                 onBeforeUpload = () -> hedgeTimer = threadPool.schedule(
                     () -> hedge(listener),
                     uploadHedgeDelay,
+                    // ultimately the translog upload from the `hedge` (through `uploadTranslogFile`)
+                    // dispatches the upload into the `stateless_translog` thread pool
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );
             }

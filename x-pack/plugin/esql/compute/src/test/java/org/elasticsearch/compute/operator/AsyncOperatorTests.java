@@ -54,7 +54,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AsyncOperatorTests extends ESTestCase {
 
@@ -357,7 +357,8 @@ public class AsyncOperatorTests extends ESTestCase {
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10_000), future);
         future.actionGet(30, TimeUnit.SECONDS);
         assertThat(rows.get(), equalTo(10));
-        assertThat(getOutputCalls.get(), lessThan(10));
+        // the source emits up to 10 pages, the driver calls getOutput at most once per page and once per result
+        assertThat(getOutputCalls.get(), lessThanOrEqualTo(20));
     }
 
     public void testFailure() throws Exception {

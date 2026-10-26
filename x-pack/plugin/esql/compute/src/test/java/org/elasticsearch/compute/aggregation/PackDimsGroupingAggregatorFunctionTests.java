@@ -12,8 +12,11 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DimsPacker;
 import org.elasticsearch.compute.operator.Driver;
@@ -28,6 +31,7 @@ import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -120,5 +124,135 @@ public class PackDimsGroupingAggregatorFunctionTests extends ComputeTestCase {
         }
         assertThat(actualDim0, equalTo(expectedDim0));
         assertThat(actualDim1, equalTo(expectedDim1));
+    }
+
+    private BytesRefVector randomInputVector(BytesRef[] dictValues, int size) {
+        if (randomBoolean()) {
+            try (var builder = blockFactory().newBytesRefVectorBuilder(size)) {
+                for (int i = 0; i < size; i++) {
+                    builder.appendBytesRef(randomFrom(dictValues));
+                }
+                return builder.build();
+            }
+        }
+        int[] mappedOrds = new int[dictValues.length];
+        Arrays.fill(mappedOrds, -1);
+        int nextOrd = 0;
+        try (var dictBuilder = blockFactory().newBytesRefVectorBuilder(size); var ordsBuilder = blockFactory().newIntVectorBuilder(size);) {
+            int ord = randomIntBetween(0, dictValues.length - 1);
+            for (int p = 0; p < size; p++) {
+                int mappedOrd = mappedOrds[ord];
+                if (mappedOrd == -1) {
+                    mappedOrd = nextOrd++;
+                    dictBuilder.appendBytesRef(dictValues[ord]);
+                }
+                ordsBuilder.appendInt(mappedOrd);
+            }
+            return new OrdinalBytesRefVector(ordsBuilder.build(), dictBuilder.build());
+        }
+    }
+
+    private BytesRefBlock randomInputBlock(BytesRef[] dictValues, int size) {
+        try (var builder = blockFactory().newBytesRefBlockBuilder(size)) {
+            int valueCount = between(0, 2);
+            if (valueCount == 1) {
+                builder.appendBytesRef(randomFrom(dictValues));
+            } else if (valueCount == 0) {
+                builder.appendNull();
+            } else {
+                builder.beginPositionEntry();
+                for (int i = 0; i < valueCount; i++) {
+                    builder.appendBytesRef(randomFrom(dictValues));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+    }
+
+    public void testIntermediateInput() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        int dictSize = between(1, 20);
+        BytesRef[] dictValues = new BytesRef[dictSize];
+        for (int i = 0; i < dictSize; i++) {
+            dictValues[i] = new BytesRef("v" + i);
+        }
+        int numPages = between(1, 5);
+        var packedAggs = new PackDimsGroupingAggregatorFunction(List.of(0), driverContext);
+        var dimAggs = new DimensionValuesByteRefGroupingAggregatorFunction(List.of(0), driverContext);
+        int maxGroupId = -1;
+        boolean fallback = false;
+        for (int i = 0; i < numPages; i++) {
+            final Page page;
+            if (frequently()) {
+                page = new Page(randomInputVector(dictValues, between(1, 100)).asBlock());
+            } else {
+                BytesRefBlock bytesBlock = randomInputBlock(dictValues, between(1, 100));
+                fallback |= bytesBlock.asVector() == null;
+                page = new Page(bytesBlock);
+            }
+            try (
+                var addInput1 = dimAggs.prepareProcessIntermediateInputPage(null, page);
+                var addInput2 = packedAggs.prepareProcessIntermediateInputPage(null, page)
+            ) {
+                int positionOffset = 0;
+                while (positionOffset < page.getPositionCount()) {
+                    int positionCount = between(1, page.getPositionCount() - positionOffset);
+                    try (var groupsBuilder = blockFactory.newIntVectorBuilder(positionCount)) {
+                        for (int p = 0; p < positionCount; p++) {
+                            if (maxGroupId > 0 && randomBoolean()) {
+                                groupsBuilder.appendInt(between(0, maxGroupId));
+                            } else {
+                                maxGroupId++;
+                                groupsBuilder.appendInt(maxGroupId);
+                            }
+                        }
+                        try (var groupIds = groupsBuilder.build()) {
+                            addInput1.add(positionOffset, groupIds);
+                            addInput2.add(positionOffset, groupIds);
+                        }
+                    }
+                    positionOffset += positionCount;
+                }
+            }
+            page.close();
+        }
+
+        try (var evalCtx = new GroupingAggregatorEvaluationContext(driverContext)) {
+            IntVector allSelected;
+            try (var sb = blockFactory.newIntVectorFixedBuilder(maxGroupId + 1)) {
+                for (int g = 0; g <= maxGroupId; g++) {
+                    sb.appendInt(g);
+                }
+                allSelected = sb.build();
+            }
+            try (
+                allSelected;
+                var eval1 = packedAggs.prepareEvaluateIntermediate(allSelected, evalCtx);
+                var eval2 = dimAggs.prepareEvaluateIntermediate(allSelected, evalCtx);
+            ) {
+                int offset = 0;
+                while (offset <= maxGroupId) {
+                    int end = between(offset + 1, maxGroupId + 1);
+                    Block[] out1 = new Block[1];
+                    Block[] out2 = new Block[1];
+                    try (var selected = blockFactory.newIntRangeVector(offset, end)) {
+                        eval1.evaluate(out1, 0, selected);
+                        eval2.evaluate(out2, 0, selected);
+                        assertThat(out1[0], equalTo(out2[0]));
+                        if (fallback == false) {
+                            assertNotNull(((BytesRefBlock) out1[0]).asOrdinals());
+                        }
+                    } finally {
+                        Releasables.close(out1);
+                        Releasables.close(out2);
+                    }
+                    offset = end;
+                }
+            }
+        } finally {
+            Releasables.close(packedAggs, dimAggs);
+        }
     }
 }

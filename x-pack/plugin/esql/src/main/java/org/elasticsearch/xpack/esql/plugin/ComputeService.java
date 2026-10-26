@@ -241,7 +241,7 @@ public class ComputeService {
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.threadPool = threadPool;
-        this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
+        this.driverRunner = new DriverTaskRunner(transportService);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();

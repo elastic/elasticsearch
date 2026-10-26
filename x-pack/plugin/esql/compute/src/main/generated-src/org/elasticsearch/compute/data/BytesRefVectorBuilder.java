@@ -58,11 +58,7 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
             return 0;
         }
         // values accounts for itself through BigArrays so the estimatedBytes field never includes it
-        return BytesRefArrayVector.ramBytesEstimated(
-            values,
-            blockFactory.bytesRefRamOverestimateThreshold(),
-            blockFactory.bytesRefRamOverestimateFactor()
-        );
+        return BytesRefArrayVector.ramBytesEstimated(values);
     }
 
     @Override

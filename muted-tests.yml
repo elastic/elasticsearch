@@ -548,3 +548,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
   method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts}
   issue: https://github.com/elastic/elasticsearch/issues/163418
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesChangesIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
+  method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
+  issue: https://github.com/elastic/elasticsearch/issues/163420

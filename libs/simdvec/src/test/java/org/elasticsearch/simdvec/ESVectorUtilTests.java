@@ -1507,6 +1507,27 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testMatrixMultiplySymmetric() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            // up to 1024 columns, enough panels for the parallel path, and sizes that are not multiples of the tile
+            int n = randomIntBetween(2, 1024);
+            int k = randomIntBetween(2, 512);
+
+            // A^T A is symmetric
+            float[] x = VectorTestUtils.randomFloatVector(k * n);
+            float[] xT = ESVectorUtil.transposeMatrix(x, k, n);
+            float[] expected = basicMatrixMultiply(xT, x, n, k, n);
+
+            for (var provider : new ESVectorizationProvider[] { defaultedProvider, panamaProvider }) {
+                float[] actual = new float[n * n];
+                Arrays.fill(actual, 12345f); // whatever the result held must not matter
+                provider.getVectorUtilSupport().matrixMultiplySymmetric(xT, x, n, k, actual, tasks);
+                assertArrayEquals("n=" + n + " k=" + k, expected, actual, 1e-3f);
+            }
+        }
+    }
+
     private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {
         float[] c = new float[m * n];
         for (int i = 0; i < m; i++) {

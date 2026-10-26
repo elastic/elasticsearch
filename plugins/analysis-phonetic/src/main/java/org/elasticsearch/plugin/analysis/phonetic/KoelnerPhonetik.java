@@ -38,13 +38,15 @@ public class KoelnerPhonetik implements StringEncoder {
     private static final String[] POSTEL_VARIATIONS_PATTERNS = { "AUN", "OWN", "RB", "RW", "WSK", "RSK" };
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = { "OWN", "AUN", "RW", "RB", "RSK", "WSK" };
 
-    // Total variation budget for a single encode() call, shared across every part partition() produces:
-    // getVariations() never returns more than the budget it's given, and partition() stops generating
-    // additional parts once this many have been produced, since a token with n punctuation/whitespace-
-    // separated segments would otherwise yield n(n+1)/2 parts. No real name plausibly needs more than a
-    // couple of pattern matches or segments; this bound exists to stop a crafted token (many repeated
-    // pattern occurrences, e.g. "AUN", or many separator-delimited segments) from exhausting heap.
-    private static final int MAX_VARIATIONS = 16;
+    /**
+     * Limit on the number of variations one {@code encode()} call may produce, shared across every part that
+     * {@code partition()} generates. Each pattern match in a part doubles its variations, and a token with
+     * n separator-delimited segments yields n(n+1)/2 parts, so without this limit certain tokens (e.g. "AUN" repeated,
+     * or many hyphenated segments) can exhaust the heap. This constant removes the possibility of exponential heap
+     * growth. 64 fits 6 matches in one word, or a 10-segment token (55 parts) with no matches, which is well beyond
+     * what real names need.
+     */
+    static final int MAX_VARIATIONS = 64;
 
     private Pattern[] variationsPatterns;
     private boolean primary = false;

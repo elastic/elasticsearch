@@ -204,7 +204,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
     public void testKoelnerPhonetikGeneratePartsIsBounded() {
         KoelnerPhonetik encoder = new KoelnerPhonetik();
         List<String> parts = encoder.generateParts("AUN-".repeat(200));
-        assertThat(parts.size(), lessThanOrEqualTo(16));
+        assertThat(parts.size(), lessThanOrEqualTo(KoelnerPhonetik.MAX_VARIATIONS));
     }
 
     // Regression test: String.split(regex, limit) with a positive limit, unlike the unlimited single-argument
@@ -242,10 +242,16 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
     }
 
+    // If uncapped, this token would yield 76 variations across its parts, so the shared budget runs out in the
+    // middle of a part. Within a part each pattern match doubles the variation list, so a part can only ever
+    // land exactly on a budget that is a power of two; the earlier parts here leave 6, and the part that hits
+    // it has reached 4 and wants 8. getVariations() must add just the 2 branches that fit rather than doubling
+    // to 8, or the token would exceed MAX_VARIATIONS. Changing the input can silently stop exercising this
+    // path (the budget has to run out mid-part at a non-power-of-two), so re-check it if you do.
     public void testPhoneticTokenFilterKoelnerPhonetikBoundsPartialBudgetOvershoot() throws IOException {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter");
         Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader("AUN-RB-RB-AUN"));
+        tokenizer.setReader(new StringReader("AUN-AUNAUNAUN-AUN"));
         assertVariationCountIsBounded(filterFactory.create(tokenizer));
     }
 
@@ -257,7 +263,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         // bound must hold for each one individually.
         while (tokenStream.incrementToken()) {
             int variationCount = termAtt.toString().split("_").length;
-            assertThat(variationCount, lessThanOrEqualTo(16));
+            assertThat(variationCount, lessThanOrEqualTo(KoelnerPhonetik.MAX_VARIATIONS));
             tokenCount++;
         }
         assertTrue(tokenCount > 0);

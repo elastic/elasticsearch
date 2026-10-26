@@ -23,7 +23,7 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRe
 
 tasks.named('javaRestTest').configure {
   // Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
-  def isSnapshotBuild = project.rootProject.extensions.getByName('buildParams').snapshotBuild
+  def isSnapshotBuild = buildParams.snapshotBuild
   it.onlyIf("snapshot build") { isSnapshotBuild }
   usesDefaultDistribution("OtelAuditLogsIT requires xpack security + audit (default distribution)")
 }

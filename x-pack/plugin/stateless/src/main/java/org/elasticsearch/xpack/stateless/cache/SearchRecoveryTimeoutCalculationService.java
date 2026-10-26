@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -69,6 +70,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile int maxConcurrentRelocationRecoveries;
+    private volatile int masterConcurrentIncomingRecoveries;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
@@ -94,6 +96,10 @@ public class SearchRecoveryTimeoutCalculationService {
             nodeSettings,
             maxHeap,
             limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentRelocationRecoveries()
+        );
+        clusterSettings.initializeAndWatch(
+            ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            value -> this.masterConcurrentIncomingRecoveries = value
         );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
@@ -198,10 +204,7 @@ public class SearchRecoveryTimeoutCalculationService {
                 );
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
-                return new SearchRecoveryTimeout(
-                    searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
-                );
+                return computeRelocationWithOtherNodeShutdownTimeout(state, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationTimeout,
@@ -250,6 +253,124 @@ public class SearchRecoveryTimeoutCalculationService {
         return node.numberOfShardsWithState(ShardRoutingState.STARTED);
     }
 
+    /// Returns the warming timeout for a shard relocating to `targetNodeId` from a source that is not shutting down, while other nodes are.
+    /// The goal is that this shard does not hold a relocation slot on the target that a shard of a shutting-down node needs.
+    ///
+    /// The demand of shutting-down nodes on the target is estimated pessimistically as the search shards already relocating to the target
+    /// from shutting-down nodes, plus every search shard still [ShardRoutingState#STARTED] on them, since the master throttles
+    /// relocations per target, so we cannot know where those will go.
+    ///
+    /// - When the target has free slots for all of that demand, nobody is held up and the regular relocation timeout applies.
+    /// - Otherwise this shard is one more participant next to the demand and the free slots are shared between them: with `P`
+    /// participants each can use `slots / P` of the earliest remaining grace deadline.
+    /// As in [#computeRelocationSourceShutdownWarmingTimeout], the share is the larger of the equal share (`1 / P`) and the fraction
+    /// of the warming cache budget this shard's data takes. The result never exceeds the regular relocation timeout.
+    ///
+    /// Like in the source shutting down case, taking the larger of the two shares per shard means the shares of all participants can add
+    /// up to more than the time available. They are upper bounds on the wait, and shards usually finish warming earlier.
+    private SearchRecoveryTimeout computeRelocationWithOtherNodeShutdownTimeout(
+        ClusterState state,
+        String targetNodeId,
+        long totalBytesToWarm
+    ) {
+        final var targetNode = state.getRoutingNodes().node(targetNodeId);
+        int incomingOnTarget = 0;
+        int relocatingFromShuttingDown = 0;
+        if (targetNode != null) {
+            final var nodeShutdowns = state.metadata().nodeShutdowns();
+            for (ShardRouting shard : targetNode.initializing()) {
+                incomingOnTarget++;
+                final String source = shard.relocatingNodeId();
+                if (source != null && shard.isPromotableToPrimary() == false && nodeShutdowns.isNodeMarkedForRemoval(source)) {
+                    relocatingFromShuttingDown++;
+                }
+            }
+        }
+        final long demand = (long) relocatingFromShuttingDown + countPendingSearchShardsOnShuttingDownNodes(state);
+        // everything on the target that is not from a shutting-down node, including this shard, holds a slot regardless
+        final long freeRecoverySlots = (long) effectiveIncomingSlots() - (incomingOnTarget - relocatingFromShuttingDown);
+        if (demand <= freeRecoverySlots) {
+            // we are below the demand, so we can treat this as if it were not a shutting-down node (longer timeout)
+            return new SearchRecoveryTimeout(
+                searchRecoveryWarmingRelocationTimeout,
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE
+            );
+        }
+        final long remaining = Math.max(0L, earliestGraceDeadline(state) - threadPool.absoluteTimeInMillis());
+        // the share never exceeds the time left until the earliest grace deadline, nor the regular relocation timeout
+        final long maxMs = Math.min(remaining, searchRecoveryWarmingRelocationTimeout.millis());
+        final long usableSlots = Math.max(1L, freeRecoverySlots);
+        final double equalShareMs = (remaining / (double) (demand + 1)) * usableSlots;
+
+        // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
+        final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
+        final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining * usableSlots : 0;
+
+        if (dataVolumeMs > equalShareMs) {
+            return new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(Math.round(Math.min(maxMs, dataVolumeMs))),
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME
+            );
+        } else {
+            return new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(Math.round(Math.min(maxMs, equalShareMs))),
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
+            );
+        }
+    }
+
+    /// The number of incoming recoveries a node accepts at once: the data node limit, which is unbounded unless configured, and the
+    /// master's per node limit, which is what bounds relocations to a node when the data node limit is not configured.
+    private int effectiveIncomingSlots() {
+        return Math.min(maxConcurrentRelocationRecoveries, masterConcurrentIncomingRecoveries);
+    }
+
+    private static long countPendingSearchShardsOnShuttingDownNodes(ClusterState state) {
+        final var nodeShutdowns = state.metadata().nodeShutdowns();
+        long count = 0;
+        for (String nodeId : nodeShutdowns.getAllNodeIds()) {
+            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
+                count += countPendingSearchShardsOnNode(state, nodeId);
+            }
+        }
+        return count;
+    }
+
+    /// Counts the search shards in [ShardRoutingState#STARTED] state on `nodeId`: those that have not begun relocating yet.
+    private static long countPendingSearchShardsOnNode(ClusterState state, String nodeId) {
+        final var node = state.getRoutingNodes().node(nodeId);
+        if (node == null) {
+            return 0;
+        }
+        long count = 0;
+        for (ShardRouting shard : node.started()) {
+            if (shard.isPromotableToPrimary() == false) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /// The earliest capped grace deadline of the nodes marked for removal that are still in the cluster.
+    private long earliestGraceDeadline(ClusterState state) {
+        final var nodeShutdowns = state.metadata().nodeShutdowns();
+        long earliest = Long.MAX_VALUE;
+        for (Map.Entry<String, SingleNodeShutdownMetadata> nodeEntry : nodeShutdowns.getAll().entrySet()) {
+            if (nodeShutdowns.isNodeMarkedForRemoval(nodeEntry.getKey()) && state.nodes().nodeExists(nodeEntry.getKey())) {
+                earliest = Math.min(earliest, graceDeadline(nodeEntry.getValue()));
+            }
+        }
+        return earliest;
+    }
+
+    private long graceDeadline(SingleNodeShutdownMetadata shutdown) {
+        TimeValue grace = shutdown.getGracePeriod();
+        if (grace == null) {
+            grace = searchRecoveryWarmingGracePeriodCap;
+        }
+        return shutdown.getStartedAtMillis() + Math.min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
+    }
+
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
             if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
@@ -287,13 +408,8 @@ public class SearchRecoveryTimeoutCalculationService {
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
-        TimeValue grace = shutdown.getGracePeriod();
-        if (grace == null) {
-            grace = searchRecoveryWarmingGracePeriodCap;
-        }
-        final long effectiveGraceMillis = Math.min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
         final long now = threadPool.absoluteTimeInMillis();
-        final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
+        final long deadline = graceDeadline(shutdown);
         final long remaining = deadline - now;
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);

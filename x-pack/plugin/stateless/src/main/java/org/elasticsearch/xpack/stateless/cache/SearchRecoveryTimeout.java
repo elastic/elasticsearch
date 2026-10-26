@@ -40,6 +40,15 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             "relocation source not shutting down, cluster shutdown metadata present",
             true
         ),
+        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE(
+            "relocation source not shutting down, cluster shutdown metadata present, enough free relocation slots on the target",
+            true
+        ),
+        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME(
+            "relocation source not shutting down, cluster shutdown metadata present (data volume proportional share of remaining time to "
+                + "earliest capped grace deadline)",
+            true
+        ),
         RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED("relocation source shutting down (grace period elapsed)", false),
         RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME(
             "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)",
@@ -72,7 +81,8 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
                 case RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME,
                     RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
                 case SKIP, NON_RELOCATION_ANOTHER_ACTIVE_COPY, RESHARD_SPLIT_TARGET,
-                    RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
+                    RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE,
+                    RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME,
                     RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT -> false;
             };
         }
@@ -98,9 +108,10 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             case RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT ->
                 previous.timeoutContext != TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
             // timed out or not applicable
-            case SKIP, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RESHARD_SPLIT_TARGET -> false;
+            case SKIP, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RESHARD_SPLIT_TARGET,
+                RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME -> true;
             case NON_RELOCATION_ANOTHER_ACTIVE_COPY, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
-                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
+                RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
         };
     }
 

@@ -186,18 +186,14 @@ public class SplitTargetService {
     /// where it already ran by not registering anything (and cancelling the machine ourselves to stop tracking the split).
     /// If we don't observe `CLOSED`, we can rely on `cancelSplits` running later and removing the entry.
     private boolean registerStateMachine(IndexShard indexShard, StateMachine stateMachine) {
-        boolean[] registered = new boolean[1];
-        onGoingSplits.compute(indexShard, (shard, existing) -> {
-            if (shard.state() == IndexShardState.CLOSED) {
-                return existing;
-            }
-            registered[0] = true;
-            return stateMachine;
-        });
-        if (registered[0] == false) {
+        boolean registered = onGoingSplits.compute(
+            indexShard,
+            (shard, existing) -> shard.state() == IndexShardState.CLOSED ? existing : stateMachine
+        ) == stateMachine;
+        if (registered == false) {
             stateMachine.cancel();
         }
-        return registered[0];
+        return registered;
     }
 
     public void acceptHandoff(IndexShard indexShard, TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> listener) {

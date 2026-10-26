@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
@@ -890,54 +889,6 @@ public class LuceneTests extends ESTestCase {
         SortField indexFieldMin = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
         SortField queryFieldMax = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
         assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldMax), new Sort(indexFieldMin)));
-    }
-
-    public void testBestEffortSizeInBytesStopsAtFirstValidValue() throws IOException {
-        int sentinelReads = randomIntBetween(0, 2);
-        long size = randomLongBetween(0, 1L << 40);
-        try (Directory dir = newDirectory()) {
-            ScriptedSizeCommitInfo info = scriptedSizeCommitInfo(dir, size, sentinelReads);
-            assertThat(Lucene.bestEffortSizeInBytes(info), equalTo(size));
-            assertThat(info.calls, equalTo(sentinelReads + 1));
-        }
-    }
-
-    public void testBestEffortSizeInBytesGivesUpAfterThreeAttempts() throws IOException {
-        try (Directory dir = newDirectory()) {
-            ScriptedSizeCommitInfo info = scriptedSizeCommitInfo(dir, randomLongBetween(0, 1L << 40), Integer.MAX_VALUE);
-            assertThat(Lucene.bestEffortSizeInBytes(info), equalTo(0L));
-            assertThat(info.calls, equalTo(3));
-        }
-    }
-
-    /**
-     * A {@link SegmentCommitInfo} whose {@link #sizeInBytes()} returns Lucene's {@code -1} sentinel {@code sentinelReads} times (simulating
-     * the race in https://github.com/apache/lucene/issues/16861) and then {@code size}. A real instance can't reproduce the race
-     * deterministically.
-     */
-    private static class ScriptedSizeCommitInfo extends SegmentCommitInfo {
-        private final long size;
-        private final int sentinelReads;
-        int calls;
-
-        ScriptedSizeCommitInfo(SegmentCommitInfo real, long size, int sentinelReads) {
-            super(real.info, 0, 0, -1, -1, -1, real.getId());
-            this.size = size;
-            this.sentinelReads = sentinelReads;
-        }
-
-        @Override
-        public long sizeInBytes() {
-            return ++calls > sentinelReads ? size : -1;
-        }
-    }
-
-    private static ScriptedSizeCommitInfo scriptedSizeCommitInfo(Directory dir, long size, int sentinelReads) throws IOException {
-        try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-        }
-        return new ScriptedSizeCommitInfo(Lucene.readSegmentInfos(dir).info(0), size, sentinelReads);
     }
 
     private static Object randomMissingValue(SortField.Type type) {

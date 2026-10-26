@@ -21,7 +21,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -730,20 +729,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
-            try {
-                return currentMerge.getMergeInfo() != null
-                    ? Lucene.bestEffortSizeInBytes(currentMerge.getMergeInfo())
-                    : currentMerge.estimatedMergeBytes;
-            } catch (IOException e) {
-                // For stateless only: It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to
-                // reaching this point. Once the IW creates the new segment, it could be exposed to be included in a new merge. That
-                // merge can be executed concurrently if more than 1 merge threads are configured. That new merge allows this IW to
-                // delete segment created by this merge. Although the files may still be available in the object store for executing
-                // searches, the IndexDirectory will no longer have references to the underlying segment files and will throw file not
-                // found if we try to read them. In this case, we will ignore that exception (which would otherwise fail the shard) and
-                // use the originally estimated merge size for metrics.
-                return currentMerge.estimatedMergeBytes;
+            // The merged segment's size is captured by SizeTrackingOneMerge when the merge commits, while the IndexWriter lock is held.
+            // It must not be read here: by now the segment is visible to the IndexWriter, which may be updating it concurrently, and (for
+            // stateless) it may even have been merged away so that its files are gone. In those cases, and for merges that were not
+            // wrapped, use the originally estimated merge size for metrics.
+            if (currentMerge instanceof SizeTrackingOneMerge sizeTrackingMerge) {
+                return sizeTrackingMerge.mergedSegmentSizeInBytes().orElse(currentMerge.estimatedMergeBytes);
             }
+            return currentMerge.estimatedMergeBytes;
         }
 
         @Override

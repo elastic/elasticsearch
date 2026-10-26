@@ -99,7 +99,7 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
             } else {
                 SegmentCommitInfo rightInfo = infos.get(right);
                 // smaller segment first
-                if (Lucene.bestEffortSizeInBytes(leftInfo) < Lucene.bestEffortSizeInBytes(rightInfo)) {
+                if (leftInfo.sizeInBytes() < rightInfo.sizeInBytes()) {
                     newInfos.add(leftInfo);
                     newInfos.add(rightInfo);
                 } else {

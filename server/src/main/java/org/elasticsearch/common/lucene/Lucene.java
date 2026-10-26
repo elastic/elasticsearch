@@ -153,30 +153,6 @@ public class Lucene {
     }
 
     /**
-     * Number of attempts {@link #bestEffortSizeInBytes} makes before giving up on getting a valid size.
-     */
-    private static final int SIZE_IN_BYTES_ATTEMPTS = 3;
-
-    /**
-     * A wrapper around {@link SegmentCommitInfo#sizeInBytes()} that never returns Lucene's internal {@code -1} sentinel.
-     * <p>
-     * Due to a race condition in Lucene, {@code sizeInBytes()} can return {@code -1} when the segment's generation is advanced
-     * concurrently (e.g. by a doc-values update or deletes being written). This retries a few times and falls back to {@code 0}
-     * if no valid value is observed.
-     *
-     * @see <a href="https://github.com/apache/lucene/issues/16861">Lucene bug #16861</a>
-     */
-    public static long bestEffortSizeInBytes(SegmentCommitInfo info) throws IOException {
-        for (int i = 0; i < SIZE_IN_BYTES_ATTEMPTS; i++) {
-            long size = info.sizeInBytes();
-            if (size != -1) {
-                return size;
-            }
-        }
-        return 0L;
-    }
-
-    /**
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {

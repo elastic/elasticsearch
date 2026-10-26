@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
@@ -428,10 +430,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-                    // whatever the data nodes managed to return, a cancelled query is not a (partial) success
-                    throw new TaskCancelledException(cancellableTask.getReasonCancelled());
-                }
+                failIfCancelled(task, result.inner());
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
@@ -599,6 +598,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
             includeExecutionMetadata
         );
+    }
+
+    /**
+     * Whatever the data nodes managed to return, a cancelled query is not a (partial) success. The pages are released here
+     * because the surrounding {@link ActionListener#wrap} catches the exception, so the release-on-failure path in
+     * {@code ComputeService} never sees it and no {@link EsqlQueryResponse} takes them over.
+     */
+    static void failIfCancelled(Task task, Result result) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+            Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
+            throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+        }
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {

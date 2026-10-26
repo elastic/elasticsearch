@@ -26,7 +26,7 @@ Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/User
 
 To follow this guide, you need:
 
-- An Elastic project or deployment with {{esql}} Data Federation available.
+- An {{ech}} deployment with {{esql}} Data Federation available. Federated identity is on by default on {{ech}}, except in some special environments such as AWS GovCloud.
 - An AWS account with permissions to create IAM OpenID Connect identity providers, roles, and policies.
 - An S3 bucket containing the file or files you want to query.
 
@@ -126,7 +126,7 @@ Note the role ARN that AWS returns. You enter it, along with the audience, in El
 ::::::{step} Grant the role read access
 Attach a permissions policy to the role that grants the minimum access {{es}} needs to read your data.
 
-The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` and `s3:GetBucketLocation` for prefix or glob queries:
+The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` for prefix or glob queries:
 
 ```json
 {
@@ -139,7 +139,7 @@ The following policy allows reading your objects with `s3:GetObject`, and listin
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::<bucket-name>" ] <2>
     }
   ]
@@ -215,6 +215,13 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
 :::
 
 ::::
+
+:::{note}
+If creating the data source fails with `federated authentication settings require the [<setting>] cluster setting to be enabled`, federated identity isn't available for your deployment. It isn't supported on self-managed, {{ece}}, or {{eck}} deployments, and it's off in some special {{ech}} environments such as AWS GovCloud. The error names one of these settings:
+
+- {applies_to}`stack: experimental 9.6+` `esql.external.federated_identity.enabled`
+- {applies_to}`stack: experimental =9.5` `esql.datasource.federated_identity.enabled`
+:::
 
 **Step 2.** **Create a dataset.** [Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 
@@ -301,7 +308,7 @@ POLICY_ARN=$(aws iam create-policy \
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::${BUCKET_NAME}" ]
     }
   ]

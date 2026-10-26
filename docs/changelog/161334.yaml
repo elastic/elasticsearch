@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 74111
+pr: 161334
+summary: Fix `docvalue_fields` on range fields
+type: bug

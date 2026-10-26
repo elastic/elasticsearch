@@ -220,6 +220,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         b.field("type", "match_only_text");
     }
 
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
+    }
+
     @Override
     protected void minimalStoreMapping(XContentBuilder b) throws IOException {
         // 'store' is always true

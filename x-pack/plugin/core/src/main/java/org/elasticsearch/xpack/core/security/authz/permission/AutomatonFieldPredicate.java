@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.List;
+import java.util.Set;
 
 /**
  * An implementation of {@link FieldPredicate} which matches fields
@@ -29,10 +31,12 @@ import java.util.Base64;
 class AutomatonFieldPredicate implements FieldPredicate {
     private final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AutomatonFieldPredicate.class);
 
+    private final List<FieldPermissionsDefinition> definitions;
     private final String automatonHash;
     private final CharacterRunAutomaton automaton;
 
-    AutomatonFieldPredicate(Automaton originalAutomaton, CharacterRunAutomaton automaton) {
+    AutomatonFieldPredicate(List<FieldPermissionsDefinition> definitions, Automaton originalAutomaton, CharacterRunAutomaton automaton) {
+        this.definitions = definitions;
         this.automatonHash = sha256(originalAutomaton);
         this.automaton = automaton;
     }
@@ -40,6 +44,13 @@ class AutomatonFieldPredicate implements FieldPredicate {
     @Override
     public boolean test(String field) {
         return automaton.run(field);
+    }
+
+    @Override
+    public FieldPredicate withFlattenedFields(Set<String> flattenedFields) {
+        return flattenedFields.isEmpty()
+            ? this
+            : new AutomatonFlattenedFieldPredicate(flattenedFields, FlattenedAutomaton.forIndex(definitions, flattenedFields));
     }
 
     @Override
@@ -52,7 +63,7 @@ class AutomatonFieldPredicate implements FieldPredicate {
         return SHALLOW_SIZE + RamUsageEstimator.sizeOf(automatonHash); // automaton itself is a shallow copy so not counted here
     }
 
-    private static String sha256(Automaton automaton) {
+    static String sha256(Automaton automaton) {
         MessageDigest messageDigest = MessageDigests.sha256();
         try {
             StreamOutput out = new OutputStreamStreamOutput(new DigestOutputStream(Streams.NULL_OUTPUT_STREAM, messageDigest));

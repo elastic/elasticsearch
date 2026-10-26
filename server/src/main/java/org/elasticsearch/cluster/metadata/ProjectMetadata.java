@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -750,9 +751,34 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return mappingMetadata;
         }
 
-        filterFields("", properties, fieldPredicate);
+        // A flattened field is listed when any key under it is visible and its mapped sub-fields follow the key rules, which the predicate
+        // can only apply once it knows the index's flattened fields. This extra walk only runs for callers with FLS, and over a map that
+        // was decompressed, parsed and is about to be walked again by the filter, so the decompression and parsing dominate it.
+        Set<String> flattenedFields = new HashSet<>();
+        collectFlattenedFields("", properties, flattenedFields);
+        Predicate<String> pathPredicate = fieldPredicate instanceof FieldPredicate predicate
+            ? predicate.withFlattenedFields(flattenedFields)
+            : fieldPredicate;
+        filterFields("", properties, pathPredicate);
 
         return new MappingMetadata(mappingMetadata.type(), sourceAsMap);
+    }
+
+    /** Adds the full path of every {@code flattened} field under {@code fields}, including those nested in objects and multi-fields. */
+    private static void collectFlattenedFields(String currentPath, Map<?, ?> fields, Set<String> flattenedFields) {
+        for (Map.Entry<?, ?> entry : fields.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> map) {
+                String path = mergePaths(currentPath, entry.getKey().toString());
+                if (FlattenedFieldMapper.CONTENT_TYPE.equals(map.get("type"))) {
+                    flattenedFields.add(path);
+                }
+                for (String children : List.of("properties", "fields")) {
+                    if (map.get(children) instanceof Map<?, ?> childFields) {
+                        collectFlattenedFields(path, childFields, flattenedFields);
+                    }
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -96,10 +96,12 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        Predicate<String> metadataFieldPredicate = (f) -> indexService.mapperService().isMetadataField(f);
-        Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
-
         MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
+        Predicate<String> metadataFieldPredicate = (f) -> indexService.mapperService().isMetadataField(f);
+        Predicate<String> fieldPredicate = metadataFieldPredicate.or(
+            indicesService.getFieldFilter().apply(shardId.getIndexName()).withFlattenedFields(mappingLookup.flattenedFields())
+        );
+
         Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingLookup, request);
         return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }

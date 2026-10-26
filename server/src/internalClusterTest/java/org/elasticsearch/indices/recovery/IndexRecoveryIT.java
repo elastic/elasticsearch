@@ -510,7 +510,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
                 phase1ReadyBlocked.countDown();
-                safeAwait(allowToCompletePhase1Latch);
+                // the node B restart and recovery can take longer than 10 seconds on very slow build hosts (like windows)
+                safeAwait(allowToCompletePhase1Latch, TimeValue.THIRTY_SECONDS);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -1080,7 +1081,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         MockTransportService.getInstance(nodeWithPrimary).addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
                 phase1ReadyBlocked.countDown();
-                safeAwait(allowToCompletePhase1Latch);
+                // the master restart and recovery can take longer than 10 seconds on very slow build hosts (like windows)
+                safeAwait(allowToCompletePhase1Latch, TimeValue.THIRTY_SECONDS);
             }
             connection.sendRequest(requestId, action, request, options);
         });

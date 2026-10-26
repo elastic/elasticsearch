@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -97,6 +98,33 @@ public record DriverCompletionInfo(
     public DriverCompletionInfo {
         capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
         warnings = warnings == null ? Set.of() : warnings;
+    }
+
+    /**
+     * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
+     * order (existing warnings first). Empty or null input returns {@code this}.
+     */
+    public DriverCompletionInfo withAdditionalWarnings(Collection<String> additional) {
+        if (additional == null || additional.isEmpty()) {
+            return this;
+        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>(warnings);
+        if (merged.addAll(additional) == false) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            cpuNanos,
+            driverProfiles,
+            planProfiles,
+            capturedSourceMetadata,
+            partial,
+            Collections.unmodifiableSet(merged)
+        );
     }
 
     /**

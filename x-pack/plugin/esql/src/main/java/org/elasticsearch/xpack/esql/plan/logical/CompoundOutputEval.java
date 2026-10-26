@@ -74,6 +74,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      */
     private final List<Attribute> outputFieldAttributes;
 
+    private List<Attribute> lazyOutput;
+
     /**
      * This constructor directly accepts the output fields. It should be used for deserialization, regeneration with new names,
      * child replacement, or other scenarios where the output fields are already known.
@@ -237,7 +239,10 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(generatedAttributes(), child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(generatedAttributes(), child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

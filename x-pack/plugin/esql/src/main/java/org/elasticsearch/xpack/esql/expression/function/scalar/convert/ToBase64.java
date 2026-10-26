@@ -16,6 +16,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 
-public class ToBase64 extends UnaryScalarFunction {
+public class ToBase64 extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBase64", ToBase64::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBase64.class).unary(ToBase64::new).name("to_base64");
 
@@ -91,12 +92,13 @@ public class ToBase64 extends UnaryScalarFunction {
     @Evaluator(warnExceptions = { ArithmeticException.class })
     static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch) {
         int outLength = Math.multiplyExact(4, (Math.addExact(field.length, 2) / 3));
-        byte[] bytes = new byte[field.length];
-        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(outLength);
         oScratch.clear();
-        int encodedSize = Base64.getEncoder().encode(bytes, oScratch.bytes());
-        return new BytesRef(oScratch.bytes(), 0, encodedSize);
+        try (BreakingBytesRefBuilder inScratch = oScratch.newChildOfSize(field.length)) {
+            System.arraycopy(field.bytes, field.offset, inScratch.bytes(), 0, field.length);
+            int encodedSize = Base64.getEncoder().encode(inScratch.bytes(), oScratch.bytes());
+            return new BytesRef(oScratch.bytes(), 0, encodedSize);
+        }
     }
 
     @Override

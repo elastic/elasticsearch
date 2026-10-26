@@ -377,22 +377,21 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(true))
         );
 
+        assertBusy(() -> {
+            var removeRefreshClusterBlockService = internalCluster().getCurrentMasterNodeInstance(RemoveRefreshClusterBlockService.class);
+            assertThat(removeRefreshClusterBlockService.blockedIndices(), equalTo(blockedIndices));
+        });
+
         if (randomBoolean()) {
+            // Refresh blocks live only in the in-memory cluster state and are never persisted. A newly elected master whose accepted
+            // state lagged the object store rebuilds cluster state from persisted metadata, which carries no refresh blocks, so the
+            // blocks may or may not survive this failover. Only their eventual removal is asserted below.
             startMasterAndIndexNode(nodeSettings);
             ensureStableCluster(2);
 
             internalCluster().stopNode(masterNode);
             ensureYellow("index-*");
-
-            blockedIndices.forEach(
-                index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(true))
-            );
         }
-
-        assertBusy(() -> {
-            var removeRefreshClusterBlockService = internalCluster().getCurrentMasterNodeInstance(RemoveRefreshClusterBlockService.class);
-            assertThat(removeRefreshClusterBlockService.blockedIndices(), equalTo(blockedIndices));
-        });
 
         updateClusterSettings(
             Settings.builder().put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueSeconds(1L))
@@ -403,8 +402,9 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             assertThat(removeRefreshClusterBlockService.blockedIndices(), hasSize(0));
         });
 
-        blockedIndices.forEach(
-            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(false))
+        awaitClusterState(
+            state -> blockedIndices.stream()
+                .noneMatch(index -> state.blocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK))
         );
     }
 

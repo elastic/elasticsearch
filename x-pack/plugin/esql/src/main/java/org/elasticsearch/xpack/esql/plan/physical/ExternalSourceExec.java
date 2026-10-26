@@ -104,9 +104,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> sourceMetadata;
     private final Integer estimatedRowSize;
     private final List<ExternalSplit> splits;
-    // Registered dataset identifier when this exec came from FROM <dataset>, null for inline
-    // EXTERNAL. Serialized so the data-node operator factory can populate _index with the
-    // user-facing dataset name without having to re-derive it from cluster state.
+    // Registered dataset identifier when this exec came from FROM <dataset>, null for inline EXTERNAL.
+    // The data node rebinds config and sourcePath from the definition this names before it builds a
+    // reader (DatasetConfigResolver), so a plan shipped over the wire never chooses its own storage
+    // credentials; a null name is refused there on release builds. Serialized also so the data-node
+    // operator factory can populate _index with the user-facing dataset name without having to
+    // re-derive it from cluster state.
     @Nullable
     private final String datasetName;
     // Declared read-instructions (renames, _id.path, per-column date formats), or DeclaredReadSpec.NONE. An execution input:
@@ -850,6 +853,35 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Returns a copy of this source reading {@code newSourcePath} with {@code newConfig}. Applied on the executing node by
+     * {@code DatasetConfigResolver}, which replaces both with the registered dataset's definition so the plan carried over
+     * the wire decides neither what is read nor with which credentials. Both are execution inputs that flow through
+     * {@link #info()}, so a node-reflection rebuild keeps the rebound values.
+     */
+    public ExternalSourceExec withSourcePathAndConfig(String newSourcePath, Map<String, Object> newConfig) {
+        return new ExternalSourceExec(
+            source(),
+            newSourcePath,
+            sourceType,
+            attributes,
+            newConfig,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec
+        );
+    }
+
+    /**
      * The declared read-instructions (renames, {@code _id.path}), or {@link DeclaredReadSpec#NONE}. Consumed on the data
      * node by {@code FileSourceFactory} (physicalization) and the pushdown rules; see the field Javadoc.
      */
@@ -923,9 +955,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and
-        // it feeds the per-row _index value; excluding it would silently null _index whenever a
-        // generic rule reconstructs this node via node reflection. Mirrors ExternalRelation#info.
+        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it), the executing
+        // node rebinds config and sourcePath from the definition it names (DatasetConfigResolver), and it
+        // feeds the per-row _index value; excluding it would silently null _index and drop the rebind
+        // whenever a generic rule reconstructs this node via node reflection. Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute
         // rewriting cannot prune it) and holds the declared renames / _id.path; the renames used
         // to ride the reflected `config` map, so dropping them on a generic reflection rebuild

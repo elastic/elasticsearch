@@ -42,6 +42,8 @@ public class HighlightExec extends UnaryExec {
     private final MapExpression options;
     private final List<Attribute> generatedFields;
 
+    private List<Attribute> lazyOutput;
+
     public HighlightExec(
         Source source,
         PhysicalPlan child,
@@ -110,7 +112,10 @@ public class HighlightExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(generatedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(generatedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

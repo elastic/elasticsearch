@@ -18,9 +18,11 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -41,11 +43,12 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
     /**
      * Creates a parser for the {@code rate_limit} object. When {@code requests_per_minute} is not supplied (for example an explicitly
-     * empty {@code "rate_limit": {}} object), the parser returns {@code defaultValue} rather than {@code null}, so callers that store the
-     * parsed result do not have to treat an explicitly-provided rate limit object as a {@code null} value.
+     * empty {@code "rate_limit": {}} object) or is explicitly {@code null}, the parser returns {@code defaultValue} rather than
+     * {@code null}, so callers that store the parsed result do not have to treat an explicitly-provided rate limit object as a
+     * {@code null} value.
      *
      * @param ignoreUnknownFields whether unknown fields within the rate limit object are tolerated
-     * @param defaultValue the value to return when {@code requests_per_minute} is absent; may be {@code null}
+     * @param defaultValue the value to return when {@code requests_per_minute} is absent or {@code null}; may be {@code null}
      */
     public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(
         boolean ignoreUnknownFields,
@@ -59,7 +62,13 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
                 return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : defaultValue;
             }
         );
-        parser.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));
+
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.longValue(),
+            new ParseField(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD),
+            ObjectParser.ValueType.LONG_OR_NULL
+        );
         return parser;
     }
 

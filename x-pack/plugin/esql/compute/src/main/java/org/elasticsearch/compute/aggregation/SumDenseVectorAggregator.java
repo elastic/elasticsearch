@@ -21,6 +21,9 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Aggregator for summing dense vectors element-wise.
  * All vectors must have the same dimensions.
  *
+ * <p>Sums are accumulated as doubles and rounded to floats only when emitted. A float running sum
+ * stops absorbing small values once it gets large (at 2^24, adding 1 is lost entirely).</p>
+ *
  * <p>This uses the block-only aggregation path where the combine method receives
  * the entire FloatBlock and a position, rather than individual float values.
  */
@@ -114,7 +117,7 @@ class SumDenseVectorAggregator {
      * State for non-grouping aggregation.
      */
     static class SingleState implements AggregatorState {
-        private float[] sum;
+        private double[] sum;
         private boolean seen = false;
         private boolean failed = false;
         private int dimensions = -1;
@@ -125,7 +128,7 @@ class SumDenseVectorAggregator {
             }
             if (sum == null) {
                 dimensions = valueCount;
-                sum = new float[dimensions];
+                sum = new double[dimensions];
             }
             if (valueCount != dimensions) {
                 throw new IllegalArgumentException(
@@ -134,8 +137,11 @@ class SumDenseVectorAggregator {
             }
             for (int i = 0; i < dimensions; i++) {
                 sum[i] += block.getFloat(start + i);
-                if (Float.isFinite(sum[i]) == false) {
-                    throw new ArithmeticException("not a finite float number: " + sum[i]);
+                // The double can hold totals past Float.MAX_VALUE, but the result is emitted as a float,
+                // so fail as soon as the total would no longer fit in one.
+                float result = (float) sum[i];
+                if (Float.isFinite(result) == false) {
+                    throw new ArithmeticException("not a finite float number: " + result);
                 }
             }
             seen = true;
@@ -145,15 +151,15 @@ class SumDenseVectorAggregator {
             if (seen == false || failed || sum == null) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
-            for (float f : sum) {
-                if (Float.isFinite(f) == false) {
+            for (double d : sum) {
+                if (Float.isFinite((float) d) == false) {
                     return driverContext.blockFactory().newConstantNullBlock(1);
                 }
             }
             try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(sum.length)) {
                 builder.beginPositionEntry();
-                for (float f : sum) {
-                    builder.appendFloat(f);
+                for (double d : sum) {
+                    builder.appendFloat((float) d);
                 }
                 builder.endPositionEntry();
                 return builder.build();

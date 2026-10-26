@@ -62,6 +62,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -905,7 +906,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             calibratedSpec,
             false,
             calibratedSpec.getQueries(),
-            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true),
+            new KnnEvalFieldType(VectorIndexType.BBQ_DISK, 3.0f, true),
             Map.of()
         ).buildResponse();
         assertFalse(calibratedResponse.getBaseline().rescoreWindowCapped());
@@ -923,7 +924,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             explicitSpec,
             false,
             explicitSpec.getQueries(),
-            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true),
+            new KnnEvalFieldType(VectorIndexType.BBQ_DISK, 3.0f, true),
             Map.of()
         ).buildResponse().getResults().get(0).knnSettings();
         assertTrue(explicit.rescoreWindowCapped());
@@ -931,12 +932,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     public void testBaselineVectorOpsKindFollowsIndexType() {
         KnnEvalSpec spec = specWithBaseline(new KnnEvalSettings(null, 100, null, false));
-        for (KnnEvalRescore.IndexType type : KnnEvalRescore.IndexType.values()) {
-            String kind = new KnnEvalState(spec, false, spec.getQueries(), new KnnEvalRescore(type, null, false), Map.of()).buildResponse()
+        for (VectorIndexType type : KnnEvalFieldType.SUPPORTED) {
+            String kind = new KnnEvalState(spec, false, spec.getQueries(), new KnnEvalFieldType(type, null, false), Map.of())
+                .buildResponse()
                 .getBaselineVectorOpsKind();
             assertEquals(
                 type.name(),
-                type == KnnEvalRescore.IndexType.HNSW ? KnnEvalResponse.FULL_PRECISION_VISIT : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
+                type == VectorIndexType.HNSW ? KnnEvalResponse.FULL_PRECISION_VISIT : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
                 kind
             );
         }
@@ -1369,14 +1371,14 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         ProjectMetadata built = project.build();
         Set<String> requested = new HashSet<>(expected.keySet());
         requested.add("not-in-project");
-        KnnEvalRescore graph = new KnnEvalRescore(
-            KnnEvalRescore.IndexType.valueOf(randomFrom("HNSW", "INT8_HNSW", "INT4_HNSW", "BBQ_HNSW")),
+        KnnEvalFieldType graph = new KnnEvalFieldType(
+            randomFrom(VectorIndexType.HNSW, VectorIndexType.INT8_HNSW, VectorIndexType.INT4_HNSW, VectorIndexType.BBQ_HNSW),
             null,
             false
         );
         assertEquals(expected, TransportKnnEvalAction.indexInfo(graph, built, requested));
 
-        KnnEvalRescore disk = new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, null, false);
+        KnnEvalFieldType disk = new KnnEvalFieldType(VectorIndexType.BBQ_DISK, null, false);
         assertEquals(Map.of(), TransportKnnEvalAction.indexInfo(disk, built, requested));
     }
 }

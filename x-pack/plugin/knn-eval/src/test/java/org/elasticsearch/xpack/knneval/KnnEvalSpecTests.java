@@ -144,7 +144,7 @@ public class KnnEvalSpecTests extends ESTestCase {
                 }
             }
             case 4 -> {
-                if (baseline.isExact()) {
+                if (baseline != null && baseline.isExact()) {
                     // exact can't drop the opt-in
                     k = k + 1;
                 } else {
@@ -366,8 +366,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                 }""".replace("%s", baseline);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 KnnEvalSpec spec = KnnEvalSpec.parse(parser);
-                assertTrue(spec.hasDefaultBaseline());
-                assertFalse(spec.getBaseline().isExact());
+                assertNull(spec.getBaseline());
+                assertFalse(spec.hasExactBaseline());
             }
         }
     }

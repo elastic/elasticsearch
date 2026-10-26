@@ -105,7 +105,7 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
 
         assertThat(response.getFailures(), anEmptyMap());
         // a sampled query also retrieves its own document, so the beam is one short of the limit
-        assertEquals(Integer.valueOf(KnnEvalRescore.MAX_NUM_CANDIDATES - 1), response.getBaseline().knnSettings().getNumCandidates());
+        assertEquals(Integer.valueOf(KnnEvalFieldType.MAX_NUM_CANDIDATES - 1), response.getBaseline().knnSettings().getNumCandidates());
         assertEquals(quantized ? Float.valueOf(100.0f) : null, response.getBaseline().knnSettings().getRescoreOversample());
         assertFalse(response.getBaseline().knnSettings().isExact());
         assertEquals(Map.of(INDEX, new KnnEvalResponse.IndexInfo(earlyTermination)), response.getIndexInfo());

@@ -2897,6 +2897,10 @@ public class EsqlCapabilities {
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
         /**
+         * Dense_vector aggregation functions applied over timeseries.
+         */
+        DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS,
+        /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
          */
         ROUTING_FUNCTION_UPDATE,

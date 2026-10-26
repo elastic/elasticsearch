@@ -29,9 +29,11 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -51,6 +53,8 @@ import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.KeyFilteredSlots;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -152,6 +156,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     /** List of filtered fields */
     private final FieldInfos fieldInfos;
+    /**
+     * The keyed values of the {@code _unmapped} field, one slot for each value of an unmapped field, and their slot counts. The field is
+     * always granted, as every field whose name starts with {@code _} is, so the unmapped fields it holds are filtered on their own name.
+     */
+    private static final String UNMAPPED_SINK_KEYED = FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+    private static final String UNMAPPED_SINK_COUNTS = UNMAPPED_SINK_KEYED
+        + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
@@ -399,7 +411,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
             return null;
         }
-        return super.getNumericDocValues(field);
+        NumericDocValues dv = super.getNumericDocValues(field);
+        if (dv != null && UNMAPPED_SINK_COUNTS.equals(field)) {
+            BinaryDocValues slots = super.getBinaryDocValues(UNMAPPED_SINK_KEYED);
+            return slots == null ? dv : new GrantedUnmappedFieldCounts(new GrantedUnmappedFields(slots, dv, filter));
+        }
+        return dv;
     }
 
     @Override
@@ -411,6 +428,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         BinaryDocValues dv = super.getBinaryDocValues(field);
         if (isIgnoredSourceDocValues(dv, field)) {
             return new FilteredIgnoredSourceDocValues(in, dv, ignoredSourceFormat, filter);
+        }
+        if (dv != null && UNMAPPED_SINK_KEYED.equals(field)) {
+            NumericDocValues counts = super.getNumericDocValues(UNMAPPED_SINK_COUNTS);
+            return counts == null ? dv : new GrantedUnmappedFieldSlots(new GrantedUnmappedFields(dv, counts, filter));
         }
         return dv;
     }
@@ -451,6 +472,161 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
+    }
+
+    /**
+     * The slots of the {@code _unmapped} field for one document at a time, keeping only those of the unmapped fields that
+     * {@code filter} grants. Each slot is {@code [valueLength+1]key\0value}, or {@code [0]key\0} for a null, and is kept as it is,
+     * so the granted slots read like the slots of a document that only held those fields.
+     */
+    private static final class GrantedUnmappedFields {
+        private final BinaryDocValues slots;
+        private final NumericDocValues counts;
+        private final CharacterRunAutomaton filter;
+        private final MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader reader =
+            new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
+        private final BytesRefBuilder granted = new BytesRefBuilder();
+        private int grantedCount;
+
+        GrantedUnmappedFields(BinaryDocValues slots, NumericDocValues counts, CharacterRunAutomaton filter) {
+            this.slots = slots;
+            this.counts = counts;
+            this.filter = filter;
+        }
+
+        /** Reads the slots of {@code doc}, and returns whether any is granted. */
+        boolean advanceExact(int doc) throws IOException {
+            granted.clear();
+            grantedCount = 0;
+            if (counts.advanceExact(doc) == false || slots.advanceExact(doc) == false) {
+                return false;
+            }
+            BytesRef blob = slots.binaryValue();
+            reader.reset(blob, Math.toIntExact(counts.longValue()));
+            while (reader.next()) {
+                if (filter.run(reader.key())) {
+                    granted.append(blob.bytes, reader.slotStart(), reader.slotEnd() - reader.slotStart());
+                    grantedCount++;
+                }
+            }
+            return grantedCount > 0;
+        }
+
+        /** Advances to the first document from {@code doc} on that has a granted slot. */
+        int advanceFrom(int doc) throws IOException {
+            while (doc != DocIdSetIterator.NO_MORE_DOCS && advanceExact(doc) == false) {
+                doc = slots.nextDoc();
+            }
+            return doc;
+        }
+    }
+
+    /**
+     * The binary doc values of the {@code _unmapped} field, holding only the slots of the granted unmapped fields. The synthetic
+     * source loader of the field reads the slots as they are stored instead, and skips those of the other fields as it decodes them.
+     */
+    private static final class GrantedUnmappedFieldSlots extends BinaryDocValues implements KeyFilteredSlots {
+        private final GrantedUnmappedFields fields;
+        private int doc = -1;
+
+        GrantedUnmappedFieldSlots(GrantedUnmappedFields fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public boolean advanceExactStored(int target) throws IOException {
+            doc = target;
+            fields.granted.clear();
+            fields.grantedCount = 0;
+            return fields.counts.advanceExact(target) && fields.slots.advanceExact(target);
+        }
+
+        @Override
+        public BytesRef storedSlots() throws IOException {
+            return fields.slots.binaryValue();
+        }
+
+        @Override
+        public int storedSlotCount() throws IOException {
+            return Math.toIntExact(fields.counts.longValue());
+        }
+
+        @Override
+        public boolean grants(String key) {
+            return fields.filter.run(key);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return fields.granted.get();
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            doc = target;
+            return fields.advanceExact(target);
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return doc = fields.advanceFrom(fields.slots.nextDoc());
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return doc = fields.advanceFrom(fields.slots.advance(target));
+        }
+
+        @Override
+        public long cost() {
+            return fields.slots.cost();
+        }
+    }
+
+    /** The {@code .counts} companion of the {@code _unmapped} field, counting only the slots of the granted unmapped fields. */
+    private static final class GrantedUnmappedFieldCounts extends NumericDocValues {
+        private final GrantedUnmappedFields fields;
+        private int doc = -1;
+
+        GrantedUnmappedFieldCounts(GrantedUnmappedFields fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public long longValue() {
+            return fields.grantedCount;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            doc = target;
+            return fields.advanceExact(target);
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return doc = fields.advanceFrom(fields.slots.nextDoc());
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return doc = fields.advanceFrom(fields.slots.advance(target));
+        }
+
+        @Override
+        public long cost() {
+            return fields.counts.cost();
+        }
     }
 
     /**

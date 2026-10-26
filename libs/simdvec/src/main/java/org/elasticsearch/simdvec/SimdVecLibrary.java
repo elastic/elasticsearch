@@ -243,7 +243,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri7u")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int squareDistanceI7u(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
@@ -251,7 +251,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri7u_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceI7uBulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,

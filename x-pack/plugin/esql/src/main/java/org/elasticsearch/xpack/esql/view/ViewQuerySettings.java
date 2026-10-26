@@ -54,16 +54,6 @@ public record ViewQuerySettings(
     /** The settings of a view whose definition has no {@code SET} statements on a cluster with no defaults configured. */
     public static final ViewQuerySettings DEFAULTS = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, false, Set.of());
 
-    /** The settings of a view whose definition has no {@code SET} statements: the cluster defaults, where configured. */
-    public static ViewQuerySettings clusterDefaults(Settings clusterState, Settings nodeSettings) {
-        return new ViewQuerySettings(
-            QuerySettings.UNMAPPED_FIELDS.effectiveDefault(clusterState, nodeSettings),
-            QuerySettings.WILDCARDS_MATCH_VIEWS.effectiveDefault(clusterState, nodeSettings),
-            QuerySettings.WILDCARDS_MATCH_DATASETS.effectiveDefault(clusterState, nodeSettings),
-            Set.of()
-        );
-    }
-
     /** The settings a view definition may {@code SET} — the ones scoped at view boundaries for callers. */
     public static final List<QuerySettingDef<?>> SETTINGS = List.of(
         QuerySettings.UNMAPPED_FIELDS,
@@ -88,23 +78,29 @@ public record ViewQuerySettings(
     }
 
     /**
-     * Reads the view-scoped settings from a parsed view definition, taking {@code defaults} for those it does not {@code SET}.
-     * Call {@link #validate} first; this assumes the statement carries only allowed settings.
+     * Resolves the view-scoped settings of a parsed view definition with the same fold as a query's settings, minus the
+     * request body, which belongs to the caller: the cluster defaults in {@code clusterState} and {@code nodeSettings},
+     * then the definition's {@code SET}. Call {@link #validate} first; this assumes the statement carries only allowed settings.
      */
-    public static ViewQuerySettings from(EsqlStatement statement, ViewQuerySettings defaults) {
+    public static ViewQuerySettings from(EsqlStatement statement, Settings clusterState, Settings nodeSettings) {
         Set<String> supplied = statement.settings() == null
             ? Set.of()
             : statement.settings().stream().map(QuerySetting::name).collect(toUnmodifiableSet());
+        // Snapshot is forced on, as in validate, which has already applied the snapshot gate to the definition.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            SETTINGS,
+            clusterState,
+            nodeSettings,
+            Map.of(),
+            statement,
+            new SettingsValidationContext(false, true)
+        );
         return new ViewQuerySettings(
-            setOr(statement, QuerySettings.UNMAPPED_FIELDS, defaults.unmappedFields()),
-            setOr(statement, QuerySettings.WILDCARDS_MATCH_VIEWS, defaults.wildcardsMatchViews()),
-            setOr(statement, QuerySettings.WILDCARDS_MATCH_DATASETS, defaults.wildcardsMatchDatasets()),
+            QuerySettings.UNMAPPED_FIELDS.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             supplied
         );
-    }
-
-    private static <T> T setOr(EsqlStatement statement, QuerySettingDef<T> def, T defaultValue) {
-        return statement.setting(def.name()) == null ? defaultValue : statement.setting(def);
     }
 
     /**

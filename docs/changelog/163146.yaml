@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 163146
-summary: Test that cluster settings for view-blocked settings are also blocked
+summary: Apply query-setting cluster defaults inside view bodies
 type: bug

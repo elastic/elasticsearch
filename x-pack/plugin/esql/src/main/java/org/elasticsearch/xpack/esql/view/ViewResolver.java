@@ -188,15 +188,14 @@ public class ViewResolver {
     }
 
     /**
-     * The view-scoped settings of a view body whose definition does not {@code SET} them: the cluster defaults, so that an
-     * operator's default applies inside views as it does in queries. Subclasses may override this to supply them from a
-     * different source (e.g. in-memory test infrastructure).
+     * The view-scoped settings of a view body, resolved over the cluster defaults so that an operator's default applies
+     * inside views as it does in queries.
      */
-    protected ViewQuerySettings viewSettingDefaults() {
+    private ViewQuerySettings viewQuerySettings(EsqlStatement statement) {
         if (clusterService == null) {
-            return ViewQuerySettings.DEFAULTS;
+            return ViewQuerySettings.from(statement, Settings.EMPTY, Settings.EMPTY);
         }
-        return ViewQuerySettings.clusterDefaults(clusterService.state().metadata().settings(), clusterService.getSettings());
+        return ViewQuerySettings.from(statement, clusterService.state().metadata().settings(), clusterService.getSettings());
     }
 
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
@@ -1510,7 +1509,7 @@ public class ViewResolver {
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         EsqlStatement statement = parser.apply(view.query(), view.name());
-        ViewQuerySettings settings = ViewQuerySettings.from(statement, viewSettingDefaults());
+        ViewQuerySettings settings = viewQuerySettings(statement);
         viewSettings.put(view.name(), settings);
         // A view whose own SETs must stop at ITS boundary (a body-scoped unmapped_fields or dataset-wildcard
         // setting) keeps its identity like a caller-side setting would make it: the analyzer and the dataset

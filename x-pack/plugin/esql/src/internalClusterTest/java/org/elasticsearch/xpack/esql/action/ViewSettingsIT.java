@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -457,7 +458,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             FROM wcv_* | WHERE id > 0 | KEEP id
             """));
         String key = "esql.query.settings.wildcards_match_views";
-        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, true));
+        updateClusterSettings(Settings.builder().put(key, true));
         try {
             // The cluster default applies to the caller's own wildcard: the index and the matched view.
             try (var resp = run("FROM wcv_* | KEEP id | SORT id")) {
@@ -478,7 +479,51 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             // The caller and the view body agree, so no boundary stopped anything and nothing is reported.
             assertThat(warningHeaders("FROM body_view"), not(hasItem(containsString("does not affect the contents of view"))));
         } finally {
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+            updateClusterSettings(Settings.builder().putNull(key));
+        }
+    }
+
+    /**
+     * A cluster default of {@code wildcards_match_views=true} lets a view body's wildcard match the view itself, which is a
+     * circular reference, as it is when the definition {@code SET}s the flag. A definition that excludes itself from its
+     * wildcard, or {@code SET}s the flag off, is unaffected.
+     */
+    public void testClusterDefaultOfWildcardsMatchViewsMakesSelfMatchingViewCircular() throws Exception {
+        setupWildcardViewsData();
+        assertAcked(createView("wcv_self", "FROM wcv_* | WHERE id > 0 | KEEP id"));
+        assertAcked(createView("wcv_self_set", """
+            SET wildcards_match_views=true;
+            FROM wcv_data, wcv_self_s* | WHERE id > 0 | KEEP id
+            """));
+        assertAcked(createView("wcv_excluding", "FROM wcv_data, wcv_l*, wcv_e*, -wcv_excluding | WHERE id > 0 | KEEP id"));
+        assertAcked(createView("wcv_opted_out", """
+            SET wildcards_match_views=false;
+            FROM wcv_d*, wcv_o* | WHERE id > 0 | KEEP id
+            """));
+        // Without the cluster default, only the view that SETs the flag matches itself.
+        try (var resp = run("FROM wcv_self | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+        }
+        expectThrows(VerificationException.class, containsString("circular view reference 'wcv_self_set'"), () -> {
+            run("FROM wcv_self_set").close();
+        });
+        String key = "esql.query.settings.wildcards_match_views";
+        updateClusterSettings(Settings.builder().put(key, true));
+        try {
+            // The body also matches wcv_self_set, itself circular, so either view may be the one reported.
+            expectThrows(
+                VerificationException.class,
+                containsString("circular view reference 'wcv_self"),
+                () -> { run("FROM wcv_self").close(); }
+            );
+            try (var resp = run("FROM wcv_excluding | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            try (var resp = run("FROM wcv_opted_out | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(key));
         }
     }
 
@@ -580,7 +625,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         setupUnmappedIndices();
         assertAcked(createView("plain_view", "FROM view_source | KEEP id, extra"));
         String key = "esql.query.settings.unmapped_fields";
-        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "nullify"));
+        updateClusterSettings(Settings.builder().put(key, "nullify"));
         try {
             try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
@@ -596,7 +641,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
             }
 
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "load"));
+            updateClusterSettings(Settings.builder().put(key, "load"));
             try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
             }
@@ -611,7 +656,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
             }
         } finally {
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+            updateClusterSettings(Settings.builder().putNull(key));
         }
     }
 
@@ -632,7 +677,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         assertThat(firstValue("SET time_zone=\"-05:00\"; FROM tz_view"), equalTo(minusFive));
 
         String key = "esql.query.settings.time_zone";
-        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "-05:00"));
+        updateClusterSettings(Settings.builder().put(key, "-05:00"));
         try {
             // The cluster default reaches inside the view exactly as the caller's SET does, also nested and next to an index.
             assertAcked(createView("tz_outer_view", "FROM tz_view"));
@@ -645,7 +690,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             // And the caller's SET still beats it, inside the view too.
             assertThat(firstValue("SET time_zone=\"Z\"; FROM tz_view"), equalTo(utc));
         } finally {
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+            updateClusterSettings(Settings.builder().putNull(key));
         }
     }
 
@@ -661,11 +706,11 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             viaSet = resp.approximationApplied();
         }
         String key = "esql.query.settings.approximation";
-        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "true"));
+        updateClusterSettings(Settings.builder().put(key, "true"));
         try (var resp = run("FROM approx_view")) {
             assertThat(resp.approximationApplied(), equalTo(viaSet));
         } finally {
-            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+            updateClusterSettings(Settings.builder().putNull(key));
         }
         assertThat("SET approximation applies to a query over a view", viaSet, org.hamcrest.Matchers.notNullValue());
     }

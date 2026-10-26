@@ -225,9 +225,9 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
 
     @Override
     protected void doClose() throws IOException {
-        // IndicesService closes before plugin components. By then every shard on this node was CLOSED, either while
-        // stopping IndicesService or by an earlier cluster state. `removeHollowShard` runs on the generic thread and
-        // may still be delayed. Release any remaining blockers.
+        // IndicesService closes before plugin components. By then every shard on this node is CLOSED, either while stopping
+        // IndicesService or by an earlier cluster state. In the latter case the engine may still be closing asynchronously, so
+        // afterIndexShardClosed (which removes the ingestion blocker) may not have run yet. Release any remaining blockers.
         assert indicesService.lifecycleState() == Lifecycle.State.CLOSED
             : "indices service must be closed before the hollow shards service but was " + indicesService.lifecycleState();
         hollowShards.keySet().forEach(shardId -> removeHollowShard(shardId, "hollow shards service closed", () -> {}));

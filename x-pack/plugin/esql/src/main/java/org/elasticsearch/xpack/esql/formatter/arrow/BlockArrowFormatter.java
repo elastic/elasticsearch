@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -674,6 +675,63 @@ public abstract class BlockArrowFormatter {
                     out.writeDoubleLE(block.getDouble(valueIndex));
                 }
             }
+        }
+    }
+
+    /**
+     * Keeps aggregate summaries columnar while preserving independently absent metrics as nullable struct children.
+     */
+    public static class AsAggregateMetricDouble extends BlockArrowFormatter {
+        private static final AsFloat64 DOUBLE_FORMATTER = new AsFloat64(DataType.DOUBLE);
+        private static final AsInt32 COUNT_FORMATTER = new AsInt32(DataType.INTEGER);
+
+        public AsAggregateMetricDouble(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            var doubleType = FieldType.nullable(Types.MinorType.FLOAT8.getType());
+            var countType = FieldType.nullable(Types.MinorType.INT.getType());
+            return new Field(
+                name,
+                super.arrowField(name).getFieldType(),
+                List.of(
+                    new Field("min", doubleType, null),
+                    new Field("max", doubleType, null),
+                    new Field("sum", doubleType, null),
+                    new Field("value_count", countType, null)
+                )
+            );
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            assert multivalued == false : "aggregate_metric_double summaries are single-valued";
+            super.addFieldNodes(block, false, nodes);
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            // The parent's total value count sums its children; every Arrow child has one slot per result row.
+            for (Block child : List.of(aggregate.minBlock(), aggregate.maxBlock(), aggregate.sumBlock(), aggregate.countBlock())) {
+                nodes.add(new ArrowFieldNode(child.getPositionCount(), nullValuesCount(child)));
+            }
+        }
+
+        @Override
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            assert multivalued == false : "aggregate_metric_double summaries are single-valued";
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            accumulateVectorValidity(bufs, bufWriters, block, false);
+            // Child accessors on ConstantNullBlock return the null block itself, which primitive formatters also accept.
+            DOUBLE_FORMATTER.convert(aggregate.minBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.maxBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.sumBlock(), false, bufs, bufWriters, releasables);
+            COUNT_FORMATTER.convert(aggregate.countBlock(), false, bufs, bufWriters, releasables);
         }
     }
 

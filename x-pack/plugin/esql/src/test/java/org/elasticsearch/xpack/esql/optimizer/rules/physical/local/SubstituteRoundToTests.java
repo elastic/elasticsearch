@@ -39,9 +39,12 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
@@ -287,6 +290,93 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
             assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+        }
+    }
+
+    public void testDateTruncTransformToQueryAndTagsWithKeyCount() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        PhysicalPlan countOnly = plannerOptimizer.plan("""
+            from test
+            | eval x = date_trunc(1 day, date)
+            | stats c = count(*) by x
+            """, searchStats, analyzer);
+        EsStatsQueryExec countOnlyStats = (EsStatsQueryExec) countOnly.collectFirstChildren(EsStatsQueryExec.class::isInstance).getFirst();
+
+        for (boolean keyCountFirst : new boolean[] { false, true }) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | eval x = date_trunc(1 day, date)
+                | stats {} by x
+                """, keyCountFirst ? "k = count(x), c = count(*)" : "c = count(*), k = count(x)");
+
+            ExchangeExec exchange = validatePlanBeforeExchange(
+                query,
+                DataType.DATETIME,
+                keyCountFirst ? List.of("k", "c") : List.of("c", "k")
+            );
+            ProjectExec project = as(exchange.child(), ProjectExec.class);
+            EvalExec eval = as(project.child(), EvalExec.class);
+            FilterExec filter = as(eval.child(), FilterExec.class);
+            EsStatsQueryExec stats = as(filter.child(), EsStatsQueryExec.class);
+            assertThat(stats.stat(), equalTo(countOnlyStats.stat()));
+
+            Attribute key = stats.output().get(0);
+            Attribute count = stats.output().get(1);
+            Attribute seen = stats.output().get(2);
+            assertThat(eval.fields(), hasSize(2));
+            Case keyCount = as(eval.fields().get(0).child(), Case.class);
+            assertThat(as(keyCount.children().get(0), IsNull.class).field(), equalTo(key));
+            assertThat(as(keyCount.children().get(1), Literal.class).value(), equalTo(0L));
+            assertThat(keyCount.children().get(2), equalTo(count));
+            assertThat(eval.fields().get(1).child(), equalTo(seen));
+
+            Attribute keyCountState = eval.fields().get(0).toAttribute();
+            Attribute keySeenState = eval.fields().get(1).toAttribute();
+            List<Attribute> expectedOutput = keyCountFirst
+                ? List.of(key, keyCountState, keySeenState, count, seen)
+                : List.of(key, count, seen, keyCountState, keySeenState);
+            assertThat(project.output().stream().map(Attribute::id).toList(), equalTo(expectedOutput.stream().map(Attribute::id).toList()));
+        }
+    }
+
+    public void testDateTruncTransformToQueryAndTagsWithOtherCountNotPushed() {
+        for (String aggregates : List.of("c = count(*), k = count(long)", "c = count(*), k = count(x) where long > 10")) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | eval x = date_trunc(1 day, date)
+                | stats {} by x
+                """, aggregates);
+
+            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+        }
+    }
+
+    public void testInlineStatsWithFilterOnCountTransformToQueryAndTags() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | inline stats c = count(*) by x = {}
+                | where c > 10
+                """, dateHistogram);
+
+            PhysicalPlan plan = plannerOptimizer.planFirstInlineSubPlan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            AggregateExec finalAgg = (AggregateExec) plan.collectFirstChildren(
+                p -> p instanceof AggregateExec agg && agg.getMode() == FINAL
+            ).getFirst();
+            // The filter copied into the aggregation guards multi-valued keys with a count of the key.
+            Expression grouping = finalAgg.groupings().getFirst();
+            assertTrue(
+                finalAgg.aggregates()
+                    .stream()
+                    .anyMatch(a -> Alias.unwrap(a) instanceof Count count && Expressions.equalsAsAttribute(count.field(), grouping))
+            );
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            ProjectExec project = as(exchange.child(), ProjectExec.class);
+            EvalExec eval = as(project.child(), EvalExec.class);
+            FilterExec filter = as(eval.child(), FilterExec.class);
+            as(filter.child(), EsStatsQueryExec.class);
         }
     }
 

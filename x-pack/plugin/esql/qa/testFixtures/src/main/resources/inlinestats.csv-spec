@@ -3855,6 +3855,25 @@ emp_no:integer | hire_date:datetime       |c:long  | yr:datetime
 10044          | 1994-05-21T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
 ;
 
+DateTruncInlinestatsCountStarWithFilterOnCount
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS c = count(*) by yr=date_trunc(1 year, hire_date)
+| WHERE c > 10
+| STATS n = count(*) BY yr, c
+| SORT yr
+;
+
+n:long | yr:datetime              | c:long
+11     | 1985-01-01T00:00:00.000Z | 11
+11     | 1986-01-01T00:00:00.000Z | 11
+15     | 1987-01-01T00:00:00.000Z | 15
+13     | 1989-01-01T00:00:00.000Z | 13
+12     | 1990-01-01T00:00:00.000Z | 12
+;
+
 ImplicitCastingMultiTypedBucketDateNanosByYear
 required_capability: inline_stats
 

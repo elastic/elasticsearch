@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 
 public class Values extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
@@ -182,7 +182,7 @@ public class Values extends UnaryAggregateFunction implements ToAggregator, AnyN
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> isRepresentable(dt)
+            dt -> isRepresentableInExpression(dt)
                 && dt != DataType.DENSE_VECTOR
                 && dt != DataType.AGGREGATE_METRIC_DOUBLE
                 && dt != DataType.EXPONENTIAL_HISTOGRAM

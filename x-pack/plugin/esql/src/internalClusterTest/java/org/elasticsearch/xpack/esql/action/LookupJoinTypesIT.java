@@ -265,7 +265,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == GEOHEX
                         || type.esType() == null
                         || type.isCounter()
-                        || DataType.isRepresentable(type) == false) {
+                        || DataType.isRepresentableInExpression(type) == false) {
                         // Skip unmappable types, or types not supported in ES|QL in general
                         continue;
                     }

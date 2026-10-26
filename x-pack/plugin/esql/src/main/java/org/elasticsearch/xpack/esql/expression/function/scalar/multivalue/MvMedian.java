@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
 
@@ -83,7 +83,7 @@ public class MvMedian extends AbstractMultivalueFunction implements AnyNullIsNul
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> t.isNumeric() && isRepresentable(t), sourceText(), null, "numeric");
+        return isType(field(), t -> t.isNumeric() && isRepresentableInExpression(t), sourceText(), null, "numeric");
     }
 
     @Override

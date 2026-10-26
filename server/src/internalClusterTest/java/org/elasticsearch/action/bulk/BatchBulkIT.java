@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
@@ -3464,6 +3465,81 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat("both docs should be indexed after fallback", searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         });
+    }
+
+    /**
+     * A leaf array with more elements than fit in a sorted doc value ({@code IndexWriter.MAX_TERM_LENGTH} bytes of encoded
+     * offsets) cannot be indexed through the columnar path: {@code ColumnarOffsetsBuilder} bails out, the batch falls back to
+     * the row path, and only that document is rejected, with an explicit error instead of Lucene's. The other documents in
+     * the bulk request are indexed by the row path, with their array order intact.
+     */
+    public void testColumnarOversizedArrayOffsetsRejectOnlyThatDocument() throws IOException {
+        final String index = "test-columnar-oversized-offsets";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping("""
+                    {"dynamic":"strict","properties":{"n":{"type":"long"}}}""")
+        );
+        ensureGreen(index);
+        final String coordinatingNode = findCoordinatingNode();
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        final int numDocs = between(3, 10);
+        for (int i = 0; i < numDocs; i++) {
+            // Out-of-order values with duplicates, so the offsets sidecar carries real ordering information.
+            sources.put("doc-" + i, "{\"n\":[3,1,3,2," + i + "]}");
+        }
+        // One more slot than the limit guarantees the encoded offsets exceed it, since every slot takes at least one byte.
+        final StringBuilder oversized = new StringBuilder("{\"n\":[");
+        final int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        for (int i = 0; i < numSlots; i++) {
+            oversized.append(i == 0 ? "" : ",").append(randomInt(3));
+        }
+        oversized.append("]}");
+        sources.put("oversized", oversized.toString());
+
+        final BulkResponse response;
+        try (var mockLog = MockLog.capture(ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "columnar batch mapping bails out",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed on *, falling back"
+                )
+            );
+            response = client(coordinatingNode).bulk(bulkOf(index, sources)).actionGet();
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertTrue(response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            if (item.getId().equals("oversized")) {
+                assertTrue("oversized array must be rejected, but got: " + item.getResponse(), item.isFailed());
+                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+                assertThat(item.getFailure().getMessage(), containsString("encoded offsets of field [n.offsets] are too large to store"));
+                assertThat(item.getFailure().getMessage(), containsString("cannot be preserved in [_ignored_source]"));
+            } else {
+                assertFalse(item.getFailureMessage(), item.isFailed());
+            }
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+        // A document the row path indexed after the fallback still reproduces its array order and duplicates.
+        var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSourceAsMap().get("n"), equalTo(List.of(3, 1, 3, 2, 0)));
     }
 
     private static BulkRequest bulkOf(String index, Map<String, String> sources) {

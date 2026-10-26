@@ -176,6 +176,7 @@ toc:
                 children:
                   - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/avg_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/changes.md
                   - file: esql/functions-operators/time-series-aggregation-functions/count_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/count_distinct_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/delta.md

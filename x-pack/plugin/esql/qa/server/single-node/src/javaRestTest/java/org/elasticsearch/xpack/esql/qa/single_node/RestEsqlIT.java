@@ -893,7 +893,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.GEOTILE);
         shouldBeSupported.remove(DataType.GEOHEX);
         shouldBeSupported.remove(DataType.NULL);
-        shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
+        // These response types require metadata, time-series mappings, or unsupported fields rather than ordinary mapped fields.
+        shouldBeSupported.remove(DataType.SOURCE);
+        shouldBeSupported.remove(DataType.UNSUPPORTED);
+        shouldBeSupported.removeIf(type -> type.isCounter());
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented

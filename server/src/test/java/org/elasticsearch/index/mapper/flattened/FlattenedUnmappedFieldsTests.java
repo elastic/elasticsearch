@@ -37,7 +37,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -463,21 +462,6 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("does not support [flattened]"));
-    }
-
-    /**
-     * An absorbed field is loaded from the sink's doc values, as a key of a mapped flattened field is, unless it is below a nested object:
-     * its values are then in the documents of the object's elements, not in the root document that ES|QL reads, so it is read from
-     * {@code _source}.
-     */
-    public void testSinkFieldBlockLoader() throws IOException {
-        MapperService mapperService = columnarService(b -> b.startObject("n").field("type", "nested").endObject());
-        var unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
-        assertThat(
-            unmappedFields.blockLoader(randomFrom("absorbed", "obj.absorbed")),
-            instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
-        );
-        assertThat(unmappedFields.blockLoader("n.u"), hasToString("UnmappedFields.Named[n.u]"));
     }
 
     /**

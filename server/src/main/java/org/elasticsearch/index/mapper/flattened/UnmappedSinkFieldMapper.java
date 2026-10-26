@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BatchMappingContext;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -153,20 +152,5 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(delegate::unmappedSinkSyntheticFieldLoader);
-    }
-
-    /**
-     * Loads the absorbed field {@code name}, a full dotted path, from the sink's keyed doc values, as a key of a mapped flattened field is
-     * loaded: its values are sorted and deduplicated. Only the sink of the document read is loaded, so it doesn't load a field below a
-     * nested object, whose values are in the documents of the object's elements.
-     */
-    public BlockLoader blockLoader(String name) {
-        var type = delegate.fieldType();
-        return new KeyedFlattenedDocValuesBlockLoader(
-            fullPath() + FlattenedFieldMapper.KEYED_FIELD_SUFFIX,
-            name,
-            type.usesBinaryDocValues,
-            type.usesArrayOrderBinaryDocValues()
-        );
     }
 }

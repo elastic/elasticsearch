@@ -210,6 +210,19 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         assertThat(propertyType(privilegeFields, "count"), equalTo("long"));
     }
 
+    public void testManagedMappingsComponentCopiesPrivilegesToFlatFields() throws IOException {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME);
+
+        Map<String, Object> kibana = subProperties(subProperties(mappingProperties(mappings), "permissions"), "kibana");
+        // ES|QL cannot read nested fields, so each nested leaf is copied to a flat keyword sibling.
+        Map<String, Object> privilegeFields = subProperties(kibana, "privileges");
+        assertThat(property(privilegeFields, "name").get("copy_to"), equalTo("permissions.kibana.actions"));
+        assertThat(property(privilegeFields, "space").get("copy_to"), equalTo("permissions.kibana.spaces"));
+        assertThat(propertyType(kibana, "actions"), equalTo("keyword"));
+        assertThat(propertyType(kibana, "spaces"), equalTo("keyword"));
+    }
+
     public void testManagedStandardIndexTemplateComposition() {
         registry = createRegistry(Settings.EMPTY);
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_MANAGED_TEMPLATE_NAME);
@@ -283,8 +296,11 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
     }
 
     private static String propertyType(Map<String, Object> properties, String field) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fieldDef = (Map<String, Object>) properties.get(field);
-        return (String) fieldDef.get("type");
+        return (String) property(properties, field).get("type");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> property(Map<String, Object> properties, String field) {
+        return (Map<String, Object>) properties.get(field);
     }
 }

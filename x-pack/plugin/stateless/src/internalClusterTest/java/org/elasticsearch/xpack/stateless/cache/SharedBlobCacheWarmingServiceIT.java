@@ -140,7 +140,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -656,7 +655,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
-        indexDocs(indexName, randomIntBetween(100, 1_000));
+        // Recovery reads the BCC headers through the cache, filling the first region of each blob, before warming.
+        // Index enough docs per shard that each blob spans several regions, otherwise a small shard is fully cached by
+        // that read and the warming that later times out reports zero bytes warmed.
+        indexDocs(indexName, numberOfShards * randomIntBetween(500, 1_000));
         flushAndRefresh(indexName);
         ensureGreen(indexName);
         for (int i = 0; i < numberOfShards; i++) {
@@ -1684,8 +1686,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
+        private final Settings nodeSettings;
+
         public TestStatelessPlugin(Settings settings) {
             super(settings);
+            this.nodeSettings = settings;
         }
 
         @Override
@@ -1715,6 +1720,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     cacheService,
                     threadPool,
                     clusterSettings,
+                    nodeSettings,
                     JvmInfo.jvmInfo().getMem().getHeapMax()
                 )
             );
@@ -1788,9 +1794,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
+            Settings nodeSettings,
             ByteSizeValue maxHeap
         ) {
-            super(cacheService, threadPool, clusterSettings, maxHeap);
+            super(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap);
         }
 
         @Override

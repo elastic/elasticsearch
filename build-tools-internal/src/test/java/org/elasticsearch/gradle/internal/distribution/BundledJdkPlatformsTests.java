@@ -53,4 +53,12 @@ public class BundledJdkPlatformsTests {
         assertEquals("bundled_linux_x64", BundledJdkPlatforms.jdkName("linux", "x64"));
         assertEquals("bundled_darwin_aarch64", BundledJdkPlatforms.jdkName("darwin", "aarch64"));
     }
+
+    @Test
+    public void securityDir() {
+        assertEquals("lib/security", BundledJdkPlatforms.securityDir("linux"));
+        assertEquals("lib/security", BundledJdkPlatforms.securityDir("windows"));
+        assertEquals("Contents/Home/lib/security", BundledJdkPlatforms.securityDir("darwin"));
+        assertThrows(IllegalArgumentException.class, () -> BundledJdkPlatforms.securityDir("solaris"));
+    }
 }

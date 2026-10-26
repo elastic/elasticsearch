@@ -50,7 +50,9 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        // Columnar indices keep the original WKB in their own doc value, so they don't reconstruct from the triangle tree
         boolean docValuesMode = params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            && params.indexMode().isStrictColumnar() == false
             && (Boolean) fieldMapping.getOrDefault("doc_values", true);
 
         if (docValuesMode) {
@@ -85,7 +87,7 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
      */
     @SuppressWarnings("unchecked")
     private Object expectedFromDocValues(Object value) {
-        List<Object> values = value instanceof List<?> ? (List<Object>) value : List.of(value);
+        List<Object> values = value instanceof List<?> ? (List<Object>) value : Collections.singletonList(value);
         List<Geometry> geometries = values.stream().map(this::parseGeometry).filter(Objects::nonNull).toList();
         if (geometries.isEmpty()) {
             return null;

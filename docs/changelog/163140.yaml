@@ -1,0 +1,11 @@
+area: Machine Learning
+issues:
+ - 162947
+ - 162417
+ - 152311
+ - 162939
+ - 147656
+ - 159566
+pr: 163140
+summary: Skip unready stats indices in cleanup
+type: bug

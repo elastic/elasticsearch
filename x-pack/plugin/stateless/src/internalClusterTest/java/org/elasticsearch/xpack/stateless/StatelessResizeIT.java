@@ -11,15 +11,27 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
 
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
@@ -27,6 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -40,51 +53,67 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
+    }
+
     public void testShrinkIndex() throws Exception {
         startMasterOnlyNode();
         final int indexNodesNumber = randomIntBetween(1, 3);
-        final var indexNodes = startIndexNodes(indexNodesNumber);
+        final boolean holdSourceFiles = randomBoolean();
+        final var indexNodes = startIndexNodes(indexNodesNumber, holdSourceFiles ? keepCommitsOnLocalDiskSettings() : Settings.EMPTY);
         final var searchNode = startSearchNode();
+        final var indexNode = randomFrom(indexNodes);
         int sourceShards = randomFrom(2, 4, 8);
         int targetShards = sourceShards / 2;
         String sourceIndex = "source";
         String targetIndex = "target";
 
-        createIndex(sourceIndex, indexSettings(sourceShards, 1).build());
+        final var sourceSettings = Settings.builder().put(sourceIndexSettings(sourceShards, holdSourceFiles));
+        if (holdSourceFiles) {
+            // Colocate the source shards before indexing: relocating them later would upload their local commits.
+            sourceSettings.put("index.routing.allocation.include._name", String.join(",", indexNode, searchNode));
+        }
+        createIndex(sourceIndex, sourceSettings.build());
         ensureGreen(sourceIndex);
 
         int numDocs = randomIntBetween(0, 50);
         if (numDocs > 0) {
             indexDocsAndRefresh(sourceIndex, numDocs);
         }
-        if (randomBoolean()) {
-            flush(sourceIndex);
-        }
+        try (Releasable ignored = holdSourceFiles ? holdCommitFilesOnLocalDisk(sourceIndex, sourceShards) : () -> {}) {
+            if (randomBoolean()) {
+                flush(sourceIndex);
+            }
 
-        // Block writes and relocate all indexing shards to one indexing node
-        final var indexNode = randomFrom(indexNodes);
-        updateIndexSettings(
-            Settings.builder()
-                .put("index.routing.allocation.include._name", String.join(",", indexNode, searchNode))
-                .put("index.blocks.write", true),
-            sourceIndex
-        );
-        ensureGreen(sourceIndex);
-
-        // Shrink
-        assertAcked(
-            executeResize(
-                ResizeType.SHRINK,
-                sourceIndex,
-                targetIndex,
+            // Block writes and relocate all indexing shards to one indexing node
+            updateIndexSettings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .putNull("index.blocks.write")
-                    .putNull("index.routing.allocation.include._name")
-            )
-        );
-        ensureGreen(targetIndex);
+                    .put("index.routing.allocation.include._name", String.join(",", indexNode, searchNode))
+                    .put("index.blocks.write", true),
+                sourceIndex
+            );
+            ensureGreen(sourceIndex);
+
+            // Shrink
+            assertAcked(
+                executeResize(
+                    ResizeType.SHRINK,
+                    sourceIndex,
+                    targetIndex,
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .putNull("index.blocks.write")
+                        .putNull("index.routing.allocation.include._name")
+                )
+            );
+            ensureGreen(targetIndex);
+        }
+        if (holdSourceFiles && numDocs > 0) {
+            assertFilesCopiedNotHardLinked(targetIndex, targetShards);
+        }
 
         checkIndicesAfterResize(sourceIndex, targetIndex, sourceShards, targetShards, numDocs);
     }
@@ -92,41 +121,47 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
     public void testSplitIndex() throws Exception {
         startMasterOnlyNode();
         final int indexNodesNumber = randomIntBetween(1, 3);
-        startIndexNodes(indexNodesNumber);
+        final boolean holdSourceFiles = randomBoolean();
+        startIndexNodes(indexNodesNumber, holdSourceFiles ? keepCommitsOnLocalDiskSettings() : Settings.EMPTY);
         startSearchNode();
         int sourceShards = randomFrom(1, 2, 4, 8);
         int targetShards = sourceShards * 2;
         String sourceIndex = "source";
         String targetIndex = "target";
 
-        createIndex(sourceIndex, indexSettings(sourceShards, 1).build());
+        createIndex(sourceIndex, sourceIndexSettings(sourceShards, holdSourceFiles));
         ensureGreen(sourceIndex);
 
         int numDocs = randomIntBetween(0, 50);
         if (numDocs > 0) {
             indexDocsAndRefresh(sourceIndex, numDocs);
         }
-        if (randomBoolean()) {
-            flush(sourceIndex);
+        try (Releasable ignored = holdSourceFiles ? holdCommitFilesOnLocalDisk(sourceIndex, sourceShards) : () -> {}) {
+            if (randomBoolean()) {
+                flush(sourceIndex);
+            }
+
+            // Block writes
+            updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
+            ensureGreen(sourceIndex);
+
+            // Split
+            assertAcked(
+                executeResize(
+                    ResizeType.SPLIT,
+                    sourceIndex,
+                    targetIndex,
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .putNull("index.blocks.write")
+                )
+            );
+            ensureGreen(targetIndex);
         }
-
-        // Block writes
-        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
-        ensureGreen(sourceIndex);
-
-        // Split
-        assertAcked(
-            executeResize(
-                ResizeType.SPLIT,
-                sourceIndex,
-                targetIndex,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .putNull("index.blocks.write")
-            )
-        );
-        ensureGreen(targetIndex);
+        if (holdSourceFiles && numDocs > 0) {
+            assertFilesCopiedNotHardLinked(targetIndex, targetShards);
+        }
 
         checkIndicesAfterResize(sourceIndex, targetIndex, sourceShards, targetShards, numDocs);
     }
@@ -134,39 +169,102 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
     public void testCloneIndex() throws Exception {
         startMasterOnlyNode();
         final int indexNodesNumber = randomIntBetween(1, 3);
-        startIndexNodes(indexNodesNumber);
+        final boolean holdSourceFiles = randomBoolean();
+        startIndexNodes(indexNodesNumber, holdSourceFiles ? keepCommitsOnLocalDiskSettings() : Settings.EMPTY);
         startSearchNode();
         int shards = randomFrom(2, 4, 8);
         String sourceIndex = "source";
         String targetIndex = "target";
 
-        createIndex(sourceIndex, indexSettings(shards, 1).build());
+        createIndex(sourceIndex, sourceIndexSettings(shards, holdSourceFiles));
         ensureGreen(sourceIndex);
 
         int numDocs = randomIntBetween(0, 50);
         if (numDocs > 0) {
             indexDocsAndRefresh(sourceIndex, numDocs);
         }
-        if (randomBoolean()) {
-            flush(sourceIndex);
+        try (Releasable ignored = holdSourceFiles ? holdCommitFilesOnLocalDisk(sourceIndex, shards) : () -> {}) {
+            if (randomBoolean()) {
+                flush(sourceIndex);
+            }
+
+            // Block writes
+            updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
+            ensureGreen(sourceIndex);
+
+            // Clone
+            assertAcked(
+                executeResize(
+                    ResizeType.CLONE,
+                    sourceIndex,
+                    targetIndex,
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).putNull("index.blocks.write")
+                )
+            );
+            ensureGreen(targetIndex);
+        }
+        if (holdSourceFiles && numDocs > 0) {
+            assertFilesCopiedNotHardLinked(targetIndex, shards);
         }
 
-        // Block writes
-        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
-        ensureGreen(sourceIndex);
-
-        // Clone
-        assertAcked(
-            executeResize(
-                ResizeType.CLONE,
-                sourceIndex,
-                targetIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).putNull("index.blocks.write")
-            )
-        );
-        ensureGreen(targetIndex);
-
         checkIndicesAfterResize(sourceIndex, targetIndex, shards, shards, numDocs);
+    }
+
+    /**
+     * Index node settings that keep refreshed commits in a VBCC on local disk instead of uploading them.
+     */
+    private static Settings keepCommitsOnLocalDiskSettings() {
+        return Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10_000)
+            .build();
+    }
+
+    private static Settings sourceIndexSettings(int shards, boolean holdSourceFiles) {
+        final var settings = indexSettings(shards, 1);
+        if (holdSourceFiles) {
+            settings.put(MergePolicyConfig.INDEX_MERGE_ENABLED, false);
+        }
+        return settings.build();
+    }
+
+    /**
+     * Keeps the local files of every primary shard of the index on disk, even once uploaded, so that a resize finds them there.
+     */
+    private static Releasable holdCommitFilesOnLocalDisk(String indexName, int shards) throws Exception {
+        final var index = resolveIndex(indexName);
+        final List<Releasable> refs = new ArrayList<>();
+        for (int shardId = 0; shardId < shards; shardId++) {
+            final var shard = findIndexShard(index, shardId);
+            if (shard.commitStats().getNumDocs() > 0) {
+                final var commitService = internalCluster().getInstance(
+                    StatelessCommitService.class,
+                    findIndexNode(index, shardId).getName()
+                );
+                assertNotNull("commit already uploaded for " + shard.shardId(), commitService.getCurrentVirtualBcc(shard.shardId()));
+            }
+            final var directory = IndexDirectory.unwrapDirectory(shard.store().directory());
+            for (String file : directory.listAll()) {
+                refs.add(directory.tryAcquireLocalFileRef(file));
+            }
+            for (String file : shard.store().readLastCommittedSegmentsInfo().files(false)) {
+                assertTrue("not on local disk: " + file, Files.exists(shard.shardPath().resolveIndex().resolve(file)));
+            }
+        }
+        return () -> Releasables.close(refs);
+    }
+
+    private static void assertFilesCopiedNotHardLinked(String indexName, int shards) {
+        final var index = resolveIndex(indexName);
+        int totalFiles = 0;
+        int reusedFiles = 0;
+        for (int shardId = 0; shardId < shards; shardId++) {
+            final var recoveryIndex = findIndexShard(index, shardId).recoveryState().getIndex();
+            totalFiles += recoveryIndex.totalFileCount();
+            reusedFiles += recoveryIndex.reusedFileCount();
+        }
+        assertThat(totalFiles, greaterThan(0));
+        assertThat(reusedFiles, equalTo(0));
     }
 
     public void testShrinkThenSplit() throws Exception {

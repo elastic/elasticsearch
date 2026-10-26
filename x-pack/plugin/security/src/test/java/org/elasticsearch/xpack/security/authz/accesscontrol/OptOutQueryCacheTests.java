@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LongValues;
+import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -57,6 +61,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -295,6 +300,34 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 ),
                 false
             );
+            case COVERING -> {
+                List<Query> queries = new ArrayList<>();
+                boolean innerCacheable = true;
+                int numQueries = between(1, 3);
+                for (int i = 0; i < numQueries; i++) {
+                    Clause inner = randomInnerClause(allowedFields, disallowedFields);
+                    queries.add(inner.query());
+                    innerCacheable &= inner.cacheable();
+                }
+
+                boolean constant = randomBoolean();
+                LongValuesSource minimumNumberMatch;
+                if (constant) {
+                    minimumNumberMatch = LongValuesSource.constant(between(1, numQueries));
+                } else if (randomBoolean()) {
+                    minimumNumberMatch = LongValuesSource.fromLongField(randomFrom(randomBoolean() ? allowedFields : disallowedFields));
+                } else {
+                    minimumNumberMatch = new ScriptLikeLongValuesSource();
+                }
+
+                Query rewritten = searcher.rewrite(new CoveringQuery(queries, minimumNumberMatch));
+                // A constant minimum is rewritten to a boolean query, so only the inner clauses matter. That rewrite drops match-none
+                // SHOULD clauses, and if fewer than the minimum remain it collapses to a MatchNoDocsQuery, which is always cacheable.
+                // CoveringQuery doesn't report the field its minimum match count comes from, so field and script sources are never
+                // cacheable, even when the field is granted.
+                boolean cacheable = constant && (rewritten instanceof MatchNoDocsQuery || innerCacheable);
+                yield new Clause(rewritten, cacheable);
+            }
         };
     }
 
@@ -323,7 +356,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
         ES_TO_PARENT_BLOCK_JOIN(true),
         DENSE_VECTOR(false),
         VECTOR_SIMILARITY(false),
-        FILTERED_DENSE_VECTOR(false);
+        FILTERED_DENSE_VECTOR(false),
+        COVERING(true);
 
         private final boolean wraps;
 
@@ -386,6 +420,57 @@ public class OptOutQueryCacheTests extends ESTestCase {
         @Override
         public int hashCode() {
             return Objects.hash(classHash(), field);
+        }
+    }
+
+    /**
+     * Stands in for {@code TermsSetQueryBuilder.ScriptLongValueSource} (package-private in server), the source used by
+     * {@code terms_set} with {@code minimum_should_match_script}. Like that source, it reads no field and isn't cacheable.
+     */
+    private static class ScriptLikeLongValuesSource extends LongValuesSource {
+        @Override
+        public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) {
+            return new LongValues() {
+                @Override
+                public long longValue() {
+                    return 1;
+                }
+
+                @Override
+                public boolean advanceExact(int doc) {
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return false;
+        }
+
+        @Override
+        public LongValuesSource rewrite(IndexSearcher searcher) {
+            return this;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj != null && getClass() == obj.getClass();
+        }
+
+        @Override
+        public int hashCode() {
+            return getClass().hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "script-like";
         }
     }
 }

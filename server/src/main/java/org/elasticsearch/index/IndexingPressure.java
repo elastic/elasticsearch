@@ -117,6 +117,10 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong lowWaterMarkSplits = new AtomicLong(0);
     private final AtomicLong highWaterMarkSplits = new AtomicLong(0);
 
+    private final AtomicLong currentIngestExpansionBytes = new AtomicLong(0);
+    private final AtomicLong totalIngestExpansionBytes = new AtomicLong(0);
+    private final AtomicLong ingestExpansionRejections = new AtomicLong(0);
+
     private final AtomicLong largeOpsRejections = new AtomicLong(0);
     private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
 
@@ -168,6 +172,145 @@ public class IndexingPressure implements IndexingPressureMonitor {
 
     public Coordinating createCoordinatingOperation(boolean forceExecution) {
         return new Coordinating(forceExecution);
+    }
+
+    /**
+     * Starts accounting for the bytes by which ingest pipelines grow the documents of one bulk request beyond the size it was admitted
+     * with. The bytes are added to the same combined coordinating and primary counter as the bulk's wire size, but are checked against
+     * the primary limit: the bulk was already admitted, and the primary limit is the one that is meant to let data move forward that has
+     * already been received. A rejection is also counted in the coordinating rejections.
+     * <p>
+     * Unlike {@link Coordinating} the returned tracker is safe to use from several threads concurrently, as ingest pipelines complete
+     * on whichever thread ran their last asynchronous processor. It must be closed once the bulk is done, and not before the last
+     * document finished its pipeline.
+     *
+     * @param forceExecution if true the bytes are always counted and never rejected
+     */
+    public CoordinatingExpansionTracker trackCoordinatingOperationExpansion(boolean forceExecution) {
+        return new CoordinatingExpansionTrackerImpl(forceExecution);
+    }
+
+    public interface CoordinatingExpansionTracker extends Releasable {
+
+        static CoordinatingExpansionTracker noop() {
+            return new CoordinatingExpansionTracker() {
+                @Override
+                public void add(long bytes) {}
+
+                @Override
+                public void remove(long bytes) {}
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        /**
+         * Accounts for additional bytes.
+         *
+         * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was accounted
+         */
+        void add(long bytes) throws EsRejectedExecutionException;
+
+        void remove(long bytes);
+    }
+
+    private final class CoordinatingExpansionTrackerImpl implements CoordinatingExpansionTracker {
+
+        private static final long CLOSED_FLAG = Long.MIN_VALUE;
+
+        private final boolean forceExecution;
+        private final AtomicLong expandedBytes = new AtomicLong(0);
+
+        private CoordinatingExpansionTrackerImpl(boolean forceExecution) {
+            this.forceExecution = forceExecution;
+        }
+
+        @Override
+        public void add(long bytes) {
+            if (expandedBytes.get() == CLOSED_FLAG) {
+                // Deliberately no assertion: a late add must not fail a bulk, and callers close only once no more adds are expected
+                logger.error("Expanding IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
+                return;
+            }
+            addExpansionBytes(bytes, forceExecution);
+            long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current + bytes);
+            if (value == CLOSED_FLAG) {
+                // Closed concurrently, reverting the increase to avoid any lasting impact on the index pressure
+                releaseExpansionBytes(bytes);
+                logger.error("Expanding IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
+            }
+        }
+
+        @Override
+        public void remove(long bytes) {
+            if (expandedBytes.get() == CLOSED_FLAG) {
+                logger.error("Releasing IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
+                return;
+            }
+            releaseExpansionBytes(bytes);
+            long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current - bytes);
+            if (value == CLOSED_FLAG) {
+                // Closed concurrently, close did not see this release, so undo it
+                addExpansionBytes(bytes, true);
+                logger.error("Releasing IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
+            }
+        }
+
+        @Override
+        public void close() {
+            long expansion = expandedBytes.getAndSet(CLOSED_FLAG);
+            if (expansion == CLOSED_FLAG) {
+                logger.error("CoordinatingExpansionTracker has been closed twice", new IllegalStateException("closed twice"));
+            } else {
+                releaseExpansionBytes(expansion);
+            }
+        }
+    }
+
+    private void addExpansionBytes(long bytes, boolean forceExecution) {
+        long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
+        long replicaWriteBytes = currentReplicaBytes.get();
+        long totalBytes = combinedBytes + replicaWriteBytes;
+        if (forceExecution == false && totalBytes > primaryLimit) {
+            long bytesWithoutOperation = combinedBytes - bytes;
+            long totalBytesWithoutOperation = totalBytes - bytes;
+            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            coordinatingRejections.getAndIncrement();
+            ingestExpansionRejections.getAndIncrement();
+            throw new EsRejectedExecutionException(
+                "rejected execution of ingest expansion ["
+                    + "coordinating_and_primary_bytes="
+                    + bytesWithoutOperation
+                    + ", "
+                    + "replica_bytes="
+                    + replicaWriteBytes
+                    + ", "
+                    + "all_bytes="
+                    + totalBytesWithoutOperation
+                    + ", "
+                    + "ingest_expansion_bytes="
+                    + bytes
+                    + ", "
+                    + "max_primary_bytes="
+                    + primaryLimit
+                    + "]",
+                false
+            );
+        }
+        logger.trace(() -> Strings.format("adding [%d] ingest expansion bytes", bytes));
+        currentCoordinatingBytes.getAndAdd(bytes);
+        currentIngestExpansionBytes.getAndAdd(bytes);
+        totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+        totalCoordinatingBytes.getAndAdd(bytes);
+        totalIngestExpansionBytes.getAndAdd(bytes);
+    }
+
+    private void releaseExpansionBytes(long bytes) {
+        logger.trace(() -> Strings.format("removing [%d] ingest expansion bytes", bytes));
+        currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+        currentCoordinatingBytes.getAndAdd(-bytes);
+        currentIngestExpansionBytes.getAndAdd(-bytes);
     }
 
     public class Incremental implements Releasable {
@@ -249,8 +392,9 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
     }
 
-    // TODO: Maybe this should be re-named and used for primary operations too. Eventually we will need to account for: ingest pipeline
-    // expansions, reading updates, etc. This could just be a generic OP that could be expanded as appropriate
+    // TODO: Maybe this should be re-named and used for primary operations too. Eventually we will need to account for: reading updates,
+    // etc. (ingest pipeline expansions are accounted for by CoordinatingExpansionTracker). This could just be a generic OP that could be
+    // expanded as appropriate
     public class Coordinating implements Releasable {
 
         private final AtomicBoolean closed = new AtomicBoolean();
@@ -594,7 +738,10 @@ public class IndexingPressure implements IndexingPressureMonitor {
             lowWaterMarkSplits.get(),
             highWaterMarkSplits.get(),
             largeOpsRejections.get(),
-            totalRejectedLargeOpsBytes.get()
+            totalRejectedLargeOpsBytes.get(),
+            currentIngestExpansionBytes.get(),
+            totalIngestExpansionBytes.get(),
+            ingestExpansionRejections.get()
         );
     }
 

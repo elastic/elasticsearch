@@ -126,6 +126,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
+    protected IndexingPressure.CoordinatingExpansionTracker trackIngestExpansion(boolean forceExecution) {
+        // Nothing is indexed, so nothing retains what the pipelines add to the documents beyond this request
+        return IndexingPressure.CoordinatingExpansionTracker.noop();
+    }
+
+    @Override
     protected void doInternalExecute(
         Task task,
         BulkRequest bulkRequest,

@@ -140,6 +140,13 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         clusterService.close();
     }
 
+    public void testSimulationDoesNotAccountIngestExpansion() {
+        // nothing is indexed by a simulation, so whatever the pipelines add to a document is not retained and must never be rejected
+        try (IndexingPressure.CoordinatingExpansionTracker tracker = bulkAction.trackIngestExpansion(randomBoolean())) {
+            tracker.add(Long.MAX_VALUE / 4);
+        }
+    }
+
     public void testIndexData() throws IOException {
         Task task = mock(Task.class); // unused
         BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);

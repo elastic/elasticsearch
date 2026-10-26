@@ -44,7 +44,12 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(new HeaderValue("application/json"), new HeaderValue("application/x-ndjson"), new HeaderValue("application/*"));
+            Map<String, String> parameters = Map.of("charset", "utf-8");
+            return Set.of(
+                new HeaderValue("application/json", parameters),
+                new HeaderValue("application/x-ndjson", parameters),
+                new HeaderValue("application/*", parameters)
+            );
         }
     },
     /**
@@ -82,7 +87,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(new HeaderValue("application/yaml"));
+            return Set.of(new HeaderValue("application/yaml", Map.of("charset", "utf-8")));
         }
     },
     /**
@@ -121,8 +126,14 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
+                new HeaderValue(
+                    VENDOR_APPLICATION_PREFIX + "json",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "utf-8")
+                ),
+                new HeaderValue(
+                    VENDOR_APPLICATION_PREFIX + "x-ndjson",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "utf-8")
+                )
             );
         }
 
@@ -171,7 +182,12 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+            return Set.of(
+                new HeaderValue(
+                    VENDOR_APPLICATION_PREFIX + "yaml",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "utf-8")
+                )
+            );
         }
 
         @Override

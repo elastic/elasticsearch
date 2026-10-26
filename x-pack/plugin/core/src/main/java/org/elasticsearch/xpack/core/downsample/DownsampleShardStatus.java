@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.downsample;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,12 +25,16 @@ import java.util.Objects;
 
 public class DownsampleShardStatus implements Task.Status {
     public static final String NAME = "rollup-index-shard";
+    private static final TransportVersion DOWNSAMPLE_SKIPPED_ALREADY_INDEXED = TransportVersion.fromName(
+        "downsample_skipped_already_indexed"
+    );
     private static final ParseField SHARD_FIELD = new ParseField("shard");
     private static final ParseField START_TIME_FIELD = new ParseField("start_time");
     private static final ParseField IN_NUM_DOCS_RECEIVED_FIELD = new ParseField("in_num_docs_received");
     private static final ParseField OUT_NUM_DOCS_SENT_FIELD = new ParseField("out_num_docs_sent");
     private static final ParseField OUT_NUM_DOCS_INDEXED_FIELD = new ParseField("out_num_docs_indexed");
     private static final ParseField OUT_NUM_DOCS_FAILED_FIELD = new ParseField("out_num_docs_failed");
+    private static final ParseField OUT_NUM_DOCS_SKIPPED_ALREADY_INDEXED_FIELD = new ParseField("out_num_docs_skipped_already_indexed");
     private static final ParseField TOTAL_SHARD_DOC_COUNT = new ParseField("total_shard_doc_count");
     private static final ParseField LAST_SOURCE_TIMESTAMP = new ParseField("last_source_timestamp");
     private static final ParseField LAST_TARGET_TIMESTAMP = new ParseField("last_target_timestamp");
@@ -49,6 +54,11 @@ public class DownsampleShardStatus implements Task.Status {
     private final long numSent;
     private final long numIndexed;
     private final long numFailed;
+    /**
+     * Downsampled documents rejected by the target index with a version conflict because the same bucket had already been
+     * indexed by a previous, interrupted run of the task. These are neither failures nor newly indexed documents.
+     */
+    private final long numSkippedAlreadyIndexed;
     private final long totalShardDocCount;
     private final long lastSourceTimestamp;
     private final long lastTargetTimestamp;
@@ -83,6 +93,7 @@ public class DownsampleShardStatus implements Task.Status {
             final DownsampleBeforeBulkInfo _downsampleBeforeBulkInfo = (DownsampleBeforeBulkInfo) args[15];
             final DownsampleAfterBulkInfo _downsampleAfterBulkInfo = (DownsampleAfterBulkInfo) args[16];
             final DownsampleShardIndexerStatus _downsampleShardIndexerStatus = DownsampleShardIndexerStatus.valueOf((String) args[17]);
+            final Long _numSkippedAlreadyIndexed = (Long) args[18];
             return new DownsampleShardStatus(
                 _shardId,
                 _rollupStart,
@@ -90,6 +101,7 @@ public class DownsampleShardStatus implements Task.Status {
                 _numSent,
                 _numIndexed,
                 _numFailed,
+                _numSkippedAlreadyIndexed == null ? 0 : _numSkippedAlreadyIndexed,
                 _totalShardDocCount,
                 _lastSourceTimestamp,
                 _lastTargetTimestamp,
@@ -135,6 +147,8 @@ public class DownsampleShardStatus implements Task.Status {
             ROLLUP_AFTER_BULK_INFO
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ROLLUP_SHARD_INDEXER_STATUS);
+        // Declared last so that the positions of the fields above are unchanged. Optional because older nodes do not emit it.
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OUT_NUM_DOCS_SKIPPED_ALREADY_INDEXED_FIELD);
     }
 
     public DownsampleShardStatus(StreamInput in) throws IOException {
@@ -171,6 +185,11 @@ public class DownsampleShardStatus implements Task.Status {
             downsampleAfterBulkInfo = null;
             downsampleShardIndexerStatus = null;
         }
+        if (in.getTransportVersion().supports(DOWNSAMPLE_SKIPPED_ALREADY_INDEXED)) {
+            numSkippedAlreadyIndexed = in.readVLong();
+        } else {
+            numSkippedAlreadyIndexed = 0;
+        }
     }
 
     public DownsampleShardStatus(
@@ -180,6 +199,7 @@ public class DownsampleShardStatus implements Task.Status {
         long numSent,
         long numIndexed,
         long numFailed,
+        long numSkippedAlreadyIndexed,
         long totalShardDocCount,
         long lastSourceTimestamp,
         long lastTargetTimestamp,
@@ -199,6 +219,7 @@ public class DownsampleShardStatus implements Task.Status {
         this.numSent = numSent;
         this.numIndexed = numIndexed;
         this.numFailed = numFailed;
+        this.numSkippedAlreadyIndexed = numSkippedAlreadyIndexed;
         this.totalShardDocCount = totalShardDocCount;
         this.lastSourceTimestamp = lastSourceTimestamp;
         this.lastTargetTimestamp = lastTargetTimestamp;
@@ -226,6 +247,7 @@ public class DownsampleShardStatus implements Task.Status {
         builder.field(OUT_NUM_DOCS_SENT_FIELD.getPreferredName(), numSent);
         builder.field(OUT_NUM_DOCS_INDEXED_FIELD.getPreferredName(), numIndexed);
         builder.field(OUT_NUM_DOCS_FAILED_FIELD.getPreferredName(), numFailed);
+        builder.field(OUT_NUM_DOCS_SKIPPED_ALREADY_INDEXED_FIELD.getPreferredName(), numSkippedAlreadyIndexed);
         builder.field(TOTAL_SHARD_DOC_COUNT.getPreferredName(), totalShardDocCount);
         builder.field(LAST_SOURCE_TIMESTAMP.getPreferredName(), lastSourceTimestamp);
         builder.field(LAST_TARGET_TIMESTAMP.getPreferredName(), lastTargetTimestamp);
@@ -268,6 +290,9 @@ public class DownsampleShardStatus implements Task.Status {
             downsampleBeforeBulkInfo.writeTo(out);
             downsampleAfterBulkInfo.writeTo(out);
             out.writeEnum(downsampleShardIndexerStatus);
+            if (out.getTransportVersion().supports(DOWNSAMPLE_SKIPPED_ALREADY_INDEXED)) {
+                out.writeVLong(numSkippedAlreadyIndexed);
+            }
         } else {
             out.writeBoolean(false);
         }
@@ -283,6 +308,7 @@ public class DownsampleShardStatus implements Task.Status {
             && numSent == that.numSent
             && numIndexed == that.numIndexed
             && numFailed == that.numFailed
+            && numSkippedAlreadyIndexed == that.numSkippedAlreadyIndexed
             && totalShardDocCount == that.totalShardDocCount
             && lastSourceTimestamp == that.lastSourceTimestamp
             && lastTargetTimestamp == that.lastTargetTimestamp
@@ -309,6 +335,7 @@ public class DownsampleShardStatus implements Task.Status {
             numSent,
             numIndexed,
             numFailed,
+            numSkippedAlreadyIndexed,
             totalShardDocCount,
             lastSourceTimestamp,
             lastTargetTimestamp,

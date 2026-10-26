@@ -9,8 +9,12 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -836,6 +840,227 @@ public class EscfColumnBuilderTests extends ESTestCase {
             out.add(r.type() == SourceValueType.INT ? (long) r.intValue() : r.longValue());
         }
         return out;
+    }
+
+    // ---- Streamed scalar slots (beginBytes / writeX / prefixVInt / endBytes / abandonBytes) ----
+
+    /**
+     * A slot streamed in pieces must come out byte for byte as the same value written whole with {@code setString}:
+     * same data, same offsets, same validity. Rows are spread out so leading, interior and trailing absents are covered,
+     * and some values span several recycler pages so the pieces cross page boundaries.
+     */
+    public void testStreamedBytesEqualSetString() {
+        final int docCount = 12;
+        final List<byte[]> values = new ArrayList<>();
+        for (int row = 0; row < docCount; row++) {
+            if (row == 0 || row == 5 || row == 11 || randomBoolean()) {
+                values.add(null); // absent row
+            } else {
+                values.add(randomBoolean() ? randomByteArrayOfLength(between(0, 40)) : randomByteArrayOfLength(between(16_000, 40_000)));
+            }
+        }
+        try (EscfColumnBuilder whole = lockedStringBuilder(); EscfColumnBuilder streamed = lockedStringBuilder()) {
+            for (int row = 0; row < docCount; row++) {
+                final byte[] value = values.get(row);
+                if (value == null) {
+                    continue;
+                }
+                whole.setString(row, value, 0, value.length);
+                streamed.beginBytes(row);
+                // Hand the value over in a few arbitrary pieces, with a byte and a vint in the middle where they fit.
+                int at = 0;
+                while (at < value.length) {
+                    final int piece = Math.min(value.length - at, between(1, 9_000));
+                    if (piece == 1) {
+                        streamed.writeByte(value[at]);
+                    } else {
+                        streamed.writeBytes(value, at, piece);
+                    }
+                    at += piece;
+                }
+                streamed.endBytes();
+            }
+            assertSameColumn(whole.finish(docCount), streamed.finish(docCount));
+        }
+    }
+
+    /** {@code writeVInt} lays out exactly what Lucene's {@code writeVInt} does, at every width. */
+    public void testStreamedVIntMatchesLucene() throws Exception {
+        final int[] vints = { 0, 1, 127, 128, 16_383, 16_384, 2_097_151, 2_097_152, 268_435_455, 268_435_456, Integer.MAX_VALUE, -1 };
+        try (EscfColumnBuilder b = lockedStringBuilder()) {
+            b.beginBytes(0);
+            for (int v : vints) {
+                b.writeVInt(v);
+            }
+            b.endBytes();
+            final EscfColumnData data = b.finish(1);
+            final BytesRef bytes = EscfColumn.from(data).getBinaryValue(0);
+            final ByteArrayDataInput in = new ByteArrayDataInput(bytes.bytes, bytes.offset, bytes.length);
+            for (int v : vints) {
+                assertEquals(v, in.readVInt());
+            }
+            assertTrue(in.eof());
+            data.close();
+        }
+    }
+
+    /**
+     * {@code prefixVInt} over a stand-in of the right width patches in place; over a narrower one (including none) it
+     * moves the slot's bytes along. Either way the slot reads back as the vint followed by the bytes, and the rows
+     * around it are untouched — also when the slot spans several pages.
+     */
+    public void testStreamedPrefixVInt() throws Exception {
+        for (int reserved : new int[] { 0, 1, 2 }) {
+            for (int value : new int[] { 0, 5, 127, 128, 300, 20_000, 1 << 21, Integer.MAX_VALUE }) {
+                final int width = RecyclerBytesStreamOutput.vIntLength(value);
+                if (width < reserved) {
+                    continue;
+                }
+                final byte[] body = randomByteArrayOfLength(randomBoolean() ? between(0, 50) : between(16_000, 40_000));
+                final BytesRef expected;
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.writeVInt(value);
+                    out.writeBytes(body, 0, body.length);
+                    expected = out.bytes().toBytesRef();
+                }
+                // Sometimes fill the first page exactly, so the slot and its prefix start on a page boundary.
+                final byte[] before = randomBoolean()
+                    ? bytesRef("before").bytes
+                    : randomByteArrayOfLength(PageCacheRecycler.BYTE_PAGE_SIZE);
+                try (EscfColumnBuilder b = lockedStringBuilder()) {
+                    b.setString(0, before, 0, before.length);
+                    b.beginBytes(2);
+                    for (int i = 0; i < reserved; i++) {
+                        b.writeByte((byte) 0);
+                    }
+                    b.writeBytes(body, 0, body.length);
+                    b.prefixVInt(value, reserved);
+                    b.endBytes();
+                    b.setString(3, bytesRef("after"));
+                    final EscfColumnData data = b.finish(4);
+                    final EscfColumn col = EscfColumn.from(data);
+                    assertEquals(new BytesRef(before), col.getBinaryValue(0));
+                    assertTrue(col.isAbsent(1));
+                    assertEquals("reserved=" + reserved + " value=" + value, expected, col.getBinaryValue(2));
+                    assertEquals("after", col.getBinaryValue(3).utf8ToString());
+                    data.close();
+                }
+            }
+        }
+    }
+
+    public void testStreamedPrefixVIntNarrowerThanReservationIsRejected() {
+        try (EscfColumnBuilder b = lockedStringBuilder()) {
+            b.beginBytes(0);
+            b.writeByte((byte) 0);
+            b.writeByte((byte) 0);
+            expectThrows(IllegalArgumentException.class, () -> b.prefixVInt(1, 2));
+            b.abandonBytes();
+        }
+    }
+
+    /**
+     * An abandoned slot leaves no trace: its row finishes absent, its bytes are not in the data buffer, and the rows
+     * written after it sit where they would have without it. A later value may still fill the abandoned row.
+     */
+    public void testStreamedBytesAbandoned() {
+        try (EscfColumnBuilder expected = lockedStringBuilder(); EscfColumnBuilder actual = lockedStringBuilder()) {
+            expected.setString(0, bytesRef("a"));
+            expected.setString(3, bytesRef("d"));
+
+            actual.setString(0, bytesRef("a"));
+            actual.beginBytes(1);
+            final byte[] dropped = randomByteArrayOfLength(between(1, 30_000));
+            actual.writeBytes(dropped, 0, dropped.length);
+            actual.abandonBytes();
+            actual.beginBytes(3);
+            actual.writeVInt(0);
+            actual.writeBytes(bytesRef("ddd").bytes, 0, 3);
+            actual.prefixVInt(5, 1);
+            actual.abandonBytes();
+            actual.setString(3, bytesRef("d"));
+
+            assertSameColumn(expected.finish(5), actual.finish(5));
+        }
+    }
+
+    /** Abandoning the only slot ever opened leaves the builder empty, as if nothing had been written. */
+    public void testStreamedBytesAbandonedOnlySlotIsEmpty() {
+        try (EscfColumnBuilder b = lockedStringBuilder()) {
+            b.beginBytes(2);
+            b.writeBytes(bytesRef("gone").bytes, 0, 4);
+            b.abandonBytes();
+            assertTrue(b.isEmpty());
+            final EscfColumnData data = b.finish(3);
+            for (int row = 0; row < 3; row++) {
+                assertTrue(EscfColumn.from(data).isAbsent(row));
+            }
+            data.close();
+        }
+    }
+
+    /** A streamed slot is never a second same-row value: the column cannot become an array while the slot is open. */
+    public void testStreamedBytesRejectSameRow() {
+        try (EscfColumnBuilder b = lockedStringBuilder()) {
+            b.setString(1, bytesRef("x"));
+            expectThrows(IllegalStateException.class, () -> b.beginBytes(1));
+            b.beginBytes(2);
+            b.endBytes();
+            expectThrows(IllegalStateException.class, () -> b.beginBytes(2));
+        }
+    }
+
+    /** Once a same-row {@code setString} has promoted the column to an array, there is no scalar slot left to stream into. */
+    public void testStreamedBytesRejectPromotedColumn() {
+        try (EscfColumnBuilder b = lockedStringBuilder()) {
+            b.setString(0, bytesRef("x"));
+            b.setString(0, bytesRef("y"));
+            expectThrows(IllegalStateException.class, () -> b.beginBytes(1));
+        }
+    }
+
+    /** Streamed slots and whole values may alternate freely on one column. */
+    public void testStreamedBytesInterleaveWithSetString() {
+        try (EscfColumnBuilder expected = lockedStringBuilder(); EscfColumnBuilder actual = lockedStringBuilder()) {
+            final int docCount = between(1, 50);
+            int row = 0;
+            while (row < docCount) {
+                final byte[] value = randomByteArrayOfLength(between(0, 200));
+                expected.setString(row, value, 0, value.length);
+                if (randomBoolean()) {
+                    actual.setString(row, value, 0, value.length);
+                } else {
+                    actual.beginBytes(row);
+                    actual.writeBytes(value, 0, value.length);
+                    actual.endBytes();
+                }
+                row += between(1, 3);
+            }
+            assertSameColumn(expected.finish(docCount), actual.finish(docCount));
+        }
+    }
+
+    private static EscfColumnBuilder lockedStringBuilder() {
+        EscfColumnBuilder b = mergeBuilder();
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    /** Two finished var-width columns are the same column: kind, absent rows, offsets and every byte of data. */
+    private static void assertSameColumn(EscfColumnData expected, EscfColumnData actual) {
+        try {
+            assertEquals(expected.kind(), actual.kind());
+            assertEquals(expected.docCount(), actual.docCount());
+            assertEquals(expected.validity() == null, actual.validity() == null);
+            for (int row = 0; row < expected.docCount(); row++) {
+                assertEquals("row " + row, EscfColumn.from(expected).isAbsent(row), EscfColumn.from(actual).isAbsent(row));
+            }
+            assertArrayEquals(expected.offsets(), actual.offsets());
+            assertEquals(expected.data().toBytesRef(), actual.data().toBytesRef());
+        } finally {
+            expected.close();
+            actual.close();
+        }
     }
 
     /**

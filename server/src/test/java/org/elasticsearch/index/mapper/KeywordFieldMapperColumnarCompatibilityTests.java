@@ -17,7 +17,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -780,6 +783,230 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc("d3", 3L, "{\"f\":[null]}"),
                 doc("d4", 4L, "{\"f\":[]}"),
                 doc("d5", 5L, "{}")
+            )
+        );
+    }
+
+    // ---- the doc-values blob, streamed slot by slot into the column ----------------------------------
+    //
+    // The batch path writes each document's doc-values blob straight into the column builder as the slots arrive, rather
+    // than assembling it elsewhere and copying it in, so these pin every shape of document against the row path for both
+    // framings: the ColumNAR codec's payload (count in front, so the count is patched in at the end) and the in-order
+    // inline-null blob (a lone non-null value stored raw, so its length prefix is moved in front only on a second slot).
+
+    /** Every shape a document can take in one batch, under the codec's payload framing. */
+    public void testColumnarCodecStreamedPayloadShapes() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec streamed payload shapes",
+                1L,
+                doc("d1", 1L, "{\"f\":\"solo\"}"),
+                doc("d2", 2L, "{\"f\":[\"solo\"]}"),
+                doc("d3", 3L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d4", 4L, "{\"f\":[null,\"a\"]}"),
+                doc("d5", 5L, "{\"f\":[\"a\",null]}"),
+                doc("d6", 6L, "{\"f\":[null]}"),
+                doc("d7", 7L, "{\"f\":[null,null]}"),
+                doc("d8", 8L, "{\"f\":[]}"),
+                doc("d9", 9L, "{\"f\":null}"),
+                doc("d10", 10L, "{}"),
+                doc("d11", 11L, "{\"f\":\"\"}"),
+                doc("d12", 12L, "{\"f\":[\"\",\"\"]}"),
+                doc("d13", 13L, "{\"f\":[\"\",null,\"x\"]}"),
+                doc("d14", 14L, "{\"f\":[\"last\",\"two\"]}")
+            )
+        );
+    }
+
+    /** {@code null_value} turns nulls into values, alone and among other slots, under the codec's payload framing. */
+    public void testColumnarCodecStreamedPayloadNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NA").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec streamed payload null_value",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":[null]}"),
+                doc("d3", 3L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d4", 4L, "{\"f\":[null,null]}"),
+                doc("d5", 5L, "{\"f\":[]}"),
+                doc("d6", 6L, "{}")
+            )
+        );
+    }
+
+    /** An empty string read as a null, alone (a bare null) and inside an array (a kept slot), under the codec's payload framing. */
+    public void testColumnarCodecStreamedPayloadEmptyStringAsNull() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(columnarCodecSettings())
+            .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+            .build();
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            settings,
+            batch(
+                "columnar codec streamed payload empty string as null",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":[\"\"]}"),
+                doc("d3", 3L, "{\"f\":[\"a\",\"\",\"b\"]}"),
+                doc("d4", 4L, "{\"f\":[\"\",\"\"]}"),
+                doc("d5", 5L, "{\"f\":\"a\"}"),
+                doc("d6", 6L, "{}")
+            )
+        );
+    }
+
+    /**
+     * Documents whose payload count takes more than one vint byte (128 slots and up), so the one byte stood in for the count has
+     * to be widened and the slots moved along, and values longer than a recycler page, so a slot's bytes span pages.
+     */
+    public void testColumnarCodecStreamedPayloadWideCountsAndLongValues() throws IOException {
+        final int wide = between(128, 400);
+        final StringBuilder wideArray = new StringBuilder("[");
+        for (int i = 0; i < wide; i++) {
+            wideArray.append(i > 0 ? "," : "").append(i % 7 == 0 ? "null" : "\"v" + i + "\"");
+        }
+        wideArray.append("]");
+        final String longValue = randomAlphaOfLength(between(16_384, 40_000));
+        final String longValues = "[\"" + randomAlphaOfLength(between(16_384, 40_000)) + "\",null,\"" + longValue + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec streamed payload wide counts and long values",
+                1L,
+                doc("d1", 1L, "{\"f\":\"before\"}"),
+                doc("d2", 2L, "{\"f\":" + wideArray + "}"),
+                doc("d3", 3L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d4", 4L, "{\"f\":" + longValues + "}"),
+                doc("d5", 5L, "{\"f\":\"after\"}")
+            )
+        );
+    }
+
+    /**
+     * A strictly columnar index created before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} writes the in-order inline-null
+     * blob with a {@code .counts} companion rather than the codec's payload.
+     */
+    private static IndexVersion inlineNullVersion() {
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+    }
+
+    /** Every shape a document can take in one batch, under the inline-null framing. */
+    public void testInlineNullStreamedBlobShapes() throws IOException {
+        assertColumnarMatchesXContent(
+            inlineNullVersion(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch(
+                "inline-null streamed blob shapes",
+                1L,
+                doc("d1", 1L, "{\"f\":\"solo\"}"),
+                doc("d2", 2L, "{\"f\":[\"solo\"]}"),
+                doc("d3", 3L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d4", 4L, "{\"f\":[null,\"a\"]}"),
+                doc("d5", 5L, "{\"f\":[\"a\",null]}"),
+                doc("d6", 6L, "{\"f\":[null]}"),
+                doc("d7", 7L, "{\"f\":[null,null]}"),
+                doc("d8", 8L, "{\"f\":[]}"),
+                doc("d9", 9L, "{\"f\":null}"),
+                doc("d10", 10L, "{}"),
+                doc("d11", 11L, "{\"f\":\"\"}"),
+                doc("d12", 12L, "{\"f\":[\"\",\"\"]}"),
+                doc("d13", 13L, "{\"f\":[\"\",null,\"x\"]}"),
+                doc("d14", 14L, "{\"f\":[\"last\",\"two\"]}")
+            )
+        );
+    }
+
+    /** {@code null_value} under the inline-null framing. */
+    public void testInlineNullStreamedBlobNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            inlineNullVersion(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NA").endObject()),
+            columnarSettings(),
+            batch(
+                "inline-null streamed blob null_value",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":[null]}"),
+                doc("d3", 3L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d4", 4L, "{\"f\":[null,null]}"),
+                doc("d5", 5L, "{\"f\":[]}"),
+                doc("d6", 6L, "{}")
+            )
+        );
+    }
+
+    /** An empty string read as a null under the inline-null framing. */
+    public void testInlineNullStreamedBlobEmptyStringAsNull() throws IOException {
+        assertColumnarMatchesXContent(
+            inlineNullVersion(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "inline-null streamed blob empty string as null",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":[\"\"]}"),
+                doc("d3", 3L, "{\"f\":[\"a\",\"\",\"b\"]}"),
+                doc("d4", 4L, "{\"f\":[\"\",\"\"]}"),
+                doc("d5", 5L, "{\"f\":\"a\"}"),
+                doc("d6", 6L, "{}")
+            )
+        );
+    }
+
+    /**
+     * {@code ignore_above} drops a value from the middle, the start and the end of a document without leaving a slot behind,
+     * which changes which slot is the document's first and whether it stands alone. Strictly columnar indices make
+     * {@code ignore_above} inert from {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}, which predates the codec, so this
+     * is only reachable under the inline-null framing.
+     */
+    public void testInlineNullStreamedBlobIgnoreAbove() throws IOException {
+        assertColumnarMatchesXContent(
+            inlineNullVersion(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("ignore_above", 5).endObject()),
+            columnarSettings(),
+            batch(
+                "inline-null streamed blob ignore_above",
+                1L,
+                doc("d1", 1L, "{\"f\":\"toolong\"}"),
+                doc("d2", 2L, "{\"f\":[\"toolong\",\"ok\"]}"),
+                doc("d3", 3L, "{\"f\":[\"ok\",\"toolong\"]}"),
+                doc("d4", 4L, "{\"f\":[\"a\",\"toolong\",\"b\"]}"),
+                doc("d5", 5L, "{\"f\":[null,\"toolong\",\"b\"]}"),
+                doc("d6", 6L, "{\"f\":[\"toolong\",null]}"),
+                doc("d7", 7L, "{\"f\":\"ok\"}")
+            )
+        );
+    }
+
+    /** Values longer than a recycler page and documents with many slots, under the inline-null framing. */
+    public void testInlineNullStreamedBlobLongValues() throws IOException {
+        final int wide = between(128, 400);
+        final StringBuilder wideArray = new StringBuilder("[");
+        for (int i = 0; i < wide; i++) {
+            wideArray.append(i > 0 ? "," : "").append(i % 7 == 0 ? "null" : "\"v" + i + "\"");
+        }
+        wideArray.append("]");
+        final String longValue = randomAlphaOfLength(between(16_384, 40_000));
+        assertColumnarMatchesXContent(
+            inlineNullVersion(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch(
+                "inline-null streamed blob long values",
+                1L,
+                doc("d1", 1L, "{\"f\":\"before\"}"),
+                doc("d2", 2L, "{\"f\":" + wideArray + "}"),
+                doc("d3", 3L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d4", 4L, "{\"f\":[\"" + longValue + "\",null,\"" + randomAlphaOfLength(between(16_384, 40_000)) + "\"]}"),
+                doc("d5", 5L, "{\"f\":\"after\"}")
             )
         );
     }

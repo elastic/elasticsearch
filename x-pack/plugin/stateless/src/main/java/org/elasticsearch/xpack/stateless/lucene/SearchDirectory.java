@@ -56,6 +56,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
@@ -76,6 +77,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
     private final MutableObjectStoreUploadTracker objectStoreUploadTracker;
+
+    /**
+     * Exclusive end ({@code offset + fileLength}) of the furthest file observed for each blob, keyed by the blob's primary
+     * term and generation. The value only grows, because an uploaded blob is immutable and a virtual batched compound
+     * commit only grows. A generational file copy extends the blob that carried it even when the directory keeps an earlier
+     * location for that file. Removing a file does not shrink the length. The entry is dropped once no retained file
+     * references the blob.
+     */
+    private volatile Map<PrimaryTermAndGeneration, Long> blobLengths = Map.of();
 
     /**
      * Map of terms/generations that are currently in use by opened Lucene generational files.
@@ -347,19 +357,51 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
+     * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob.
+     * Empty when that primary term and generation are not tracked.
+     * <p>
+     * The value grows as a virtual batched compound commit is appended, including when a generational file is carried
+     * in a later blob whose location this directory does not store. It is kept while any file still references the blob,
+     * because an uploaded blob is immutable and a virtual one only grows, so it can stay past the end of the files that
+     * remain after a later file is removed.
+     */
+    public OptionalLong blobLength(PrimaryTermAndGeneration termAndGeneration) {
+        final Long length = blobLengths.get(termAndGeneration);
+        return length == null ? OptionalLong.empty() : OptionalLong.of(length);
+    }
+
+    /**
      * Removes superfluous files
      * @param filesToRetain the files to retain
      */
     public void retainFiles(Set<String> filesToRetain) {
-        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+        final var current = currentMetadata;
+        if (filesToRetain.containsAll(current.keySet()) == false) {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
-                final var updated = new HashMap<>(currentMetadata);
-                final var filesRemoved = updated.keySet().retainAll(filesToRetain);
+                final var currentLengths = blobLengths;
+                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>(currentLengths.size());
+                final var updated = new HashMap<String, BlobFileRanges>(current.size());
+
+                for (var entry : current.entrySet()) {
+                    if (filesToRetain.contains(entry.getKey())) {
+                        updated.put(entry.getKey(), entry.getValue());
+                        termGensRetained.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                    }
+                }
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
-                currentMetadata = Map.copyOf(updated);
+                final boolean filesRemoved = updated.size() < current.size();
                 assert filesRemoved;
+
+                // A removed file does not drop its blob while another retained file still references it.
+                if (termGensRetained.size() != currentLengths.size()) {
+                    final var lengths = new HashMap<>(currentLengths);
+                    lengths.keySet().retainAll(termGensRetained);
+                    blobLengths = Map.copyOf(lengths);
+                }
+                currentMetadata = Map.copyOf(updated);
+                assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
 
                 if (filesRemoved && cacheService.isEvictObsoleteRegionsEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
@@ -749,6 +791,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
             final var reconciledMetadata = new HashMap<>(currentMetadata);
+            final var lengths = new HashMap<>(blobLengths);
             //
             // Distinct BCC term/generations referenced by the generational files in this incoming metadata.
             //
@@ -792,10 +835,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         // read the first known location
                         incoming = reconciledMetadata.get(fileName).blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
+                    // The commit carried this file at reconciledRanges. When the directory keeps an earlier location,
+                    // that value is the copy, which is not stored, but the copy still occupies bytes in its blob.
+                    extendBlobLength(lengths, reconciledRanges.blobLocation());
                     // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
                     incomingGenerationalFilesTermAndGens.add(incoming);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
+                    extendBlobLength(lengths, reconciledRanges.blobLocation());
                 }
                 commitSize += reconciledRanges.blobLocation().fileLength();
             }
@@ -826,7 +873,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 // commit has no generational files, and we're not opening a PIT reader during relocation
                 this.lastAcquiredGenerationalFilesTermAndGen = null;
             }
+            blobLengths = Map.copyOf(lengths);
             currentMetadata = Map.copyOf(reconciledMetadata);
+            assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
             if (pitContextRelocationTransfer == false) {
                 currentDataSetSizeInBytes = commitSize;
             }
@@ -871,5 +920,31 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             return incomingRanges;
         }
         return existingRanges.reconcileWith(incomingRanges);
+    }
+
+    /**
+     * Move the blob's stored length forward when {@code location} ends past it. A file that ends at or before the stored
+     * length leaves it unchanged.
+     */
+    private static void extendBlobLength(Map<PrimaryTermAndGeneration, Long> lengths, BlobLocation location) {
+        final long end = Math.addExact(location.offset(), location.fileLength());
+        lengths.merge(location.getBatchedCompoundCommitTermAndGeneration(), end, Math::max);
+    }
+
+    /**
+     * {@code blobLengths} is keyed by exactly the primary term and generation pairs referenced by {@code metadata}.
+     * Length values are not checked: a generational file copy can extend a blob past every file that remains stored,
+     * and removing a file does not shrink a length.
+     */
+    private static boolean assertBlobLengthsMatchMetadata(
+        Map<String, BlobFileRanges> metadata,
+        Map<PrimaryTermAndGeneration, Long> blobLengths
+    ) {
+        final Set<PrimaryTermAndGeneration> referenced = metadata.values()
+            .stream()
+            .map(ranges -> ranges.blobLocation().getBatchedCompoundCommitTermAndGeneration())
+            .collect(Collectors.toSet());
+        assert blobLengths.keySet().equals(referenced) : "blob lengths " + blobLengths.keySet() + " must contain only " + referenced;
+        return true;
     }
 }

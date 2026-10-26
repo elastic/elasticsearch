@@ -523,3 +523,8 @@ tests:
   - :x-pack:plugin:slm:internalClusterTest
   method: testSLMRetentionAfterRestore
   issue: https://github.com/elastic/elasticsearch/issues/163334
+- class: org.elasticsearch.search.builder.SearchSourceBuilderTests
+  tasks:
+  - :server:test
+  method: testSupportsParallelCollection
+  issue: https://github.com/elastic/elasticsearch/issues/163337

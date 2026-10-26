@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,8 +33,12 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SumTests extends AbstractAggregationTestCase {
     public SumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -165,18 +170,28 @@ public class SumTests extends AbstractAggregationTestCase {
                         if (vectors.isEmpty()) {
                             yield null;
                         }
-                        List<Float> sum = new ArrayList<>(vectors.get(0));
-                        for (int i = 1; i < vectors.size(); i++) {
-                            for (int j = 0; j < sum.size(); j++) {
-                                sum.set(j, sum.get(j) + vectors.get(i).get(j));
+                        int dimensions = vectors.get(0).size();
+                        double[] sum = new double[dimensions];
+                        double[] absSum = new double[dimensions];
+                        for (List<Float> vector : vectors) {
+                            for (int j = 0; j < dimensions; j++) {
+                                sum[j] += vector.get(j);
+                                absSum[j] += Math.abs(vector.get(j));
                             }
                         }
-                        Float failedValue = sum.stream().filter(v -> Float.isFinite(v) == false).findFirst().orElse(null);
-                        if (failedValue == null) {
-                            yield sum;
+                        List<Matcher<? super Float>> dimensionMatchers = new ArrayList<>();
+                        for (int j = 0; j < dimensions; j++) {
+                            if (Float.isFinite((float) sum[j]) == false) {
+                                expectedWarning = "java.lang.ArithmeticException: not a finite float number: " + (float) sum[j];
+                                yield null;
+                            }
+                            // Intermediate states are floats, so each partial sum is rounded once.
+                            double tolerance = absSum[j] * 1e-6;
+                            dimensionMatchers.add(
+                                allOf(greaterThanOrEqualTo((float) (sum[j] - tolerance)), lessThanOrEqualTo((float) (sum[j] + tolerance)))
+                            );
                         }
-                        expectedWarning = "java.lang.ArithmeticException: not a finite float number: " + failedValue;
-                        yield null;
+                        yield contains(dimensionMatchers);
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
@@ -198,7 +213,7 @@ public class SumTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
-                expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
+                expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : expected instanceof Matcher<?> m ? m : equalTo(expected)
             ).withWarnings(
                 expectedWarning == null
                     ? null

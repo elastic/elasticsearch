@@ -144,6 +144,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
             false, /* lookup indices should do not be empty */
+            true,
             minimumVersion,
             false,
             false,
@@ -195,6 +196,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -231,6 +233,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
             indexPattern,
             true, /* the derived data streams may not exist */
+            false,
             minimumVersion,
             false,
             false,
@@ -294,6 +297,7 @@ public class IndexResolver {
             createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* flat index expression could resolve to empty */
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -325,6 +329,7 @@ public class IndexResolver {
         EsqlResolveFieldsRequest request,
         String indexPattern,
         boolean allowEmpty,
+        boolean reportPartialFailures,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -351,7 +356,9 @@ public class IndexResolver {
 
             var failures = new ArrayList<>(response.caps().getFailures());
 
-            if (responseMinimumVersion != null && responseMinimumVersion.supports(FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS)) {
+            if (reportPartialFailures
+                && responseMinimumVersion != null
+                && responseMinimumVersion.supports(FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS)) {
 
                 if (response.caps().getResolvedLocally() != null) {
                     var localUnresolvedIndices = unresolved(null, response.caps().getResolvedLocally());

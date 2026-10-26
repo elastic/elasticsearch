@@ -76,10 +76,10 @@ To set up federated identity with CloudFormation:
 
 1. In the **Set up AWS access with CloudFormation** section, click **Open template in AWS Console**. AWS opens a new CloudFormation stack named `elastic-datasources-federated-identity-<id>` in a new tab, with your values filled in.
 2. In AWS, create the stack:
-   1. Review the stack.
-   2. Select the checkbox acknowledging that the stack creates IAM resources.
+   1. On the **Quick create stack** page, review the stack name and parameters.
+   2. Under **Capabilities**, select the checkbox acknowledging that the template may create IAM resources.
    3. Click **Create stack**.
-3. Wait until the stack status is **CREATE_COMPLETE**.
+3. Wait until the stack status is `CREATE_COMPLETE`.
 4. On the stack's **Outputs** tab, copy the **RoleArn** value.
 5. [Grant the role read access](#grant-role-read-access) to your bucket. The template creates the role without any permissions.
 

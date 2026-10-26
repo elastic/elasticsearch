@@ -57,7 +57,7 @@ public class BccUploadMetrics {
         this.bccReplicatedContentSizeInBytesHistogram = meterRegistry.registerLongHistogram(
             BCC_REPLICATED_CONTENT_SIZE_HISTOGRAM_METRIC,
             "Histogram of total size in megabytes of replicated content of commits in a batched compound commit",
-            "megabytes"
+            "bytes"
         );
         this.bccCopiedGenerationalFilesSizeInMegabytesHistogram = meterRegistry.registerDoubleHistogram(
             BCC_COPIED_GENERATIONAL_FILES_SIZE_HISTOGRAM_METRIC,

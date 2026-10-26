@@ -869,14 +869,18 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return logicalSize.get();
     }
 
+    /// Returns the total size (the sum) of headers of all compound commits in this batched commit.
     public long headersSizeInBytes() {
         return headersSizeBytes.get();
     }
 
+    /// Returns the size of copied generational files in this batched commit.
+    /// Such files are copied into the first commit of a BCC only.
     public long copiedGenerationalFilesSizeInBytes() {
         return copiedGenerationalFilesSizeBytes.get();
     }
 
+    /// Returns the total size (the sum) of replicated content of all compound commits in this batched commit.
     public long replicatedContentSizeInBytes() {
         return replicatedContentSizeBytes.get();
     }

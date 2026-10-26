@@ -1233,6 +1233,25 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code C = A @ B} where A is (n x k), B is (k x n) and C is (n x n), all row-major, for a product that
+     * is known to be symmetric, such as {@code A^T A}. It computes only the entries on and above the diagonal, about half
+     * of the work of {@link #matrixMultiply}, and copies them into the lower triangle. The result is undefined if the
+     * product is not symmetric. Whatever {@code result} held before is overwritten.
+     */
+    public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        if (a.length != n * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != n * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+    }
+
+    /**
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major signed bytes.
      * Result C is (m x n), accumulated in exact int32 arithmetic.
      */

@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -16,12 +16,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Grouping state for summing dense vectors. Each group maintains its own float[] for the sum.
+ * Grouping state for summing dense vectors. Each group maintains its own range of doubles for the sum,
+ * see {@link SumDenseVectorAggregator} for why the sums are not floats.
  * All vectors must have the same dimensions.
  */
 final class SumDenseVectorGroupingState extends AbstractFallibleArrayState implements GroupingAggregatorState {
 
-    private FloatArray sums;
+    private DoubleArray sums;
     private int dimensions = -1;
 
     SumDenseVectorGroupingState(BigArrays bigArrays) {
@@ -37,7 +38,7 @@ final class SumDenseVectorGroupingState extends AbstractFallibleArrayState imple
      */
     void add(int groupId, FloatBlock block, int start, int dimensions) {
         if (this.dimensions == -1) {
-            this.sums = bigArrays.newFloatArray(dimensions);
+            this.sums = bigArrays.newDoubleArray(dimensions);
             this.dimensions = dimensions;
         } else if (dimensions != this.dimensions) {
             throw new IllegalArgumentException(
@@ -48,11 +49,14 @@ final class SumDenseVectorGroupingState extends AbstractFallibleArrayState imple
 
         int groupSumStart = groupId * dimensions;
         for (int i = 0; i < dimensions; i++) {
-            float result = block.getFloat(start + i) + sums.get(groupSumStart + i);
+            double sum = block.getFloat(start + i) + sums.get(groupSumStart + i);
+            // The double can hold totals past Float.MAX_VALUE, but the result is emitted as a float,
+            // so fail as soon as the total would no longer fit in one.
+            float result = (float) sum;
             if (Float.isFinite(result) == false) {
                 throw new ArithmeticException("not a finite float number: " + result);
             }
-            sums.set(groupSumStart + i, result);
+            sums.set(groupSumStart + i, sum);
         }
         trackGroupId(groupId);
     }
@@ -84,7 +88,7 @@ final class SumDenseVectorGroupingState extends AbstractFallibleArrayState imple
                 if (groupIndex < sums.size() && hasValue(group) && hasFailed(group) == false) {
                     builder.beginPositionEntry();
                     for (int j = 0; j < dimensions; j++) {
-                        builder.appendFloat(sums.get(groupIndex + j));
+                        builder.appendFloat((float) sums.get(groupIndex + j));
                     }
                     builder.endPositionEntry();
                 } else {

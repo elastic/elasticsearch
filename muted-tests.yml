@@ -576,3 +576,7 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163244
+- class: org.elasticsearch.xpack.esql.CsvColumnarIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163462

@@ -221,17 +221,19 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             request.allowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
+        DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
         PageStreamPublisher publisher = new PageStreamPublisher(
             request.batchSize(),
             streamingConsumerTimeout,
             threadPool,
-            threadPool.generic()
+            threadPool.generic(),
+            ex -> failureFooter(ex, executionInfo, completedWork.finish(), threadPool.getThreadContext())
         );
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
             listener,
             new EsqlStreamLogContextBuilder(task, request, executionInfo, publisher, resultRef::get),
-            l -> innerExecute(task, request, executionInfo, publisher, resultRef, l)
+            l -> innerExecute(task, request, executionInfo, publisher, resultRef, completedWork, l)
         );
     }
 
@@ -241,6 +243,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
+        DriverCompletionInfo.AtomicAccumulator completedWork,
         ActionListener<ActionResponse.Empty> listener
     ) {
         EsqlFlags flags = computeService.createFlags();
@@ -248,7 +251,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
-        DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
 
         PlanRunner planRunner = new PlanRunner() {
             @Override
@@ -317,7 +319,14 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             foldCtx,
                             executionInfo,
                             planTimeProfile,
-                            resultListener
+                            resultListener.delegateFailureAndWrap((l, r) -> {
+                                Exception streamFailure = publisher.failure();
+                                if (streamFailure != null) {
+                                    l.onFailure(streamFailure);
+                                } else {
+                                    l.onResponse(r);
+                                }
+                            })
                         );
                     } catch (Exception e) {
                         resultListener.onFailure(e);

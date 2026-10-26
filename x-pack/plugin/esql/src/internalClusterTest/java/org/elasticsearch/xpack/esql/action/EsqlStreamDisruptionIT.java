@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -22,6 +25,9 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.logging.AccumulatingMockAppender;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -30,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -46,6 +53,7 @@ import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamGate;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamOutcome;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.Terminal;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -71,6 +79,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.assertStreamInvariants;
@@ -683,8 +692,52 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                 ((Number) outcome.terminalLine().get("status")).intValue(),
                 equalTo(429)
             );
+            assertThat(
+                "the error line must report the real elapsed time, not a zeroed placeholder",
+                ((Number) outcome.terminalLine().get("took")).longValue(),
+                greaterThan(0L)
+            );
+            assertThat("the error line must carry the warnings array", outcome.terminalLine(), hasKey("warnings"));
             assertThat("the stream must have been cut short", outcome.rowCount(), lessThan((long) streamDocCount));
         } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey()));
+        }
+    }
+
+    public void testStalledConsumerTimeoutIsRecordedAsFailure() throws Exception {
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey(), "1s"));
+        ActivityLoggingUtils.enableLoggers();
+        Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
+        Level origLevel = queryLog.getLevel();
+        AccumulatingMockAppender appender = new AccumulatingMockAppender("stream_query_log");
+        appender.start();
+        Loggers.addAppender(queryLog, appender);
+        Loggers.setLevel(queryLog, Level.TRACE);
+        PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, coordinatingNode);
+        long totalBefore = planExecutor.metrics().stats().get("queries.rest.total");
+        long failedBefore = planExecutor.metrics().stats().get("queries.rest.failed");
+        try {
+            StreamOutcome outcome = streamPausingAt(
+                1,
+                streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 32768) | LIMIT " + streamDocCount),
+                true,
+                () -> Thread.sleep(5000),
+                "batch_size=1"
+            );
+            assertServerFullyCleanedUp();
+            assertThat("the client saw the timeout", outcome.terminal(), equalTo(Terminal.ERROR));
+
+            long totalDelta = planExecutor.metrics().stats().get("queries.rest.total") - totalBefore;
+            long failedDelta = planExecutor.metrics().stats().get("queries.rest.failed") - failedBefore;
+            Map<String, String> logEntry = ActivityLoggingUtils.getMessageData(appender.getLastEventAndReset());
+            assertThat("the query was counted", totalDelta, equalTo(1L));
+            assertThat("the query log must record the timeout as a failure", logEntry.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
+            assertThat("the timeout must count as a failed query", failedDelta, equalTo(1L));
+        } finally {
+            Loggers.removeAppender(queryLog, appender);
+            appender.stop();
+            Loggers.setLevel(queryLog, origLevel);
+            ActivityLoggingUtils.disableLoggers();
             updateClusterSettings(Settings.builder().putNull(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey()));
         }
     }

@@ -904,11 +904,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private void runCleanUp() {
             transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
                 ensureOverwriteSucceeded();
-                ensureNoDeprecations();
                 final long listingStartTimeNanos = System.nanoTime();
                 ensureConsistentListing();
                 final long deleteStartTimeNanos = System.nanoTime();
                 deleteContainer();
+                ensureNoDeprecations();
                 sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
             }));
         }

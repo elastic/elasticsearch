@@ -44,6 +44,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
 
+    private static final List<String> FEATURE_FLAGS_PRODUCT_ORIGINS = List.of("kibana", "fleet");
+
     private static final String KIBANA_ORIGIN = "kibana";
 
     private static final String KIBANA_WORKFLOWS_VERSION_VARIABLE = "kibana.workflows.version";
@@ -176,6 +178,17 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowsTemplates()
         .build();
 
+    /**
+     * Feature flag definitions and observed evaluation contexts. Kibana creates and manages these indices; Fleet Server
+     * reads the definitions and upserts the observed contexts, so both products are allowed origins.
+     */
+    public static final SystemIndexDescriptor FEATURE_FLAGS_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".feature-flags*")
+        .setDescription("Feature flags system index")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(FEATURE_FLAGS_PRODUCT_ORIGINS)
+        .build();
+
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
@@ -185,7 +198,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             CONTEXT_ENGINE_INDEX_DESCRIPTOR,
             WORKFLOWS_INDEX_DESCRIPTOR,
             APM_AGENT_CONFIG_INDEX_DESCRIPTOR,
-            APM_CUSTOM_LINK_INDEX_DESCRIPTOR
+            APM_CUSTOM_LINK_INDEX_DESCRIPTOR,
+            FEATURE_FLAGS_INDEX_DESCRIPTOR
         );
     }
 

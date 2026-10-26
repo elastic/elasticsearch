@@ -293,6 +293,25 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".feature-flags-definitions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".feature-flags-observed-contexts*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
                     "synthetics-*"
                   ],
                   "privileges": [

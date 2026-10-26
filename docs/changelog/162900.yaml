@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162745
+pr: 162900
+summary: Fix `unmapped_fields` over views with RENAME
+type: bug

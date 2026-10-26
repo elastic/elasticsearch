@@ -1539,6 +1539,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
                 .entry("bytes_read", greaterThanOrEqualTo(0))
+                .entry("bytes_decoded", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk())
                 .entry("source_docs_loaded", greaterThanOrEqualTo(0))
                 .entry("source_field_reads", greaterThanOrEqualTo(0))

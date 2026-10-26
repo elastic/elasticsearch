@@ -12,6 +12,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -19,9 +20,11 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +36,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -159,7 +163,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         assertThat(
             message,
             equalTo(
-                "index-fail [doc-0] seq# [-2] allocation-id ["
+                "real-index-fail [doc-0] seq# [-2] allocation-id ["
                     + shardRouting.allocationId()
                     + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
             )
@@ -204,6 +208,56 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(indexResult.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
         listener.postIndexBatch(shardId, batch, List.of(indexResult));
         assertThat(appender.getLastEventAndReset(), nullValue());
+    }
+
+    public void testPostIndexBatchUserErrorLoggedAtTrace() {
+        LogEvent event = postIndexBatchFailure(Level.TRACE, randomUserError());
+        assertThat(event.getLevel(), equalTo(Level.TRACE));
+        assertThat(event.getMessage().getFormattedMessage(), startsWith("index-fail [doc-0]"));
+    }
+
+    public void testPostIndexBatchUserErrorNotLoggedAtDebug() {
+        assertThat(postIndexBatchFailure(Level.DEBUG, randomUserError()), nullValue());
+    }
+
+    public void testPostIndexBatchRealErrorLoggedAtDebug() {
+        Exception realError = randomFrom(
+            new RuntimeException("test exception"),
+            new IllegalArgumentException("other message"),
+            new IllegalArgumentException()
+        );
+        LogEvent event = postIndexBatchFailure(Level.TRACE, realError);
+        assertThat(event.getLevel(), equalTo(Level.DEBUG));
+        assertThat(event.getMessage().getFormattedMessage(), startsWith("real-index-fail [doc-0]"));
+    }
+
+    private static Exception randomUserError() {
+        var shardId = ShardId.fromString("[index][123]");
+        return randomFrom(
+            new DocumentMissingException(shardId, "doc-0"),
+            new VersionConflictEngineException(shardId, "[doc-0]", "explanation"),
+            new IllegalArgumentException("Number of documents in the shard cannot exceed [1]; for more information, see [url]")
+        );
+    }
+
+    private static LogEvent postIndexBatchFailure(Level level, Exception failure) {
+        var previousLevel = testLogger1.getLevel();
+        try {
+            Loggers.setLevel(testLogger1, level);
+            var shardId = ShardId.fromString("[index][123]");
+            var mockShard = mock(IndexShard.class);
+            var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
+            when(mockShard.routingEntry()).thenReturn(shardRouting);
+            when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+            Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
+            when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+            when(indexResult.getFailure()).thenReturn(failure);
+            appender.getLastEventAndReset();
+            new IndexingFailuresDebugListener(mockShard).postIndexBatch(shardId, primaryBatch(1), List.of(indexResult));
+            return appender.getLastEventAndReset();
+        } finally {
+            Loggers.setLevel(testLogger1, previousLevel);
+        }
     }
 
     private static IndexOperationBatch primaryBatch(int docCount) {

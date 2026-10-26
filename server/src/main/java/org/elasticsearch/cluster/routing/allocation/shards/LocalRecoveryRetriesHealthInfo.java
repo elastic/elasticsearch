@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.Map;
 
 /// Encapsulates information about the shard recoveries which have failed and are being retried locally on a data node.
+///
+/// Note that, since the map is keyed by [ShardId], the cached instance of this object could briefly refer to an earlier allocation, which
+/// the master has since cancelled. This will be corrected on the next push from the [LocalRecoveryRetriesHealthTracker].
 public record LocalRecoveryRetriesHealthInfo(Map<ShardId, Integer> localRetries) implements Writeable {
 
     public static final LocalRecoveryRetriesHealthInfo EMPTY = new LocalRecoveryRetriesHealthInfo(Map.of());

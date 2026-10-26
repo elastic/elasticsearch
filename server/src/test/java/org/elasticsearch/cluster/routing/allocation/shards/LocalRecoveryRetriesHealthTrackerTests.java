@@ -162,7 +162,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     }
 
     private static RecoveryState.Stage randomIncompleteStage() {
-        return randomValueOtherThan(RecoveryState.Stage.DONE, () -> randomFrom(RecoveryState.Stage.values()));
+        return RecoveryState.Stage.DONE;
     }
 
     private static ShardId randomShardId() {

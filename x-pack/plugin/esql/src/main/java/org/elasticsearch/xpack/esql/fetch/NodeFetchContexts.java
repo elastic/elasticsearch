@@ -23,6 +23,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -235,12 +236,14 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
                         // freeAll freed them already
                     }
                 }
+                assert Transports.assertNotTransportThread("dropping the last reference to a fetch context closes its reader");
                 context.nodeLease().close();
             }
         });
     }
 
     private void freeOnce(OpenContext context, String reason) {
+        assert Transports.assertNotTransportThread("freeing a fetch context can close its reader");
         if (context.flags().freed.compareAndSet(false, true)) {
             boolean found = service.searchService().freeReaderContext(context.readerContext().id());
             logger.debug(

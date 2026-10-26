@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159746
+pr: 162718
+summary: Merge score metadata attributes from sub-queries
+type: bug

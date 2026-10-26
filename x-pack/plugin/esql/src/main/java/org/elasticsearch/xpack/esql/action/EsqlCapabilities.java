@@ -1238,7 +1238,7 @@ public class EsqlCapabilities {
          * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
          */
         FIX_SCORE_SORT_ASC_PUSHDOWN,
-        
+
         /**
          * {@code InferIsNotNull} now only infers {@code IS NOT NULL} on the root fields of an
          * {@code IS NOT NULL} predicate through null-propagating expressions (an allow-list).

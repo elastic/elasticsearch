@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -67,6 +68,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
     protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "index-dynamic-disabled";
     private static final String LOOKUP_INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "lookup-index-dynamic-disabled";
+    private static final String INDEX_UNMAPPED_CONTAINER = "index-unmapped-container";
+    private static final String INDEX_UNMAPPED_SOURCE = "index-unmapped-source";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     /** The {@code _unmapped_fields} of the two {@link #INDEX_PARTIAL_MAPPING} documents for a user who may see all of them. */
     private static final Map<String, Object> PARTIAL_MAPPING_SALES = Map.of(
@@ -144,6 +147,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             false
         )
         .user("fls_unmapped_load_all_lookup_join_user", "x-pack-test-password", "read_unmapped_load_all,fls_user2", false)
+        .user("fls_unmapped_container_user", "x-pack-test-password", "fls_unmapped_container_except_k", false)
         .user("lookup_unmapped_load_all_user", "x-pack-test-password", "read_unmapped_load_all,read_lookup_unmapped_load_all", false)
         .user(
             "fls_lookup_unmapped_load_all_user",
@@ -1669,6 +1673,80 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(result.values("org"), equalTo(List.of("sales", "engineering", "marketing")));
         assertThat(result.values("value"), equalTo(Arrays.asList(40.0, null, 32.0)));
+    }
+
+    /**
+     * A columnar index with flattened unmapped fields keeps them in its {@code _unmapped} field, which field-level security does
+     * not filter by key. Every unmapped field read or searched there is checked against the role on its own.
+     */
+    public void testFLS_HidesUnmappedFieldKeptInTheUnmappedField() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "unmapped fields are read from the _unmapped field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        Settings settings = Settings.builder()
+            .put("index.mode", "columnar")
+            .put("index.mapping.flattened_unmapped_fields.enabled", true)
+            .put("index.number_of_shards", 1)
+            .build();
+        createIndex(INDEX_UNMAPPED_CONTAINER, settings, "\"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_CONTAINER + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_CONTAINER;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
+    }
+
+    /**
+     * An index that does not map {@code k} keeps it in {@code _source}, where the shard reads it and runs a pushed filter on it.
+     * Field-level security hides it there as it hides a mapped field: it reads as null and no filter on it matches.
+     */
+    public void testFLS_HidesUnmappedFieldReadFromSource() throws Exception {
+        assumeTrue(
+            "unmapped fields are resolved by each shard",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        createIndex(INDEX_UNMAPPED_SOURCE, Settings.EMPTY, "\"dynamic\": false, \"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_SOURCE + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_SOURCE;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
     }
 
     public void testLookupJoin_UnmappedSourceField_NotReturned_WithUnmappedFieldsLoadAll() throws Exception {

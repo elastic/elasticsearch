@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 /**
  * Calculates the geohash of geo_point geometries.
  */
-public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StGeohash",

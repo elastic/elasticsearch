@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  * The function `st_ymax` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_YMAX.html">PostGIS:ST_YMAX</a>.
  */
-public class StYMax extends UnaryScalarFunction {
+public class StYMax extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StYMax", StYMax::new);
 
     @FunctionInfo(

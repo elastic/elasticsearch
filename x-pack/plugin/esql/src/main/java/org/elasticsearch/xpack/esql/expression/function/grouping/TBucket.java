@@ -12,6 +12,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -58,7 +59,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         TimestampAware,
         TwoOptionalArguments,
         TimestampBoundsAware.OfExpression,
-        ConfigurationFunction {
+        ConfigurationFunction,
+        AnyNullIsNull {
     public static final String NAME = "TBucket";
 
     private final Configuration configuration;

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,7 +37,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Equals",

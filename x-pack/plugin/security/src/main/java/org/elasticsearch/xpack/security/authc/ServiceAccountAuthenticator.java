@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
+import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureReasonClassifier;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
@@ -27,6 +28,7 @@ import java.util.function.LongSupplier;
 class ServiceAccountAuthenticator implements Authenticator {
 
     public static final String ATTRIBUTE_SERVICE_ACCOUNT_ID = "es_security_service_account_id";
+    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es_security_service_account_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountAuthenticator.class);
     private final ServiceAccountService serviceAccountService;
@@ -50,6 +52,7 @@ class ServiceAccountAuthenticator implements Authenticator {
             SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
             meterRegistry,
             serviceAccountToken -> Map.of(ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal()),
+            ATTRIBUTE_AUTHC_FAILURE_REASON,
             nanoTimeSupplier
         );
     }
@@ -79,7 +82,12 @@ class ServiceAccountAuthenticator implements Authenticator {
         doAuthenticate(
             context,
             serviceAccountToken,
-            InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, serviceAccountToken, listener)
+            InstrumentedSecurityActionListener.wrapForAuthc(
+                authenticationMetrics,
+                serviceAccountToken,
+                SecurityAuthcFailureReasonClassifier.DEFAULT,
+                listener
+            )
         );
     }
 

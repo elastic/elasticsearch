@@ -42,6 +42,12 @@ public class ClusterCapabilityGatesTests extends ESTestCase {
 
     private static final int ITERATIONS = 500;
 
+    /**
+     * {@code agg} picks a four-argument {@code TOP} with a bare field for both arguments in roughly one call in 200, so
+     * {@link #ITERATIONS} misses it often enough to fail CI.
+     */
+    private static final int TOP_ITERATIONS = 10_000;
+
     private static final QuerySchema SCHEMA = new QuerySchema(
         List.of("employees"),
         List.of(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer")))),
@@ -114,8 +120,8 @@ public class ClusterCapabilityGatesTests extends ESTestCase {
         Function<GenerationContext, String> agg = context -> EsqlQueryGenerator.agg(previousOutput, List.of(), context);
         Pattern keywordOutputField = Pattern.compile("top\\(kw, \\d, \"(asc|desc)\", kw\\)");
 
-        assertThat(count(agg, everything(), keywordOutputField), greaterThan(0));
-        assertThat(count(agg, without(EsqlQueryGenerator.TOP_OUTPUT_FIELD_STRING_CAPABILITY), keywordOutputField), is(0));
+        assertThat(count(agg, everything(), keywordOutputField, TOP_ITERATIONS), greaterThan(0));
+        assertThat(count(agg, without(EsqlQueryGenerator.TOP_OUTPUT_FIELD_STRING_CAPABILITY), keywordOutputField, TOP_ITERATIONS), is(0));
     }
 
     /**
@@ -136,8 +142,12 @@ public class ClusterCapabilityGatesTests extends ESTestCase {
     }
 
     private static int count(Function<GenerationContext, String> generate, GenerationContext context, Pattern pattern) {
+        return count(generate, context, pattern, ITERATIONS);
+    }
+
+    private static int count(Function<GenerationContext, String> generate, GenerationContext context, Pattern pattern, int iterations) {
         int matches = 0;
-        for (int i = 0; i < ITERATIONS; i++) {
+        for (int i = 0; i < iterations; i++) {
             if (pattern.matcher(generate.apply(context)).find()) {
                 matches++;
             }

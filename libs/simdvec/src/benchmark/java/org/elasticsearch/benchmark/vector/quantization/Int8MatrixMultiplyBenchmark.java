@@ -31,7 +31,9 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Arrays;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -82,17 +84,19 @@ public class Int8MatrixMultiplyBenchmark {
     @Param({ "128", "341", "512", "2048" })
     int n;
 
+    private Arena arena;
     private ExecutorService executor;
     private TaskExecutor tasks;
     private ESVectorUtilSupport impl;
     /** A is (m x k). */
-    private byte[] a;
+    private MemorySegment a;
     /** B for matrixMultiply: (k x n). */
-    private byte[] bMul;
-    private int[] result;
+    private MemorySegment b;
+    private MemorySegment result;
 
     @Setup(Level.Trial)
     public void init() {
+        arena = Arena.ofShared();
         executor = threads == 1 ? null : Executors.newFixedThreadPool(threads);
         tasks = executor == null ? null : new TaskExecutor(executor);
         impl = switch (implementation) {
@@ -108,27 +112,34 @@ public class Int8MatrixMultiplyBenchmark {
             default -> throw new AssertionError(implementation);
         };
         Random random = new Random();
-        a = new byte[m * k];
-        random.nextBytes(a);
-        bMul = new byte[k * n];
-        random.nextBytes(bMul);
-        result = new int[m * n];
+        byte[] aBytes = new byte[m * k];
+        random.nextBytes(aBytes);
+        a = arena.allocate(aBytes.length);
+        MemorySegment.copy(aBytes, 0, a, ValueLayout.JAVA_BYTE, 0, aBytes.length);
+
+        byte[] bBytes = new byte[k * n];
+        random.nextBytes(bBytes);
+        b = arena.allocate(bBytes.length);
+        MemorySegment.copy(bBytes, 0, b, ValueLayout.JAVA_BYTE, 0, bBytes.length);
+
+        result = arena.allocate(m * n * Integer.BYTES, Integer.BYTES);
     }
 
     @Setup(Level.Iteration)
     public void reset() {
-        Arrays.fill(result, 0);
+        result.fill((byte) 0);
     }
 
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
     public void matrixMultiply(Blackhole bh) {
-        impl.matrixMultiply(a, bMul, m, k, n, result, tasks);
+        impl.matrixMultiplyI8(a, b, m, k, n, result, tasks);
         bh.consume(result);
     }
 
     @TearDown
     public void close() {
         if (executor != null) executor.close();
+        arena.close();
     }
 }

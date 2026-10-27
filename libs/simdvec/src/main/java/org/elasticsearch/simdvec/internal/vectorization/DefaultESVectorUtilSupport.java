@@ -21,6 +21,8 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -913,8 +915,8 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor) {
-        Arrays.fill(result, 0);
+    public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
+        result.fill((byte) 0);
         multiplyAccumulate(a, k, b, result, m, k, n, executor);
     }
 
@@ -927,7 +929,16 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * @param inner      inner dimension of the multiplication
      * @param n          columns of C, and of B
      */
-    private void multiplyAccumulate(byte[] a, int aRowStride, byte[] b, int[] c, int cRows, int inner, int n, TaskExecutor executor) {
+    private void multiplyAccumulate(
+        MemorySegment a,
+        int aRowStride,
+        MemorySegment b,
+        MemorySegment c,
+        int cRows,
+        int inner,
+        int n,
+        TaskExecutor executor
+    ) {
         // unroll 4x, so 4 values are accumulated into each c cell at once
         int innerLimit = inner - inner % 4;
         int taskNum = cRows / 4;
@@ -958,35 +969,36 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    private void multiplyRow(byte[] a, int aRowStride, byte[] b, int[] c, int inner, int n, int i, int innerLimit) {
+    private void multiplyRow(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int inner, int n, int i, int innerLimit) {
         int aBase = i * aRowStride;
         int cBase = i * n;
         int l = 0;
         for (; l < innerLimit; l += 4) {
-            int aV0 = a[aBase + l];
-            int aV1 = a[aBase + l + 1];
-            int aV2 = a[aBase + l + 2];
-            int aV3 = a[aBase + l + 3];
+            int aV0 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l);
+            int aV1 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l + 1);
+            int aV2 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l + 2);
+            int aV3 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l + 3);
             int b0 = l * n;
             int b1 = b0 + n;
             int b2 = b0 + n * 2;
             int b3 = b0 + n * 3;
             for (int j = 0; j < n; j++) {
-                int acc = c[cBase + j];
-                acc += aV0 * b[b0 + j];
-                acc += aV1 * b[b1 + j];
-                acc += aV2 * b[b2 + j];
-                acc += aV3 * b[b3 + j];
-                c[cBase + j] = acc;
+                int acc = c.getAtIndex(ValueLayout.JAVA_INT, cBase + j);
+                acc += aV0 * b.getAtIndex(ValueLayout.JAVA_BYTE, b0 + j);
+                acc += aV1 * b.getAtIndex(ValueLayout.JAVA_BYTE, b1 + j);
+                acc += aV2 * b.getAtIndex(ValueLayout.JAVA_BYTE, b2 + j);
+                acc += aV3 * b.getAtIndex(ValueLayout.JAVA_BYTE, b3 + j);
+                c.setAtIndex(ValueLayout.JAVA_INT, cBase + j, acc);
             }
         }
 
         // tail
         for (; l < inner; l++) {
-            int aVal = a[aBase + l];
+            int aVal = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l);
             int bl = l * n;
             for (int d = 0; d < n; d++) {
-                c[cBase + d] += aVal * b[bl + d];
+                int acc = c.getAtIndex(ValueLayout.JAVA_INT, cBase + d);
+                c.setAtIndex(ValueLayout.JAVA_INT, cBase + d, acc + aVal * b.getAtIndex(ValueLayout.JAVA_BYTE, bl + d));
             }
         }
     }

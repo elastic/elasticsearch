@@ -17,7 +17,11 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntUnaryOperator;
@@ -443,7 +447,7 @@ public final class AsymmetricHashingQuantizer {
      * Encodes vectors a block at a time using matrix multiplication. Subclasses differ only in how a block is
      * projected into latent space; quantization and the scale and offset derivation are shared.
      */
-    public abstract sealed class BlockEncoder permits FloatBlockEncoder, Int8BlockEncoder {
+    public abstract sealed class BlockEncoder implements Closeable permits FloatBlockEncoder, Int8BlockEncoder {
 
         protected final int originalDim;
         protected final int nDims;
@@ -544,6 +548,9 @@ public final class AsymmetricHashingQuantizer {
             assert i < size;
             return vecCentroidDots[i];
         }
+
+        @Override
+        public void close() {}
     }
 
     /** Projects with a float matrix multiply. Used where int8 rounding error is comparable to the quantization step. */
@@ -593,16 +600,21 @@ public final class AsymmetricHashingQuantizer {
             return (byte) Math.clamp(Math.round(value * inverseScale), -INT8_MAX, INT8_MAX);
         }
 
+        // matrix mult may be multi-threaded, so arena needs to be shared
+        private final Arena arena = Arena.ofShared();
         // quantized version of W
-        private final byte[] wq;
+        private final MemorySegment wq;
         // dequantization scale of each column of W, 0 for an all-zero column. */
         private final float[] wScales;
         // gathered vectors, centered and quantized to int8, row-major (maxBlockSize x originalDim). */
-        private final byte[] centeredQ;
+        private final MemorySegment centeredQ;
+        // temp bytes for a new row to be added to centeredQ
+        private final byte[] rowBytes;
         // scratch array for storing element distances in addRow */
         private final float[] diff;
         // result array of the int matrix multiply
-        private final int[] product;
+        private final MemorySegment product;
+        private final int[] productBuffer;
 
         private Int8BlockEncoder(float[] w, int originalDim, int maxBlockSize) {
             super(w, originalDim, maxBlockSize);
@@ -619,15 +631,20 @@ public final class AsymmetricHashingQuantizer {
             }
 
             // byte version of W, scaled per-column
-            this.wq = new byte[w.length];
+            byte[] wqBytes = new byte[w.length];
             for (int l = 0; l < originalDim; l++) {
                 for (int j = 0; j < nDims; j++) {
-                    wq[l * nDims + j] = toInt8(w[l * nDims + j], wScales[j] == 0 ? 0 : 1 / wScales[j]);
+                    wqBytes[l * nDims + j] = toInt8(w[l * nDims + j], wScales[j] == 0 ? 0 : 1 / wScales[j]);
                 }
             }
-            this.centeredQ = new byte[maxBlockSize * originalDim];
+            this.wq = arena.allocate(w.length);
+            MemorySegment.copy(wqBytes, 0, wq, ValueLayout.JAVA_BYTE, 0, w.length);
+
+            this.centeredQ = arena.allocate((long) maxBlockSize * originalDim);
+            this.rowBytes = new byte[originalDim];
             this.diff = new float[originalDim];
-            this.product = new int[maxBlockSize * nDims];
+            this.product = arena.allocate((long) maxBlockSize * nDims * Integer.BYTES, Integer.BYTES);
+            this.productBuffer = new int[nDims];
         }
 
         @Override
@@ -642,10 +659,10 @@ public final class AsymmetricHashingQuantizer {
             }
             float inverseScale = max == 0 ? 0 : INT8_MAX / max;
 
-            int base = row * originalDim;
             for (int d = 0; d < originalDim; d++) {
-                centeredQ[base + d] = toInt8(diff[d], inverseScale);
+                rowBytes[d] = toInt8(diff[d], inverseScale);
             }
+            MemorySegment.copy(rowBytes, 0, centeredQ, ValueLayout.JAVA_BYTE, (long) row * originalDim, originalDim);
 
             return dot;
         }
@@ -653,15 +670,22 @@ public final class AsymmetricHashingQuantizer {
         @Override
         protected void project() {
             // As in FloatBlockEncoder, rows past 'size' hold stale data and are never read back
-            ESVectorUtil.matrixMultiply(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
+            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
 
             // scale the multiply results back to floats
+            // copy to an array, then iterate through the array for speed
             for (int i = 0; i < size; i++) {
                 int base = i * nDims;
+                MemorySegment.copy(product, ValueLayout.JAVA_INT, (long) base * Integer.BYTES, productBuffer, 0, nDims);
                 for (int j = 0; j < nDims; j++) {
-                    latent[base + j] = product[base + j] * wScales[j];
+                    latent[base + j] = productBuffer[j] * wScales[j];
                 }
             }
+        }
+
+        @Override
+        public void close() {
+            arena.close();
         }
     }
 

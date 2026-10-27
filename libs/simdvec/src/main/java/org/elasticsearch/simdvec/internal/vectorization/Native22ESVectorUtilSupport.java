@@ -21,7 +21,6 @@ import org.elasticsearch.simdvec.SimdVecLibrary;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -108,17 +107,13 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     }
 
     @Override
-    public void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor) {
+    public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
         // the native code adds to the result
-        Arrays.fill(result, 0);
-
-        final MemorySegment aSegment = MemorySegment.ofArray(a);
-        final MemorySegment bSegment = MemorySegment.ofArray(b);
-        final MemorySegment resultSegment = MemorySegment.ofArray(result);
+        result.fill((byte) 0);
 
         final int numTasks = (n + MATRIX_TASK_COLUMNS - 1) / MATRIX_TASK_COLUMNS;
         if (executor == null || numTasks < 2) {
-            SIMDVEC.sgemmI8(aSegment, bSegment, m, k, n, resultSegment, 0, n);
+            SIMDVEC.sgemmI8(a, b, m, k, n, result, 0, n);
             return;
         }
 
@@ -127,7 +122,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final int start = colStart;
             final int end = Math.min(start + MATRIX_TASK_COLUMNS, n);
             tasks.add(() -> {
-                SIMDVEC.sgemmI8(aSegment, bSegment, m, k, n, resultSegment, start, end);
+                SIMDVEC.sgemmI8(a, b, m, k, n, result, start, end);
                 return null;
             });
         }

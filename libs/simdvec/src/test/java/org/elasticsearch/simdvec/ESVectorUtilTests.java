@@ -17,6 +17,9 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
@@ -1543,34 +1546,38 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testByteMatrixMultiply() {
-        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null; Arena arena = Arena.ofShared()) {
             TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
             int m = randomIntBetween(2, 1024);
             int k = randomIntBetween(2, 2500);
             int n = randomIntBetween(2, 1024);
+            int aSize = m * k;
+            int bSize = k * n;
+            long resultSize = m * n;
 
-            byte[] a = new byte[m * k];
-            byte[] b = new byte[k * n];
-            random().nextBytes(a);
-            random().nextBytes(b);
+            MemorySegment a = arena.allocate(aSize);
+            MemorySegment b = arena.allocate(bSize);
+            MemorySegment.copy(randomByteArrayOfLength(aSize), 0, a, ValueLayout.JAVA_BYTE, 0, aSize);
+            MemorySegment.copy(randomByteArrayOfLength(bSize), 0, b, ValueLayout.JAVA_BYTE, 0, bSize);
 
-            int[] expected = basicMatrixMultiply(a, b, m, k, n);
+            int[] expected = basicMatrixMultiply(a.toArray(ValueLayout.JAVA_BYTE), b.toArray(ValueLayout.JAVA_BYTE), m, k, n);
 
             // pre-filled, as the implementations must overwrite the result rather than accumulate into it
-            int[] scalar = new int[m * n];
-            Arrays.fill(scalar, randomInt());
-            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar, tasks);
-            assertThat(scalar, equalTo(expected));
+            // the API on SegmentAllocator has changed between JDKs, so use one that hasn't
+            MemorySegment scalar = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            scalar.fill(randomByte());
+            defaultedProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, scalar, tasks);
+            assertThat(scalar.toArray(ValueLayout.JAVA_INT), equalTo(expected));
 
-            int[] panama = new int[m * n];
-            Arrays.fill(panama, randomInt());
-            panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama, tasks);
-            assertThat(panama, equalTo(expected));
+            MemorySegment panama = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            panama.fill(randomByte());
+            panamaProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, panama, tasks);
+            assertThat(panama.toArray(ValueLayout.JAVA_INT), equalTo(expected));
 
-            int[] nativeResult = new int[m * n];
-            Arrays.fill(nativeResult, randomInt());
-            nativeProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, nativeResult, tasks);
-            assertThat(nativeResult, equalTo(expected));
+            MemorySegment nativeResult = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            nativeResult.fill(randomByte());
+            nativeProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, nativeResult, tasks);
+            assertThat(nativeResult.toArray(ValueLayout.JAVA_INT), equalTo(expected));
         }
     }
 

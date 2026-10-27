@@ -31,6 +31,7 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
@@ -3096,9 +3097,9 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor) {
+    public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
         // panama doesn't give us anything over scalar, as panama integer is rubbish
-        new DefaultESVectorUtilSupport().matrixMultiply(a, b, m, k, n, result, executor);
+        new DefaultESVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, result, executor);
     }
 
     @Override

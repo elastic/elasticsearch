@@ -167,6 +167,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         paused.resume();
         assertEquals("the second round is sliced by the work left after resuming", remaining, paused.remainingBudget());
         collectors.addAll(runParts(threads, leaf, query, accept, visitRatio, paused, parts, -1));
+        assertFalse("the parts share the query quantized per centroid", paused.quantizedQueries().isEmpty());
         Result resumed = merge(collectors);
         assertEquals("visited", unpaused.visited, resumed.visited);
         assertArrayEquals("docs", unpaused.docs, resumed.docs);

@@ -14,9 +14,12 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.PostingVisitor;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QuantizedQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,6 +69,7 @@ public final class IVFSegmentScan {
     private final AtomicInteger nextListed = new AtomicInteger();
     private final AtomicInteger completedListed = new AtomicInteger();
     private final AtomicReference<PostingVisitor> tail = new AtomicReference<>();
+    private final ConcurrentMap<Integer, QuantizedQuery> quantizedQueries = new ConcurrentHashMap<>();
 
     /**
      * A scan shared by {@code parts} searches of one segment (sizing how far ahead posting lists are prefetched); parts must
@@ -90,6 +94,11 @@ public final class IVFSegmentScan {
 
     int parts() {
         return parts;
+    }
+
+    /** The query quantized per centroid by the parts' visitors, shared so that each centroid's is computed once. */
+    public ConcurrentMap<Integer, QuantizedQuery> quantizedQueries() {
+        return quantizedQueries;
     }
 
     /** Builds the plan with {@code planner} unless already open. Returns false if the segment has nothing to search. */

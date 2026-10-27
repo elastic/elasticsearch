@@ -104,6 +104,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
@@ -799,6 +800,9 @@ public class KnnSearcher {
                 Integer.getInteger("bench.max_slices", searchThreads),
                 1
             );
+        if (executor instanceof ThreadPoolExecutor pool) {
+            searcher.setIdleThreads(() -> pool.getMaximumPoolSize() - pool.getActiveCount());
+        }
         searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
         searcher.setIvfReentryEnabled(Boolean.getBoolean("bench.ivf_reentry"));
         logger.info(

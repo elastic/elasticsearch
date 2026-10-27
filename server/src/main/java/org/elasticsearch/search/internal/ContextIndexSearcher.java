@@ -57,6 +57,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -83,6 +84,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final boolean ownsExecutionAccounting;
     private boolean ivfSlicesEnabled;
     private boolean ivfReentryEnabled;
+    private IntSupplier idleThreads; // the executor's idle threads right now; null when unknown
 
     private final MutableQueryTimeout cancellable;
 
@@ -230,11 +232,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * How many slices a search on {@code searcher} may run in parallel: its maximum number of slices (Elasticsearch sets it to
-     * the search pool's size while the pool's queue is short), or 1 when it has no executor.
+     * Tells searches that split their own work (DiskBBQ slices) how many of the executor's threads are idle when they decide
+     * how to split, so that a busy node splits less, or not at all.
+     */
+    public void setIdleThreads(IntSupplier idleThreads) {
+        this.idleThreads = idleThreads;
+    }
+
+    /**
+     * How many slices a search on {@code searcher} may run in parallel right now: its maximum number of slices (Elasticsearch
+     * sets it to the search pool's size while the pool's queue is short), and no more than the calling thread plus the
+     * executor's idle threads, when known; 1 when it has no executor.
      */
     public static int maximumParallelSlices(IndexSearcher searcher) {
-        return searcher instanceof ContextIndexSearcher cis && cis.hasExecutor ? Math.max(1, cis.maximumNumberOfSlices) : 1;
+        if (searcher instanceof ContextIndexSearcher cis && cis.hasExecutor) {
+            int slices = Math.max(1, cis.maximumNumberOfSlices);
+            return cis.idleThreads == null ? slices : Math.min(slices, 1 + Math.max(0, cis.idleThreads.getAsInt()));
+        }
+        return 1;
     }
 
     /**

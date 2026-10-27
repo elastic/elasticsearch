@@ -32,6 +32,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -471,6 +472,9 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             entry.centroidSlice(ivfCentroids),
             esAcceptDocs
         );
+        if (shared != null) {
+            visitor.shareQuantizedQueries(shared.quantizedQueries());
+        }
         int ticket;
         while ((ticket = scan.claim(visitor, knnCollector)) >= 0) {
             int scoredDocs = 0;
@@ -832,6 +836,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         ESAcceptDocs acceptDocs
     ) throws IOException;
 
+    /**
+     * The query quantized against one centroid: the corrections and packed bits a posting list's scorer needs. Formats that
+     * quantize the query per parent centroid compute it once per centroid, and the parts of a segment's search share them.
+     */
+    public record QuantizedQuery(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
+
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(PostingMetadata metadata) throws IOException;
@@ -840,6 +850,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         default float lastVisitMaxScore() {
             return Float.NaN;
         }
+
+        /**
+         * Uses, and adds to, the query quantizations by centroid ordinal of the other parts searching the segment, so each is
+         * computed once per segment rather than once per part. Formats that don't quantize the query per centroid ignore it.
+         */
+        default void shareQuantizedQueries(Map<Integer, QuantizedQuery> shared) {}
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

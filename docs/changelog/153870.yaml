@@ -1,0 +1,6 @@
+pr: 153870
+summary: Preserve the sort value format in the `top_hits` aggregation reduce
+area: Aggregations
+type: bug
+issues:
+ - 144130

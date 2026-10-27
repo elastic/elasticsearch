@@ -18,7 +18,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlCaptureContext;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -100,7 +100,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, "from logs-*");
         assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
         assertNull(message.get(QUERY_FIELD_REMOTES));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("logs-*"));
@@ -115,7 +115,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, "from logs-*");
         assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));
         assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_1));
         assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_2));
@@ -157,7 +157,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull("expected a query-log event for the streaming CCS query", event);
         Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
         assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));
         assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_1));
         assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_2));

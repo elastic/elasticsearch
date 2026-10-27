@@ -16,24 +16,24 @@ import org.elasticsearch.tasks.TaskId;
 import java.util.Optional;
 
 /**
- * Context for {@link ActivityLogger}.
+ * Context for {@link ActivityInterceptor}.
  * This class contains the information needed to log the query and is extended by specific logging contexts for each action.
  * {@link ActivityLogProducer} uses the context data to compose fields for the log message.
  */
-public abstract class ActivityLoggerContext {
+public abstract class ActivityCaptureContext {
     private final long tookInNanos;
     private final String type;
     private final @Nullable Exception error;
     private final Task task;
 
-    public ActivityLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
+    public ActivityCaptureContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         this.type = type;
         this.error = error;
         this.tookInNanos = tookInNanos;
         this.task = task;
     }
 
-    public ActivityLoggerContext(Task task, String type, long tookInNanos) {
+    public ActivityCaptureContext(Task task, String type, long tookInNanos) {
         this(task, type, tookInNanos, null);
     }
 
@@ -67,15 +67,6 @@ public abstract class ActivityLoggerContext {
 
     public String getTraceId() {
         return task.getHeader(Task.TRACE_ID);
-    }
-
-    /**
-     * Shard stats information. All fields are nullable.
-     */
-    public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
-
-    public Optional<ShardInfo> shardInfo() {
-        return Optional.empty();
     }
 
     public long getTaskId() {

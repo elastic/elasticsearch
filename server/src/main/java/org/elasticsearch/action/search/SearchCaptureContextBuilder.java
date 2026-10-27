@@ -10,27 +10,27 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContextBuilder;
+import org.elasticsearch.common.logging.activity.ActivityCaptureContextBuilder;
 import org.elasticsearch.tasks.Task;
 
-public class SearchLogContextBuilder extends ActivityLoggerContextBuilder<SearchLogContext, SearchRequest, SearchResponse> {
+public class SearchCaptureContextBuilder extends ActivityCaptureContextBuilder<SearchCaptureContext, SearchRequest, SearchResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public SearchLogContextBuilder(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request) {
+    public SearchCaptureContextBuilder(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request) {
         super(task, request);
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
-    public SearchLogContext build(SearchResponse response) {
+    public SearchCaptureContext build(SearchResponse response) {
         // response's getTook() is actually in millis, so we get 0 if it took less than 1ms.
         // That's why we have to involve elapsed() here.
         long tookInNanos = Math.max(response.getTook().nanos(), elapsed());
-        return new SearchLogContext(task, namedWriteableRegistry, request, tookInNanos, response);
+        return new SearchCaptureContext(task, namedWriteableRegistry, request, tookInNanos, response);
     }
 
     @Override
-    public SearchLogContext build(Exception e) {
-        return new SearchLogContext(task, namedWriteableRegistry, request, elapsed(), e);
+    public SearchCaptureContext build(Exception e) {
+        return new SearchCaptureContext(task, namedWriteableRegistry, request, elapsed(), e);
     }
 }

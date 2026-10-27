@@ -22,18 +22,18 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * {@link EsqlLogContext} for streaming queries ({@code POST /_query?streaming=true}), which never build an
+ * {@link EsqlCaptureContext} for streaming queries ({@code POST /_query?streaming=true}), which never build an
  * {@link org.elasticsearch.xpack.esql.action.EsqlQueryResponse}. Response-derived fields are sourced
  * instead from the {@link EsqlExecutionInfo} (mutated in place during execution), the final
  * {@link Result}, and the {@link PageStreamPublisher} row counter.
  */
-class EsqlStreamLogContext extends EsqlLogContext {
+class EsqlStreamCaptureContext extends EsqlCaptureContext {
 
     private final EsqlExecutionInfo executionInfo;
     private final PageStreamPublisher publisher;
     private final Result result;
 
-    EsqlStreamLogContext(
+    EsqlStreamCaptureContext(
         Task task,
         EsqlQueryRequest request,
         long tookInNanos,
@@ -78,7 +78,7 @@ class EsqlStreamLogContext extends EsqlLogContext {
 
     @Override
     public Optional<ShardInfo> shardInfo() {
-        return Optional.of(EsqlLogContext.getShardInfo(executionInfo));
+        return Optional.of(EsqlCaptureContext.getShardInfo(executionInfo));
     }
 
     @Override

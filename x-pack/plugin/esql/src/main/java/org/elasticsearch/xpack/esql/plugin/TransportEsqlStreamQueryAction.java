@@ -20,7 +20,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.ActivityInterceptor;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -59,8 +59,8 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
-import org.elasticsearch.xpack.esql.querylog.EsqlStreamLogContextBuilder;
+import org.elasticsearch.xpack.esql.querylog.EsqlCaptureContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlStreamCaptureContextBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -141,7 +141,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final Client client;
-    private final ActivityLogger<EsqlLogContext> activityLogger;
+    private final ActivityInterceptor<EsqlCaptureContext> activityInterceptor;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
@@ -171,7 +171,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         this.computeService = transportEsqlQueryAction.computeService();
         this.enrichPolicyResolver = transportEsqlQueryAction.enrichPolicyResolver();
         this.datasetResolver = transportEsqlQueryAction.datasetResolver();
-        this.activityLogger = transportEsqlQueryAction.activityLogger();
+        this.activityInterceptor = transportEsqlQueryAction.activityInterceptor();
         this.transportEsqlQueryAction = transportEsqlQueryAction;
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
@@ -215,9 +215,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
         AtomicReference<Result> resultRef = new AtomicReference<>();
-        activityLogger.wrapAndRun(
+        activityInterceptor.wrapAndRun(
             listener,
-            new EsqlStreamLogContextBuilder(task, request, executionInfo, publisher, resultRef::get),
+            new EsqlStreamCaptureContextBuilder(task, request, executionInfo, publisher, resultRef::get),
             l -> innerExecute(task, request, executionInfo, publisher, resultRef, l)
         );
     }

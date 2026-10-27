@@ -81,6 +81,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivitySinkProvider;
+import org.elasticsearch.common.logging.activity.ActivitySinks;
 import org.elasticsearch.common.logging.activity.Log4jWriter;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -1476,6 +1478,7 @@ class NodeConstruction {
             ActivityLogWriterProvider.class,
             () -> Log4jWriter.PROVIDER
         );
+        ActivitySinks activitySinks = new ActivitySinks(pluginsService.loadServiceProviders(ActivitySinkProvider.class));
 
         ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
@@ -1529,6 +1532,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(ActivitySinks.class).toInstance(activitySinks);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
             b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });

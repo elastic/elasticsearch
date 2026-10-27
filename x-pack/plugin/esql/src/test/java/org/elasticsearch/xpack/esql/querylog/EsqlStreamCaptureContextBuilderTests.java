@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class EsqlStreamLogContextBuilderTests extends ESTestCase {
+public class EsqlStreamCaptureContextBuilderTests extends ESTestCase {
 
     public void testBuildWithNullOverallTookUsesElapsed() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
@@ -38,7 +38,7 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher(10);
         Result result = makeResult(executionInfo);
 
-        EsqlStreamLogContextBuilder builder = new EsqlStreamLogContextBuilder(
+        EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
             task(),
             syncEsqlQueryRequest("FROM test | LIMIT 1"),
             executionInfo,
@@ -46,9 +46,9 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
             () -> result
         );
 
-        EsqlLogContext context = builder.build(ActionResponse.Empty.INSTANCE);
+        EsqlCaptureContext context = builder.build(ActionResponse.Empty.INSTANCE);
 
-        assertThat("context must be streaming-specific on success path", context, instanceOf(EsqlStreamLogContext.class));
+        assertThat("context must be streaming-specific on success path", context, instanceOf(EsqlStreamCaptureContext.class));
         assertThat(context.getTookInNanos(), greaterThanOrEqualTo(0L));
         assertThat(context.getResultCount(), equalTo(0)); // publisher has no rows
     }
@@ -58,7 +58,7 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
 
         PageStreamPublisher publisher = new PageStreamPublisher(10);
 
-        EsqlStreamLogContextBuilder builder = new EsqlStreamLogContextBuilder(
+        EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
             task(),
             syncEsqlQueryRequest("FROM test | LIMIT 1"),
             executionInfo,
@@ -66,9 +66,12 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
             () -> null
         );
 
-        EsqlLogContext context = builder.build(ActionResponse.Empty.INSTANCE);
+        EsqlCaptureContext context = builder.build(ActionResponse.Empty.INSTANCE);
 
-        assertFalse("a null Result must produce a plain EsqlLogContext, not a streaming subclass", context instanceof EsqlStreamLogContext);
+        assertFalse(
+            "a null Result must produce a plain EsqlCaptureContext, not a streaming subclass",
+            context instanceof EsqlStreamCaptureContext
+        );
         assertThat(context.getResultCount(), equalTo(0));
         assertNull(context.getIndices());
     }
@@ -77,7 +80,7 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM test | LIMIT 1");
         PageStreamPublisher publisher = new PageStreamPublisher(10);
 
-        EsqlStreamLogContextBuilder builder = new EsqlStreamLogContextBuilder(
+        EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
             task(),
             request,
             makeExecutionInfoWithTook(),
@@ -86,9 +89,9 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
         );
         RuntimeException ex = new RuntimeException("query failed");
 
-        EsqlLogContext context = builder.build(ex);
+        EsqlCaptureContext context = builder.build(ex);
 
-        assertFalse(context instanceof EsqlStreamLogContext);
+        assertFalse(context instanceof EsqlStreamCaptureContext);
         assertFalse("failure context must report isSuccess() == false", context.isSuccess());
         assertThat(context.getTookInNanos(), greaterThanOrEqualTo(0L));
     }
@@ -98,16 +101,16 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher(10);
         Result result = makeResult(executionInfo);
 
-        EsqlStreamLogContextBuilder builder = new EsqlStreamLogContextBuilder(
+        EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
             task(),
             syncEsqlQueryRequest("FROM test | LIMIT 1"),
             executionInfo,
             publisher,
             () -> result
         );
-        EsqlLogContext context = builder.build(ActionResponse.Empty.INSTANCE);
+        EsqlCaptureContext context = builder.build(ActionResponse.Empty.INSTANCE);
 
-        assertThat("successful build with a Result must yield a streaming context", context, instanceOf(EsqlStreamLogContext.class));
+        assertThat("successful build with a Result must yield a streaming context", context, instanceOf(EsqlStreamCaptureContext.class));
         assertThat(context.getTookInNanos(), greaterThan(0L));
         assertThat(context.getResultCount(), equalTo(0)); // no rows published
     }

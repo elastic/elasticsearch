@@ -18,7 +18,7 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class ActivityLoggerContextBuilderTests extends ESTestCase {
+public class ActivityCaptureContextBuilderTests extends ESTestCase {
 
     public void testElapsed() {
         Task task = mock(Task.class);
@@ -63,13 +63,13 @@ public class ActivityLoggerContextBuilderTests extends ESTestCase {
         assertThat(context.getType(), is("test"));
     }
 
-    private static class TestContext extends ActivityLoggerContext {
+    private static class TestContext extends ActivityCaptureContext {
         TestContext(Task task, String type, long tookInNanos, Exception error) {
             super(task, type, tookInNanos, error);
         }
     }
 
-    private static class TestContextBuilder extends ActivityLoggerContextBuilder<TestContext, String, String> {
+    private static class TestContextBuilder extends ActivityCaptureContextBuilder<TestContext, String, String> {
         protected TestContextBuilder(Task task, String request, LongSupplier nanoTimeSupplier) {
             super(task, request, nanoTimeSupplier);
         }

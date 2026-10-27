@@ -30,17 +30,17 @@ import java.util.stream.Collectors;
 /**
  * Query logger related context — common items for query loggers.
  */
-public abstract class QueryLoggerContext extends ActivityLoggerContext {
+public abstract class QueryCaptureContext extends ActivityCaptureContext {
     // Cached "isSystem" flag
     private Boolean isSystemSearch = null;
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    protected QueryLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
+    protected QueryCaptureContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         super(task, type, tookInNanos, error);
     }
 
-    protected QueryLoggerContext(Task task, String type, long tookInNanos) {
+    protected QueryCaptureContext(Task task, String type, long tookInNanos) {
         super(task, type, tookInNanos);
     }
 
@@ -49,6 +49,15 @@ public abstract class QueryLoggerContext extends ActivityLoggerContext {
      */
     public Map<String, String> getClusters() {
         return Map.of();
+    }
+
+    /**
+     * Shard stats information. All fields are nullable.
+     */
+    public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
+
+    public Optional<ShardInfo> shardInfo() {
+        return Optional.empty();
     }
 
     /**

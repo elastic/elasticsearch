@@ -25,11 +25,14 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,6 +63,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
@@ -543,24 +548,103 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     private static ProjectMetadata batchIndexingProject(String target) {
-        Index index = new Index(".ds-" + target + "-000001", randomUUID());
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(
-                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.MODE.getKey(), "time_series")
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
-                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension")
-                    .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
-            )
-            .build();
-        DataStream dataStream = DataStream.builder(target, List.of(index)).setIndexMode(IndexMode.TIME_SERIES).build();
+        return timeSeriesProject(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build(), target);
+    }
+
+    /** A project with one time series data stream per target, each with one backing index created with {@code extraSettings}. */
+    private static ProjectMetadata timeSeriesProject(Settings extraSettings, String... targets) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(ProjectId.DEFAULT);
+        Map<String, DataStream> dataStreams = new HashMap<>();
+        for (String target : targets) {
+            Index index = new Index(".ds-" + target + "-000001", randomUUID());
+            IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexSettings.MODE.getKey(), "time_series")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
+                        .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension")
+                        .put(extraSettings)
+                )
+                .build();
+            project.put(indexMetadata, true);
+            dataStreams.put(target, DataStream.builder(target, List.of(index)).setIndexMode(IndexMode.TIME_SERIES).build());
+        }
+        return project.dataStreams(dataStreams, Map.of()).build();
+    }
+
+    /**
+     * A project with the OTel metrics and exemplars index templates, where the tsid prefixed dimensions come from a component
+     * template as in the real templates, and no data streams yet.
+     */
+    private static ProjectMetadata otelTemplatesProject(Settings componentSettings) {
         return ProjectMetadata.builder(ProjectId.DEFAULT)
-            .put(indexMetadata, true)
-            .dataStreams(Map.of(target, dataStream), Map.of())
+            .put("metrics-otel@settings", new ComponentTemplate(new Template(componentSettings, null, null), null, null))
+            .put("metrics-otel@template", otelTemplate("metrics-*.otel-*"))
+            .put("exemplars-otel@template", otelTemplate("exemplars-*.otel-*"))
             .build();
+    }
+
+    private static ComposableIndexTemplate otelTemplate(String indexPattern) {
+        return ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(indexPattern))
+            .componentTemplates(List.of("metrics-otel@settings"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .priority(120L)
+            .build();
+    }
+
+    /** The metric and exemplar index requests the action prepares for one metric with one exemplar. */
+    private List<IndexRequest> prepareMetricWithExemplar(OTLPMetricsTransportAction action) throws Exception {
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+        action.prepareBulkRequest(createMetricsRequest(metric), bulkRequestBuilder);
+        List<IndexRequest> requests = new ArrayList<>();
+        for (var request : bulkRequestBuilder.request().requests()) {
+            requests.add((IndexRequest) request);
+        }
+        assertThat(requests, hasSize(2));
+        assertThat(requests.get(0).index(), equalTo("metrics-generic.otel-default"));
+        assertThat(requests.get(1).index(), equalTo("exemplars-generic.otel-default"));
+        return requests;
+    }
+
+    /**
+     * Before a data stream exists, the pre-set tsids follow the layout of the index template that will create it, so that they
+     * equal the tsids its backing index computes for the same series once it exists. Both the metric and the exemplar index
+     * requests are covered, since exemplars share the tsid of their series.
+     */
+    public void testTsidLayoutResolvedFromTemplateBeforeDataStreamExists() throws Exception {
+        Settings prefixedDimensions = Settings.builder()
+            .putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*")
+            .build();
+        List<IndexRequest> fromTemplate = prepareMetricWithExemplar(
+            createMetricsAction(Settings.EMPTY, otelTemplatesProject(prefixedDimensions))
+        );
+        List<IndexRequest> fromIndex = prepareMetricWithExemplar(
+            createMetricsAction(
+                Settings.EMPTY,
+                timeSeriesProject(prefixedDimensions, "metrics-generic.otel-default", "exemplars-generic.otel-default")
+            )
+        );
+        List<IndexRequest> fromDefaults = prepareMetricWithExemplar(
+            createMetricsAction(Settings.EMPTY, ProjectMetadata.builder(ProjectId.DEFAULT).build())
+        );
+        List<IndexRequest> fromTemplateWithoutSetting = prepareMetricWithExemplar(
+            createMetricsAction(Settings.EMPTY, otelTemplatesProject(Settings.EMPTY))
+        );
+        for (int i = 0; i < 2; i++) {
+            assertThat(fromTemplate.get(i).tsid(), equalTo(fromIndex.get(i).tsid()));
+            assertThat(fromTemplate.get(i).tsid(), not(equalTo(fromDefaults.get(i).tsid())));
+            assertThat(fromTemplateWithoutSetting.get(i).tsid(), equalTo(fromDefaults.get(i).tsid()));
+        }
     }
 
     public void testPreBuiltBatchReleasedWhenBulkFails() {

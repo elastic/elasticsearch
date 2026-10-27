@@ -450,7 +450,7 @@ public class FillNullTests extends ESTestCase {
         FillNull rebuilt = materialized.replaceChild(childWith(List.of(recreated)));
         Coalesce coalesce = (Coalesce) aliasFor(rebuilt, "c").child();
         assertEquals("the COALESCE must reference the current attribute", recreated, coalesce.children().get(0));
-        assertNotEquals(before.id(), aliasFor(rebuilt, "c").id());
+        assertEquals("a same-type rebuild must keep the alias id", before.id(), aliasFor(rebuilt, "c").id());
     }
 
     /** {@code ON *} means every user column, not internal ones. */
@@ -470,6 +470,16 @@ public class FillNullTests extends ESTestCase {
 
         FillNull materialized = materialize(allFields(output), output, TEST_CFG);
         assertEquals("only the user column is filled", Set.of("i"), filledNames(materialized));
+    }
+
+    public void testAllFieldsSkipsTheUnmappedFieldsColumn() {
+        Attribute s = getFieldAttribute("s", DataType.KEYWORD);
+        Attribute unmappedFields = new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
+        List<Attribute> output = List.of(s, unmappedFields);
+
+        FillNull materialized = materialize(allFields(output), output, TEST_CFG);
+        assertEquals("only the user column is filled", Set.of("s"), filledNames(materialized));
+        assertEquals("and the LOAD_ALL column is not reported as unfillable", Set.of(), unfillableNames(materialized));
     }
 
     /** An explicitly named metadata column is still honoured, matching how the language treats metadata elsewhere. */

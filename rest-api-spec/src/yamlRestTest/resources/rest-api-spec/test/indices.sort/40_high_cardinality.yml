@@ -27,6 +27,10 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # The _doc order checks need every copy merged, but force merge fails on copies that are still recovering.
+            # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+            # keep a replica for stateless searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.mode: columnar
             index.sort.field: name
@@ -39,6 +43,7 @@ setup:
   - do:
       cluster.health:
         index: test_single
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -95,6 +100,8 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.mode: columnar
             index.sort.field: name
@@ -107,6 +114,7 @@ setup:
   - do:
       cluster.health:
         index: test_mixed
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -173,6 +181,8 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.mode: columnar
             index.sort.field: name
@@ -186,6 +196,7 @@ setup:
   - do:
       cluster.health:
         index: test_mode_min
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -252,6 +263,8 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.mode: columnar
             index.sort.field: name
@@ -265,6 +278,7 @@ setup:
   - do:
       cluster.health:
         index: test_mode_max
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -337,6 +351,8 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.mode: columnar
             index.sort.field: name
@@ -351,6 +367,7 @@ setup:
   - do:
       cluster.health:
         index: test_max_nulls
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -427,6 +444,8 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.mode: columnar
             index.sort.field: addr
@@ -439,6 +458,7 @@ setup:
   - do:
       cluster.health:
         index: test_ip
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 

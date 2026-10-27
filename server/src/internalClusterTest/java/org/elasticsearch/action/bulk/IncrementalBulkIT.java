@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -137,6 +138,46 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
+    /**
+     * The REST request's context is reserved once, when the handler is created, and stays reserved across the sub-bulks split off
+     * from the handler. Each sub-bulk returns only its own bytes when it completes; the context is released when the handler closes.
+     */
+    public void testRequestContextReservationOutlivesSplitSubBulk() throws Exception {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+        ThreadContext threadContext = internalCluster().getInstance(ThreadPool.class, nodeName).getThreadContext();
+        long splitsBefore = indexingPressure.stats().getLowWaterMarkSplits() + indexingPressure.stats().getHighWaterMarkSplits();
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", randomAlphaOfLength(2048));
+            long contextBytes = threadContext.estimatedRequestContextBytes();
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(contextBytes));
+
+            // a single item above the watermark sizes is enough to split off a sub-bulk
+            IndexRequest largeItem = new IndexRequest().index(index).source(Map.of("field", randomAlphaOfLength(3000)));
+            handler.addItems(List.of(largeItem), () -> {}, () -> {});
+            assertBusy(() -> {
+                var stats = indexingPressure.stats();
+                assertThat(stats.getLowWaterMarkSplits() + stats.getHighWaterMarkSplits(), equalTo(splitsBefore + 1));
+                // the sub-bulk completed and returned its own bytes, but not the context's
+                assertThat(stats.getCurrentCoordinatingBytes(), equalTo(contextBytes));
+            });
+
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            handler.lastItems(List.of(indexRequest(index)), () -> {}, future);
+            assertNoFailures(safeGet(future));
+            assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(contextBytes));
+
+            handler.close();
+            assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        }
+    }
+
     public void testIndexingPressureRejection() {
         String index = "test";
         createIndex(index);
@@ -161,6 +202,34 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             expectThrows(EsRejectedExecutionException.class, future::actionGet);
             assertFalse(refCounted.hasReferences());
+        }
+    }
+
+    /**
+     * The handler reserves the REST request's context when it is created, so a node with less headroom than the context rejects the
+     * streaming bulk before any of its items arrive, and leaves nothing reserved.
+     */
+    public void testIndexingPressureRejectsRequestContextOnHandlerCreation() {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+        ThreadContext threadContext = internalCluster().getInstance(ThreadPool.class, nodeName).getThreadContext();
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", randomAlphaOfLength(4096));
+            long contextBytes = threadContext.estimatedRequestContextBytes();
+            long reservedBytes = indexingPressure.stats().getMemoryLimit() - contextBytes / 2;
+            long rejectionsBefore = indexingPressure.stats().getCoordinatingRejections();
+
+            try (Releasable r = indexingPressure.markCoordinatingOperationStarted(1, reservedBytes, true)) {
+                expectThrows(EsRejectedExecutionException.class, incrementalBulkService::newBulkRequest);
+                assertThat(indexingPressure.stats().getCoordinatingRejections(), equalTo(rejectionsBefore + 1));
+                assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(reservedBytes));
+            }
+            assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
         }
     }
 

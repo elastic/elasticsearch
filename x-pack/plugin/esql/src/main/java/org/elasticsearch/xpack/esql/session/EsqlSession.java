@@ -167,8 +167,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -552,6 +554,7 @@ public class EsqlSession {
                     verifyExemplarsQuery(viewResolution);
                 }
                 viewResolutionProfile.stop();
+                request.setViewSettings(viewResolution.viewSettings());
                 analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             }))
         );
@@ -590,9 +593,9 @@ public class EsqlSession {
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
             gatherLetMetrics(statement);
-            gatherSettingsMetrics(request, statement, resolved);
+            gatherSettingsMetrics(request, statement, resolved, viewResolution.viewSettings());
             // APM
-            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
+            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved, viewResolution.viewSettings());
             // Trigger IP location database downloads for any IP_LOCATION command
             requestIpLocationDownloads(viewResolution.plan());
         }
@@ -1063,7 +1066,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
@@ -1550,9 +1553,15 @@ public class EsqlSession {
 
     /**
      * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
-     * and settings from the original statement plus any nodes introduced by view expansion.
+     * and settings from the original statement plus any nodes introduced by view expansion. The settings view
+     * definitions apply to their own bodies are recorded apart from the caller's.
      */
-    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings, ResolvedSettings resolved) {
+    private void gatherPlanTelemetry(
+        LogicalPlan plan,
+        List<QuerySetting> settings,
+        ResolvedSettings resolved,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
         // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
         // should not be counted as standalone STATS commands.
@@ -1582,6 +1591,7 @@ public class EsqlSession {
             settings.forEach(s -> planTelemetry.setting(s.name()));
         }
         planTelemetry.resolvedSettings(resolved);
+        planTelemetry.viewSettings(viewSettings.values());
     }
 
     /**
@@ -1618,7 +1628,12 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement, ResolvedSettings resolved) {
+    private void gatherSettingsMetrics(
+        EsqlQueryRequest request,
+        EsqlStatement statement,
+        ResolvedSettings resolved,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         if (metrics == null) {
             return;
         }
@@ -1627,6 +1642,7 @@ public class EsqlSession {
         // ignores settings that don't have a registered counter.
         suppliedSettingNames(request, statement).forEach(metrics::incSetting);
         metrics.incResolvedSettings(resolved);
+        metrics.incViewSettings(viewSettings.values());
     }
 
     /**

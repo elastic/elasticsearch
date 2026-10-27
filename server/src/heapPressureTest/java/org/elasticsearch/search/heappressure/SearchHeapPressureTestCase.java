@@ -41,6 +41,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      */
     protected static final int DOC_BYTES = 256 * 1024;
     protected static final int LARGE_DOCS = 1000;
+    private static final int MAX_DOCS_PER_BULK = 5_000;
 
     /** A {@code big} field that is only ever read back from {@code _source}. */
     protected static final String SOURCE_ONLY_KEYWORD = """
@@ -123,27 +124,40 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      * Creates {@code index} with the given mapping properties and documents, unless an earlier case of the class already did.
      */
     protected void indexDocuments(String index, int shards, String properties, int docs, IntFunction<String> doc) throws IOException {
+        indexDocuments(index, shards, "", properties, docs, doc);
+    }
+
+    /**
+     * Like {@link #indexDocuments(String, int, String, int, IntFunction)}, with {@code extraSettings}, JSON members such as
+     * {@code "index.mode": "logsdb"} added to the index settings, or empty for none.
+     */
+    protected void indexDocuments(String index, int shards, String extraSettings, String properties, int docs, IntFunction<String> doc)
+        throws IOException {
         if (indexExists(index)) {
             return;
         }
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(Strings.format("""
             {
-              "settings": {"number_of_shards": %d, "number_of_replicas": 0},
+              "settings": {"number_of_shards": %d, "number_of_replicas": 0%s},
               "mappings": {"properties": %s}
             }
-            """, shards, properties));
+            """, shards, extraSettings.isEmpty() ? "" : ", " + extraSettings, properties));
         client().performRequest(create);
 
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < docs; i++) {
             bulk.append("{\"index\":{}}\n").append(doc.apply(i)).append('\n');
-            // A few MB per bulk request, which a 256 MB node handles.
-            if (bulk.length() >= 4 * 1024 * 1024 || i == docs - 1) {
+            // A few MB per bulk request, which a 256 MB node handles, and at most MAX_DOCS_PER_BULK documents, which is what limits a bulk
+            // of very small ones.
+            if (bulk.length() >= 4 * 1024 * 1024 || (i + 1) % MAX_DOCS_PER_BULK == 0 || i == docs - 1) {
                 Request request = new Request("POST", "/" + index + "/_bulk");
                 request.setJsonEntity(bulk.toString());
                 assertFalse((Boolean) entityAsMap(client().performRequest(request)).get("errors"));
                 bulk.setLength(0);
+                // Test clusters run with assertions, and the translog then keeps every operation it has seen, with a stack trace, until it
+                // is rolled. Without a flush a 256 MB node runs out of memory on a hundred thousand or more small documents.
+                client().performRequest(new Request("POST", "/" + index + "/_flush"));
             }
         }
         Request forceMerge = new Request("POST", "/" + index + "/_forcemerge");

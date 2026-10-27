@@ -3070,6 +3070,124 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals(2, numInvalidation.get());
     }
 
+    // A role built while an invalidation landed must not be cached: its descriptors may predate the change behind the
+    // invalidation. The next resolution must rebuild it and may then cache it. One case per kind of invalidation so that a
+    // failure names the kind.
+
+    public void testRoleBuiltAcrossInvalidateAllIsNotCached() {
+        assertRoleBuiltAcrossInvalidationIsNotCached((store, projectId) -> store.invalidateAll());
+    }
+
+    public void testRoleBuiltAcrossInvalidateRoleIsNotCached() {
+        assertRoleBuiltAcrossInvalidationIsNotCached((store, projectId) -> store.invalidate("role-a"));
+    }
+
+    public void testRoleBuiltAcrossInvalidateProjectIsNotCached() {
+        assertRoleBuiltAcrossInvalidationIsNotCached(CompositeRolesStore::invalidateProject);
+    }
+
+    public void testRoleBuiltAcrossInvalidateClusterScopedRolesIsNotCached() {
+        assertRoleBuiltAcrossInvalidationIsNotCached((store, projectId) -> store.invalidateClusterScopedRoles(Set.of("role-a")));
+    }
+
+    public void testRoleBuiltAcrossRemoveProjectIsNotCached() {
+        assertRoleBuiltAcrossInvalidationIsNotCached(CompositeRolesStore::removeProject);
+    }
+
+    private void assertRoleBuiltAcrossInvalidationIsNotCached(BiConsumer<CompositeRolesStore, ProjectId> invalidation) {
+        final RoleDescriptor roleDescriptor = new RoleDescriptor("role-a", new String[] { "monitor" }, null, null);
+        final AtomicInteger resolutions = new AtomicInteger();
+        final AtomicReference<Runnable> midBuildAction = new AtomicReference<>(() -> {});
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenAnswer(invocation -> {
+            resolutions.incrementAndGet();
+            // runs after the resolution captured the cache generation and before the built role is offered to the cache
+            midBuildAction.get().run();
+            return Set.of(roleDescriptor);
+        });
+        final ProjectId projectId = randomUniqueProjectId();
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            fileRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TestProjectResolvers.singleProject(projectId)
+        );
+
+        midBuildAction.set(() -> invalidation.accept(compositeRolesStore, projectId));
+        assertThat(resolveRole(compositeRolesStore, "role-a").names(), arrayContaining("role-a"));
+        assertThat(resolutions.get(), equalTo(1));
+
+        midBuildAction.set(() -> {});
+        assertThat(resolveRole(compositeRolesStore, "role-a").names(), arrayContaining("role-a"));
+        assertThat("a role built across an invalidation must not be cached, so this resolution rebuilds it", resolutions.get(), equalTo(2));
+
+        assertThat(resolveRole(compositeRolesStore, "role-a").names(), arrayContaining("role-a"));
+        assertThat("third resolution must be served from the cache", resolutions.get(), equalTo(2));
+    }
+
+    /**
+     * Invalidations are tracked per project, so invalidating some other project while a role is being built does not stop the
+     * built role from being cached.
+     */
+    public void testRoleBuiltAcrossInvalidationOfAnotherProjectIsCached() {
+        final RoleDescriptor roleDescriptor = new RoleDescriptor("role-a", new String[] { "monitor" }, null, null);
+        final AtomicInteger resolutions = new AtomicInteger();
+        final AtomicReference<Runnable> midBuildAction = new AtomicReference<>(() -> {});
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenAnswer(invocation -> {
+            resolutions.incrementAndGet();
+            midBuildAction.get().run();
+            return Set.of(roleDescriptor);
+        });
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            fileRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TestProjectResolvers.singleProject(randomUniqueProjectId())
+        );
+
+        midBuildAction.set(() -> compositeRolesStore.invalidateProject(randomUniqueProjectId()));
+        assertThat(resolveRole(compositeRolesStore, "role-a").names(), arrayContaining("role-a"));
+        assertThat(resolutions.get(), equalTo(1));
+
+        assertThat(resolveRole(compositeRolesStore, "role-a").names(), arrayContaining("role-a"));
+        assertThat("second resolution must be served from the cache", resolutions.get(), equalTo(1));
+    }
+
+    private static Role resolveRole(CompositeRolesStore compositeRolesStore, String roleName) {
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        compositeRolesStore.getRole(subjectWithRole(roleName), future);
+        return future.actionGet();
+    }
+
+    private static Subject subjectWithRole(String roleName) {
+        return new Subject(new User("user-with-" + roleName, roleName), new RealmRef("name", "type", "node"));
+    }
+
     public void testDefaultRoleUserWithoutRoles() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());

@@ -7,17 +7,25 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointProvider;
+
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -25,7 +33,9 @@ import static org.hamcrest.Matchers.not;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+        .withResourceCheck(S3ResourceCheck::validate)
+        .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, hostAndPort -> false, errors));
 
     @Override
     protected DataSourceValidator validator() {
@@ -721,5 +731,384 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
+    }
+
+    // --- Endpoint host validation ---
+
+    public void testValidateDatasourceRejectsHttpEndpoint() {
+        // A host rule rests on the certificate presented for that name, so plain http is refused even when
+        // the host itself would be permitted.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://s3.us-east-1.amazonaws.com", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("must use https"));
+    }
+
+    public void testValidateDatasourceRejectsThirdPartyEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [https://s3-proxy.example.com:9000]"));
+        assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+    }
+
+    public void testValidateDatasourceAcceptsAwsS3Endpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
+        assertEquals("https://s3.us-east-1.amazonaws.com", result.get("endpoint").nonSecretValue());
+    }
+
+    private static DataSourceValidator federatedValidator() {
+        return new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withFederatedIdentityEnabled(
+            () -> true
+        ).withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, hostAndPort -> false, errors));
+    }
+
+    public void testValidateDatasourceRejectsThirdPartyStsEndpoint() {
+        // sts_endpoint receives the node's own OIDC token as the whole credential, so a host outside AWS
+        // is a credential disclosure rather than a misrouted read.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> federatedValidator().validateDatasource(
+                Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://attacker.example.com")
+            )
+        );
+        assertThat(e.getMessage(), containsString("sts_endpoint [https://attacker.example.com]"));
+        assertThat(e.getMessage(), containsString("not a supported AWS STS endpoint"));
+    }
+
+    public void testValidateDatasourceAcceptsValidStsEndpoint() {
+        var result = federatedValidator().validateDatasource(
+            Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://sts.us-east-1.amazonaws.com")
+        );
+        assertEquals("https://sts.us-east-1.amazonaws.com", result.get("sts_endpoint").nonSecretValue());
+    }
+
+    /** 9.5's {@code S3Configuration} does not parse {@code endpoint}, so the check's own parse is the only one a bad value gets. */
+    public void testValidateDatasourceRejectsEndpointThatIsNotAUrl() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "not a url", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [not a url] is not a valid URL"));
+    }
+
+    public void testValidateDatasourceRejectsEndpointWithoutAHost() {
+        // A bare word parses as a relative URI, which names no host to match against.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "s3-proxy.example.com", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [s3-proxy.example.com] names no host"));
+    }
+
+    // --- ARN, MRAP and steering bucket-name rejection ---
+
+    public void testValidateDatasetRejectsMrapHost() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), containsString("s3://mfzwi23gnjvgw.mrap/data/f.parquet"));
+    }
+
+    public void testValidateDatasetRejectsMrapArn() {
+        // ARN whose first path segment ends with .mrap — gets MRAP message, not generic ARN message.
+        // The not() assertion catches a missing return after the MRAP branch.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3::444732909647:accesspoint/mfzwi23gnjvgw.mrap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsMrapFqdn() {
+        // Full AWS global endpoint hostname that MRAP aliases resolve to — must get the MRAP message.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://mfzwi23gnjvgw.mrap.accesspoint.s3-global.amazonaws.com/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsDirectoryBucket() {
+        // With no endpoint set, the name alone routes to an s3express host; refused beside the MRAP refusal.
+        // Both spellings the SDK routes into S3 Express are refused; --xa-s3 does not end in --x-s3.
+        for (String bucket : List.of("mybucket--use1-az4--x-s3", "mybucket--use1-az4--xa-s3")) {
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of())
+            );
+            assertThat(bucket, e.getMessage(), containsString("looks like an S3 Express directory bucket, which is not supported"));
+            assertThat(bucket, e.getMessage(), not(containsString("does not accept an ARN")));
+        }
+    }
+
+    public void testValidateDatasetAcceptsBucketNamesThatMerelyResembleDirectoryBuckets() {
+        // These resolve to the ordinary regional host, so refusing them would take away a legitimate
+        // bucket name. Asserted rather than assumed, because the boundary is what the Outposts test below
+        // turns on.
+        for (String bucket : List.of(
+            "mybucket--use1-az4--x-s3-suffix",
+            "mybucket--use1-az4--xa-s3-suffix",
+            "mybucket--use1-az4--op-s3",
+            "my-x-s3"
+        )) {
+            assertEquals(bucket, "s3.us-east-1.amazonaws.com", resolvedHostOf(bucket));
+        }
+        validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--x-s3-suffix/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--xa-s3-suffix/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--op-s3/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://my-x-s3/data/f.parquet", Map.of());
+    }
+
+    /** The bucket is what {@code StoragePath} leaves once a port or userInfo is stripped, and here that is nothing. */
+    public void testValidateDatasetRejectsEmptyBucketBehindAPortOrUserInfo() {
+        for (String resource : List.of("s3://:443/data/f.parquet", "s3://@/data/f.parquet", "s3://user@:443/data/f.parquet")) {
+            var e = expectThrows(ValidationException.class, resource, () -> validator.validateDataset(Map.of(), resource, Map.of()));
+            assertThat(resource, e.getMessage(), containsString("is not a complete object location"));
+        }
+    }
+
+    public void testValidateDatasetRejectsEmptyLocation() {
+        // s3:// matches the scheme check but names no bucket, so it is refused as an incomplete location.
+        var e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        var withSlash = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3:///", Map.of()));
+        assertThat(withSlash.getMessage(), containsString("is not a complete object location"));
+    }
+
+    public void testValidateDatasetRejectsAccessPointArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:444732909647:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+        assertThat(e.getMessage(), containsString("Use a bucket name, or an access point alias"));
+    }
+
+    public void testValidateDatasetRejectsObjectLambdaArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3-object-lambda:us-east-1:444732909647:accesspoint/olap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsOutpostsArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3-outposts:us-east-1:444732909647:outpost/op-x/accesspoint/ap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsS3TablesArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3tables:us-east-1:444732909647:bucket/tb/ns/tbl", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsAccessGrantsArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3:us-east-1:444732909647:access-grants/default/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetArnCheckIsCaseInsensitive() {
+        // ARN prefix matching must be case-insensitive
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://ARN:aws:s3:us-east-1:123:accesspoint/x/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetMrapCheckIsCaseInsensitive() {
+        // .mrap suffix matching must be case-insensitive
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.MRAP/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    public void testValidateDatasetAcceptsNormalBucket() {
+        // control — must not be rejected
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetAcceptsMrapInKey() {
+        // .mrap appears in the key path, not the host — legal bucket + key, must be accepted
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/archive.mrap/data.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetAccessPointAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-ap-a1b2c3d4e-s3alias/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetObjectLambdaAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://myolap-1a4n8t--ol-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetOutpostsAlias() {
+        // Too short for the ruleset to read an outpost id out of, so an ordinary bucket name.
+        assertEquals("s3.us-east-1.amazonaws.com", resolvedHostOf("my-access-po-o01ac--op-s3"));
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
+    }
+
+    /** Long enough to carry an outpost id, so it reaches {@code s3-outposts}; resolved here rather than trusted. */
+    public void testValidateDatasetRefusesBucketNameThatRoutesToOutposts() {
+        String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
+        assertThat(resolvedHostOf(bucket), containsString(".s3-outposts.us-east-1.amazonaws.com"));
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("which is not a supported AWS S3 endpoint"));
+        assertThat(e.getMessage(), containsString("s3-outposts"));
+        assertThat(e.getMessage(), not(containsString("looks like an S3 Express directory bucket")));
+    }
+
+    /** One longer again and the outpost id is malformed, so the ruleset throws and the name is refused too. */
+    public void testValidateDatasetRefusesBucketNameTheSdkCannotRoute() {
+        String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
+        expectThrows(CompletionException.class, () -> resolvedHostOf(bucket));
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("cannot route to any endpoint"));
+    }
+
+    /** {@code StoragePath.of} strips a port, so a refusal reading the raw authority is bypassed by {@code :443}. */
+    public void testValidateDatasetRefusesSteeredBucketsWithAPort() {
+        for (String bucket : List.of(
+            "mybucket--use1-az4--x-s3",
+            "mybucket--use1-az4--xa-s3",
+            "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3",
+            "my-ap.mrap"
+        )) {
+            var e = expectThrows(
+                ValidationException.class,
+                bucket,
+                () -> validator.validateDataset(Map.of(), "s3://" + bucket + ":443/data/f.parquet", Map.of())
+            );
+            assertThat(
+                bucket,
+                e.getMessage(),
+                anyOf(containsString("S3 Express"), containsString("routes to"), containsString("multi-region"))
+            );
+        }
+    }
+
+    /** The mirror: a {@code userInfo} must not turn an ordinary bucket into a refusal. */
+    public void testValidateDatasetAcceptsOrdinaryBucketBehindUserInfo() {
+        String bucket = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb--op-s3";
+        assertEquals("s3.us-east-1.amazonaws.com", resolvedHostOf(bucket));
+        validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://abcdef@" + bucket + "/data/f.parquet", Map.of());
+    }
+
+    /** The same question {@code S3ResourceCheck} asks, so a fixture cannot drift out of its branch unnoticed. */
+    private static String resolvedHostOf(String bucket) {
+        URI url = S3EndpointProvider.defaultProvider()
+            .resolveEndpoint(
+                S3EndpointParams.builder()
+                    .bucket(bucket)
+                    .region(Region.US_EAST_1)
+                    .useFips(false)
+                    .useDualStack(false)
+                    .accelerate(false)
+                    .forcePathStyle(true)
+                    .build()
+            )
+            .join()
+            .url();
+        return url.getHost();
+    }
+
+    public void testValidateDatasetDottedBucketName() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my.dotted.bucket/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetMrapInsideNameNotRejected() {
+        // ends-with check: ".mrap" must appear at the end, not as a substring in the middle
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket-with.mrap-inside/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetArnPrefixWithoutColonNotRejected() {
+        // "arn" without the colon is a legal bucket name prefix — only "arn:" triggers the check
+        assertNotNull(validator.validateDataset(Map.of(), "s3://arnold-bucket/data/f.parquet", Map.of()));
+    }
+
+    /**
+     * The load-bearing rewrap-survival test: the S3 resource check must survive every wither. If the
+     * resourceCheck field is missing from any wither's private-constructor call, it is silently dropped
+     * and ARN/MRAP resources pass validation after the re-wrap.
+     */
+    public void testResourceCheckSurvivesAllWithers() {
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withManagedIdentityEnabled(() -> false)
+            .withFederatedIdentityEnabled(() -> false)
+            .withDatasourceCheck((config, errors) -> {})
+            .withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+
+        var e2 = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
+        );
+        assertThat(e2.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    /**
+     * Verifies that {@link S3DataSourcePlugin#datasourceValidators} wires the S3 resource check.
+     * If {@code .withResourceCheck(...)} were dropped from the plugin, this test would fail while
+     * unit tests that construct {@link FileDataSourceValidator} directly would still pass.
+     */
+    public void testDatasourceValidatorsIncludesResourceCheck() {
+        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(Settings.EMPTY).get("s3");
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
     }
 }

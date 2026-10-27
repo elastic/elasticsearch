@@ -30,7 +30,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         // Projects that apply LegacyRestTestBasePlugin directly via the legacy-yaml-rest-test or legacy-java-rest-test plugins.
 
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
 
         return map;

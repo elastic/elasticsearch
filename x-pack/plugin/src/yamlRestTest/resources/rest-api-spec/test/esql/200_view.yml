@@ -584,18 +584,8 @@ setup:
 
 ---
 "cyclic-view-self-reference":
-  - requires:
-      capabilities:
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [validate]
-          capabilities: [views_put_validate]
-      test_runner_features: capabilities
-      reason: "the view is invalid on purpose, so its validation is skipped"
-
   - do:
       esql.put_view:
-        validate: false
         name: cyclic_view
         body:
           query: 'FROM cyclic_view'
@@ -608,25 +598,14 @@ setup:
 
 ---
 "cyclic-view-mutual-reference":
-  - requires:
-      capabilities:
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [validate]
-          capabilities: [views_put_validate]
-      test_runner_features: capabilities
-      reason: "the view is invalid on purpose, so its validation is skipped"
-
   - do:
       esql.put_view:
-        validate: false
         name: view_a
         body:
           query: 'FROM view_b'
 
   - do:
       esql.put_view:
-        validate: false
         name: view_b
         body:
           query: 'FROM view_a'
@@ -639,32 +618,20 @@ setup:
 
 ---
 "cyclic-view-chain":
-  - requires:
-      capabilities:
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [validate]
-          capabilities: [views_put_validate]
-      test_runner_features: capabilities
-      reason: "the view is invalid on purpose, so its validation is skipped"
-
   - do:
       esql.put_view:
-        validate: false
         name: chain_a
         body:
           query: 'FROM chain_b'
 
   - do:
       esql.put_view:
-        validate: false
         name: chain_b
         body:
           query: 'FROM chain_c'
 
   - do:
       esql.put_view:
-        validate: false
         name: chain_c
         body:
           query: 'FROM chain_a'
@@ -677,18 +644,8 @@ setup:
 
 ---
 "view-refers-to-nonexistent-index":
-  - requires:
-      capabilities:
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [validate]
-          capabilities: [views_put_validate]
-      test_runner_features: capabilities
-      reason: "the view is invalid on purpose, so its validation is skipped"
-
   - do:
       esql.put_view:
-        validate: false
         name: bad_view
         body:
           query: 'FROM nonexistent_index'
@@ -754,3 +711,90 @@ setup:
   - match: { values.0: [2, "brown"] }
   - match: { values.1: [4, "brown"] }
   - match: { values.2: [6, "brown"] }
+
+---
+"validate-accepts-a-valid-query-without-warning":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "validate query parameter introduced"
+
+  - do:
+      esql.put_view:
+        name: checked_dogs
+        validate: true
+        body:
+          query: 'FROM test | WHERE animal == "dog" | KEEP id, color'
+
+  - do:
+      esql.get_view:
+        name: checked_dogs
+
+  - match: { views.0.name: "checked_dogs" }
+
+---
+"validate-warns-but-still-stores-the-view":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [views_put_validate]
+      test_runner_features: [capabilities, warnings_regex]
+      reason: "validate query parameter introduced"
+
+  - do:
+      warnings_regex:
+        - "(?s)view \\[unknown_index_view\\] query is not valid: .*Unknown index \\[nonexistent_index\\].*"
+      esql.put_view:
+        name: unknown_index_view
+        validate: true
+        body:
+          query: 'FROM nonexistent_index'
+
+  - do:
+      esql.get_view:
+        name: unknown_index_view
+
+  - match: { views.0.name: "unknown_index_view" }
+  - match: { views.0.query: 'FROM nonexistent_index' }
+
+  - do:
+      warnings_regex:
+        - "(?s)view \\[unknown_column_view\\] query is not valid: .*Unknown column \\[nonexistent_column\\].*"
+      esql.put_view:
+        name: unknown_column_view
+        validate: true
+        body:
+          query: 'FROM test | KEEP nonexistent_column'
+
+  - do:
+      esql.get_view:
+        name: unknown_column_view
+
+  - match: { views.0.name: "unknown_column_view" }
+
+---
+"validate-rejects-a-query-that-cannot-be-parsed":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "validate query parameter introduced"
+
+  - do:
+      catch: /mismatched input '<EOF>'/
+      esql.put_view:
+        name: unparsable_view
+        validate: true
+        body:
+          query: 'FROM test |'
+
+  - do:
+      catch: /view \[unparsable_view\] not found/
+      esql.get_view:
+        name: unparsable_view

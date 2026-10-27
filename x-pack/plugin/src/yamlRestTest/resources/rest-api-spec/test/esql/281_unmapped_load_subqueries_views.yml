@@ -70,14 +70,9 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ settings_scoped_at_view_boundaries ]
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [ validate ]
-          capabilities: [ views_put_validate ]
       reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
-        validate: false
         name: v_branch_ref
         body:
           query: 'FROM idx1, (FROM idx2 | KEEP id, note)'
@@ -101,10 +96,6 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ settings_scoped_at_view_boundaries ]
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [ validate ]
-          capabilities: [ views_put_validate ]
       reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
@@ -165,14 +156,9 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ settings_scoped_at_view_boundaries ]
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [ validate ]
-          capabilities: [ views_put_validate ]
       reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
-        validate: false
         name: v_conflict
         body:
           query: 'FROM idx3, (FROM idx1 | KEEP id, note)'
@@ -194,14 +180,9 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ settings_scoped_at_view_boundaries ]
-        - method: PUT
-          path: /_query/view/{name}
-          parameters: [ validate ]
-          capabilities: [ views_put_validate ]
       reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
-        validate: false
         name: v_loads_note
         body:
           query: 'FROM idx1 | KEEP id, color, note'

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -77,12 +79,43 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
     }
 
     private ReloadableCustomAnalyzer analyzer(String index) {
-        var analyzer = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index))
-            .getIndexAnalyzers()
-            .get("a")
-            .analyzer();
+        var analyzer = underlyingAnalyzer(index);
         assertThat(analyzer, instanceOf(ReloadableCustomAnalyzer.class));
         return (ReloadableCustomAnalyzer) analyzer;
+    }
+
+    private Analyzer underlyingAnalyzer(String index) {
+        return getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getIndexAnalyzers().get("a").analyzer();
+    }
+
+    /**
+     * A non-updateable lenient filter whose map trips the circuit breaker falls back to an empty map. Nothing reloads a
+     * non-updateable analyzer, so an index created once the breaker clears must build its own rather than share the fallback.
+     */
+    public void testIndexAfterCircuitBreakerFallbackDoesNotShareIt() {
+        assumeTrue("analyzer sharing feature flag disabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
+
+        Settings index = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "syn")
+            .put("index.analysis.filter.syn.type", "synonym_graph")
+            .putList("index.analysis.filter.syn.synonyms", "hello, hi")
+            .put("index.analysis.filter.syn.lenient", true)
+            .build();
+        String limit = HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(limit, "0b").build());
+        try {
+            createIndex("a", index);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(limit).build());
+        }
+        assertThat(analyze("a", "hello"), contains("hello"));
+
+        createIndex("b", index);
+        assertNotSame(underlyingAnalyzer("a"), underlyingAnalyzer("b"));
+        assertThat(analyze("b", "hello"), contains("hello", "hi"));
     }
 
     public void testIndexJoiningEmptyFallbackRetriesLoad() throws IOException {

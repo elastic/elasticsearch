@@ -33,6 +33,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -127,6 +128,10 @@ public final class AnalysisRegistry implements Closeable {
         // Written once by the builder thread before completing the future, so it is safely visible
         // to every thread that joins the future (and to shutdown, which runs after all builds).
         volatile NamedAnalyzer evictable;
+        // Set by the builder, before completing the future, when the build is degraded (see
+        // AnalysisRegistry#isDegraded). The entry is then removed from the cache, so its holders
+        // release it themselves rather than through the cache.
+        volatile boolean detached;
 
         /**
          * Acquire one additional reference if the entry is still live. Returns false if it has
@@ -1144,6 +1149,12 @@ public final class AnalysisRegistry implements Closeable {
             // analyzers `raw` is INDEX-scoped so its close() cascades to the underlying analyzer,
             // whereas the INDICES `scoped` wrapper we hand out would not.
             entry.evictable = raw;
+            if (isDegraded(raw)) {
+                // A lenient fallback (e.g. a synonym map that tripped the circuit breaker) must not be served to
+                // indices built later, which may build the full analyzer. Concurrent joiners of this build keep it.
+                entry.detached = true;
+                cache.remove(key, entry);
+            }
             entry.futureAnalyzer.complete(scoped);
         } else {
             // We adopted a sibling's entry — count as a coalesced hit, not a build.
@@ -1191,7 +1202,32 @@ public final class AnalysisRegistry implements Closeable {
             }
             throw new RuntimeException(cause);
         }
+        if (entry.detached) {
+            return new InternedAnalyzer(analyzer, () -> releaseDetached(key, entry));
+        }
         return new InternedAnalyzer(analyzer, () -> releaseFromCache(key, entry, cache));
+    }
+
+    /**
+     * Whether a freshly built analyzer holds a filter that fell back after a lenient load failed. A
+     * {@link ReloadableCustomAnalyzer} retries such a load itself and must stay shared so reloads reach
+     * every sharer, so only other analyzers count.
+     */
+    private static boolean isDegraded(NamedAnalyzer analyzer) {
+        return analyzer.analyzer() instanceof CustomAnalyzer custom
+            && Arrays.stream(custom.getComponents().getTokenFilters()).anyMatch(TokenFilterFactory::isDegraded);
+    }
+
+    /** Releases a reference on an entry no longer in the cache, closing its analyzer with the last one. */
+    private static void releaseDetached(AnalyzerKey key, CacheEntry entry) {
+        if (entry.refCount.decrementAndGet() > 0) {
+            return;
+        }
+        try {
+            entry.evictable.close();
+        } catch (Exception e) {
+            logger.debug(() -> "failed to close detached analyzer [" + key + "]", e);
+        }
     }
 
     /**

@@ -188,17 +188,23 @@ public class Analysis {
     }
 
     /**
-     * A SHA-256 of {@code text}, as hex, to stand in for large text (user dictionaries, rule files) in a {@code sharingKey()}.
-     * Hash exactly the text the Lucene object is parsed from, so equal hashes mean equal objects. Hashes UTF-16 code units, not
-     * an encoding, so unpaired surrogates stay distinct.
+     * A SHA-256 of {@code text}, as hex, to stand in for large text in a {@code sharingKey()}. Hashes UTF-16 code units, not an
+     * encoding, so unpaired surrogates stay distinct.
      */
     public static String sha256Hex(CharSequence text) {
         MessageDigest digest = MessageDigests.sha256();
+        byte[] buf = new byte[8192];
+        int n = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            digest.update((byte) (c >>> 8));
-            digest.update((byte) c);
+            buf[n++] = (byte) (c >>> 8);
+            buf[n++] = (byte) c;
+            if (n == buf.length) {
+                digest.update(buf, 0, n);
+                n = 0;
+            }
         }
+        digest.update(buf, 0, n);
         return MessageDigests.toHexString(digest.digest());
     }
 

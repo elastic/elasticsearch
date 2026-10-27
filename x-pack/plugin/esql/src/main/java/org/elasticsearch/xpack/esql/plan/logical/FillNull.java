@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -257,23 +256,21 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
             // `*` sweeps up every user column, not the internals: metadata (_index, _score) and synthetic attributes such
             // as the `$$<field>$converted_to$<type>` union-type columns. Naming one explicitly still fills it, even
             // alongside a `*` - what a column does must not depend on whether a `*` happens to be in the same list.
-            if (isInternal(field) && namedTargets.contains(field.name()) == false) {
+            if (field.isInternal() && namedTargets.contains(field.name()) == false) {
                 continue;
             }
             if (fillNames == null || fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
-                // Reuse the existing alias (keeping its id) only while valid: resolved, same type, and still wrapping the same attribute
-                if (previous != null
-                    && previous.resolved()
-                    && previous.dataType() == field.dataType()
-                    && unwrapCoalesce(previous.child()) instanceof Coalesce c
-                    && c.children().get(0).equals(field)) {
+                // A same-type rebuild keeps the alias id, as commands above already reference it. A type change mints a fresh id that those
+                // commands are not rewritten to follow: https://github.com/elastic/elasticsearch/issues/162893
+                boolean keepId = previous != null && previous.resolved() && previous.dataType() == field.dataType();
+                if (keepId && unwrapCoalesce(previous.child()) instanceof Coalesce c && c.children().get(0).equals(field)) {
                     built.add(previous);
                     continue;
                 }
                 Expression defaultValue = resolveDefaultValue(field.dataType(), fillValue, configuration);
                 if (defaultValue != null) {
-                    built.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue)));
+                    built.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue), keepId ? previous.id() : null));
                 }
             }
         }
@@ -434,11 +431,6 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         return names;
     }
 
-    /** Columns {@code *} does not sweep up: metadata ({@code _index}, {@code _score}) and synthetic attributes. */
-    private static boolean isInternal(Attribute attr) {
-        return attr instanceof MetadataAttribute || attr.synthetic();
-    }
-
     @Nullable
     private static List<?> multiValuedFill(@Nullable Expression fillValue) {
         return fillValue instanceof Literal lit && lit.value() instanceof List<?> values ? values : null;
@@ -481,7 +473,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
             for (Attribute attr : child().output()) {
                 // `*` never sweeps up the internals, so they were never in scope and are not "left unchanged". Naming
                 // one explicitly does put it in scope, so it is reported like any other target. Mirrors buildFields.
-                if (isInternal(attr) && namedTargets.contains(attr.name()) == false) {
+                if (attr.isInternal() && namedTargets.contains(attr.name()) == false) {
                     continue;
                 }
                 if (attr.resolved() && filled.contains(attr.name()) == false) {

@@ -14,13 +14,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -99,7 +98,9 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1277,7 +1278,6 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
-        List<String> result = new ArrayList<>();
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "first", Field.Store.YES)));
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "second", Field.Store.YES)));
@@ -1290,39 +1290,82 @@ public class SearchExecutionContextTests extends ESTestCase {
                 } else {
                     indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
-                searcher.search(query, new Collector() {
+                boolean useDocLookup = randomBoolean();
+                return searcher.search(query, new CollectorManager<ValueCollector, List<String>>() {
                     @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE_NO_SCORES;
+                    public ValueCollector newCollector() {
+                        return new ValueCollector(field, searchExecutionContext, indexFieldData, useDocLookup);
                     }
 
                     @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        return new LeafCollector() {
-                            @Override
-                            public void setScorer(Scorable scorer) {}
-
-                            @Override
-                            public void collect(int doc) throws IOException {
-                                ScriptDocValues<?> scriptDocValues;
-                                if (randomBoolean()) {
-                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
-                                    leafDocLookup.setDocument(doc);
-                                    scriptDocValues = leafDocLookup.get(field);
-                                } else {
-                                    scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
-                                    ;
-                                }
-                                scriptDocValues.getSupplier().setNextDocId(doc);
-                                for (int i = 0; i < scriptDocValues.size(); i++) {
-                                    result.add(scriptDocValues.get(i).toString());
-                                }
-                            }
-                        };
+                    public List<String> reduce(Collection<ValueCollector> collectors) {
+                        List<CollectedValue> values = new ArrayList<>();
+                        for (ValueCollector collector : collectors) {
+                            values.addAll(collector.values);
+                        }
+                        values.sort(Comparator.comparingInt(CollectedValue::doc));
+                        return values.stream().map(CollectedValue::value).toList();
                     }
                 });
             }
-            return result;
+        }
+    }
+
+    private record CollectedValue(int doc, String value) {}
+
+    /**
+     * One collector per slice: each owns its leaf lookup / script doc values and the hits it collected.
+     */
+    private static final class ValueCollector extends SimpleCollector {
+        private final String field;
+        private final SearchExecutionContext searchExecutionContext;
+        private final IndexFieldData<?> indexFieldData;
+        private final boolean useDocLookup;
+        private final List<CollectedValue> values = new ArrayList<>();
+        private int docBase;
+        private LeafDocLookup leafDocLookup;
+        private ScriptDocValues<?> scriptDocValues;
+
+        ValueCollector(
+            String field,
+            SearchExecutionContext searchExecutionContext,
+            IndexFieldData<?> indexFieldData,
+            boolean useDocLookup
+        ) {
+            this.field = field;
+            this.searchExecutionContext = searchExecutionContext;
+            this.indexFieldData = indexFieldData;
+            this.useDocLookup = useDocLookup;
+        }
+
+        @Override
+        protected void doSetNextReader(LeafReaderContext context) {
+            docBase = context.docBase;
+            if (useDocLookup) {
+                leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
+            } else {
+                scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
+            }
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            final ScriptDocValues<?> docValues;
+            if (useDocLookup) {
+                leafDocLookup.setDocument(doc);
+                docValues = leafDocLookup.get(field);
+            } else {
+                scriptDocValues.getSupplier().setNextDocId(doc);
+                docValues = scriptDocValues;
+            }
+            for (int i = 0; i < docValues.size(); i++) {
+                values.add(new CollectedValue(docBase + doc, docValues.get(i).toString()));
+            }
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
     }
 }

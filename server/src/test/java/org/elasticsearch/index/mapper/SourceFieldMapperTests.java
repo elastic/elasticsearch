@@ -33,6 +33,7 @@ import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -717,6 +718,71 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
             }
         });
+    }
+
+    /**
+     * Verifies that in columnar_stored mode a filtered source loader returns the filtered blob. An include filter used to drop the
+     * whole-document {@code _ignored_source} entry by its name {@code _source}: the root then failed on the missing blob when an
+     * included field had a value, and returned {@code {}} when none had one (a text field without doc values reads its own value from
+     * {@code _source}).
+     */
+    public void testColumnarStoredSourceWithFilter() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("lng").field("type", "long").endObject();
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("txt").field("type", "text").field("doc_values", false).endObject();
+            b.startObject("p").field("type", "long");
+            {
+                b.startObject("fields").startObject("t").field("type", "text").field("doc_values", false).endObject().endObject();
+            }
+            b.endObject();
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("sub").field("type", "keyword").endObject();
+            }
+            b.endObject().endObject();
+        }));
+        ParsedDocument parsed = mapperService.documentMapper()
+            .parse(
+                source(
+                    b -> b.field("lng", randomLong())
+                        .field("kwd", randomAlphaOfLengthBetween(1, 10))
+                        .field("txt", randomAlphaOfLengthBetween(1, 10))
+                        .field("p", randomLong())
+                        .startObject("obj")
+                        .field("sub", randomAlphaOfLengthBetween(1, 10))
+                        .endObject()
+                )
+            );
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(parsed.rootDoc()), reader -> {
+            LeafReaderContext leaf = getOnlyLeafReader(reader).getContext();
+            Source full = loadColumnarStoredSource(mapperService, leaf, null);
+            List<String[]> includes = new ArrayList<>();
+            for (String path : List.of("lng", "kwd", "txt", "p", "obj", "obj.sub", "missing")) {
+                includes.add(new String[] { path });
+            }
+            includes.add(randomSubsetOf(between(2, 4), "lng", "kwd", "txt", "p", "obj.sub").toArray(String[]::new));
+            for (String[] include : includes) {
+                SourceFilter filter = new SourceFilter(include, randomBoolean() ? null : new String[] { randomFrom("lng", "kwd") });
+                Source filtered = loadColumnarStoredSource(mapperService, leaf, filter);
+                assertThat(Arrays.toString(include), filtered.source(), equalTo(full.filter(filter).source()));
+            }
+        });
+    }
+
+    private static Source loadColumnarStoredSource(MapperService mapperService, LeafReaderContext leaf, SourceFilter filter)
+        throws IOException {
+        SourceLoader loader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
+        int[] docIds = new int[] { 0 };
+        LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+        sfLoader.advanceTo(0);
+        return loader.leaf(leaf, docIds).source(sfLoader, 0);
     }
 
     /**

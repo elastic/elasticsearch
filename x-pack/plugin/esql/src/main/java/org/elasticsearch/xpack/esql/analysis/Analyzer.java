@@ -4682,6 +4682,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 newOutput.add(attr);
             }
+            // NO_FIELDS should not be retained if other attributes actually exist
+            if (newOutput.size() > 1) {
+                newOutput.removeIf(attr -> attr == NO_FIELDS.getFirst());
+            }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
         }

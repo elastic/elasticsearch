@@ -1737,6 +1737,10 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ flattened_unmapped_sink_load, optional_fields_load_all_single_source_column ]
       reason: "the _unmapped field of a columnar index"
 
   - do:
@@ -1750,6 +1754,8 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
             properties:
               name:
                 type: keyword
+              n:
+                type: nested
 
   - do:
       bulk:
@@ -1757,7 +1763,7 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
         refresh: true
         body:
           - '{"index": {"_id": "1"}}'
-          - '{"name": "a", "k": "secret", "visible": "v", "obj": {"hidden": "h", "shown": "s"}}'
+          - '{"name": "a", "k": "secret", "visible": "v", "obj": {"hidden": "h", "shown": "s"}, "n": [{"hidden": "nh", "shown": "ns"}]}'
   - match: { errors: false }
 
   - do:
@@ -1772,7 +1778,7 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "*" ]
-                    except: [ "k", "obj.hidden" ]
+                    except: [ "k", "obj.hidden", "n.hidden" ]
   - set:
       encoded: except_credentials
 
@@ -1849,6 +1855,36 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
   - match: { hits.hits.0.fields.visible: [ "v" ] }
   - is_false: "hits.hits.0.fields.k"
   - is_false: 'hits.hits.0.fields.obj\.hidden'
+
+  # ES|QL: the fields not below a nested object are loaded from the doc values of _unmapped, n.hidden and n.shown from _source
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index_fls_unmapped_sink | KEEP name, k, visible, obj.hidden, obj.shown, n.hidden, n.shown | LIMIT 10'
+  - match: { values.0: [ "a", "secret", "v", "h", "s", "nh", "ns" ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM index_fls_unmapped_sink | LIMIT 10'
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { values.0.1: { "k": "secret", "n.hidden": "nh", "n.shown": "ns", "obj.hidden": "h", "obj.shown": "s", "visible": "v" } }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index_fls_unmapped_sink | KEEP name, k, visible, obj.hidden, obj.shown, n.hidden, n.shown | LIMIT 10'
+  - match: { values.0: [ "a", null, "v", null, "s", null, "ns" ] }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM index_fls_unmapped_sink | LIMIT 10'
+  - match: { values.0.1: { "n.shown": "ns", "obj.shown": "s", "visible": "v" } }
 
 ---
 Fields of a columnar_stored _source under FLS:

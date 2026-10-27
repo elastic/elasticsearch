@@ -286,6 +286,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
+        settings.add(IndexSettings.BATCH_INDEXING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };
 

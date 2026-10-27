@@ -237,6 +237,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -9743,8 +9745,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithStats() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
+    }
+
+    /**
+     * A LIMIT after STATS bounds the number of groups, not the number of documents, so it must not be pushed into KNN as k.
+     */
+    public void testKnnWithStatsAndLimitAfterStats() {
+        assertThat(
+            typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*) | limit 100"),
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
+        );
+    }
+
+    /**
+     * An explicit {@code k} option satisfies the k requirement even when STATS prevents a LIMIT from being pushed into KNN.
+     */
+    public void testKnnWithKOptionAndStats() {
+        var query = "from types | where knn(dense_vector, [0, 1, 2], {\"k\": 10}) | stats c = count(*)"
+            + (randomBoolean() ? "" : " | limit 100");
+        var optimized = planTypes(query);
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.implicitK(), nullValue());
+        assertThat(knn.options(), notNullValue());
+    }
+
+    /**
+     * KNN on a runtime (non-indexed) dense_vector is evaluated per row and doesn't use k, so it doesn't need a LIMIT or a k option.
+     */
+    public void testRuntimeKnnWithStats() {
+        // Older versions reject runtime KNN outright, see OptimizerVerificationTests#testKnnRuntimeRejectedOnOlderTransportVersion
+        assumeTrue("requires runtime knn", minimumVersion.supports(Knn.ESQL_KNN_RUNTIME_FIELD));
+        var optimized = planTypes("from types | eval dv = to_dense_vector(float) | where knn(dv, [0, 1, 2]) | stats c = count(*)");
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.isRuntimeSearch(), is(true));
+        assertThat(knn.implicitK(), nullValue());
     }
 
     public void testKnnWithRerankWithoutLimit() {
@@ -9794,7 +9838,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithLimitBy() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 
@@ -9805,7 +9849,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithTopNBy() {
         assertThat(
             typesError("from types metadata _score | where knn(dense_vector, [0, 1, 2]) | sort _score | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 

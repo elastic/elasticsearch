@@ -14,7 +14,7 @@
 //   id=1 [0,64,0]     cosine = 0.0
 //   id=2 [0,0,64]     cosine = 0.0
 
-// Test 1: KNN on ROW data using to_dense_vector() on a hex string literal.
+// KNN on ROW data using to_dense_vector() on a hex string literal.
 // The hex string "400000" decodes to bytes [64,0,0], which is the only row and
 // has cosine similarity 1.0 with the query [64,0,0], so it passes the filter.
 knnRuntimeOnRow
@@ -31,7 +31,7 @@ dv:dense_vector
 [64.0, 0.0, 0.0]
 ;
 
-// Test 2: KNN on runtime field dense_vector field with no _score and no options
+// KNN on runtime field dense_vector field with no _score and no options
 // With no similarity threshold all six documents pass the KNN filter; results
 // are sorted by id for a deterministic output.
 knnRuntimeNoScore
@@ -54,7 +54,7 @@ id:integer | label:keyword
 5          | xyz
 ;
 
-// Test 3: KNN on runtime field dense_vector field with _score and no options
+// KNN on runtime field dense_vector field with _score and no options
 // With no similarity threshold all six documents pass the KNN filter; scores should
 // be generated based on cosine similarity.
 knnRuntimeWithScore
@@ -78,7 +78,7 @@ id:integer | _score:double
 ;
 
 
-// Test 4: KNN on runtime field dense_vector field with sorting on _score and no options
+// KNN on runtime field dense_vector field with sorting on _score and no options
 // All six documents pass the KNN filter, but [sort + limit] limits to two highest
 // scoring rows.
 knnRuntimeWithSortOnScore
@@ -97,7 +97,7 @@ id:integer
 4
 ;
 
-// Test 5: KNN on runtime field dense_vector field with similarity threshold option
+// KNN on runtime field dense_vector field with similarity threshold option
 knnRuntimeWithSimThreshold
 required_capability: knn_runtime_field
 
@@ -115,7 +115,53 @@ id:integer
 4
 ;
 
-// Test 6: KNN on runtime field dense_vector field with boost option
+// KNN on a runtime field performs exact brute-force search and doesn't use k. The value provided should be ignore.
+knnIgnoreK
+required_capability: knn_runtime_field
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"k": 1, "similarity": 0.6})
+| STATS count = COUNT(*)
+;
+
+count:long
+3
+;
+
+// KNN on a runtime field is evaluated per row and doesn't use k, so it needs neither a LIMIT nor a k option
+// before STATS. Same threshold as knnRuntimeWithSimThreshold, so ids 0, 3 and 4 are counted.
+knnRuntimeFollowedByStats
+required_capability: knn_runtime_field
+required_capability: fn_knn_k_option_without_limit
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"similarity": 0.6})
+| STATS count = COUNT(*)
+;
+
+count:long
+3
+;
+
+// LIMIT 1 defined after STATS should not be pushed to K
+knnRuntimeFollowedByStatsFollowedByLimit
+required_capability: knn_runtime_field
+required_capability: fn_knn_k_option_without_limit
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"similarity": 0.6})
+| STATS count = COUNT(*)
+| LIMIT 1
+;
+
+count:long
+3
+;
+
+// KNN on runtime field dense_vector field with boost option
 knnRuntimeWithBoost
 required_capability: knn_runtime_field
 
@@ -136,7 +182,7 @@ id:integer | _score:double
 5          | 1.5018411874771118
 ;
 
-// Test 7: KNN on runtime field dense_vector field: combined filtering and scoring
+// KNN on runtime field dense_vector field: combined filtering and scoring
 knnRuntimeCombinedFilter
 required_capability: knn_runtime_field
 
@@ -154,7 +200,7 @@ id:integer | _score:double
 ;
 
 
-// Test 8: KNN on a runtime field carries no positional restriction, since it too is evaluated per row rather than
+// KNN on a runtime field carries no positional restriction, since it too is evaluated per row rather than
 // through the index. The LIMIT keeps ids 0-3, of which 0 and 3 clear the threshold; id 4 clears it as well (see
 // knnRuntimeWithSimThreshold) but is cut, so a filter evaluated before the LIMIT would return it too. The LIMIT
 // also puts the filter on the coordinator, which has no shard context - scoring a runtime KNN there needs none.

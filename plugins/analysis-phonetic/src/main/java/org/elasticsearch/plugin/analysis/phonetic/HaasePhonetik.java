@@ -42,6 +42,14 @@ public class HaasePhonetik extends KoelnerPhonetik {
         "ILLE" };
     private static final String[] HAASE_VARIATIONS_REPLACEMENTS = { "AUN", "RW", "RSK", "AR", "OW", "CH", "LI", "O", "SCH", "O", "O", "I" };
 
+    public HaasePhonetik() {
+        super();
+    }
+
+    public HaasePhonetik(int maxVariations) {
+        super(maxVariations);
+    }
+
     @Override
     protected String[] getPatterns() {
         return HAASE_VARIATIONS_PATTERNS;

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -204,7 +205,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
     public void testKoelnerPhonetikGeneratePartsIsBounded() {
         KoelnerPhonetik encoder = new KoelnerPhonetik();
         List<String> parts = encoder.generateParts("AUN-".repeat(200));
-        assertThat(parts.size(), lessThanOrEqualTo(KoelnerPhonetik.MAX_VARIATIONS));
+        assertThat(parts.size(), lessThanOrEqualTo(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS));
     }
 
     // Regression test: String.split(regex, limit) with a positive limit, unlike the unlimited single-argument
@@ -242,20 +243,59 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
     }
 
-    // If uncapped, this token would yield 76 variations across its parts, so the shared budget runs out in the
-    // middle of a part. Within a part each pattern match doubles the variation list, so a part can only ever
-    // land exactly on a budget that is a power of two; the earlier parts here leave 6, and the part that hits
-    // it has reached 4 and wants 8. getVariations() must add just the 2 branches that fit rather than doubling
-    // to 8, or the token would exceed MAX_VARIATIONS. Changing the input can silently stop exercising this
-    // path (the budget has to run out mid-part at a non-power-of-two), so re-check it if you do.
+    // Uses the filter configured with max_variations: 64. If uncapped, this token would yield 76 variations
+    // across its parts, so the shared budget runs out in the middle of a part. Within a part each pattern match
+    // doubles the variation list, so a part can only ever land exactly on a budget that is a power of two; the
+    // earlier parts here leave 6, and the part that hits it has reached 4 and wants 8. getVariations() must add
+    // just the 2 branches that fit rather than doubling to 8, or the token would exceed the limit. Changing the
+    // input or the limit can silently stop exercising this path (the budget has to run out mid-part at a
+    // non-power-of-two), so re-check it if you do.
     public void testPhoneticTokenFilterKoelnerPhonetikBoundsPartialBudgetOvershoot() throws IOException {
-        TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter");
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter_limited");
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("AUN-AUNAUNAUN-AUN"));
-        assertVariationCountIsBounded(filterFactory.create(tokenizer));
+        assertVariationCountIsBounded(filterFactory.create(tokenizer), 64);
+    }
+
+    public void testPhoneticTokenFilterKoelnerPhonetikMaxVariationsSetting() throws IOException {
+        // Same token as above: 76 variations fit under the default limit but not under the configured 64.
+        assertEquals(76, singleTokenVariationCount(analysis.tokenFilter.get("koelnerphonetikfilter"), "AUN-AUNAUNAUN-AUN"));
+        assertEquals(64, singleTokenVariationCount(analysis.tokenFilter.get("koelnerphonetikfilter_limited"), "AUN-AUNAUNAUN-AUN"));
+    }
+
+    public void testPhoneticTokenFilterRejectsInvalidMaxVariations() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.invalid.type", "phonetic")
+            .put("index.analysis.filter.invalid.encoder", randomFrom("koelnerphonetik", "haasephonetik"))
+            .put("index.analysis.filter.invalid.max_variations", randomIntBetween(Integer.MIN_VALUE, 0))
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin())
+        );
+        assertThat(e.getMessage(), containsString("[max_variations] must be at least 1"));
+    }
+
+    private static int singleTokenVariationCount(TokenFilterFactory filterFactory, String token) throws IOException {
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(token));
+        try (TokenStream tokenStream = filterFactory.create(tokenizer)) {
+            CharTermAttribute termAtt = tokenStream.addAttribute(CharTermAttribute.class);
+            tokenStream.reset();
+            assertTrue(tokenStream.incrementToken());
+            int variationCount = termAtt.toString().split("_").length;
+            assertFalse(tokenStream.incrementToken());
+            tokenStream.end();
+            return variationCount;
+        }
     }
 
     private static void assertVariationCountIsBounded(TokenStream tokenStream) throws IOException {
+        assertVariationCountIsBounded(tokenStream, KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
+    }
+
+    private static void assertVariationCountIsBounded(TokenStream tokenStream, int maxVariations) throws IOException {
         CharTermAttribute termAtt = tokenStream.addAttribute(CharTermAttribute.class);
         tokenStream.reset();
         int tokenCount = 0;
@@ -263,7 +303,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         // bound must hold for each one individually.
         while (tokenStream.incrementToken()) {
             int variationCount = termAtt.toString().split("_").length;
-            assertThat(variationCount, lessThanOrEqualTo(KoelnerPhonetik.MAX_VARIATIONS));
+            assertThat(variationCount, lessThanOrEqualTo(maxVariations));
             tokenCount++;
         }
         assertTrue(tokenCount > 0);

@@ -94,9 +94,9 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik();
+                this.encoder = new KoelnerPhonetik(maxVariations(settings));
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik();
+                this.encoder = new HaasePhonetik(maxVariations(settings));
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -105,6 +105,18 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
+    }
+
+    // Only the koelnerphonetik and haasephonetik encoders generate spelling variations; the limit is ignored
+    // for every other encoder, like the other encoder-specific settings above.
+    private static int maxVariations(Settings settings) {
+        int maxVariations = settings.getAsInt("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
+        if (maxVariations < 1) {
+            throw new IllegalArgumentException(
+                "[max_variations] must be at least 1 for phonetic token filter, got [" + maxVariations + "]"
+            );
+        }
+        return maxVariations;
     }
 
     @Override

@@ -347,11 +347,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "scandinavian_normalization",
             "serbian_normalization",
             "sorani_normalization",
-            "trim",
             "uppercase"
         )) {
             filters.put(stateless, alwaysShares());
         }
+        filters.put("trim", alwaysShares().covered("update_offsets", "read only to reject it; construction throws if set"));
         for (String stemmer : List.of("brazilian_stem", "dutch_stem", "french_stem", "german_stem")) {
             filters.put(stemmer, settings().affects("stem_exclusion", List.of("foo")));
         }
@@ -381,12 +381,19 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "elision",
             settings(Map.of("articles", List.of("l"))).affects("articles", List.of("d")).affects("articles_case", "true")
         );
-        // side is also keyed, but setting it emits a deprecation warning the contract run would fail on.
-        filters.put("edge_ngram", settings().affects("min_gram", "2").affects("max_gram", "3").affects("preserve_original", "true"));
+        filters.put(
+            "edge_ngram",
+            settings().affects("min_gram", "2")
+                .affects("max_gram", "3")
+                .affects("preserve_original", "true")
+                .covered("side", "keyed, but probing it emits a deprecation warning the contract run would fail on")
+        );
         filters.put("fingerprint", settings().affects("separator", "+").affects("max_output_size", "10"));
         filters.put(
             "keep",
-            settings(Map.of("keep_words", List.of("foo"))).affects("keep_words", List.of("bar")).affects("keep_words_case", "true")
+            settings(Map.of("keep_words", List.of("foo"))).affects("keep_words", List.of("bar"))
+                .affects("keep_words_case", "true")
+                .covered("enable_position_increments", "read only to reject it; construction throws if set")
         );
         // keywords_pattern excludes keywords, and updateable file-based keywords never share; SharingKeyTests covers both.
         filters.put(
@@ -395,12 +402,18 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("ignore_case", "true")
                 .affects("keywords_case", "true")
                 .affects("updateable", "true")
+                .covered("keywords_pattern", "mutually exclusive with the keywords base; SharingKeyTests covers it")
         );
         filters.put(
             "keep_types",
             settings(Map.of("types", List.of("<NUM>"))).affects("types", List.of("<ALPHANUM>")).affects("mode", "exclude")
         );
-        filters.put("length", settings().affects("min", "2").affects("max", "10"));
+        filters.put(
+            "length",
+            settings().affects("min", "2")
+                .affects("max", "10")
+                .covered("enable_position_increments", "read only to reject it; construction throws if set")
+        );
         filters.put("limit", settings().affects("max_token_count", "5").affects("consume_all_tokens", "true"));
         filters.put("lowercase", settings().affects("language", "greek", "irish", "turkish"));
         // with_rotation defaults to true because the default bucket_count is above 1.
@@ -426,7 +439,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("replacement", "x")
                 .affects("all", "false")
         );
-        filters.put("snowball", settings().affects("language", "German"));
+        filters.put("snowball", settings().affects("language", "German").affects("name", "German"));
         filters.put("stemmer", settings().affects("language", "german", "light_german").affects("name", "german"));
         filters.put("stemmer_override", settings(Map.of("rules", List.of("running => run"))).affects("rules", List.of("ran => run")));
         filters.put("truncate", settings(Map.of("length", "5")).affects("length", "6"));

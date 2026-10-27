@@ -14,12 +14,17 @@ import org.apache.lucene.analysis.TokenFilterFactory;
 import org.apache.lucene.analysis.TokenizerFactory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsReadRecorder;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
@@ -33,6 +38,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -376,6 +383,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         final boolean neverShares;
         final Map<String, Object> base;
         final List<SettingCase> settings = new ArrayList<>();
+        final Map<String, String> covered = new LinkedHashMap<>();
+        String probeText;
 
         private FactorySettings(boolean neverShares, Map<String, Object> base) {
             this.neverShares = neverShares;
@@ -391,6 +400,21 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         /** This setting is read but MUST NOT change the instance. Each value is probed against the base. */
         public FactorySettings ignored(String name, Object... values) {
             settings.add(new SettingCase(name, false, List.of(values)));
+            return this;
+        }
+
+        /**
+         * Read, but verified elsewhere rather than probed here; the reason says where. Also accepts
+         * {@link SettingsReadRecorder#ITERATED} for factories that iterate their settings wholesale.
+         */
+        public FactorySettings covered(String name, String reason) {
+            covered.put(name, Objects.requireNonNull(reason));
+            return this;
+        }
+
+        /** Text for the {@link #ignored} output check; defaults to a mixed-script corpus. */
+        public FactorySettings probe(String text) {
+            this.probeText = Objects.requireNonNull(text);
             return this;
         }
     }
@@ -507,12 +531,16 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             unclassified.isEmpty()
         );
 
+        // Also flag-independent: reads must be declared, keys value-comparable.
+        assertReadsCoveredAndKeysHygienic(kind, registered, declarations);
+
         assumeTrue(
             "analyzer sharing feature flag disabled (release build); instance propagation is not observable",
             AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
         );
 
         AnalysisRegistry registry = buildSharingRegistry();
+        AnalysisRegistry isolated = buildSharingRegistry(); // unshared builds for the ignored-output check
         List<IndexAnalyzers> tracked = new ArrayList<>();
         try {
             for (String type : registered.keySet()) {
@@ -543,6 +571,16 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                             );
                         } else {
                             assertSame(where + " is declared ignored and must not change the instance, but it did", reference, other);
+                            // misclassification guard: must tokenize like an unshared build of the varied config
+                            Analyzer fresh = build(isolated, chainSettings(kind, type, varied), tracked).get("a").analyzer();
+                            String probe = decl.probeText != null ? decl.probeText : DEFAULT_PROBE_TEXT;
+                            assertEquals(
+                                where
+                                    + " is declared ignored, but a from-scratch build of that configuration tokenizes differently"
+                                    + " — fold the setting into sharingKey()",
+                                SharedAnalyzerTestCase.terms(reference, probe),
+                                SharedAnalyzerTestCase.terms(fresh, probe)
+                            );
                         }
                     }
                 }
@@ -550,7 +588,133 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         } finally {
             IOUtils.close(tracked);
             registry.assertNoCachedEntries();
-            registry.close();
+            IOUtils.close(registry, isolated);
+        }
+    }
+
+    /** Mixed-script default corpus for the ignored-output check; override per declaration via {@link FactorySettings#probe}. */
+    private static final String DEFAULT_PROBE_TEXT = "Grüße Straße STRASSE café Café åäö ÅÄÖ one-two O'Neil 123 can't foo_bar "
+        + "Ελληνικά Привет привіт Warszawą zażółć 東京スカイツリーの最寄り駅はとうきょうスカイツリー駅です 中文分词测试 세종시 대한민국에 "
+        + "12個 12개 ١٢٣";
+
+    /**
+     * Constructs each declared factory against read-recording settings: every read must be declared
+     * (base, {@code affects}, {@code ignored}, {@code covered}; declaring {@code X} covers an
+     * {@code X_path} read), and the key must pass {@link #assertKeyHygiene}.
+     */
+    private void assertReadsCoveredAndKeysHygienic(
+        ComponentKind kind,
+        Map<String, ? extends AnalysisProvider<?>> registered,
+        Map<String, FactorySettings> declarations
+    ) throws IOException {
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "read_tracer",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
+        Map<String, List<String>> uncoveredByType = new TreeMap<>();
+        for (Map.Entry<String, FactorySettings> e : new TreeMap<>(declarations).entrySet()) {
+            String type = e.getKey();
+            FactorySettings decl = e.getValue();
+            AnalysisProvider<?> provider = registered.get(type);
+            if (provider == null) {
+                continue;
+            }
+            if (decl.neverShares) {
+                continue; // identity-keyed: cannot over-share
+            }
+            Settings.Builder component = Settings.builder();
+            applyComponentSettings(component, "", decl.base);
+            SettingsReadRecorder.Recorded recorded = SettingsReadRecorder.record(component.build());
+            Object built = provider.get(indexSettings, env, type, recorded.settings());
+
+            Set<String> declared = new TreeSet<>(decl.base.keySet());
+            decl.settings.forEach(c -> declared.add(c.name()));
+            declared.addAll(decl.covered.keySet());
+            List<String> uncovered = new ArrayList<>();
+            for (String read : recorded.reads()) {
+                boolean isCovered = declared.contains(read)
+                    || (read.endsWith("_path") && declared.contains(read.substring(0, read.length() - "_path".length())));
+                if (isCovered == false) {
+                    uncovered.add(read);
+                }
+            }
+            if (uncovered.isEmpty() == false) {
+                uncoveredByType.put(type, uncovered);
+            }
+            assertKeyHygiene(kind + " [" + type + "]", sharingKeyOf(built));
+        }
+        assertTrue(
+            kind
+                + " factories read settings their declarations do not cover — classify each as affects()/ignored(), or"
+                + " covered(name, reason) if verified elsewhere: "
+                + uncoveredByType,
+            uncoveredByType.isEmpty()
+        );
+    }
+
+    private static Object sharingKeyOf(Object built) {
+        if (built instanceof org.elasticsearch.index.analysis.TokenFilterFactory f) {
+            return f.sharingKey();
+        } else if (built instanceof org.elasticsearch.index.analysis.TokenizerFactory t) {
+            return t.sharingKey();
+        } else if (built instanceof org.elasticsearch.index.analysis.CharFilterFactory c) {
+            return c.sharingKey();
+        } else if (built instanceof AnalyzerProvider<?> a) {
+            return a.sharingKey();
+        }
+        throw new AssertionError("not an analysis factory: " + built.getClass());
+    }
+
+    /**
+     * Keys are compared across indices in a node-wide cache, so every component needs stable value
+     * equality: scalars, enums, {@code Class}, {@link Analysis.StableCharArraySet}, and collections
+     * or records of the same. Anything else (arrays, raw {@code CharArraySet}, ...) is rejected.
+     */
+    @SuppressForbidden(reason = "test-only reflection: Key records are private nested classes, so their accessors need setAccessible")
+    private static void assertKeyHygiene(String where, Object value) {
+        if (value == null
+            || value instanceof String
+            || value instanceof Class<?>
+            || value instanceof Boolean
+            || value instanceof Character
+            || value instanceof Number
+            || value instanceof Enum<?>
+            || value instanceof Analysis.StableCharArraySet) {
+            return;
+        }
+        assertFalse(where + " sharingKey() holds an array, which has identity equality: " + value.getClass(), value.getClass().isArray());
+        switch (value) {
+            case Record r -> {
+                for (java.lang.reflect.RecordComponent component : r.getClass().getRecordComponents()) {
+                    try {
+                        java.lang.reflect.Method accessor = component.getAccessor();
+                        accessor.setAccessible(true); // Key records are private nested classes
+                        assertKeyHygiene(where, accessor.invoke(r));
+                    } catch (ReflectiveOperationException ex) {
+                        throw new AssertionError(where + " cannot read key component [" + component.getName() + "]", ex);
+                    }
+                }
+            }
+            case Collection<?> c -> {
+                for (Object element : c) {
+                    assertKeyHygiene(where, element);
+                }
+            }
+            case Map<?, ?> m -> {
+                for (Map.Entry<?, ?> entry : m.entrySet()) {
+                    assertKeyHygiene(where, entry.getKey());
+                    assertKeyHygiene(where, entry.getValue());
+                }
+            }
+            default -> fail(
+                where
+                    + " sharingKey() holds a ["
+                    + value.getClass().getName()
+                    + "], which has no guaranteed value equality; key on the settings/text it was built from"
+                    + " (hash large text), or wrap CharArraySet in Analysis.StableCharArraySet"
+            );
         }
     }
 

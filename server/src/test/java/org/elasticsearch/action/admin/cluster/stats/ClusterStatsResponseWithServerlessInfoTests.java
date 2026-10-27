@@ -43,11 +43,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests the project_routing and tags block assembly in ClusterStatsResponse.toXContent().
- * Focused on the gating logic (totalQueries > 0, tagsConfig != null) and the
+ * Tests the project_routing, tags and search_tier block assembly in ClusterStatsResponse.toXContent().
+ * Focused on the gating logic (totalQueries > 0, tagsConfig != null, searchTierStats != null) and the
  * top-level queries sum that is computed at render time rather than stored.
  */
-public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
+public class ClusterStatsResponseWithServerlessInfoTests extends ESTestCase {
 
     public void testProjectRoutingBlock_absent_when_allCountersZero() throws Exception {
         ObjectPath json = toObjectPath(buildResponse(new ProjectRoutingUsageSnapshot(), null));
@@ -79,6 +79,16 @@ public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
         assertThat(json.evaluate("tags.total"), equalTo(1));
     }
 
+    public void testSearchTierBlock_absent_when_stats_null() throws Exception {
+        ObjectPath json = toObjectPath(buildResponse(new ProjectRoutingUsageSnapshot(), null, null));
+        assertThat(json.evaluate("search_tier"), nullValue());
+    }
+
+    public void testSearchTierBlock_present_with_min_search_vcu() throws Exception {
+        ObjectPath json = toObjectPath(buildResponse(new ProjectRoutingUsageSnapshot(), null, new SearchTierStats(16)));
+        assertThat(json.evaluate("search_tier.min_search_vcu"), equalTo(16));
+    }
+
     // -----------------------------------------------------------------------
     // helpers
     // -----------------------------------------------------------------------
@@ -94,6 +104,14 @@ public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
     }
 
     private static ClusterStatsResponse buildResponse(ProjectRoutingUsageSnapshot snapshot, TagsConfigSnapshot tagsConfig) {
+        return buildResponse(snapshot, tagsConfig, null);
+    }
+
+    private static ClusterStatsResponse buildResponse(
+        ProjectRoutingUsageSnapshot snapshot,
+        TagsConfigSnapshot tagsConfig,
+        SearchTierStats searchTierStats
+    ) {
         ClusterStatsNodeResponse nodeResponse = buildNodeResponse(snapshot);
         List<ClusterStatsNodeResponse> nodes = List.of(nodeResponse);
         return new ClusterStatsResponse(
@@ -108,7 +126,8 @@ public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
             ClusterSnapshotStats.EMPTY,
             Map.of(),
             false,
-            tagsConfig
+            tagsConfig,
+            searchTierStats
         );
     }
 

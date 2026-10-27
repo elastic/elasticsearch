@@ -1412,7 +1412,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V4(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V5(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -2896,6 +2896,10 @@ public class EsqlCapabilities {
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
+        /**
+         * Dense_vector aggregation functions applied over timeseries.
+         */
+        DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS,
         /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
          */
@@ -4488,6 +4492,25 @@ public class EsqlCapabilities {
          * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
          */
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+
+        /**
+         * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
+         * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
+         * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
+         * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
+         * value read as {@code null}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/161383">#161383</a>.
+         */
+        FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
+        /**
+         * A predicate pushed to Lucene on a sub-field of a {@code nested} object (e.g. {@code n.x}, mapped as a plain
+         * {@code keyword} in another index) matches nothing on shards where {@code n} is {@code nested}, consistent
+         * with field caps and field extraction treating it as missing. Previously, with {@code include_in_root} or
+         * {@code include_in_parent}, {@code ==} and {@code IS NOT NULL} matched rows whose value read as {@code null}
+         * and {@code IS NULL} missed them.
+         */
+        FIX_NESTED_SUBFIELD_PUSHDOWN,
 
         /**
          * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an

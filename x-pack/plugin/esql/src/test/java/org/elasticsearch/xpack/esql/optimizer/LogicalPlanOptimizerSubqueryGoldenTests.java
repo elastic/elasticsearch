@@ -542,6 +542,44 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)"));
     }
 
+    public void testSortLimitAfterSingleFromSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"))
+            | SORT salary DESC
+            | LIMIT 3
+            | KEEP emp_no, salary, _fork
+            """, STAGES);
+    }
+
+    public void testSortLimitAfterSingleForkView() {
+        runGoldenTest("""
+            FROM fork_view
+            | SORT salary DESC
+            | LIMIT 3
+            | KEEP emp_no, salary, _fork
+            """, STAGES, Map.of("fork_view", """
+            FROM employees
+            | FORK (WHERE gender == "M") (WHERE gender == "F")
+            """));
+    }
+
+    public void testKeepAfterSingleFromSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"))
+            | KEEP emp_no, salary, _fork
+            """, STAGES);
+    }
+
+    public void testSortLimitAfterLetFork() {
+        runGoldenTest("""
+            LET a = (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"));
+            FROM a
+            | SORT salary DESC
+            | LIMIT 3
+            | KEEP emp_no, salary, _fork
+            """, STAGES);
+    }
+
     public void testForkAfterSubquery() {
         runGoldenTest("""
             FROM employees, (FROM employees_incompatible

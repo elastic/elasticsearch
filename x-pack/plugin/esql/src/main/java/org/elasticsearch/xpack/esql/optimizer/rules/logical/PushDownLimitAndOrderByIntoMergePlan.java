@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,9 @@ import java.util.Map;
  * | LIMIT 10
  * }
  * By pushing down (TopN) in both branches, we reduce the number of rows that are returned to the coordinator.
+ * <p>
+ * A merge with at most one non-empty branch is not a merge: {@code FlattenMergePlanWithOneBranch} will unwrap it. Copying
+ * SORT+LIMIT into that lone child and keeping the outer pair would stack two equivalent {@code TopN}s after unwrap.
  */
 public class PushDownLimitAndOrderByIntoMergePlan extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
     public PushDownLimitAndOrderByIntoMergePlan() {
@@ -52,6 +56,9 @@ public class PushDownLimitAndOrderByIntoMergePlan extends OptimizerRules.Paramet
         // Subquery-shape UnionAll branches are left alone: shouldPushDownPipelineBreakerIntoMergeBranch
         // returns false for them so the loop below would be a no-op anyway.
         if (mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
+            return limit;
+        }
+        if (nonEmptyBranchCount(mergePlan) <= 1) {
             return limit;
         }
 
@@ -89,5 +96,19 @@ public class PushDownLimitAndOrderByIntoMergePlan extends OptimizerRules.Paramet
             : "Expected the same size for OrderBy but got " + orderBy.order().size() + "!=" + orders.size();
 
         return limit.replaceChild(new OrderBy(orderBy.source(), child, orders));
+    }
+
+    private static int nonEmptyBranchCount(MergePlan mergePlan) {
+        int count = 0;
+        for (LogicalPlan child : mergePlan.children()) {
+            if (isEmptyLocalRelation(child) == false) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean isEmptyLocalRelation(LogicalPlan plan) {
+        return plan instanceof LocalRelation lr && lr.hasEmptySupplier();
     }
 }

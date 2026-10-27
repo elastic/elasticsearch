@@ -3733,12 +3733,11 @@ required_capability: subquery_in_from_command_fork_null_fill_date_nanos
 required_capability: fork_union_types
 required_capability: to_date_nanos
 
-FROM (FROM fork_over_union_view, (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
-      | WHERE message == "Disconnected"
-      | FORK (WHERE message IS NOT NULL) (KEEP message)),
-     (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
-| KEEP @timestamp, message, _fork
-| SORT @timestamp NULLS FIRST, _fork NULLS FIRST
+FROM (FROM (FROM fork_over_union_view | WHERE message == "Disconnected"), (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+          | FORK (WHERE message IS NOT NULL) (KEEP message)),
+         (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+    | KEEP @timestamp, message, _fork
+    | SORT @timestamp NULLS FIRST, _fork NULLS FIRST
 ;
 
 @timestamp:date_nanos          | message:keyword | _fork:keyword

@@ -1220,12 +1220,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * Project[[_meta_field{r}#50, emp_no{r}#51, first_name{r}#52, gender{r}#53, hire_date{r}#54, job{r}#55, job.raw{r}#56, l
      * ast_name{r}#57, long_noidx{r}#58, salary{r}#59]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Fork[[_meta_field{r}#50, emp_no{r}#51, first_name{r}#52, gender{r}#53, hire_date{r}#54, job{r}#55, job.raw{r}#56, l
-     * ast_name{r}#57, long_noidx{r}#58, salary{r}#59]]
-     *     \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
-     * ast_name{f}#21, long_noidx{f}#27, salary{f}#22]]
-     *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *   \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      * }
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
@@ -1243,17 +1238,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
-        var fork = as(limit.child(), Fork.class);
-        assertThat(fork.output().size(), equalTo(10));
-
-        // second and third branches are completely removed
-        assertEquals(1, fork.children().size());
-
-        var firstBranch = fork.children().getFirst();
-        var firstBranchProject = as(firstBranch, Project.class);
-        assertThat(firstBranchProject.projections().size(), equalTo(10));
-        var limitFirstBranch = as(firstBranchProject.child(), Limit.class);
-        var firstBranchRelation = as(limitFirstBranch.child(), EsRelation.class);
+        var firstBranchRelation = as(limit.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
@@ -1369,11 +1354,9 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#12]]
-     *   \_Fork[[]]
-     *     \_Project[[]]
-     *       \_Filter[emp_no{f}#13 > 10000[INTEGER]]
-     *         \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
-     *           \_EsRelation[employees][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     *   \_Filter[emp_no{f}#13 > 10000[INTEGER]]
+     *     \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *       \_EsRelation[employees][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      * }
      */
     public void testPruneColumnsInForkWithSingleBranchAndFinalStats() {
@@ -1390,13 +1373,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.aggregates().size(), equalTo(1));
         assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
-        var fork = as(aggregate.child(), Fork.class);
-        assertThat(fork.output().size(), equalTo(0));
-        assertThat(fork.children().size(), equalTo(1));
-
-        var project = as(fork.children().getFirst(), Project.class);
-        assertThat(project.projections().size(), equalTo(0));
-        var filter = as(project.child(), Filter.class);
+        var filter = as(aggregate.child(), Filter.class);
         var branchAggregate = as(filter.child(), Aggregate.class);
         assertThat(branchAggregate.aggregates().size(), equalTo(1));
         assertThat(Expressions.names(branchAggregate.aggregates()), contains("emp_no"));

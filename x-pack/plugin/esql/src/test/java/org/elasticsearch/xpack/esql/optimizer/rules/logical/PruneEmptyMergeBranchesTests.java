@@ -16,12 +16,10 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -31,7 +29,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTests {
@@ -42,14 +39,10 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
 
     /**
      * {@snippet lang="text":
-     * Limit[10[INTEGER],false,false]
-     * \_Fork[[_meta_field{r}#29, emp_no{r}#30, first_name{r}#31, gender{r}#32, hire_date{r}#33, job{r}#34, job.raw{r}#35, l
-     * anguages{r}#36, last_name{r}#37, long_noidx{r}#38, salary{r}#39, x{r}#40, _fork{r}#41]]
-     *   \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
-     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, x{r}#5, _fork{r}#3]]
-     *     \_Eval[[1[INTEGER] AS x#5, fork1[KEYWORD] AS _fork#3]]
-     *       \_Limit[10[INTEGER],false,false]
-     *         \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[...]]
+     * \_Eval[[1[INTEGER] AS x, fork1[KEYWORD] AS _fork]]
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[test][...]
      * }
      */
     public void testEmptyForkBranches() {
@@ -59,17 +52,11 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
             | LIMIT 10
             """);
 
-        var limit = as(plan, Limit.class);
-        var fork = as(limit.child(), Fork.class);
-
-        // the second fork branch is removed
-        assertEquals(1, fork.children().size());
-
-        var firstBranch = as(fork.children().get(0), Project.class);
-        var eval = as(firstBranch.child(), Eval.class);
-        var branchLimit = as(eval.child(), Limit.class);
-        assertThat(((Literal) branchLimit.limit()).value(), equalTo(10));
-
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        Limit branchLimit = as(eval.child(), Limit.class);
+        Literal limitLiteral = as(branchLimit.limit(), Literal.class);
+        assertEquals(10, limitLiteral.value());
         assertThat(branchLimit.child(), instanceOf(EsRelation.class));
     }
 
@@ -91,14 +78,10 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
 
     /**
      * {@snippet lang="text":
-     * Limit[10[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
-     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, x{r}#39]]
-     *   \_Project[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
-     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, x{r}#4]]
-     *     \_Subquery[]
-     *       \_Eval[[1[INTEGER] AS x#4]]
-     *         \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * Project[[...]]
+     * \_Eval[[1[INTEGER] AS x]]
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[test][...]
      * }
      */
     public void testOneEmptySubquery() {
@@ -109,15 +92,12 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
             | LIMIT 10
             """);
 
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
-
-        // the second subquery is removed
-        assertEquals(1, unionAll.children().size());
-
-        var project = as(unionAll.children().get(0), Project.class);
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.child(), instanceOf(EsRelation.class));
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        Limit limit = as(eval.child(), Limit.class);
+        Literal limitLiteral = as(limit.limit(), Literal.class);
+        assertEquals(10, limitLiteral.value());
+        assertThat(limit.child(), instanceOf(EsRelation.class));
     }
 
     public void testAllEmptySubqueries() {

@@ -23,12 +23,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.upgrade_from_version", bwcVersion.toString().replace('-SNAPSHOT', ''))
     maxParallelForks = 1
-    if (System.getProperty("tests.timeoutSuite") == null) {
-      // CcrRollingUpgradeIT boots two 3-node clusters and performs up to 6 rolling
-      // node restarts in one suite; under CI contention this leaves too little
-      // margin against the 1,200,000ms (20min) default. See #163301, #163266, #160284.
-      systemProperty("tests.timeoutSuite", "1800000!")
-    }
   }
 }
 

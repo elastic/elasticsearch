@@ -1067,7 +1067,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testSortAndHostNameWithCustomSortExpression() throws Exception {
-        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
         var settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
             .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "foo, bar DESC")
@@ -1079,7 +1079,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testRoutingPathOnSortExpression() throws Exception {
-        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
             .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
@@ -1089,7 +1089,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testRoutingPathOnSortExpressionSingleField() {
-        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, @timestamp DESC")
             .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)

@@ -63,7 +63,7 @@ public class CreateIndexCapabilities {
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     /**
-     * Support for the {@code index.sort} expression setting. Advertised only when the feature flag is on.
+     * Support for the {@code index.sort.expression} setting. Advertised only when the feature flag is on.
      */
     private static final String INDEX_SORT_EXPRESSION_CAPABILITY = "index_sort_expression";
 

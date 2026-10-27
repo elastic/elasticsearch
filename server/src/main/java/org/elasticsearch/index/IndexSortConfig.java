@@ -61,7 +61,7 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
- * Alternatively the sort can be configured with the single `index.sort` expression setting, for example
+ * Alternatively the sort can be configured with the single `index.sort.expression` setting, for example
  * `@timestamp DESC MV_FIRST_MAX MISSING_LAST, host.name`. It supplies the default values of the four settings above and
  * can't be combined with them.
  *
@@ -77,7 +77,7 @@ public final class IndexSortConfig {
      * {@code [field-name [ASC|DESC] [MV_FIRST_MIN|MV_FIRST_MAX] [MISSING_FIRST|MISSING_LAST]],...}.
      * It is syntactic sugar for the {@code index.sort.*} settings, which take their defaults from it.
      */
-    public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort", "", s -> s, new Setting.Validator<>() {
+    public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort.expression", "", s -> s, new Setting.Validator<>() {
         @Override
         public void validate(String value) {
             if (value.isEmpty()) {
@@ -85,7 +85,7 @@ public final class IndexSortConfig {
             }
             if (INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled() == false) {
                 throw new IllegalArgumentException(
-                    "unknown setting [index.sort] please check that any required plugins are installed, "
+                    "unknown setting [index.sort.expression] please check that any required plugins are installed, "
                         + "or check the breaking changes documentation for removed settings"
                 );
             }
@@ -205,7 +205,7 @@ public final class IndexSortConfig {
                 return NO_SORT;
             }
 
-            if (settings.hasValue(INDEX_SORT_SETTING.getKey())) {
+            if (hasSortExpression(settings)) {
                 return parseSortExpression(settings.get(INDEX_SORT_SETTING.getKey()));
             }
 
@@ -358,6 +358,10 @@ public final class IndexSortConfig {
         return new IndexSortConfigDefaults.SortDefault(fields, orders, modes, missings);
     }
 
+    public static boolean hasSortExpression(Settings settings) {
+        return settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false;
+    }
+
     private static String setOnce(String key, String entry, String what, String current, String value) {
         if (current != null) {
             throw new IllegalArgumentException("setting [" + key + "] specifies the " + what + " more than once in [" + entry.trim() + "]");
@@ -367,13 +371,13 @@ public final class IndexSortConfig {
 
     /**
      * Returns the sort fields the user configured explicitly, either through {@code index.sort.field} or through
-     * {@code index.sort}. Defaults derived from the index mode are not included.
+     * {@code index.sort.expression}. Defaults derived from the index mode are not included.
      */
     public static List<String> explicitSortFields(Settings settings) {
         if (INDEX_SORT_FIELD_SETTING.exists(settings)) {
             return settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
         }
-        if (settings.hasValue(INDEX_SORT_SETTING.getKey())) {
+        if (hasSortExpression(settings)) {
             return parseSortExpression(settings.get(INDEX_SORT_SETTING.getKey())).fields();
         }
         return List.of();
@@ -411,7 +415,7 @@ public final class IndexSortConfig {
     }
 
     private static void validateSortSettings(Settings settings) {
-        if (settings.hasValue(INDEX_SORT_SETTING.getKey())) {
+        if (hasSortExpression(settings)) {
             for (Setting<?> setting : new Setting<?>[] {
                 INDEX_SORT_FIELD_SETTING,
                 INDEX_SORT_ORDER_SETTING,

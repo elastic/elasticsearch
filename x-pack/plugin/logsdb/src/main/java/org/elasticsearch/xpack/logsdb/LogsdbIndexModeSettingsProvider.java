@@ -324,7 +324,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
                 if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(indexTemplateAndCreateRequestSettings)
-                    || IndexSortConfig.INDEX_SORT_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
+                    || IndexSortConfig.hasSortExpression(indexTemplateAndCreateRequestSettings)) {
                     // Custom sort config, no point for further checks on [host.name] field.
                     return new MappingHints(hasSyntheticSourceUsage, false, false, false, true);
                 }

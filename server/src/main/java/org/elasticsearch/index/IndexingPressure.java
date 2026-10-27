@@ -180,6 +180,9 @@ public class IndexingPressure implements IndexingPressureMonitor {
      * the primary limit: the bulk was already admitted, and the primary limit is the one that is meant to let data move forward that has
      * already been received. A rejection is also counted in the coordinating rejections.
      * <p>
+     * Only the growth is accounted for, not the full size of the grown documents: the original sources stay reachable until the bulk
+     * completes too, and are not accounted for twice. This approximation leaves at most the admitted size unaccounted for.
+     * <p>
      * Unlike {@link Coordinating} the returned tracker is safe to use from several threads concurrently, as ingest pipelines complete
      * on whichever thread ran their last asynchronous processor. It must be closed once the bulk is done, and not before the last
      * document finished its pipeline.

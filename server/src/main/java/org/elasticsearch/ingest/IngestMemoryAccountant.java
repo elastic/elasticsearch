@@ -22,7 +22,8 @@ public interface IngestMemoryAccountant {
     IngestMemoryAccountant NOOP = bytes -> {};
 
     /**
-     * Charges bytes that stay reachable until the bulk request completes.
+     * Charges bytes that stay reachable until the bulk request completes. This is the growth of a document beyond the size it was
+     * admitted with, not the full size of the grown document.
      *
      * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was charged and the document that caused them
      *                                      is failed

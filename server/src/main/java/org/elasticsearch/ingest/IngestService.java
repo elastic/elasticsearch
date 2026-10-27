@@ -1539,9 +1539,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     final long originalSourceLength = indexRequest.indexSource().byteLength();
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     /*
-                     * The new source is retained until the bulk completes, and so is the old one, which is a slice of the request body.
-                     * Only growth is charged, as the old source is already accounted for in the size the bulk was admitted with. This
-                     * runs on whichever thread completed the pipeline (for async processors that can be a search thread notifying a
+                     * Both the new source and the old one are retained until the bulk completes: the old one is a slice of the request
+                     * body, which is released by the REST layer only once the bulk is done, whatever happens to this request's source.
+                     * The old source is already accounted for in the size the bulk was admitted with, but the new one is a separate
+                     * allocation. Still, only the growth is charged, which is a deliberate approximation: it leaves at most the admitted
+                     * size of the document unaccounted for, which is bounded by the admission limit, whereas growth through pipelines
+                     * is not. Charging the new source in full would count the same document twice against a limit that, by default, is
+                     * the one that admitted the bulk, and would reject bulks in which no pipeline grew anything.
+                     * This runs on whichever thread completed the pipeline (for async processors that can be a search thread notifying a
                      * whole batch of documents), so it must not throw: an exception would skip the remaining documents of the batch.
                      */
                     final long growth = indexRequest.indexSource().byteLength() - originalSourceLength;

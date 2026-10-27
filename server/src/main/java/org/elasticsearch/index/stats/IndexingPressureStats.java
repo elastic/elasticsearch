@@ -52,7 +52,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long largeOpsRejections;
     private final long totalLargeRejectedOpsBytes;
 
-    // Bytes by which ingest pipelines grew documents of in-flight bulks. These are part of the coordinating and combined bytes above.
+    // Bytes by which ingest pipelines grew documents of in-flight bulks, only the growth and not the full size of the grown documents.
+    // These are part of the coordinating and combined bytes above.
     private final long currentIngestExpansionBytes;
     private final long totalIngestExpansionBytes;
     // Rejections of ingest expansion. These are also counted in coordinatingRejections.

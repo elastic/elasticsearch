@@ -216,11 +216,6 @@ tests:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=indices.get_field_mapping/20_missing_field/Return empty object if field doesn't exist, but index does}
   issue: https://github.com/elastic/elasticsearch/issues/163303
-- class: org.elasticsearch.action.fieldcaps.FieldCapsWithFilterIT
-  tasks:
-  - :server:internalClusterTest
-  method: testSkipUnmatchedShards
-  issue: https://github.com/elastic/elasticsearch/issues/163314
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest

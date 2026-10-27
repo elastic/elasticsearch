@@ -402,9 +402,6 @@ tests:
 - class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
   method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/162839
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testConcurrentBulkRequestsWithDynamicMappingUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/162912
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/162945
@@ -530,11 +527,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
   issue: https://github.com/elastic/elasticsearch/issues/163504
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  tasks:
-  - :server:internalClusterTest
-  method: testBulkRequestSameOutcomeAsSeparateRequests
-  issue: https://github.com/elastic/elasticsearch/issues/163520
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.19.24#yamlRestTest

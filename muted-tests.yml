@@ -548,3 +548,8 @@ tests:
   - :server:internalClusterTest
   method: testBulkRequestSameOutcomeAsSeparateRequests
   issue: https://github.com/elastic/elasticsearch/issues/163520
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.19.24#yamlRestTest
+  method: test {yaml=msearch/10_basic/Search with new response format}
+  issue: https://github.com/elastic/elasticsearch/issues/163546

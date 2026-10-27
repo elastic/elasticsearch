@@ -12,6 +12,9 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.OptionalLong;
@@ -32,6 +35,8 @@ import java.util.OptionalLong;
  * must produce merges that extend it.
  */
 public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
+    private static final Logger logger = LogManager.getLogger(SizeTrackingOneMerge.class);
+
     private final MergePolicy.OneMerge wrapped;
     private volatile long mergedSegmentSizeInBytes = -1L;
 
@@ -57,11 +62,15 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
                 mergedSegmentSizeInBytes = mergeInfo.sizeInBytes();
             } catch (IOException e) {
                 // The size is only used for metrics, so don't fail the merge; callers fall back to the estimate.
+                logger.debug(() -> Strings.format("failed to read size of merged segment [%s], falling back to estimate", mergeInfo), e);
             }
         }
     }
 
     /**
+     * Failed and aborted merges deliberately report empty rather than {@code 0}, so that {@code 0} unambiguously means "the merge produced
+     * no bytes". Callers are not expected to query the size of a merge that did not complete successfully.
+     *
      * @return the size of the merged segment ({@code 0} if it was dropped because all its documents were deleted), or empty if the merge
      * did not succeed or the size of the committed segment could not be read
      */

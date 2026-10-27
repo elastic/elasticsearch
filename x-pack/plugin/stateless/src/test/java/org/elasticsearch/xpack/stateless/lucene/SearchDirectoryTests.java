@@ -545,6 +545,140 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testBlobLengthTracksMetadataUpdates() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final var commit1 = new PrimaryTermAndGeneration(1L, 1L);
+            final var commit2 = new PrimaryTermAndGeneration(1L, 2L);
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var locationB = createBlobLocation(1L, 1L, 100L, 150L);
+            final var otherBlob = createBlobLocation(1L, 2L, 0L, 40L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB),
+                    250L,
+                    Set.of("fileA", "fileB"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(250L));
+            assertThat(searchDirectory.blobLength(commit2).isPresent(), equalTo(false));
+
+            final var locationC = createBlobLocation(1L, 1L, 250L, 80L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    2L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB, "fileC", locationC, "other", otherBlob),
+                    370L,
+                    Set.of("fileC", "other"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(new PrimaryTermAndGeneration(2L, 1L)).isPresent(), equalTo(false));
+
+            // Dropping files, including the one at the end, leaves the length while any file still references the blob.
+            searchDirectory.retainFiles(Set.of("fileA", "fileC", "other"));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+
+            searchDirectory.retainFiles(Set.of("fileA", "other"));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+
+            searchDirectory.retainFiles(Set.of("other"));
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+        }
+    }
+
+    public void testBlobLengthUsesFurthestFileEnd() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            // fileLater starts further into the blob, but fileEarly extends past it.
+            final var fileEarly = createBlobLocation(1L, 1L, 0L, 500L);
+            final var fileLater = createBlobLocation(1L, 1L, 400L, 10L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileEarly", fileEarly, "fileLater", fileLater),
+                    500L,
+                    Set.of(),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(fileEarly.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(500L));
+        }
+    }
+
+    public void testGenerationalFileCopyExtendsBlobItIsNotStoredIn() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final String generationalFile = "_0_1.fnm";
+            final var firstLocation = createBlobLocation(1L, 1L, 0L, 80L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of(generationalFile, firstLocation),
+                    80L,
+                    Set.of(generationalFile),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+
+            // A later commit carries the same generational file from a longer copy in a new blob. The directory keeps
+            // the first location, but the copy still extends the new blob past the file that is stored there.
+            final var copiedLocation = createBlobLocation(1L, 2L, 40L, 200L);
+            final var newFile = createBlobLocation(1L, 2L, 0L, 40L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 2L),
+                    2L,
+                    "_na_",
+                    Map.of(generationalFile, copiedLocation, "fileD", newFile),
+                    240L,
+                    Set.of(generationalFile),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(newFile.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(240L));
+        }
+    }
+
     private String randomNonSiFileName() {
         String siExtension = LuceneFilesExtensions.SI.getExtension();
         return randomValueOtherThanMany(name -> name.endsWith(siExtension), () -> randomAlphaOfLength(10));

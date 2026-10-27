@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.After;
 
 import java.io.IOException;
@@ -29,20 +30,35 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Base class for REST tests that overlap many requests on a heap-constrained node and expect the circuit breakers to reject the excess
- * rather than let the node run out of memory. Requests are held in flight with the {@code pause} runtime field of the
- * {@code test-pausable-field} module, which the cluster of the subclass has to load. Each subclass provides its own {@code @ClassRule}
- * cluster, because the heap size is fixed at node startup.
+ * Base class for REST tests that send requests to a heap-constrained node and expect the circuit breakers to reject the excess rather
+ * than let the node run out of memory. Tests that hold requests in flight do it with the {@code pause} runtime field of the
+ * {@code test-pausable-field} module, which the cluster of the subclass then has to load. Each subclass provides its own
+ * {@code @ClassRule} cluster, because the heap size is fixed at node startup.
  */
 public abstract class HeapPressureTestCase extends ESRestTestCase {
+
+    private static volatile boolean pauseFieldBlocked;
+
+    /** The cluster of the subclass, whose node processes {@link #assertNodeAlive} checks. */
+    protected abstract ElasticsearchCluster cluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster().getHttpAddresses();
+    }
 
     /** Never leave the field blocked: a blocked script would hang every later search on the node. */
     @After
     public void unblockPausableField() throws IOException {
-        unblockPauseField();
+        if (pauseFieldBlocked) {
+            // Cleared first so that the flag never outlives this test, even if the request fails.
+            pauseFieldBlocked = false;
+            unblockPauseField();
+        }
     }
 
     protected static void blockPauseField() throws IOException {
+        pauseFieldBlocked = true;
         // The control requests go through the admin client, which has its own connection pool: with every connection of client() held by a
         // parked search, they would otherwise wait for a connection that only they can free.
         adminClient().performRequest(new Request("POST", "/_pause_field/block"));
@@ -50,6 +66,7 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
 
     protected static void unblockPauseField() throws IOException {
         adminClient().performRequest(new Request("POST", "/_pause_field/unblock"));
+        pauseFieldBlocked = false;
     }
 
     /**
@@ -58,6 +75,7 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
      * serializes building the rest. {@link #unblockPauseField} removes the gate too.
      */
     protected static void stopPauseField() throws IOException {
+        pauseFieldBlocked = true;
         adminClient().performRequest(new Request("POST", "/_pause_field/stop"));
     }
 
@@ -67,11 +85,22 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
     }
 
     /**
-     * Checks that the node still answers requests, which one that ran out of memory would not. The cluster health API is used because
-     * it exists in every distribution, unlike {@code GET /}.
+     * Checks that every node process is still running, since {@code -XX:+ExitOnOutOfMemoryError} ends one that ran out of memory, and
+     * that the cluster still answers requests. The cluster health API is used because it exists in every distribution, unlike
+     * {@code GET /}.
      */
     protected void assertNodeAlive() throws IOException {
+        assertTrue("a node exited, most likely on an OutOfMemoryError", nodesAreAlive());
         assertThat(client().performRequest(new Request("GET", "/_cluster/health")).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    protected boolean nodesAreAlive() {
+        for (int node = 0; node < cluster().getNumNodes(); node++) {
+            if (ProcessHandle.of(cluster().getPid(node)).map(ProcessHandle::isAlive).orElse(false) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -207,18 +236,27 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
 
     /** The breaker error is nested at a depth that depends on the failing phase, so search the whole body. */
     protected static boolean containsCircuitBreakingException(Object obj) {
+        return containsCircuitBreakingException(obj, null);
+    }
+
+    /**
+     * Like {@link #containsCircuitBreakingException(Object)}, but only matches an error whose reason contains {@code reasonFragment},
+     * such as the label of the charge that tripped. {@code null} matches any reason.
+     */
+    protected static boolean containsCircuitBreakingException(Object obj, String reasonFragment) {
         if (obj instanceof Map<?, ?> map) {
-            if ("circuit_breaking_exception".equals(map.get("type"))) {
+            if ("circuit_breaking_exception".equals(map.get("type"))
+                && (reasonFragment == null || (map.get("reason") instanceof String reason && reason.contains(reasonFragment)))) {
                 return true;
             }
             for (Object value : map.values()) {
-                if (containsCircuitBreakingException(value)) {
+                if (containsCircuitBreakingException(value, reasonFragment)) {
                     return true;
                 }
             }
         } else if (obj instanceof List<?> list) {
             for (Object item : list) {
-                if (containsCircuitBreakingException(item)) {
+                if (containsCircuitBreakingException(item, reasonFragment)) {
                     return true;
                 }
             }

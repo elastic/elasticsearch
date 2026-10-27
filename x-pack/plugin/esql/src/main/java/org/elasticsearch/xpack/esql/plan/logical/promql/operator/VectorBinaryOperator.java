@@ -316,15 +316,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
         IntermediateResult right = context.translate(right());
         Expression rightExpr = new ToDouble(right.value().source(), right.value());
-        boolean seriesPair = left.kind().afterInitialAggregation == false
-            && right.kind().afterInitialAggregation == false
-            && getType(left()) != SCALAR
-            && getType(right()) != SCALAR;
-        if (seriesPair) {
-            // Two range functions over one series pair sample by sample; a side that counts no sample has no element.
-            leftExpr = new ToDouble(left.value().source(), TranslationContext.emptySampleCountAsNull(left.value()));
-            rightExpr = new ToDouble(right.value().source(), TranslationContext.emptySampleCountAsNull(right.value()));
-        }
         Expression binaryExpr = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
 
         LogicalPlan plan;

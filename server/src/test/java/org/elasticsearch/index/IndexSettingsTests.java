@@ -28,8 +28,10 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -543,6 +545,20 @@ public class IndexSettingsTests extends ESTestCase {
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
+    }
+
+    public void testPostFilterSelectivityThresholdIsDynamic() {
+        String key = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(key, 0.5f).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(0.5f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, 1.0f).build()));
+        assertEquals(1.0f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, settings.getPostFilterSelectivityThreshold(), 0f);
     }
 
     public void testMaxInnerResultWindow() {

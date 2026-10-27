@@ -23,6 +23,9 @@ import java.util.function.Predicate;
  * the node. It therefore holds however the plan around or atop the view is rewritten, which a mark on the nodes themselves
  * (such as the {@code Source} of a node) would not. It relies on the view branches being kept while such a setting is active; see
  * {@code ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}.
+ * <p>
+ * Two traversals differ on the root of a view body. {@link #forEachOutsideViews} does not visit it, as it is part of the view. {@link
+ * #anyMatchOutsideViews} does test it, as it is what the view contributes to the query (its output), but nothing below it.
  */
 public final class ViewUtils {
     private ViewUtils() {}

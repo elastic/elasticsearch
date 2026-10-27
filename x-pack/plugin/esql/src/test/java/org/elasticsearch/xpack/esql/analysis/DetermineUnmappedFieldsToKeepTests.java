@@ -21,8 +21,11 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
@@ -34,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -697,6 +701,37 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
     }
 
+    public void testDedupDoesNotKeyOnUnmappedFieldsAttribute() {
+        assertDedupKeys("FROM test | KEEP emp_no, first_name* | DEDUP", List.of("emp_no", "first_name"));
+    }
+
+    public void testDedupAfterSubqueriesDoesNotKeyOnUnmappedFieldsAttribute() {
+        assertDedupKeys("FROM (FROM test), (FROM test) | KEEP emp_no, first_name* | DEDUP", List.of("emp_no", "first_name"));
+    }
+
+    public void testDedupAfterForkDoesNotKeyOnUnmappedFieldsAttribute() {
+        assertDedupKeys(
+            "FROM test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0) | KEEP emp_no, first_name*, _fork | DEDUP",
+            List.of("emp_no", "first_name", "_fork")
+        );
+    }
+
+    public void testDedupOverOnlyUnmappedFieldsAttributeKeepsOneRow() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP unmapped* | DEDUP"));
+        Dedup dedup = EsqlTestUtils.singleValue(plan.collect(Dedup.class));
+        assertThat(unmappedFieldsAttributes(dedup), hasSize(1));
+        as(dedup.surrogate(), Limit.class);
+    }
+
+    public void testDedupKeysOnSourceFieldNamedUnmappedFields() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | WHERE _unmapped_fields IS NOT NULL | DEDUP"));
+        Dedup dedup = EsqlTestUtils.singleValue(plan.collect(Dedup.class));
+        LimitBy limitBy = as(dedup.surrogate(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        assertThat(CollectionUtils.collect(limitBy.groupings(), UnmappedFieldsAttribute.class), empty());
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+    }
+
     public void testSubqueryBranchNamingUnmappedFieldsOmitsUnmappedFieldsAttribute() {
         assertUnmappedFieldsNameTaken("FROM test, (FROM test | EVAL _unmapped_fields = \"mine\")");
     }
@@ -1108,6 +1143,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     private static UnmappedFieldsPattern unmappedFieldsPattern(LogicalPlan plan) {
         return EsqlTestUtils.singleValue(unmappedFieldsAttributes(plan)).pattern();
+    }
+
+    private void assertDedupKeys(String query, List<String> keys) {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        Dedup dedup = EsqlTestUtils.singleValue(plan.collect(Dedup.class));
+        assertThat(query, unmappedFieldsAttributes(dedup), hasSize(1));
+        LimitBy limitBy = as(dedup.surrogate(), LimitBy.class);
+        assertThat(query, Expressions.names(limitBy.groupings()), equalTo(keys));
     }
 
     private static List<UnmappedFieldsAttribute> unmappedFieldsAttributes(LogicalPlan plan) {

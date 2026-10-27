@@ -785,7 +785,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
     }
 
-    abstract static class TransportRequest extends AbstractTransportRequest implements IndicesRequest {
+    /**
+     * Executes against {@link #shardId}, whose index can differ from {@link #indexPattern} (e.g. when the lookup index is an alias).
+     * Implementing {@link IndicesRequest.RemoteClusterShardRequest} lets security verify for cross-cluster requests that the targeted
+     * shard belongs to an index authorized through {@link #indices()}, rather than only authorizing the stated pattern.
+     */
+    abstract static class TransportRequest extends AbstractTransportRequest implements IndicesRequest.RemoteClusterShardRequest {
         final String sessionId;
         final ShardId shardId;
         final String indexPattern;
@@ -821,6 +826,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         @Override
         public final String[] indices() {
             return new String[] { indexPattern };
+        }
+
+        @Override
+        public final Collection<ShardId> shards() {
+            return List.of(shardId);
         }
 
         @Override

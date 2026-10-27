@@ -170,6 +170,14 @@ public interface Operator extends Releasable {
             return 0;
         }
 
+        /**
+         * The bytes the values this operator decoded spell, against {@link #bytesRead()} the bytes they were
+         * read from. An operator that decodes nothing returns {@code 0}.
+         */
+        default long bytesDecoded() {
+            return 0;
+        }
+
         /** Format-reader wall time on the producer thread; external-source operators only. */
         default long readNanos() {
             return 0;

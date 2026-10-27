@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -667,6 +668,31 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     /**
+     * As {@link #blockAndStartRestore(String, String, String)}, but the restore asks for its shards to be reported as
+     * {@link ShardRestoringException}.
+     *
+     * @return the restore UUID, which the exception carries as its recovery ID
+     */
+    protected String blockAndStartRestoreReportingShardRestoring(String repoName, String snapshotName, String indexName) {
+        blockAllDataNodes(repoName);
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> started = new PlainActionFuture<>();
+        internalCluster().getCurrentMasterNodeInstance(RestoreService.class)
+            .restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName).waitForCompletion(false),
+                restoreUuid,
+                true,
+                started,
+                (state, builder) -> {}
+            );
+        awaitPrimaryInSnapshotRestore(indexName);
+        waitForBlockOnAnyDataNode(repoName);
+        safeGet(started);
+        return restoreUuid;
+    }
+
+    /**
      * Unblocks all data nodes for the given repository and deletes {@code indexName}, cancelling
      * any in-progress restore.
      *
@@ -690,7 +716,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      * restoring shards persist, waits until the master has applied that state, runs {@code whileInFlight} against it, and then lets the
      * restores finish and waits for them to complete. Returns {@link RestoreInProgress.Entry#reportShardRestoring()} of every restore
      * entry the master applied meanwhile. The flag is set when a restore starts and carried by its entry through every cluster state the
-     * master builds, so recording it there is deterministic. It is read on the master because the flag is not part of the wire format yet.
+     * master builds, so recording it there is deterministic.
      */
     protected List<Boolean> whileRestoresInFlight(
         String repository,
@@ -773,10 +799,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    /**
-     * The master's own cluster state. The flag on a restore's entry is not part of the wire format yet, so a state fetched through the
-     * cluster state API never has it.
-     */
     protected static ClusterState masterClusterState() {
         return internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
     }

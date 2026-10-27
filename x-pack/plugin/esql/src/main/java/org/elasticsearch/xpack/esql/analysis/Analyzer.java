@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -391,7 +392,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
+        viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
         return verified;
+    }
+
+    /**
+     * One warning per view boundary whose output null-filled outer references because the referencing scope's
+     * {@code unmapped_fields} mode does not apply inside it.
+     */
+    static List<String> viewBoundaryNullFillWarnings(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
+        Map<AnalyzerContext.ViewBoundary, List<String>> fieldsByBoundary = new LinkedHashMap<>();
+        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
+            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new ArrayList<>()).add(fill.fieldName());
+        }
+        List<String> warnings = new ArrayList<>(fieldsByBoundary.size());
+        fieldsByBoundary.forEach((boundary, fields) -> warnings.add(viewBoundaryNullFillWarning(boundary, fields)));
+        return warnings;
+    }
+
+    static String viewBoundaryNullFillWarning(AnalyzerContext.ViewBoundary boundary, List<String> fieldNames) {
+        assert fieldNames.isEmpty() == false : "no fields to warn about";
+        boolean one = fieldNames.size() == 1;
+        return Strings.format(
+            "SET unmapped_fields=\"%s\"%s does not affect the contents of view [%s]%s, so field%s %s %s null in its rows; "
+                + "to load such fields, the view definition must %s them itself",
+            boundary.resolution().settingValue(),
+            boundary.settingView() == null ? "" : " in view [" + boundary.settingView() + "]",
+            boundary.viewName(),
+            boundary.enclosingView() == null ? "" : " nested in view [" + boundary.enclosingView() + "]",
+            one ? "" : "s",
+            ViewQuerySettings.bracketedList(fieldNames),
+            one ? "is" : "are",
+            // A view that already SETs load loads only the fields its own body references.
+            boundary.viewLoadsUnmappedFields() ? "reference" : "SET unmapped_fields=\"load\" and reference"
+        );
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -1480,7 +1514,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                case FillNull f -> resolveFillNull(f, childrenOutput, context);
+                case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -2126,7 +2160,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
-            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false))) {
+            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false, null))) {
                 addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
@@ -2178,7 +2212,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
                 if (toLoad.isEmpty() == false) {
-                    LogicalPlan withLoaded = logicalPlan.transformUp(
+                    LogicalPlan withLoaded = ViewUtils.transformUpOutsideViews(
+                        logicalPlan,
                         EsRelation.class,
                         esr -> withAdditionalAttributesUnlessLookup(esr, toLoad, false)
                     );
@@ -2412,7 +2447,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> toLoad,
             AnalyzerContext context
         ) {
-            if (mergePlan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(branchIndex)) {
+            if (ViewUtils.isViewBody(mergePlan, branchIndex)) {
                 return false;
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
@@ -2450,24 +2485,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * collapses the rows, so neither can surface it. {@link InlineStats} keeps those input rows, so the check continues at the
          * aggregate's input.
          */
-        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
-            return canSurfaceFromSource(plan, name, true);
+        public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
+            return canSurfaceFromSource(plan, name, true, null);
         }
 
-        private static boolean canSurfaceFromSource(LogicalPlan plan, String name, boolean consultResolvingProject) {
+        /**
+         * Like {@link #branchCanSurfaceLoadedField(LogicalPlan, String)}, but a {@link MergePlan} reached in {@code plan} is answered by
+         * {@code mergeCanSurface} rather than treated as hiding the field.
+         */
+        public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name, Predicate<MergePlan> mergeCanSurface) {
+            return canSurfaceFromSource(plan, name, true, mergeCanSurface);
+        }
+
+        private static boolean canSurfaceFromSource(
+            LogicalPlan plan,
+            String name,
+            boolean consultResolvingProject,
+            @Nullable Predicate<MergePlan> mergeCanSurface
+        ) {
             return switch (plan) {
                 case EsRelation esRelation -> esRelation.indexMode() != IndexMode.LOOKUP;
                 case ResolvingProject resolvingProject when consultResolvingProject -> resolvingProject.admitsLateUnmappedField(name)
-                    && canSurfaceFromSource(resolvingProject.child(), name, true);
+                    && canSurfaceFromSource(resolvingProject.child(), name, true, mergeCanSurface);
                 case Project unused -> false;
-                case InlineStats inlineStats -> canSurfaceFromSource(inlineStats.aggregate().child(), name, consultResolvingProject);
+                case InlineStats inlineStats -> canSurfaceFromSource(
+                    inlineStats.aggregate().child(),
+                    name,
+                    consultResolvingProject,
+                    mergeCanSurface
+                );
                 case Aggregate unused -> false;
                 case Join join when join.config().type() == JoinTypes.LEFT -> canSurfaceFromSource(
                     join.left(),
                     name,
-                    consultResolvingProject
+                    consultResolvingProject,
+                    mergeCanSurface
                 );
-                case UnaryPlan unaryPlan -> canSurfaceFromSource(unaryPlan.child(), name, consultResolvingProject);
+                case UnaryPlan unaryPlan -> canSurfaceFromSource(unaryPlan.child(), name, consultResolvingProject, mergeCanSurface);
+                case MergePlan mergePlan when mergeCanSurface != null -> mergeCanSurface.test(mergePlan);
                 case null, default -> false;
             };
         }
@@ -2536,38 +2591,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput, AnalyzerContext context) {
+        private LogicalPlan resolveFillNull(FillNull fillNull, AnalyzerContext context) {
             FillNull result = fillNull;
-            // A bare `ON *` names nothing and so needs no resolution. Otherwise resolve the explicit names and
-            // KEEP-style wildcard patterns against the child output - including names co-listed with a `*`, so a typo is
-            // still reported - de-duplicating overlapping targets (by NameId, via the LinkedHashSet); a name or pattern
-            // that matches nothing stays unresolved so the Verifier reports it.
+            // A bare `ON *` names nothing and so needs no resolution. Otherwise the targets as written are resolved now and again
+            // whenever the child changes, so a pattern also matches a field that unmapped_fields loads below for a later command.
             if (fillNull.targetFields().isEmpty() == false) {
-                LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
-                for (NamedExpression target : fillNull.targetFields()) {
-                    if (target instanceof UnresolvedAttribute ua && ua.customMessage()) {
-                        // A name / pattern that already failed to resolve on an earlier pass carries a custom "no match"
-                        // message. Re-resolving it would return an empty list (see potentialCandidatesIfNoMatchesFound),
-                        // which would silently drop the target and collapse to the all-columns form. Keep it instead so
-                        // the Verifier reports it. This also covers UnresolvedPattern (a subtype of UnresolvedAttribute).
-                        resolved.add(ua);
-                    } else if (target instanceof UnresolvedNamePattern up) {
-                        resolved.addAll(resolveAgainstList(up, childrenOutput));
-                    } else if (target instanceof UnresolvedAttribute ua) {
-                        resolved.addAll(resolveAgainstList(ua, childrenOutput));
-                    } else {
-                        resolved.add(target);
+                var resolver = fillNull.targetResolver();
+                if (resolver == null) {
+                    List<NamedExpression> written = fillNull.targetFields();
+                    Map<NamedExpression, NameId> patternIds = new IdentityHashMap<>();
+                    for (NamedExpression target : written) {
+                        if (target instanceof UnresolvedNamePattern) {
+                            patternIds.put(target, new NameId());
+                        }
                     }
+                    resolver = input -> resolveFillNullTargets(written, patternIds, input);
                 }
-                result = fillNull.withTargetFields(new ArrayList<>(resolved));
+                result = fillNull.withTargetResolver(resolver);
             }
-            // Supply the query Configuration, which is what derives the fill aliases, in the same post-order ResolveRefs
-            // pass that builds the output so downstream consumers see the filled schema. Every later rebuild re-derives
-            // them from the current child output (see FillNull#rebuildFillNullWithFields), so this happens once.
             if (result.inputsResolved() && result.expressionsResolved() == false) {
                 result = result.withConfiguration(context.configuration());
             }
             return result;
+        }
+
+        // Names co-listed with a `*` are resolved too, so a typo is still reported; a name or pattern that matches nothing stays unresolved
+        // so the Verifier reports it.
+        private static List<NamedExpression> resolveFillNullTargets(
+            List<NamedExpression> targets,
+            Map<NamedExpression, NameId> patternIds,
+            List<Attribute> childOutput
+        ) {
+            LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
+            for (NamedExpression target : targets) {
+                if (target instanceof UnresolvedNamePattern up) {
+                    // A pattern that matches nothing comes back under a new id each time; pin it so re-resolving an unchanged child
+                    // does not change the plan.
+                    for (Attribute matched : resolveAgainstList(up, childOutput)) {
+                        resolved.add(
+                            matched instanceof UnresolvedAttribute ua
+                                ? new UnresolvedPattern(ua.source(), ua.qualifier(), ua.name(), patternIds.get(up), ua.unresolvedMessage())
+                                : matched
+                        );
+                    }
+                } else if (target instanceof UnresolvedAttribute ua) {
+                    resolved.addAll(resolveAgainstList(ua, childOutput));
+                } else {
+                    resolved.add(target);
+                }
+            }
+            return new ArrayList<>(resolved);
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
@@ -4626,6 +4699,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
                 newOutput.add(attr);
+            }
+            // NO_FIELDS should not be retained if other attributes actually exist
+            if (newOutput.size() > 1) {
+                newOutput.removeIf(attr -> attr == NO_FIELDS.getFirst());
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);

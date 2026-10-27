@@ -10,6 +10,7 @@
 package org.elasticsearch.search.heappressure;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -26,27 +27,29 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-/**
- * The bitsets the query cache builds for the clauses of a filter must be accounted for, or bounded, before they are allocated.
- *
- * <p>When a filter clause is admitted to the query cache, {@code LRUQueryCache#cacheIntoBitSet} allocates a {@code FixedBitSet} of
- * {@code maxDoc} bits for it, whatever the clause matches, and only counts it against the cache after it is built. A clause over a
- * doc-values-only field reports a cost of about {@code maxDoc}, so every such clause gets the dense bitset. A {@code bool} filter of
- * {@code CLAUSES} such clauses holds {@code CLAUSES} bitsets at once while its disjunction is built, and concurrent searches over
- * the same segment each build their own. Neither the request breaker nor the cache size limit sees any of it, so a few overlapping
- * searches exhaust a small heap.
- *
- * <p>This is the shape of an out-of-memory seen in production: a few concurrent searches with about 30 {@code OR}ed clauses over one
- * segment of tens of millions of documents, each search holding about 330 MB of bitsets on a 2 GB heap. What it takes to get a bitset:
- * <ul>
- * <li>The caching policy of the shard admits a clause after it has been seen 5 times among the last 256 filters used. The clauses of a
- * search must be few enough, and the search repeated often enough, for each to be seen that often: {@link #CLAUSES} of them, searched
- * {@link #WARMUP_SEARCHES} times first.
- * <li>The cache refuses a segment unless it has room for 5 bitsets of it. The default cache, a tenth of the heap, is that large here.
- * <li>One shard, so that one search task builds the bitsets of all the clauses at once. With the documents spread over many shards each
- * task holds only its share, and the searches that run at once are limited by the search threads.
- * </ul>
- */
+/// The bitsets the query cache builds for the clauses of a filter must be accounted for, or bounded, before they are allocated.
+///
+/// When a filter clause is admitted to the query cache, `LRUQueryCache#cacheIntoBitSet` allocates a `FixedBitSet` of `maxDoc` bits for
+/// it, whatever the clause matches, and only counts it against the cache after it is built. A clause over a doc-values-only field
+/// reports a cost of about `maxDoc`, so every such clause gets the dense bitset. A `bool` filter of `CLAUSES` such clauses holds
+/// `CLAUSES` bitsets at once while it is built, and concurrent searches over the same segment each build their own. The request breaker
+/// does not charge them, and the cache size limit applies only after they are built, so a few overlapping searches exhaust a small heap.
+///
+/// This is the shape of an out-of-memory seen in production: a few concurrent searches with about 30 `OR`ed clauses over one segment of
+/// tens of millions of documents, each search holding about 330 MB of bitsets on a 2 GB heap. Reproducing it takes four conditions:
+///
+/// - The caching policy of the shard admits a clause after it has been seen 5 times among the last 256 filters used, and in this test
+///   almost every lookup is a miss that needs that again. A search can therefore have at most about 50 clauses: `CLAUSES` of them, which
+///   `WARMUP_SEARCHES` warm-up searches first get admitted.
+/// - The cache refuses a segment unless it has room for 5 bitsets of it, about 2.5 MB here, so the cache size has to be more than that.
+/// - The cache is not much larger than that, so concurrent searches cannot be answered from one another's bitsets, which a cache hit
+///   would not allocate.
+/// - One shard, so that one search task builds the bitsets of all the clauses at once. With the documents spread over many shards each
+///   task holds only its share, and the number of tasks that run at once is limited by the size of the search thread pool.
+///
+/// For the test to pass, searches may fail only with a circuit breaker rejection, and the node must survive.
+///
+/// See [#139398](https://github.com/elastic/elasticsearch/issues/139398) for the details.
 public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
 
     private static final String INDEX = "query-cache-dense-clause-heap-pressure";
@@ -97,7 +100,8 @@ public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
               }
             }
             """);
-        client().performRequest(create);
+        RestClient client = client();
+        client.performRequest(create);
 
         for (int from = 0; from < DOCS; from += BULK_SIZE) {
             StringBuilder bulk = new StringBuilder();
@@ -107,18 +111,19 @@ public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
             }
             Request bulkRequest = new Request("POST", "/" + INDEX + "/_bulk");
             bulkRequest.setJsonEntity(bulk.toString());
-            client().performRequest(bulkRequest);
+            client.performRequest(bulkRequest);
             // Test clusters run with assertions, and the translog then keeps every operation until it is rolled, which a node this small
             // cannot hold for this many documents.
             if ((from / BULK_SIZE + 1) % BULKS_PER_FLUSH == 0) {
-                client().performRequest(new Request("POST", "/" + INDEX + "/_flush"));
+                client.performRequest(new Request("POST", "/" + INDEX + "/_flush"));
                 logger.info("{}: flushed", from);
             }
         }
-        client().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
+        client.performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
         Request forceMerge = new Request("POST", "/" + INDEX + "/_forcemerge");
         forceMerge.addParameter("max_num_segments", "1");
-        client().performRequest(forceMerge);
+        // We need to have one segment because all caching is happening per segment.
+        client.performRequest(forceMerge);
     }
 
     /**

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -123,6 +124,26 @@ public class SplitTargetServiceTests extends ESTestCase {
 
         var request5 = new TransportReshardSplitAction.Request(new ShardId("foo", "1", 0), sourceNode, targetNode, 2, 100);
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
+    }
+
+    /// If cancelSplits already ran (removing nothing) and the shard is CLOSED by the time a state machine is registered,
+    /// the CLOSED guard must prevent leaving an entry in the map that nothing would ever clean up.
+    public void testStateMachineIsNotRegisteredForClosedShard() {
+        var threadPool = mock(ThreadPool.class);
+        var clusterService = mock(ClusterService.class);
+        var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+        var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
+
+        var split = dummySplit();
+        var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(split.shardId());
+        when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
+
+        sts.cancelSplits(indexShard);
+        sts.initializeSplitInCloneState(indexShard, split);
+
+        assertTrue(sts.getShardsWithOngoingSplits().isEmpty());
     }
 
     /// Closing a shard cancels its split. Nothing else answers the refreshes waiting on it, so the state machine's `cancel()` must
@@ -380,10 +401,10 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertTrue(SplitTargetService.searchShardsOnlineOrNewPrimaryTerm(state, new ShardId(index, 3), 1L));
     }
 
-    /// A target shard's recovery can start while the shard is being closed (e.g. a restore replaces the index). Closing cancels the
-    /// splits of the shard, so if that has already happened by the time the recovery registers its state machine, nothing ever
-    /// cancels it, and it keeps the closed shard reachable (and keeps trying to make progress for it).
-    public void testSplitIsNotTrackedForShardThatIsAlreadyClosed() {
+    /// A target shard's recovery can start while the shard is being closed (e.g. a restore replaces the index). If the shard is already
+    /// closed when the recovery registers its state machine nothing would ever cancel it, so none is registered, and the recovery
+    /// fails because its shard is closed.
+    public void testRecoveryOfAlreadyClosedTargetShardFailsWithoutTrackingASplit() {
         var threadPool = directThreadPool();
         var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(threadPool);
@@ -393,31 +414,11 @@ public class SplitTargetServiceTests extends ESTestCase {
         var sts = new SplitTargetService(Settings.EMPTY, silentClient(threadPool), clusterService, reshardIndexService);
 
         var indexShard = splitTargetShard(IndexShardState.CLOSED);
-        sts.startSplitTargetShardRecovery(indexShard, splitIndexMetadata(), ActionListener.noop());
+        var recovery = new PlainActionFuture<Void>();
+        sts.startSplitTargetShardRecovery(indexShard, splitIndexMetadata(), recovery);
 
         assertThat(sts.getShardsWithOngoingSplits(), empty());
-    }
-
-    /// Closing a shard cancels its splits twice, before and after the shard itself is closed. A state machine that was registered in
-    /// between (the shard still looked open to the recovery that registered it) is only found by the second one.
-    public void testSplitRegisteredWhileShardIsClosingIsCancelledByTheLaterCancellation() {
-        var threadPool = directThreadPool();
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.threadPool()).thenReturn(threadPool);
-        when(clusterService.localNode()).thenReturn(dummyNode("node_target", 10001));
-        var reshardIndexService = mock(ReshardIndexService.class);
-        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
-        var sts = new SplitTargetService(Settings.EMPTY, silentClient(threadPool), clusterService, reshardIndexService);
-
-        var indexShard = splitTargetShard(IndexShardState.RECOVERING);
-        sts.cancelSplits(indexShard); // before the shard is closed: nothing registered yet
-        sts.startSplitTargetShardRecovery(indexShard, splitIndexMetadata(), ActionListener.noop());
-        assertThat(sts.getShardsWithOngoingSplits(), hasSize(1));
-
-        sts.cancelSplits(indexShard); // after the shard has been closed
-
-        assertThat(sts.getShardsWithOngoingSplits(), empty());
-        verify(reshardIndexService).failAndStopTrackingSplit(any(IndexShard.class), any(Exception.class));
+        expectThrows(IndexShardClosedException.class, recovery::actionGet);
     }
 
     /// A client that never answers, as if the start split request to the source shard were still waiting for the handoff

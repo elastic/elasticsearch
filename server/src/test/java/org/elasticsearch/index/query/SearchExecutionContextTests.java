@@ -113,6 +113,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -769,6 +770,34 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         assertEquals(0L, breaker.used);
         assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleaseDrainsPoolWhenReleasableThrows() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(100L, "label");
+        context.addQueryConstructionReleasable(() -> { throw new IllegalStateException("boom"); });
+        expectThrows(IllegalStateException.class, context::releaseQueryConstructionMemory);
+
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleasableRunsOnceWhenReleasedTwice() {
+        SearchExecutionContext context = new SearchExecutionContext(
+            createSearchExecutionContext("uuid", null),
+            new TrackingCircuitBreaker()
+        );
+        AtomicInteger runs = new AtomicInteger();
+        assertFalse(context.hasQueryConstructionReleasables());
+        context.addQueryConstructionReleasable(runs::incrementAndGet);
+        assertTrue(context.hasQueryConstructionReleasables());
+
+        context.releaseQueryConstructionMemory();
+        assertFalse(context.hasQueryConstructionReleasables());
+        context.releaseQueryConstructionMemory();
+        assertEquals(1, runs.get());
     }
 
     public void testSwapLeavesReservationHeldWhenDeltaChargeTrips() {

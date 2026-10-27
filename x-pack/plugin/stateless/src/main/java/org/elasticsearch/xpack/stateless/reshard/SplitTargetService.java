@@ -140,8 +140,10 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.Clone(recoveryListener)
                 );
-                if (register(indexShard, stateMachine)) {
+                if (registerStateMachine(indexShard, stateMachine)) {
                     stateMachine.run();
+                } else {
+                    recoveryListener.onFailure(new IndexShardClosedException(shardId));
                 }
             }
             case HANDOFF -> {
@@ -153,7 +155,7 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInHandoff()
                 );
-                final boolean registered = register(indexShard, stateMachine);
+                boolean registered = registerStateMachine(indexShard, stateMachine);
                 recoveryListener.onResponse(null);
                 if (registered) {
                     stateMachine.run();
@@ -168,7 +170,7 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInSplit()
                 );
-                final boolean registered = register(indexShard, stateMachine);
+                boolean registered = registerStateMachine(indexShard, stateMachine);
                 recoveryListener.onResponse(null);
                 if (registered) {
                     stateMachine.run();
@@ -178,22 +180,16 @@ public class SplitTargetService {
         }
     }
 
-    /// Tracks the state machine of a shard so that closing the shard can cancel it.
+    /// Registers the state machine unless the shard is already closed. Returns whether it was registered.
     ///
-    /// Closing a shard cancels its splits, both before the shard is closed and once its close has completed (see
-    /// [org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener]). A recovery can register its state machine
-    /// at any point in that, since nothing stops a shard from being closed while it is recovering. A machine registered before the first
-    /// cancellation is cancelled by it, one registered between the two by the second. One registered after the shard has been closed
-    /// would be missed by both, so it is checked for here, and not run.
-    ///
-    /// @return whether the state machine is registered and should be run
-    private boolean register(IndexShard indexShard, StateMachine stateMachine) {
-        onGoingSplits.put(indexShard, stateMachine);
-        if (indexShard.state() == IndexShardState.CLOSED) {
-            cancelSplits(indexShard);
-            return false;
-        }
-        return true;
+    /// If this runs first and observes `CLOSED`, [#cancelSplits(IndexShard)] may or may not have been called, so we handle the case
+    /// where it already ran by not registering anything.
+    /// If we don't observe `CLOSED`, we can rely on `cancelSplits` running later and removing the entry.
+    private boolean registerStateMachine(IndexShard indexShard, StateMachine stateMachine) {
+        return onGoingSplits.compute(
+            indexShard,
+            (shard, existing) -> shard.state() == IndexShardState.CLOSED ? existing : stateMachine
+        ) == stateMachine;
     }
 
     public void acceptHandoff(IndexShard indexShard, TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> listener) {
@@ -216,7 +212,7 @@ public class SplitTargetService {
     // only for tests
     void initializeSplitInCloneState(IndexShard indexShard, Split split) {
         assert Thread.currentThread().getName().startsWith("TEST-");
-        onGoingSplits.put(
+        registerStateMachine(
             indexShard,
             new StateMachine(
                 split,
@@ -229,6 +225,10 @@ public class SplitTargetService {
         );
     }
 
+    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
+    /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
+    /// We rely on this fact in [#registerStateMachine(IndexShard, StateMachine)] to handle the possible race
+    /// of this function and adding a new state machine to the `onGoingSplits` map.
     public void cancelSplits(IndexShard indexShard) {
         var stateMachine = onGoingSplits.remove(indexShard);
         if (stateMachine != null) {

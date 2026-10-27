@@ -17,9 +17,12 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -84,6 +87,23 @@ public class ViewValidationRestIT extends ESRestTestCase {
 
         // The view is saved regardless.
         ensureViewExists("view-validation-unknown-remote");
+    }
+
+    public void testValidationDoesNotRecordQueryTelemetry() throws IOException {
+        createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
+        var before = esqlStats();
+
+        putView("view-validation-telemetry", "FROM view-validation-index | KEEP k", true);
+
+        assertThat("view validation must not record query telemetry", esqlStats(), equalTo(before));
+    }
+
+    private Map<String, Object> esqlStats() throws IOException {
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_esql/stats")));
+        List<Object> nodes = path.evaluate("stats");
+        assertThat(nodes, hasSize(1));
+        Map<String, Object> stats = path.evaluate("stats.0.stats");
+        return stats == null ? Map.of() : stats;
     }
 
     private Response putView(String name, String query, boolean validate) throws IOException {

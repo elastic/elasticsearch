@@ -296,7 +296,7 @@ public class PlanExecutor {
             promqlFunctionRegistry,
             analysisRegistry,
             mapper,
-            verifier,
+            request.analyzeOnly() ? verifier.withoutMetrics() : verifier,
             metrics,
             planTelemetry,
             indicesExpressionGrouper,

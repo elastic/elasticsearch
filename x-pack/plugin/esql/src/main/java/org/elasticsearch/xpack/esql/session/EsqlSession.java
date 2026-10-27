@@ -583,12 +583,12 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyseAndExecute reached on an unmetered thread";
 
-        // Skip all telemetry and side effects in explain mode: the EXPLAIN command itself was
-        // already counted at parse time (planTelemetry.command(explain)). Traversing the inner
-        // query would inflate FeatureMetric.VIEW, FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc.
-        // with diagnostic invocations that are not real feature usage; and requestIpLocationDownloads
-        // must not trigger a real database download for a diagnostic call.
-        if (explainContext == null) {
+        // Skip all telemetry and side effects for diagnostic invocations: explain mode and the analyze-only pass
+        // that validates a view definition. The EXPLAIN command itself was already counted at parse time
+        // (planTelemetry.command(explain)). Traversing the inner query would inflate FeatureMetric.VIEW,
+        // FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc. with diagnostic invocations that are not real feature
+        // usage; and requestIpLocationDownloads must not trigger a real database download for a diagnostic call.
+        if (explainContext == null && request.analyzeOnly() == false) {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);

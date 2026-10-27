@@ -32,6 +32,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -90,6 +91,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -439,7 +441,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 }
             }
         }
-        return DirectoryReader.open(directory);
+        return openReader(directory);
     }
 
     private IndexReader initIndexLongField(Directory directory, int size, int commitEvery, boolean forceMerge) throws IOException {
@@ -470,7 +472,15 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 writer.forceMerge(1);
             }
         }
-        return DirectoryReader.open(directory);
+        return openReader(directory);
+    }
+
+    /**
+     * Opens {@code directory} the way a shard does. Without the wrapper, the leaves offer no sequential stored fields reader,
+     * so a load that chooses to read stored fields sequentially falls back to reading them at random.
+     */
+    private static IndexReader openReader(Directory directory) throws IOException {
+        return ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("index", "_na_", 0));
     }
 
     @Override
@@ -1819,6 +1829,29 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * A tiny jumbo size makes the doc sequence reader split the ascending run of each segment of a page into loads of one
+     * document. Each load builds its own stored fields reader and chooses it from the documents left in the run:
+     * sequential while at least {@link ValuesFromSingleReader#SEQUENTIAL_BOUNDARY} remain, at random for the tail.
+     */
+    public void testSplitLoadsOfALongRunChooseStoredFieldsReaderFromTheRemainingDocuments() throws IOException {
+        int segments = between(2, 4);
+        int segmentSize = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, 40);
+        var runner = new TestDriverRunner().builder(driverContext());
+        Page page = pageOfManySegments(runner.context(), segments, segmentSize);
+        int positions = page.getPositionCount();
+
+        // only the doc sequence reader splits loads, and a threshold of 0 sends every page of many segments to it
+        ValuesSourceReaderOperatorStatus status = loadStoredText(runner, page, ByteSizeValue.ofBytes(1), 0);
+
+        assertThat("every load reads one document", status.pagesEmitted(), equalTo(positions));
+        int tail = ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1;
+        assertMap(
+            storedFieldsReaders(status),
+            matchesMap().entry(storedTextFields(true), segments * (segmentSize - tail)).entry(storedTextFields(false), segments * tail)
+        );
+    }
+
+    /**
      * One page with every document of {@code segments} segments of {@code segmentSize} documents each, in the order of
      * the index.
      */
@@ -1859,10 +1892,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      * readers of each kind the operator built.
      */
     private Map<String, Integer> loadStoredText(TestDriverRunner.DriverBuilder runner, Page page) {
+        return storedFieldsReaders(loadStoredText(runner, page, ByteSizeValue.ofGb(1), docSequenceBytesRefFieldThreshold()));
+    }
+
+    /**
+     * Loads {@code key} and {@code stored_text} from {@code page}, checks every value, and returns the status of the
+     * operator.
+     */
+    private ValuesSourceReaderOperatorStatus loadStoredText(
+        TestDriverRunner.DriverBuilder runner,
+        Page page,
+        ByteSizeValue jumboSize,
+        int docSequenceBytesRefFieldThreshold
+    ) {
         List<Page> results = runner.input(List.of(page))
             .run(
                 new ValuesSourceReaderOperator.Factory(
-                    ByteSizeValue.ofGb(1),
+                    jumboSize,
                     List.of(
                         fieldInfo(mapperService.fieldType("key"), ElementType.INT),
                         fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
@@ -1877,7 +1923,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold(),
+                    docSequenceBytesRefFieldThreshold,
                     () -> 0L
                 )
             );
@@ -1888,8 +1934,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 checks.strings(result.getBlock(2), p, keys.getInt(p));
             }
         }
-        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
         assertDriverContext(runner.context());
+        return (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
+    }
+
+    /**
+     * How many stored fields readers of each kind the operator built.
+     */
+    private static Map<String, Integer> storedFieldsReaders(ValuesSourceReaderOperatorStatus status) {
         Map<String, Integer> storedFields = new TreeMap<>();
         status.readersBuilt().forEach((name, count) -> {
             if (name.startsWith("stored_fields[")) {

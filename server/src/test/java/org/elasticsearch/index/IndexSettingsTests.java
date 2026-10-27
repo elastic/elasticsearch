@@ -1730,7 +1730,11 @@ public class IndexSettingsTests extends ESTestCase {
                 builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
             }
             Settings settings = builder.build();
-            assertThat("mode " + mode, IndexSettings.BATCH_INDEXING.get(settings), equalTo(mode.isStrictColumnar()));
+            assertThat(
+                "mode " + mode,
+                IndexSettings.BATCH_INDEXING.get(settings),
+                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && mode.isStrictColumnar())
+            );
         }
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.EMPTY));
     }
@@ -1740,7 +1744,7 @@ public class IndexSettingsTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
             .build();
-        assertTrue(IndexSettings.BATCH_INDEXING.get(tsdbOptIn));
+        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
 
         // an explicit opt-out through the old key overrides the strict-columnar default
         Settings columnarOptOut = Settings.builder()
@@ -1758,6 +1762,25 @@ public class IndexSettingsTests extends ESTestCase {
             .put(IndexSettings.BATCH_INDEXING.getKey(), false)
             .build();
         assertFalse(IndexSettings.BATCH_INDEXING.get(settings));
+    }
+
+    public void testBatchIndexingRejectedWithoutFeatureFlag() {
+        assumeFalse("only applies when the feature flag is off", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings on = Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.BATCH_INDEXING.get(on));
+        assertThat(e.getMessage(), containsString("batch_indexing feature flag"));
+
+        // defaults resolve to false rather than tripping the validator
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR).build()));
+        assertFalse(
+            IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build())
+        );
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build()));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+    }
+
+    public void testBatchIndexingIsAlwaysRegistered() {
+        assertTrue(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(IndexSettings.BATCH_INDEXING));
     }
 
     public void testIsBatchIndexingEnabledRequiresFeatureFlag() {

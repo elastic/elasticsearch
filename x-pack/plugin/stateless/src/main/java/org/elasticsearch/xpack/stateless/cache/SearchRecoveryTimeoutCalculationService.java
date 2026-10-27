@@ -335,10 +335,11 @@ public class SearchRecoveryTimeoutCalculationService {
             // early. When none did, the fresh share is not larger and there is nothing to extend by. The data-volume heuristic is
             // deliberately not consulted: it only decides the first plan of the shutdown phase, afterwards only saved time is handed out.
             // The exception is when all shards fit in the target's slots: nobody is queued behind this one, so the remaining grace would be
-            // wasted if not used. RELOCATING does not imply running, under recovery throttling a shard may still be queued for a slot.
+            // wasted if not used, so extend by max 1 minute on every reevaluation as long as the conditions don't change.
+            // n.b. RELOCATING does not imply running, under recovery throttling a shard may still be queued for a slot.
             final boolean noShardWaitingForRelocationSlot = shardsOnSource <= concurrentRelocations;
             final double extensionMs = noShardWaitingForRelocationSlot
-                ? remaining
+                ? Math.min(remaining, TimeValue.timeValueMinutes(1).millis())
                 : Math.max(0.0, equalShareMs - previousPlan.perShardShareMs()) * concurrentRelocations;
             return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(Math.min(remaining, extensionMs))),

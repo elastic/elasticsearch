@@ -31,7 +31,11 @@ final class AttributeSegments extends AbstractList<Attribute> implements RandomA
     static final AttributeSegments EMPTY = new AttributeSegments(new Segment[0]);
 
     /**
-     * Segments of at most this many attributes are scanned instead of indexed.
+     * Segments of at most this many attributes are scanned instead of indexed: comparing a few attributes is cheaper than
+     * hashing them into tables, and a scanned segment keeps no tables, which matters because most segments hold the one to
+     * three columns a command adds. 8 is the same scan-to-table cutoff as
+     * {@link org.elasticsearch.index.fielddata.ValueDeduplicator} and {@code HashMap}'s treeify threshold. Planning every
+     * csv-spec query with 4, 8, 16 and 32 showed no latency or allocation difference beyond noise.
      */
     static final int LINEAR_SCAN_LIMIT = 8;
 

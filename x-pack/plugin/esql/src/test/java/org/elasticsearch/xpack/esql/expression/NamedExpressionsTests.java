@@ -26,13 +26,15 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class NamedExpressionsTests extends ESTestCase {
 
+    private static final boolean SHARED = AttributeList.SHARED_OUTPUT_FEATURE_FLAG.isEnabled();
+
     public void testMergeOutputAttributesAppends() {
         List<Attribute> child = List.of(attribute("a"), attribute("b"));
         List<NamedExpression> fields = List.of(alias("c"), alias("d"));
 
         List<Attribute> output = NamedExpressions.mergeOutputAttributes(fields, child);
         assertEquals(expected(fields, child), output);
-        assertThat(output, instanceOf(AttributeList.class));
+        assertThat(output, instanceOf(SHARED ? AttributeList.class : ArrayList.class));
     }
 
     public void testMergeOutputAttributesShadows() {
@@ -48,7 +50,7 @@ public class NamedExpressionsTests extends ESTestCase {
 
         List<Attribute> output = NamedExpressions.mergeOutputAttributes(fields, child);
         assertEquals(expected(fields, child), output);
-        assertThat(output, instanceOf(AttributeList.class));
+        assertThat(output, instanceOf(SHARED ? AttributeList.class : ArrayList.class));
         assertEquals(List.of("a", "c", "b"), output.stream().map(Attribute::name).toList());
     }
 
@@ -121,7 +123,7 @@ public class NamedExpressionsTests extends ESTestCase {
         }
         for (int d = 0; d < depth; d++) {
             List<Attribute> nodeOutput = outputs.get(d);
-            assertThat(nodeOutput, instanceOf(AttributeList.class));
+            assertThat(nodeOutput, instanceOf(SHARED ? AttributeList.class : ArrayList.class));
             assertEquals(expected.subList(0, width + d + 1), nodeOutput);
             AttributeSet set = AttributeSet.of(nodeOutput);
             assertEquals(width + d + 1, set.size());
@@ -144,7 +146,7 @@ public class NamedExpressionsTests extends ESTestCase {
             expected.removeIf(a -> a.name().equals(field.name()));
             expected.add(field.toAttribute());
             assertEquals(expected, output);
-            assertThat(output, instanceOf(AttributeList.class));
+            assertThat(output, instanceOf(SHARED ? AttributeList.class : ArrayList.class));
         }
     }
 

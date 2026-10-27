@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.util.FeatureFlag;
+
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,6 +33,16 @@ import java.util.function.Consumer;
  * ids are distinct by construction, nothing downstream has to check an {@link AttributeList} for duplicates again.
  */
 public final class AttributeList extends AbstractList<Attribute> implements RandomAccess {
+
+    /**
+     * Whether plan nodes share their outputs through {@link AttributeList} and {@link AttributeSet} shares their storage.
+     * When disabled, {@link org.elasticsearch.xpack.esql.expression.NamedExpressions#mergeOutputAttributes} copies outputs
+     * into plain lists and every {@link AttributeSet} copies its attributes into an {@link AttributeMap}.
+     * <p>
+     * Short-lived: it keeps the shared storage to snapshot builds so CI, nightlies and tests exercise it before users see
+     * it. Once that has been clean, remove the flag and the disabled branches rather than turning it on.
+     */
+    public static final FeatureFlag SHARED_OUTPUT_FEATURE_FLAG = new FeatureFlag("esql_shared_plan_output");
 
     public static final AttributeList EMPTY = new AttributeList(AttributeSegments.EMPTY);
 

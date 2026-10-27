@@ -18,6 +18,8 @@ import static org.elasticsearch.xpack.esql.core.expression.AttributeMapTests.a;
 
 public class AttributeSetTests extends ESTestCase {
 
+    private static final boolean SHARED = AttributeList.SHARED_OUTPUT_FEATURE_FLAG.isEnabled();
+
     public void testEquals() {
         Attribute a1 = a("1");
         Attribute a2 = a("2");
@@ -84,11 +86,13 @@ public class AttributeSetTests extends ESTestCase {
         assertEquals(List.of(a1, a2), visited);
         assertEquals(List.of(a1, a2).toString(), set.toString());
         expectThrows(UnsupportedOperationException.class, () -> set.add(a3));
-        expectThrows(UnsupportedOperationException.class, () -> {
-            var it = set.iterator();
-            it.next();
-            it.remove();
-        });
+        if (SHARED) {
+            expectThrows(UnsupportedOperationException.class, () -> {
+                var it = set.iterator();
+                it.next();
+                it.remove();
+            });
+        }
     }
 
     public void testContainsName() {
@@ -135,10 +139,12 @@ public class AttributeSetTests extends ESTestCase {
         assertEquals(List.of(a1, a2, a3, a4), List.copyOf(first.combine(second)));
         assertEquals(List.of(a1, a3), List.copyOf(first.subtract(second)));
         assertEquals(List.of(a2), List.copyOf(first.intersect(second)));
-        assertSame(first, first.combine(AttributeSet.of(a2)));
-        assertSame(first, first.subtract(AttributeSet.of(a4)));
-        AttributeSet contained = AttributeSet.of(a2);
-        assertSame(contained, first.intersect(contained));
+        if (SHARED) {
+            assertSame(first, first.combine(AttributeSet.of(a2)));
+            assertSame(first, first.subtract(AttributeSet.of(a4)));
+            AttributeSet contained = AttributeSet.of(a2);
+            assertSame(contained, first.intersect(contained));
+        }
     }
 
     public void testBuilderKeepsFirstOfEachId() {
@@ -150,10 +156,12 @@ public class AttributeSetTests extends ESTestCase {
         assertSame(a1, set.iterator().next());
         assertTrue(set.contains(sameId));
 
-        builder.add(a("3"));
-        builder.removeIf(a -> a.name().equals("1"));
-        assertEquals(2, set.size());
-        assertTrue(set.contains(a1));
+        if (SHARED) {
+            builder.add(a("3"));
+            builder.removeIf(a -> a.name().equals("1"));
+            assertEquals(2, set.size());
+            assertTrue(set.contains(a1));
+        }
     }
 
     public void testBuilderAcrossLinearScanLimit() {
@@ -182,7 +190,10 @@ public class AttributeSetTests extends ESTestCase {
         assertEquals(builder.build(), copy.build());
         builder.clear();
         assertTrue(builder.isEmpty());
-        assertSame(AttributeSet.EMPTY, builder.build());
+        assertEquals(AttributeSet.EMPTY, builder.build());
+        if (SHARED) {
+            assertSame(AttributeSet.EMPTY, builder.build());
+        }
         assertFalse(copy.isEmpty());
     }
 
@@ -192,7 +203,10 @@ public class AttributeSetTests extends ESTestCase {
         AttributeSet set = AttributeSet.of(attrs);
         attrs[0] = a("2");
         assertEquals(List.of(a1), new ArrayList<>(set));
-        assertSame(AttributeSet.EMPTY, AttributeSet.of());
+        assertEquals(AttributeSet.EMPTY, AttributeSet.of());
+        if (SHARED) {
+            assertSame(AttributeSet.EMPTY, AttributeSet.of());
+        }
     }
 
     public void testSameNameDifferentIds() {

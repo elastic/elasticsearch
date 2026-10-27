@@ -24,21 +24,37 @@ import java.util.stream.Stream;
  * Immutable set of attributes compared by {@link Attribute#semanticEquals} (their ids), in insertion order. See
  * {@link AttributeMap} for why attributes need this.
  * <p>
- * Stored as {@link AttributeSegments}, so a set of an {@link AttributeList} shares the list's storage instead of copying
- * it, and {@link #combine} shares this set's storage and adds one segment for the new attributes.
+ * With {@link AttributeList#SHARED_OUTPUT_FEATURE_FLAG} enabled the set is stored as {@link AttributeSegments}, so a set of an
+ * {@link AttributeList} shares the list's storage instead of copying it, and {@link #combine} shares this set's storage and
+ * adds one segment for the new attributes. Otherwise it is stored as an {@link AttributeMap}.
  */
 public class AttributeSet implements Set<Attribute> {
 
-    public static final AttributeSet EMPTY = new AttributeSet(AttributeSegments.EMPTY);
+    private static final boolean SHARED = AttributeList.SHARED_OUTPUT_FEATURE_FLAG.isEnabled();
 
-    private final AttributeSegments attributes;
+    public static final AttributeSet EMPTY = new AttributeSet(SHARED ? AttributeSegments.EMPTY : AttributeMap.emptyAttributeMap());
 
-    private AttributeSet(AttributeSegments attributes) {
-        this.attributes = attributes;
+    /**
+     * {@link AttributeSegments} when {@link #SHARED}, otherwise an {@code AttributeMap<Object>}. One field rather than two keeps
+     * a set as small as before.
+     */
+    private final Object storage;
+
+    private AttributeSet(Object storage) {
+        this.storage = storage;
+    }
+
+    private AttributeSegments segments() {
+        return (AttributeSegments) storage;
+    }
+
+    @SuppressWarnings("unchecked")
+    private AttributeMap<Object> map() {
+        return (AttributeMap<Object>) storage;
     }
 
     public static AttributeSet of(Attribute... attrs) {
-        if (attrs.length == 1) {
+        if (SHARED && attrs.length == 1) {
             return new AttributeSet(AttributeSegments.of(new Attribute[] { attrs[0] }));
         }
         return builder(attrs.length).addAll(Arrays.asList(attrs)).build();
@@ -48,7 +64,7 @@ public class AttributeSet implements Set<Attribute> {
      * Builds a set of the given attributes. A set of an {@link AttributeList} shares the list's storage.
      */
     public static AttributeSet of(Collection<? extends Attribute> c) {
-        if (c instanceof AttributeList list) {
+        if (SHARED && c instanceof AttributeList list) {
             return new AttributeSet(list.attributes());
         }
         return builder(c.size()).addAll(c).build();
@@ -73,17 +89,21 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public static Builder builder() {
-        return new Builder(0);
+        return SHARED ? new Builder(0) : new Builder(AttributeMap.builder());
     }
 
     public static Builder builder(int expectedSize) {
-        return new Builder(expectedSize);
+        return SHARED ? new Builder(expectedSize) : new Builder(AttributeMap.builder(expectedSize));
     }
 
     /**
-     * This set followed by the attributes of {@code other} that it doesn't contain, sharing this set's storage.
+     * This set followed by the attributes of {@code other} that it doesn't contain. With {@link #SHARED} it shares this set's
+     * storage.
      */
     public AttributeSet combine(AttributeSet other) {
+        if (SHARED == false) {
+            return new AttributeSet(map().combine(other.map()));
+        }
         if (other.isEmpty()) {
             return this;
         }
@@ -96,10 +116,13 @@ public class AttributeSet implements Set<Attribute> {
                 added.add(a);
             }
         });
-        return added.isEmpty() ? this : new AttributeSet(attributes.append(added.toArray(new Attribute[0])));
+        return added.isEmpty() ? this : new AttributeSet(segments().append(added.toArray(new Attribute[0])));
     }
 
     public AttributeSet subtract(AttributeSet other) {
+        if (SHARED == false) {
+            return new AttributeSet(map().subtract(other.map()));
+        }
         List<Attribute> kept = new ArrayList<>(size());
         forEach(a -> {
             if (other.contains(a) == false) {
@@ -110,6 +133,9 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public AttributeSet intersect(AttributeSet other) {
+        if (SHARED == false) {
+            return new AttributeSet(map().intersect(other.map()));
+        }
         AttributeSet smaller = other.size() > size() ? this : other;
         AttributeSet larger = smaller == this ? other : this;
         List<Attribute> kept = new ArrayList<>(smaller.size());
@@ -122,10 +148,16 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public boolean subsetOf(AttributeSet other) {
+        if (SHARED == false) {
+            return map().subsetOf(other.map());
+        }
         return size() <= other.size() && other.containsAll(this);
     }
 
     public Set<String> names() {
+        if (SHARED == false) {
+            return map().attributeNames();
+        }
         Set<String> names = Sets.newLinkedHashSetWithExpectedSize(size());
         forEach(a -> names.add(a.name()));
         return names;
@@ -136,27 +168,42 @@ public class AttributeSet implements Set<Attribute> {
      * all the names.
      */
     public boolean containsName(String name) {
-        return attributes.containsName(name);
+        if (SHARED) {
+            return segments().containsName(name);
+        }
+        for (Attribute a : map().keySet()) {
+            if (a.name().equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public void forEach(Consumer<? super Attribute> action) {
-        attributes.forEach(action);
+        if (SHARED) {
+            segments().forEach(action);
+        } else {
+            map().forEach((k, v) -> action.accept(k));
+        }
     }
 
     @Override
     public int size() {
-        return attributes.size();
+        return SHARED ? segments().size() : map().size();
     }
 
     @Override
     public boolean isEmpty() {
-        return attributes.isEmpty();
+        return SHARED ? segments().isEmpty() : map().isEmpty();
     }
 
     @Override
     public boolean contains(Object o) {
-        return o instanceof NamedExpression ne && attributes.containsAttribute(ne.toAttribute());
+        if (SHARED) {
+            return o instanceof NamedExpression ne && segments().containsAttribute(ne.toAttribute());
+        }
+        return map().containsKey(o);
     }
 
     @Override
@@ -171,17 +218,17 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public Iterator<Attribute> iterator() {
-        return attributes.iterator();
+        return SHARED ? segments().iterator() : map().keySet().iterator();
     }
 
     @Override
     public Object[] toArray() {
-        return attributes.toArray();
+        return SHARED ? segments().toArray() : map().keySet().toArray();
     }
 
     @Override
     public <T> T[] toArray(T[] a) {
-        return attributes.toArray(a);
+        return SHARED ? segments().toArray(a) : map().keySet().toArray(a);
     }
 
     @Override
@@ -216,7 +263,7 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public Spliterator<Attribute> spliterator() {
-        return attributes.spliterator();
+        return SHARED ? segments().spliterator() : map().keySet().spliterator();
     }
 
     @Override
@@ -226,12 +273,12 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public Stream<Attribute> stream() {
-        return attributes.stream();
+        return SHARED ? segments().stream() : map().keySet().stream();
     }
 
     @Override
     public Stream<Attribute> parallelStream() {
-        return attributes.parallelStream();
+        return SHARED ? segments().parallelStream() : map().keySet().parallelStream();
     }
 
     @Override
@@ -243,16 +290,20 @@ public class AttributeSet implements Set<Attribute> {
             return false;
         }
         AttributeSet other = (AttributeSet) obj;
-        return size() == other.size() && containsAll(other);
+        return SHARED ? size() == other.size() && containsAll(other) : map().equals(other.map());
     }
 
     /**
-     * Sum of the elements' {@link Attribute#semanticHash()}, which doesn't depend on order, like {@link #equals}.
+     * With {@link #SHARED}, the sum of the elements' {@link Attribute#semanticHash()}, which doesn't depend on order, like
+     * {@link #equals}.
      */
     @Override
     public int hashCode() {
+        if (SHARED == false) {
+            return map().hashCode();
+        }
         int hash = 0;
-        for (Attribute a : attributes) {
+        for (Attribute a : segments()) {
             hash += a.semanticHash();
         }
         return hash;
@@ -260,7 +311,7 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public String toString() {
-        return attributes.toString();
+        return SHARED ? segments().toString() : map().keySet().toString();
     }
 
     public Builder asBuilder() {
@@ -271,7 +322,7 @@ public class AttributeSet implements Set<Attribute> {
      * Collects attributes, ignoring one whose id is already present, and builds a set of them in the order they were first
      * added. Up to {@link AttributeSegments#LINEAR_SCAN_LIMIT} attributes are kept in an array and compared one by one, which
      * is cheaper than hashing for the many small sets of references the optimizer builds; past that it switches to an
-     * {@link AttributeMap}.
+     * {@link AttributeMap}. With {@link AttributeList#SHARED_OUTPUT_FEATURE_FLAG} disabled it always uses the map.
      */
     public static class Builder {
 
@@ -281,6 +332,10 @@ public class AttributeSet implements Set<Attribute> {
         private Attribute[] small;
         private int smallSize;
         private AttributeMap.Builder<Object> large;
+
+        private Builder(AttributeMap.Builder<Object> large) {
+            this.large = large;
+        }
 
         private Builder(int expectedSize) {
             if (expectedSize > AttributeSegments.LINEAR_SCAN_LIMIT) {
@@ -339,11 +394,19 @@ public class AttributeSet implements Set<Attribute> {
         }
 
         public Builder addAll(AttributeSet other) {
+            if (SHARED == false) {
+                large.putAll(other.map());
+                return this;
+            }
             other.forEach(this::add);
             return this;
         }
 
         public Builder addAll(Builder other) {
+            if (SHARED == false) {
+                large.putAll(other.large.build());
+                return this;
+            }
             if (other.large != null) {
                 other.large.keySet().forEach(this::add);
             } else {
@@ -386,6 +449,9 @@ public class AttributeSet implements Set<Attribute> {
         }
 
         public AttributeSet build() {
+            if (SHARED == false) {
+                return new AttributeSet(large.build());
+            }
             Attribute[] items;
             if (large != null) {
                 items = large.keySet().toArray(new Attribute[0]);

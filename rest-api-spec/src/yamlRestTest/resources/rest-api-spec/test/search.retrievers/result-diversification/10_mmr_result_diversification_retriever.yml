@@ -122,10 +122,6 @@ setup:
           {"index":{}}
           {"id": 11, "textbody": "ninth text", "textvector": [0.2, 0.05, 0.2, 0.05], "keywordfield": "test9"}
 
-  # id 16 is a near duplicate of id 15 rather than an exact copy. Identical vectors can score a rounding
-  # error apart depending on how they are batched for scoring, so an exact copy made the order of the
-  # two flaky in the multiple indexes test. The pairs in the main index round the same way for the
-  # query vector these tests use.
   - do:
       headers:
         Content-Type: application/json

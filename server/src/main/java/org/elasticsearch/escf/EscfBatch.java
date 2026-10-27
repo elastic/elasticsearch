@@ -76,6 +76,16 @@ public final class EscfBatch implements SourceBatch {
         return EscfBatchCodec.parse(data, releasable);
     }
 
+    /**
+     * In-memory construction path for builders outside this package that manage their own
+     * {@link SourceSchema} and {@link EscfColumnData} array — for example a domain-specific builder with a
+     * fixed, pre-registered schema (see {@code AbstractOTLPBatchBuilder} in the {@code otel-data} plugin).
+     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#buildPartition}.
+     */
+    public static EscfBatch of(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
+        return new EscfBatch(schema, docCount, columnData, releasable);
+    }
+
     @Override
     public int docCount() {
         return docCount;

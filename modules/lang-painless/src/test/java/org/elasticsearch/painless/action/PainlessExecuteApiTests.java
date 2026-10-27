@@ -8,7 +8,9 @@
  */
 package org.elasticsearch.painless.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
@@ -17,8 +19,10 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Request;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Response;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -32,10 +36,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -435,6 +441,47 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         );
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Map.of("composite_field.foo", List.of("bar"), "composite_field.foo2", List.of(2)), response.getResult());
+    }
+
+    public void testNonDefaultContextsRequireContextSetup() {
+        assertNonDefaultContextsFailValidation(
+            context -> new Request(new Script("emit(true)"), context.name, null),
+            "context_setup is a required parameter"
+        );
+    }
+
+    public void testNonDefaultContextsRequireIndex() {
+        assertNonDefaultContextsFailValidation(
+            context -> new Request(new Script("emit(true)"), context.name, jsonContextSetup(null, new BytesArray("{}"))),
+            "index is a required parameter"
+        );
+    }
+
+    public void testNonDefaultContextsRequireDocument() {
+        createIndex("index", Settings.EMPTY, "rank", "type=long");
+        assertNonDefaultContextsFailValidation(
+            context -> new Request(new Script("emit(true)"), context.name, jsonContextSetup("index", null)),
+            "document is a required parameter"
+        );
+    }
+
+    private void assertNonDefaultContextsFailValidation(Function<ScriptContext<?>, Request> requestForContext, String expectedError) {
+        for (ScriptContext<?> context : Request.SUPPORTED_CONTEXTS.values()) {
+            if (context != PainlessTestScript.CONTEXT) {
+                var e = expectThrows(
+                    ActionRequestValidationException.class,
+                    "context [" + context.name + "]",
+                    () -> client().execute(PainlessExecuteAction.INSTANCE, requestForContext.apply(context)).actionGet()
+                );
+                assertThat(e.getMessage(), containsString(expectedError));
+            }
+        }
+    }
+
+    private static Request.ContextSetup jsonContextSetup(String index, BytesReference document) {
+        Request.ContextSetup contextSetup = new Request.ContextSetup(index, document, null);
+        contextSetup.setXContentType(XContentType.JSON);
+        return contextSetup;
     }
 
     public void testContextWhitelists() throws IOException {

@@ -189,6 +189,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
@@ -401,7 +402,16 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         response.decRef();
                     }
                 } else {
-                    logger.warn("parked scroll fetch did not exit within 10s; later tests may observe its leaked SearchContext");
+                    Thread parkedThread = ParkedScrollQueryBuilder.parkedThread;
+                    logger.warn(
+                        "parked scroll fetch did not exit within 10s; later tests may observe its leaked SearchContext. "
+                            + "cancelled=[{}], in-flight tasks={}, parked thread stack:\n{}",
+                        ParkedScrollQueryBuilder.cancelled.get(),
+                        getInstanceFromNode(TransportService.class).getTaskManager().getCancellableTasks().values(),
+                        parkedThread == null
+                            ? "n/a"
+                            : Arrays.stream(parkedThread.getStackTrace()).map(e -> "\tat " + e).collect(joining("\n"))
+                    );
                 }
             } finally {
                 ParkedScrollQueryBuilder.reset();
@@ -1930,12 +1940,15 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         static final AtomicBoolean release = new AtomicBoolean();
         static final AtomicBoolean cancelled = new AtomicBoolean();
         static volatile CountDownLatch parked = new CountDownLatch(1);
+        /** The thread parked in {@code createWeight}, kept so a test can report where a leaked fetch is stuck. */
+        static volatile Thread parkedThread;
 
         static void reset() {
             arm.set(false);
             release.set(false);
             cancelled.set(false);
             parked = new CountDownLatch(1);
+            parkedThread = null;
         }
 
         public ParkedScrollQueryBuilder(StreamInput in) throws IOException {
@@ -1951,6 +1964,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 @Override
                 public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                     if (arm.get()) {
+                        parkedThread = Thread.currentThread();
                         parked.countDown();
                         try {
                             while (release.get() == false) {

@@ -201,6 +201,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
@@ -2408,6 +2409,79 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue(searchService.freeReaderContext(readerA));
             assertTrue(searchService.freeReaderContext(readerB));
         }
+    }
+
+    /**
+     * A caller outside the search phases, like ES|QL, opens a single-session reader context from a plain shard request,
+     * finds it again by id and frees it itself.
+     */
+    public void testSingleSessionReaderContextIsRegisteredUntilFreed() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = plainShardRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.createOrGetReaderContext(request, null);
+        assertTrue(readerContext.singleSession());
+        assertThat(readerContext.keepAlive(), equalTo(searchService.getDefaultKeepAliveInMillis()));
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(shard.searchStats().getOpenContexts(), equalTo(1L));
+        assertThat(searchService.findReaderContext(readerContext.id(), request, shard.shardId()), sameInstance(readerContext));
+
+        assertTrue(searchService.freeReaderContext(readerContext.id()));
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(shard.searchStats().getOpenContexts(), equalTo(0L));
+        expectThrows(
+            SearchContextMissingException.class,
+            () -> searchService.findReaderContext(readerContext.id(), request, shard.shardId())
+        );
+        assertFalse("a second free finds nothing", searchService.freeReaderContext(readerContext.id()));
+    }
+
+    public void testCreateSearchContextOnAFreedReaderContextFails() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = plainShardRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.createOrGetReaderContext(request, null);
+        assertTrue(searchService.freeReaderContext(readerContext.id()));
+        expectThrows(
+            SearchContextMissingException.class,
+            () -> searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)
+        );
+    }
+
+    /**
+     * A search context pins its reader context: a free unregisters the reader context at once, but its reader closes only
+     * with the last search context on it.
+     */
+    public void testFreedReaderContextClosesWhenItsLastSearchContextCloses() throws IOException {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = plainShardRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.createOrGetReaderContext(request, null);
+        AtomicBoolean readerClosed = new AtomicBoolean();
+        readerContext.addOnClose(() -> readerClosed.set(true));
+        try (SearchContext searchContext = searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)) {
+            assertTrue(searchService.freeReaderContext(readerContext.id()));
+            assertThat("a freed context is not found any more", searchService.getActiveContexts(), equalTo(0));
+            assertFalse("the open search context still reads from it", readerClosed.get());
+            assertThat(searchContext.searcher().count(Queries.ALL_DOCS_INSTANCE), equalTo(1));
+        }
+        assertTrue(readerClosed.get());
+    }
+
+    private IndexShard indexShard(String index) {
+        return getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
+    }
+
+    /** A shard request like the one ES|QL builds for each shard it reads: no reader id, no scroll, no keep-alive. */
+    private static ShardSearchRequest plainShardRequest(ShardId shardId) {
+        return new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.IRRELEVANT);
     }
 
     private static ShardSearchContextId openReaderContext(SearchService searchService, ShardId shardId) {

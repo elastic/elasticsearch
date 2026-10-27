@@ -104,8 +104,8 @@ import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccSize
 public class SharedBlobCacheWarmingService {
 
     public enum Type {
-        INDEXING_EARLY(true, Priority.NORMAL),
-        INDEXING(true, Priority.NORMAL),
+        INDEXING_EARLY(true, Priority.HIGH),
+        INDEXING(true, Priority.HIGH),
         INDEXING_MERGE(false, Priority.LOW),
         // search shard recovery doesn't guarantee that all of region 0 has been cached, because header reads served from
         // index shards are served at page rather than region granularity.
@@ -118,9 +118,12 @@ public class SharedBlobCacheWarmingService {
 
         /// Priority of a warming task where a task with higher priority is warmed before a task with lower priority
         /// (see [AbstractWarmingTask#compareTo] and [PrioritizedThrottledAsyncTaskRunner]).
-        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING_MERGE] that have HIGH and LOW
-        /// priority respectively. Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
-        /// because it is in the hot path for relocations.
+        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM], [Type#INDEXING_EARLY], and [Type#INDEXING] that
+        /// have HIGH priority, and [Type#INDEXING_MERGE] that has LOW priority.
+        /// [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING] are HIGH because both are on the hot path of a relocation: region-0
+        /// warming precedes the BCC header reads, and [Type#INDEXING] warms metadata that may reside outside region 0 but is still
+        /// needed to open the engine. [Type#INDEXING_EARLY] is HIGH as well: it is not on the hot path itself, but it warms the same
+        /// files ahead of the handoff, so if little has changed on the source it can reduce the handoff time.
         enum Priority {
             LOW(0),
             NORMAL(1),
@@ -1257,7 +1260,7 @@ public class SharedBlobCacheWarmingService {
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
             );
         } else {
-            try (var warmer = new Region0Warmer(warmingRun, store::isClosing, lastCommitBlobs, directory, listener)) {
+            try (var warmer = new Region0Warmer(warmingRun, indexShard, store::isClosing, lastCommitBlobs, directory, listener)) {
                 warmer.run();
             }
         }
@@ -1736,16 +1739,19 @@ public class SharedBlobCacheWarmingService {
      * This is used before BCC header reads during indexing shard recovery to avoid cache misses in the read chain.
      */
     private class Region0Warmer extends AbstractWarmer {
+        private final IndexShard indexShard;
         private final Set<BlobFile> blobFiles;
 
         Region0Warmer(
             WarmingRun warmingRun,
+            IndexShard indexShard,
             Supplier<Boolean> isStoreClosing,
             Set<BlobFile> blobFiles,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
             super(warmingRun, isStoreClosing, directory, listener);
+            this.indexShard = indexShard;
             this.blobFiles = blobFiles;
         }
 
@@ -1753,6 +1759,12 @@ public class SharedBlobCacheWarmingService {
             for (var blobFile : blobFiles) {
                 scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blobFile, 0, listeners.acquire()));
             }
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            // a region-0 is only prewarmed to speed up BCC-header reads of an ongoing recovery
+            return super.isCancelled() || indexShard.state() != IndexShardState.RECOVERING;
         }
 
         @Override

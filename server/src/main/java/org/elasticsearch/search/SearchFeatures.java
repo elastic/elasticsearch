@@ -134,6 +134,13 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.vectors.knn_nested_alias_filter_root_scope"
     );
 
+    /**
+     * Test-only gate for REST tests sorting on a field that is mapped in some of the searched indices only, with an
+     * {@code unmapped_type} that differs from the mapped type. Older nodes fail the search with an incompatible sort types error
+     * even though no doc of the indices that don't map the field can have a value for it.
+     */
+    public static final NodeFeature SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE = new NodeFeature("search.sort.unmapped_type_placeholder_merge");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -174,7 +181,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
-                PROFILE_RESCORE
+                PROFILE_RESCORE,
+                SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

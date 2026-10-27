@@ -2369,4 +2369,54 @@ public class FieldSortIT extends ESIntegTestCase {
             prepareSearch("index_long", "index_int", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean")).setSize(10)
         );
     }
+
+    public void testSortOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_unmapped").setMapping("other", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("mapped").setSource("field", 3.14).get();
+        prepareIndex("index_unmapped").setId("unmapped").setSource("other", "foo").get();
+        refresh();
+
+        for (SortOrder order : SortOrder.values()) {
+            // the docs of the index that doesn't map the field are sorted last by default, whatever the sort order is
+            assertNoFailuresAndResponse(
+                prepareSearch("index_mapped", "index_unmapped").addSort(new FieldSortBuilder("field").unmappedType("keyword").order(order)),
+                response -> {
+                    assertHitCount(response, 2);
+                    assertThat(response.getHits().getAt(0).getId(), equalTo("mapped"));
+                    assertThat(response.getHits().getAt(1).getId(), equalTo("unmapped"));
+                }
+            );
+            assertNoFailuresAndResponse(
+                prepareSearch("index_mapped", "index_unmapped").addSort(
+                    new FieldSortBuilder("field").unmappedType("keyword").order(order).missing("_first")
+                ),
+                response -> {
+                    assertHitCount(response, 2);
+                    assertThat(response.getHits().getAt(0).getId(), equalTo("unmapped"));
+                    assertThat(response.getHits().getAt(1).getId(), equalTo("mapped"));
+                }
+            );
+        }
+    }
+
+    public void testSortOnFieldWithValuesInOneIndexAndIncompatibleValuesInAnother() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_keyword").setMapping("field", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("1").setSource("field", 3.14).get();
+        prepareIndex("index_keyword").setId("2").setSource("field", "foo").get();
+        refresh();
+
+        SearchPhaseExecutionException exc = expectThrows(
+            SearchPhaseExecutionException.class,
+            prepareSearch("index_mapped", "index_keyword").addSort(new FieldSortBuilder("field").unmappedType("keyword"))
+        );
+        assertThat(exc.getCause().toString(), containsString("Can't sort on field [field]; the field has incompatible sort types"));
+    }
 }

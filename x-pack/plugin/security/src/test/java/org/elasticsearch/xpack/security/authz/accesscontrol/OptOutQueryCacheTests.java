@@ -320,8 +320,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
             case WILDCARD -> new RandomQuery(new WildcardQuery(new Term(field, "a*b")), cacheable);
             case REGEXP -> new RandomQuery(new RegexpQuery(new Term(field, "a.*b")), cacheable);
             case TERM_IN_SET -> new RandomQuery(new TermInSetQuery(field, List.of(new BytesRef("a"), new BytesRef("b"))), cacheable);
-            case MATCH_ALL -> new RandomQuery(new MatchAllDocsQuery(), true);
-            case MATCH_NONE -> new RandomQuery(new MatchNoDocsQuery(), true);
+            case MATCH_ALL -> new RandomQuery(MatchAllDocsQuery.INSTANCE, true);
+            case MATCH_NONE -> new RandomQuery(MatchNoDocsQuery.INSTANCE, true);
             case MIN_DOC -> new RandomQuery(new MinDocQuery(randomNonNegativeInt()), false); // MinDocQuery doesn't report a field
             case TO_PARENT_BLOCK_JOIN -> new RandomQuery(
                 // Lucene's block join queries don't visit the query they wrap

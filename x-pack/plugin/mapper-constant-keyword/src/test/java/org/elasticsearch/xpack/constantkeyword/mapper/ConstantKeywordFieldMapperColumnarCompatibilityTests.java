@@ -36,10 +36,7 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -326,7 +323,6 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
                 .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
                 .put("index.mapping.synthetic_source_keep", "arrays")
                 .build(),

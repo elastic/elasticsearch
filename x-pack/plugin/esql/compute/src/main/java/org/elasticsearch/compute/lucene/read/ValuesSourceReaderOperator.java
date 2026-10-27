@@ -373,8 +373,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
-        acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
+        docVector.ensureAttached("ValuesSourceReaderOperator");
+        acquireSourceLoadingReservation();
         // The loaded blocks are appended after the ones this was given, so that count is where they start.
         return trackBytesRead(page.getBlockCount(), appendBlockArrays(page, valuesReader(docVector)));
     }

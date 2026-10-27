@@ -580,7 +580,7 @@ check time_series empty time bound value:
 ---
 default sort field:
   - requires:
-      cluster_features: [ "mapper.provide_index_sort_setting_defaults" ]
+      cluster_features: [ "mapper.time_series_dimension_group_sort" ]
       reason: "testing index sort setting defaults"
 
   - do:
@@ -600,5 +600,35 @@ default sort field:
         index: test_index
         include_defaults: true
   - match: { .test_index.settings.index.mode: time_series }
+  - match: { .test_index.defaults.index.time_series.dimension_group_field: "resource.attributes.host.name" }
+  - match: { .test_index.defaults.index.sort.field: [ "_metric_name_hash", "_dimension_group", "_tsid", "@timestamp" ] }
+  - match: { .test_index.defaults.index.sort.order: [ "asc", "asc", "asc", "desc" ] }
+  - match: { .test_index.defaults.index.mapping.synthetic_id: "true" }
+
+---
+default sort field without dimension group:
+  - requires:
+      cluster_features: [ "mapper.time_series_dimension_group_sort" ]
+      reason: "testing index sort setting defaults"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: foo
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+                dimension_group_field: ""
+
+  - do:
+      indices.get_settings:
+        index: test_index
+        include_defaults: true
+  - match: { .test_index.settings.index.mode: time_series }
   - match: { .test_index.defaults.index.sort.field: [ "_tsid", "@timestamp" ] }
   - match: { .test_index.defaults.index.sort.order: [ "asc", "desc" ] }
+  - match: { .test_index.defaults.index.mapping.synthetic_id: "true" }

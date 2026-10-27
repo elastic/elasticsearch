@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -704,6 +705,50 @@ public final class IndexSettings {
         Property.Final,
         Property.IndexScope
     );
+
+    /**
+     * The dimension field whose value is copied into the {@code _dimension_group} metadata field of time series indices created on or
+     * after {@link IndexVersions#TIME_SERIES_DIMENSION_GROUP_SORT}. When set, the index is sorted on
+     * {@code [_metric_name_hash, _dimension_group, _tsid, @timestamp]} instead of {@code [_tsid, @timestamp]}, so that the time series
+     * of one metric reported by one host (or other grouping entity) are stored next to each other, and the tsid no longer carries a
+     * metric similarity prefix byte. An empty value disables the grouped sort. Final because changing it would change the tsid layout
+     * and the index sort of existing time series.
+     */
+    public static final Setting<String> TIME_SERIES_DIMENSION_GROUP_FIELD = Setting.simpleString(
+        "index.time_series.dimension_group_field",
+        "resource.attributes.host.name",
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Whether the index sorts its time series by metric name hash and dimension group ahead of the tsid, i.e. it is in
+     * {@link IndexMode#TIME_SERIES} and {@link #timeSeriesDimensionGroupSortEnabled(IndexVersion, Settings)} holds. Reads the mode
+     * and the creation version without validation so that it can be called from the {@code index.sort.*} default providers, whose
+     * validation would otherwise recurse into the mode validation.
+     */
+    public static boolean useTimeSeriesDimensionGroupSort(Settings settings) {
+        if (IndexMode.isTsdbName(settings.get(MODE.getKey())) == false) {
+            return false;
+        }
+        return timeSeriesDimensionGroupSortEnabled(SETTING_INDEX_VERSION_CREATED.get(settings), settings);
+    }
+
+    /**
+     * Whether a time series index created at {@code creationVersion} with {@code settings} uses the grouped sort: the version is on
+     * or after {@link IndexVersions#TIME_SERIES_DIMENSION_GROUP_SORT} and {@link #TIME_SERIES_DIMENSION_GROUP_FIELD} is non-empty.
+     */
+    public static boolean timeSeriesDimensionGroupSortEnabled(IndexVersion creationVersion, Settings settings) {
+        if (creationVersion.before(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+            || TIME_SERIES_DIMENSION_GROUP_FIELD.get(settings).isEmpty()) {
+            return false;
+        }
+        // An explicitly configured index sort that does not lead with the metric name hash keeps the time series sort. The raw
+        // value is read, as this is also called while computing the default of index.sort.field.
+        List<String> sortFields = settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey());
+        return sortFields.isEmpty() || MetricNameHashFieldMapper.NAME.equals(sortFields.getFirst());
+    }
 
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
@@ -1531,6 +1576,8 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
+    private final String timeSeriesDimensionGroupField;
+    private final boolean useTimeSeriesDimensionGroupSort;
     private final SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
@@ -1776,6 +1823,8 @@ public final class IndexSettings {
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
+        timeSeriesDimensionGroupField = scopedSettings.get(TIME_SERIES_DIMENSION_GROUP_FIELD);
+        useTimeSeriesDimensionGroupSort = useTimeSeriesDimensionGroupSort(this.settings);
         syntheticIdBloomFilterSettings = SyntheticIdBloomFilterSettings.fromScopedSettings(scopedSettings);
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
@@ -2619,6 +2668,16 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    /** See {@link #TIME_SERIES_DIMENSION_GROUP_FIELD}. */
+    public String getTimeSeriesDimensionGroupField() {
+        return timeSeriesDimensionGroupField;
+    }
+
+    /** See {@link #useTimeSeriesDimensionGroupSort(Settings)}. */
+    public boolean useTimeSeriesDimensionGroupSort() {
+        return useTimeSeriesDimensionGroupSort;
     }
 
     public SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings() {

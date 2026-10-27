@@ -1375,6 +1375,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         if (randomBoolean()) {
             settingsBuilder.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
         }
+        // Synthetic ids are on by default whether the index uses the grouped time series sort (the default) or the tsid-first sort
+        if (randomBoolean()) {
+            settingsBuilder.put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "");
+        }
         final var mapping = """
             {
                 "properties": {

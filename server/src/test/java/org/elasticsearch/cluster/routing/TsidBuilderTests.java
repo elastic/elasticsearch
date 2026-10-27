@@ -34,8 +34,12 @@ public class TsidBuilderTests extends ESTestCase {
         return IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
     }
 
+    /** A version whose default tsid layout is the single prefix byte one: before the grouped sort made the plain hash the default. */
     private static IndexVersion randomSinglePrefixByteVersion() {
-        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+        );
     }
 
     /**
@@ -248,20 +252,73 @@ public class TsidBuilderTests extends ESTestCase {
             HexFormat.of().formatHex(oldTsid.bytes, oldTsid.offset, oldTsid.length),
             equalTo("afe3a0a8d67821311bea0fc3c9cbd40c8047c484aa")
         );
-        IndexVersion version = randomSinglePrefixByteVersion();
-        BytesRef newTsid = builder.buildTsid(version);
-        if (TsidBuilder.useSingleBytePrefixLayout(version)) {
-            assertThat(
-                HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
-                equalTo("e321311bea0fc3c9cbd40c8047c484aa")
-            );
-        } else {
-            assertThat(newTsid, equalTo(oldTsid));
-        }
+        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
+        assertThat(HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length), equalTo("e321311bea0fc3c9cbd40c8047c484aa"));
+        // the grouped sort (the default of indices created at the latest versions) leaves the full hash untouched
+        BytesRef noPrefixTsid = builder.buildTsid(new TsidLayout(IndexVersion.current(), true));
+        assertThat(
+            HexFormat.of().formatHex(noPrefixTsid.bytes, noPrefixTsid.offset, noPrefixTsid.length),
+            equalTo("7821311bea0fc3c9cbd40c8047c484aa")
+        );
     }
 
     public void testEnableSinglePrefixByte() {
         assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+    }
+
+    /**
+     * With the dimension group sort, the metric similarity lives in {@code _metric_name_hash}, so the tsid is the untouched full
+     * hash: the same bytes as the single-prefix-byte layout except for byte 0, which the latter overwrites.
+     */
+    public void testNoPrefixLayoutIsTheFullHash() {
+        TsidBuilder builder = TsidBuilder.newBuilder()
+            .addStringDimension("_metric_names_hash", "random1")
+            .addBooleanDimension("test_bool", true)
+            .addIntDimension("test_int", 42)
+            .addLongDimension("test_long", 123456789L)
+            .addDoubleDimension("test_double", 3.14159)
+            .addStringDimension("test_array", "value1")
+            .addStringDimension("test_array", "value2");
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT);
+        TsidLayout noPrefix = new TsidLayout(version, true);
+        TsidLayout singleByte = new TsidLayout(version, false);
+        assertThat(noPrefix.kind(), equalTo(TsidLayout.Kind.NO_PREFIX));
+        assertThat(singleByte.kind(), equalTo(TsidLayout.Kind.SINGLE_BYTE_PREFIX));
+
+        BytesRef tsid = builder.buildTsid(noPrefix);
+        assertThat(tsid.length, equalTo(16));
+        assertThat(HexFormat.of().formatHex(tsid.bytes, tsid.offset, tsid.length), equalTo("93dbccd8eed09bb80b82b55d9756c7a6"));
+
+        BytesRef singleByteTsid = builder.buildTsid(singleByte);
+        assertThat(
+            HexFormat.of().formatHex(singleByteTsid.bytes, singleByteTsid.offset, singleByteTsid.length),
+            equalTo("e3dbccd8eed09bb80b82b55d9756c7a6")
+        );
+        assertThat(
+            HexFormat.of().formatHex(tsid.bytes, tsid.offset + 1, tsid.length - 1),
+            equalTo(HexFormat.of().formatHex(singleByteTsid.bytes, singleByteTsid.offset + 1, singleByteTsid.length - 1))
+        );
+        // byte 0 is part of the hash and does not depend on the metric name dimension
+        BytesRef withoutMetric = TsidBuilder.newBuilder()
+            .addBooleanDimension("test_bool", true)
+            .addIntDimension("test_int", 42)
+            .addLongDimension("test_long", 123456789L)
+            .addDoubleDimension("test_double", 3.14159)
+            .addStringDimension("test_array", "value1")
+            .addStringDimension("test_array", "value2")
+            .buildTsid(noPrefix);
+        assertThat(withoutMetric, not(equalTo(tsid)));
+    }
+
+    /** The default settings enable the dimension group sort, so the version-only overload builds no-prefix tsids. */
+    public void testDefaultLayoutForCurrentVersionHasNoPrefix() {
+        assertThat(TsidLayout.forVersion(IndexVersion.current()).kind(), equalTo(TsidLayout.Kind.NO_PREFIX));
+        assertThat(
+            TsidLayout.forVersion(IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)).kind(),
+            equalTo(TsidLayout.Kind.SINGLE_BYTE_PREFIX)
+        );
+        TsidBuilder builder = TsidBuilder.newBuilder().addStringDimension("a", "b");
+        assertThat(builder.buildTsid(IndexVersion.current()), equalTo(builder.buildTsid(new TsidLayout(IndexVersion.current(), true))));
     }
 
     public void testPrefixByteRank() {

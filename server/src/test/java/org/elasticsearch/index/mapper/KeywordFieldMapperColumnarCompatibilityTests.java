@@ -967,6 +967,8 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     private static Settings tsdbDimensionSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            // these scenarios build synthetic ids, which are off by default under the grouped time series sort
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), FIELD)
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")

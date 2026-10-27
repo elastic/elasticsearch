@@ -1680,11 +1680,20 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static IndexOperationBatch initFromRequests(IndexRequest[] requests) {
+        return initFromRequests(requests, null);
+    }
+
+    /**
+     * Like {@link #initFromRequests(IndexRequest[])}, with the column-major source of the requests attached, as
+     * {@code ShardBatchMapper} sees it in production. Metadata mappers that derive values from source columns read it via
+     * {@code BatchMappingContext#sourceBatch()}.
+     */
+    public static IndexOperationBatch initFromRequests(IndexRequest[] requests, @Nullable SourceBatch sourceBatch) {
         final BulkItemRequest[] items = new BulkItemRequest[requests.length];
         for (int d = 0; d < requests.length; d++) {
             items[d] = new BulkItemRequest(d, requests[d]);
         }
-        return IndexOperationBatch.initFromBulk(items, 0, requests.length, null, Engine.Operation.Origin.PRIMARY, 0L, 0L);
+        return IndexOperationBatch.initFromBulk(items, 0, requests.length, sourceBatch, Engine.Operation.Origin.PRIMARY, 0L, 0L);
     }
 
     public static IndexOperationBatch fromIndexOps(List<Engine.Index> operations, SourceBatch sourceBatch) {

@@ -324,6 +324,11 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean hasNullValue() {
+            return nullValue != null;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");

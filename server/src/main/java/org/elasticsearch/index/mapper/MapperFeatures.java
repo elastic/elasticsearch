@@ -95,6 +95,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
     public static final NodeFeature DISKBBQ_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.diskbbq_on_disk_rescoring");
     public static final NodeFeature PROVIDE_INDEX_SORT_SETTING_DEFAULTS = new NodeFeature("mapper.provide_index_sort_setting_defaults");
+    public static final NodeFeature TIME_SERIES_DIMENSION_GROUP_SORT = new NodeFeature("mapper.time_series_dimension_group_sort");
     public static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
@@ -254,6 +255,7 @@ public class MapperFeatures implements FeatureSpecification {
             DISKBBQ_ON_DISK_RESCORING,
             DENSE_VECTOR_ON_DISK_MERGE,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            TIME_SERIES_DIMENSION_GROUP_SORT,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
             BASE64_DENSE_VECTORS,

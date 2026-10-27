@@ -365,6 +365,14 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
+     * The column-major source of this chunk, for metadata mappers that derive their values from source fields (for example
+     * {@link DimensionGroupFieldMapper}) rather than from the mapped Lucene columns.
+     */
+    public SourceBatch sourceBatch() {
+        return batch.sourceBatch();
+    }
+
+    /**
      * Returns the accumulated columns as a {@link MappedColumns} covering the full batch
      * {@code [0, docCount)}. The engine slices this per sub-batch before calling
      * {@link MappedColumns#toColumnBatch()}.

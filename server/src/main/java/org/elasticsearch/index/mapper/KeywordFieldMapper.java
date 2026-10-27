@@ -1544,6 +1544,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         // True when a null_value is configured; such a substitution mutates the doc values away from the raw indexed values.
+        @Override
         public boolean hasNullValue() {
             return nullValue != null;
         }

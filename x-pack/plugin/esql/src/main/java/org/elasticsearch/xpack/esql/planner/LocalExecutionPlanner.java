@@ -2088,7 +2088,11 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = withTsInfoSampleLimit(
+            tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout),
+            tsInfoExec.limit(),
+            context.plannerSettings()
+        );
 
         // Step 3: Extract _timeseries metadata and _index
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -2140,12 +2144,20 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private static PhysicalOperation withTsInfoSampleLimit(PhysicalOperation operation, Integer limit, PlannerSettings plannerSettings) {
+        if (limit == null) {
+            return operation;
+        }
+        long sampleRows = Math.max(plannerSettings.tsInfoSampleMinRows(), (long) limit * plannerSettings.tsInfoSampleLimitMultiplier());
+        return operation.with(new LimitOperator.Factory((int) Math.min(sampleRows, Integer.MAX_VALUE)), operation.layout);
+    }
+
     /**
      * FINAL mode: runs on the coordinator. Reads the 7-column TsInfo output from the
      * exchange (produced by data-node INITIAL phases) and merges rows by ts signature.
      */
     private PhysicalOperation planTsInfoFinal(TsInfoExec tsInfoExec, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(tsInfoExec.child(), context);
+        PhysicalOperation source = withTsInfoSampleLimit(plan(tsInfoExec.child(), context), tsInfoExec.limit(), context.plannerSettings());
 
         List<Attribute> outputAttrs = tsInfoExec.output();
         int[] channels = new int[outputAttrs.size()];

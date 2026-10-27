@@ -322,7 +322,8 @@ public class PlannerUtils {
                     tsInfoExec.child(),
                     tsInfoExec.outputAttrs(),
                     plan.output(),
-                    TsInfoExec.Mode.INTERMEDIATE
+                    TsInfoExec.Mode.INTERMEDIATE,
+                    tsInfoExec.limit()
                 )
             );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);

@@ -91,7 +91,7 @@ $$$esql-external-admission-rescue-enabled$$$
     - **Default:** `true`
     - **Valid values:** `true`, `false`
 
-## Worker readiness
+## Cluster state catch-up
 
 A node that has just joined the cluster, or that is behind a dataset change, can receive external reads before it has applied the cluster state the query was planned from. When another node can take the work, the coordinator sends it there, once. When no further node can take it, the node that has it waits for the state. This setting bounds that wait.
 

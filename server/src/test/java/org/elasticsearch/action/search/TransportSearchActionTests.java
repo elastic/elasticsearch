@@ -599,6 +599,11 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testCCSRemoteReduce() throws Exception {
+        testCCSRemoteReduce(false);
+        testCCSRemoteReduce(true);
+    }
+
+    private void testCCSRemoteReduce(boolean local) throws Exception {
         int numClusters = randomIntBetween(1, 10);
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
@@ -606,7 +611,6 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean skipUnavailable = randomBoolean();
         MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, skipUnavailable);
         Settings settings = builder.build();
-        boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
@@ -681,9 +685,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             }
 
-            // using from: 5 and size: 6
+            // using from: 3 and size: 2
             {
-                SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().from(5).size(6);
+                SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().from(3).size(2).trackTotalHitsUpTo(7);
                 SearchRequest searchRequest = new SearchRequest(new String[] { "*", "*:*" }, sourceBuilder);
                 final CountDownLatch latch = new CountDownLatch(1);
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
@@ -724,6 +728,13 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 SearchResponse searchResponse = response.get();
                 try {
+                    if (totalClusters > 1) {
+                        try (SearchResponseMerger merger = task.getSearchResponseMergerSupplier().get()) {
+                            assertEquals(3, merger.from);
+                            assertEquals(2, merger.size);
+                            assertEquals(7, merger.trackTotalHitsUpTo);
+                        }
+                    }
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));

@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
 
@@ -38,6 +39,7 @@ public class Clusters {
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             .keystore("s3.client.default.access_key", ACCESS_KEY)
             .keystore("s3.client.default.secret_key", SECRET_KEY)
             .setting("s3.client.default.protocol", "http")

@@ -353,6 +353,26 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
+    /**
+     * The endpoint rule as a user sees it: the test cluster allowlists loopback only, so a well-formed https URL
+     * naming any other non-AWS host is refused with a {@code validation_exception} that names the setting and the host.
+     */
+    public void testPutDataSourceRejectsNonAwsEndpoint() throws IOException {
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataSource(
+                "foreign_endpoint_ds",
+                "s3",
+                Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "https://storage.example.com")
+            )
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        String body = EntityUtils.toString(ex.getResponse().getEntity());
+        assertThat(body, containsString("validation_exception"));
+        assertThat(body, containsString("endpoint [https://storage.example.com]"));
+        assertThat(body, containsString("not a supported AWS S3 endpoint"));
+    }
+
     private static Map<String, Object> getDataSource(String name) throws IOException {
         Response resp = client().performRequest(new Request("GET", "/_query/data_source/" + name));
         return entityAsMap(resp);

@@ -254,9 +254,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testPreferredNodeIdsAreUsedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/159502
-- class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
-  method: testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves
-  issue: https://github.com/elastic/elasticsearch/issues/159932
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/159947
@@ -266,15 +263,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testStopNestedSubquery
-  issue: https://github.com/elastic/elasticsearch/issues/160115
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testDeleteAndRecreateIndexDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/160169
-- class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
-  method: testStopSkipsQueuedNestedLeaves
-  issue: https://github.com/elastic/elasticsearch/issues/160201
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/159774
@@ -323,9 +314,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
-- class: org.elasticsearch.xpack.esql.action.SubqueryIT
-  method: testNestedSubqueryOuterLimitWithQueuedLeaves
-  issue: https://github.com/elastic/elasticsearch/issues/161662
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667

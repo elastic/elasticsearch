@@ -21,6 +21,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class KeyStoreUtilTests extends ESTestCase {
     private static final char[] P12_PASS = "p12-pass".toCharArray();
 
+    public void testInferKeyStoreType() {
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.p12"), equalTo("PKCS12"));
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.PFX"), equalTo("PKCS12"));
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.pkcs12"), equalTo("PKCS12"));
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.bcfks"), equalTo("BCFKS"));
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.BCFKS"), equalTo("BCFKS"));
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.jks"), equalTo("jks"));
+        assertThat(KeyStoreUtil.inferKeyStoreType("certs/node.keystore"), equalTo("jks"));
+        assertThat(KeyStoreUtil.inferKeyStoreType(null), equalTo("jks"));
+    }
+
     public void testFilter() throws Exception {
         assumeFalse("Can't use PKCS#12 keystores in a FIPS JVM", inFipsJvm());
 

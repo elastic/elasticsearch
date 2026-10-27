@@ -134,7 +134,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = runElasticsearchStartCommand("wrong", false, false);
+        // long enough for the FIPS provider to derive a key from it, so that the failure is the wrong password, not its length
+        Shell.Result result = runElasticsearchStartCommand("wrong-password-value", false, false);
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
@@ -159,7 +160,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = runElasticsearchStartCommand("wrong", false, true);
+        Shell.Result result = runElasticsearchStartCommand("wrong-password-value", false, true);
         // error will be on stdout for "expect"
         assertThat(result.stdout(), anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }
@@ -212,7 +213,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             }
 
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile, List.of("wrongpassword"));
+            Files.write(esKeystorePassphraseFile, List.of("wrong-password-value"));
 
             Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
             Shell.Result result = runElasticsearchStartCommand(null, false, false);

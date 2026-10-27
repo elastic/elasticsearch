@@ -66,6 +66,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
+    private static final String FIPS_ACTIVATION_SYSPROP = "tests.fips.activation";
 
     @Override
     public void apply(Project project) {
@@ -88,6 +89,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks = lifecycleTasks(project, "destructiveDistroTest");
         Map<String, TaskProvider<?>> versionTasks = versionTasks(project, "destructiveDistroUpgradeTest", buildParams.getBwcVersions());
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
+        // The Linux archives run a second time with FIPS mode activated in place (xpack.security.fips_mode.enabled in the yml).
+        // Those runs are part of .archives, so every archive packaging job covers FIPS mode on the same tar; this aggregator
+        // runs only the FIPS-activated tasks.
+        TaskProvider<Task> fipsArchivesTest = project.getTasks().register("destructiveDistroTest.fips-archives");
 
         Configuration examplePluginConfiguration = configureExamplePlugin(project);
         FileCollection examplePluginFileCollection = examplePluginConfiguration;
@@ -115,6 +120,18 @@ public class DistroTestPlugin implements Plugin<Project> {
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             TaskProvider<?> lifecycleTask = lifecycleTasks.get(type);
             lifecycleTask.configure(t -> t.dependsOn(destructiveTask));
+
+            if (type == ARCHIVE && distribution.getPlatform() == Platform.LINUX) {
+                TaskProvider<Test> fipsTask = configureTestTask(project, taskname + "-fips", distribution, t -> {
+                    addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
+                    addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePluginFileCollection.getSingleFile().toString());
+                    t.systemProperty(FIPS_ACTIVATION_SYSPROP, "true");
+                    t.exclude("**/PackageUpgradeTests.class");
+                }, distribution, examplePluginConfiguration.getDependencies());
+                destructiveDistroTest.configure(t -> t.dependsOn(fipsTask));
+                lifecycleTask.configure(t -> t.dependsOn(fipsTask));
+                fipsArchivesTest.configure(t -> t.dependsOn(fipsTask));
+            }
 
             if ((type == DEB || type == RPM) && distribution.getBundledJdk()) {
                 for (Version version : buildParams.getBwcVersions().getIndexCompatible()) {

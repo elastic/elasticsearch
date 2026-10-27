@@ -10,8 +10,18 @@ CLI_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${CLI_JAVA_OPTS}"
 
 LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/cli-launcher/*
 
+# in FIPS 140 mode the tool runs on the provider shipped in lib/fips, which
+# joins the class path (the tools do not run modular) only when the helper
+# printed options; see es_fips_java_opts in elasticsearch-env
+es_fips_java_opts "$@"
+if [ ${#FIPS_JAVA_OPTS[@]} -gt 0 ]; then
+  LAUNCHER_CLASSPATH="$LAUNCHER_CLASSPATH:$ES_HOME/lib/fips/*"
+fi
+
+# the FIPS options come first so that a value the caller sets in CLI_JAVA_OPTS takes precedence
 exec \
   "$JAVA" \
+  "${FIPS_JAVA_OPTS[@]}" \
   $CLI_JAVA_OPTS \
   -Dcli.name="$CLI_NAME" \
   -Dcli.script="$0" \

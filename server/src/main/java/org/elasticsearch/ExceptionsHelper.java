@@ -72,7 +72,7 @@ public final class ExceptionsHelper {
      */
     public static ElasticsearchException convertToElastic(Exception e, String msg, Object... args) {
         if (e instanceof ElasticsearchException) {
-            return (ElasticsearchException) e;
+             return (ElasticsearchException) e;
         }
         return new ElasticsearchException(msg, e, args);
     }

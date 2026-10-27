@@ -4679,3 +4679,97 @@ FROM nested_paths_mapped
 order.items.qty:keyword
 [1, 2]
 ;
+
+fillNullLoadModeOnUnmappedKeywordField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL unmapped_message = CASE(message == "Connected to 10.1.0.1!", null, unmapped_message)
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL "missing" ON unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | missing
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeFillsExcludedSourceMappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_excluded_source_sample_data
+| KEEP @timestamp, message
+| FILLNULL "missing" ON message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | missing
+2024-10-23T13:53:55.832Z | missing
+2024-10-23T13:52:55.015Z | missing
+;
+
+fillNullLoadModeAllFieldsNoValue
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL @timestamp = CASE(message == "Connected to 10.1.0.1!", TO_DATETIME(null), @timestamp)
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL DEFAULT ON *
+| SORT @timestamp DESC NULLS FIRST
+| LIMIT 2
+;
+warning:Line 5:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [@timestamp]; provide an explicit value
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+null                     | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeChainedOnUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message == "Disconnected from 10.1.0.1"
+| KEEP @timestamp, unmapped_message
+| EVAL @timestamp = TO_DATETIME(null)
+| FILLNULL "first" ON unmapped_message
+| FILLNULL "second" ON unmapped_message
+| KEEP @timestamp, unmapped_message
+| LIMIT 1
+;
+
+@timestamp:date | unmapped_message:keyword
+null            | Disconnected from 10.1.0.1
+;
+
+fillNullLoadModeStatsByUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FILLNULL "missing" ON unmapped_message
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+1      | Disconnected from 10.1.0.2
+1      | Disconnected from 10.1.0.3
+3      | Disconnection error
+;

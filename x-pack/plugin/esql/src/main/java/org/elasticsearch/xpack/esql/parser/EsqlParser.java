@@ -61,10 +61,12 @@ public class EsqlParser {
     public static final int MAX_LENGTH = 1_000_000;
 
     /**
-     * Maximum number of binary operators in a single pipe-delimited segment of an ESQL query. A flat chain such as
-     * {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit
+     * Maximum number of binary operators between two consecutive separators (a pipe or a comma) of an ESQL query. A flat chain
+     * such as {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit
      * but makes ANTLR allocate a very large parse tree, so such queries are rejected from the token stream
-     * before parsing starts. The check is syntax-blind: unary {@code +}/{@code -} are conservatively counted too.
+     * before parsing starts. The check is syntax-blind: unary {@code +}/{@code -} are conservatively counted too, and so is the
+     * {@code *} in {@code COUNT(*)}. Commas separate independent expressions (fields of an {@code EVAL}, arguments of a function),
+     * so wide but shallow queries such as an {@code EVAL} with thousands of fields are not affected.
      */
     public static final int MAX_BINARY_OPERATORS = 1000;
 
@@ -301,11 +303,11 @@ public class EsqlParser {
                     ExpressionBuilder.MAX_EXPRESSION_DEPTH
                 );
             }
-            if (token.getType() == EsqlBaseLexer.PIPE) {
+            if (token.getType() == EsqlBaseLexer.PIPE || token.getType() == EsqlBaseLexer.COMMA) {
                 binaryOperators = 0;
             } else if (isBinaryOperator(token.getType()) && ++binaryOperators > MAX_BINARY_OPERATORS) {
                 throw new ParsingException(
-                    "ES|QL statement exceeded the maximum number of binary operators allowed in a command ({})",
+                    "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({})",
                     MAX_BINARY_OPERATORS
                 );
             }

@@ -78,6 +78,7 @@ abbrev:keyword | name:text    | location:geo_shape                         | cou
 ;
 
 simpleLoadFromCityBoundaries
+required_capability: st_npoints
 FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
 | EVAL boundary_length = ST_NPOINTS(city_boundary)

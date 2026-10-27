@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -53,7 +52,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -79,7 +77,6 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -1359,17 +1356,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             // If `failureStoreResolution` is true, we store the failure. If it's false, the target is a data stream,
             // but it doesn't have the failure store enabled. If it's null, the target wasn't a data stream.
             Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
-            if (failureStoreResolution != null && failureStoreResolution && shouldRedirectToFailureStore(e)) {
+            if (failureStoreResolution != null && failureStoreResolution && isCapacityFailure(e) == false) {
                 failureStoreMetrics.incrementFailureStore(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
-            } else if (failureStoreResolution != null && failureStoreResolution == false) {
-                // If this document targeted a data stream that didn't have the failure store enabled, we increment
-                // the rejected counter.
+            } else if (failureStoreResolution != null) {
+                // If this document targeted a data stream that either didn't have the failure store enabled, or failed for lack of
+                // capacity, which is never redirected to the failure store, we increment the rejected counter.
                 // We also increment the total counter because this request will not reach the code that increments
                 // the total counter for non-rejected documents.
                 failureStoreMetrics.incrementTotal(originalIndex);
                 failureStoreMetrics.incrementRejected(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE, false);
-                listener.onResponse(IngestPipelinesExecutionResult.failWithoutStoringIn(originalIndex, e));
+                if (failureStoreResolution) {
+                    // The failure store is enabled, but not applicable to this failure, like at the shard level
+                    listener.onFailure(e);
+                } else {
+                    listener.onResponse(IngestPipelinesExecutionResult.failWithoutStoringIn(originalIndex, e));
+                }
             } else {
                 listener.onFailure(e);
             }
@@ -1567,20 +1569,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /**
-     * Whether a document that failed in a pipeline should be written to the failure store. Failures that mean the node or a downstream
-     * service is out of capacity are not: the document is fine and the client should retry it, whereas a failure document would be
-     * reported as a success and never retried. This mirrors the decision for failures at the shard level, but also sees through
-     * exceptions that wrap the actual cause, such as the ones ingest or remote calls wrap processor failures in.
+     * Whether a document failed in a pipeline because the node or a downstream service is out of capacity, such as on a rejected
+     * execution, a circuit breaker trip or any other failure reported as {@code 429 Too Many Requests}. Such a document is not written
+     * to the failure store: the document is fine and the client should retry it, whereas a failure document would be reported as a
+     * success and never retried. Exceptions that wrap the actual cause, such as the ones ingest or remote calls wrap processor failures
+     * in, are seen through.
      */
-    private static boolean shouldRedirectToFailureStore(Exception e) {
-        return switch (ExceptionsHelper.unwrapCause(e)) {
-            case VersionConflictEngineException err -> false;
-            case EsRejectedExecutionException err -> false;
-            case CircuitBreakingException err -> false;
-            case ClusterBlockException err -> err.retryable() == false && err.status() != RestStatus.TOO_MANY_REQUESTS;
-            case ElasticsearchException err -> err.status() != RestStatus.TOO_MANY_REQUESTS;
-            default -> ExceptionsHelper.status(e) != RestStatus.TOO_MANY_REQUESTS;
-        };
+    private static boolean isCapacityFailure(Exception e) {
+        return ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)) == RestStatus.TOO_MANY_REQUESTS;
     }
 
     private static void executePipeline(

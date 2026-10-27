@@ -406,10 +406,7 @@ public class IndexingPressureTests extends ESTestCase {
                 expansion.add(1024 * 3);
                 assertEquals(1024 * 12, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
-
-                expansion.remove(1024);
-                assertEquals(1024 * 11, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(1024 * 7, indexingPressure.stats().getCurrentIngestExpansionBytes());
+                assertEquals(1024 * 8, indexingPressure.stats().getCurrentIngestExpansionBytes());
             }
             assertEquals(1024 * 4, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(1024 * 4, indexingPressure.stats().getCurrentCoordinatingBytes());
@@ -491,7 +488,51 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(1024, indexingPressure.stats().getTotalIngestExpansionBytes());
     }
 
-    public void testCoordinatingExpansionConcurrentAddAndRemove() throws Exception {
+    public void testCoordinatingExpansionClosedTwice() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        IndexingPressure.CoordinatingExpansionTracker expansion = indexingPressure.trackCoordinatingOperationExpansion(false);
+        expansion.add(1024);
+        expansion.close();
+        expectThrows(AssertionError.class, expansion::close);
+        // the second close must not release the bytes again
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentIngestExpansionBytes());
+    }
+
+    public void testCoordinatingExpansionConcurrentAddAndClose() throws Exception {
+        IndexingPressure indexingPressure = new IndexingPressure(
+            Settings.builder()
+                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1GB")
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "1GB")
+                .build()
+        );
+        final int threads = randomIntBetween(2, 8);
+        final int iterations = randomIntBetween(100, 1000);
+        final IndexingPressure.CoordinatingExpansionTracker expansion = indexingPressure.trackCoordinatingOperationExpansion(false);
+        final CyclicBarrier barrier = new CyclicBarrier(threads + 1);
+        final List<Thread> workers = new ArrayList<>();
+        for (int t = 0; t < threads; t++) {
+            final Thread worker = new Thread(() -> {
+                safeAwait(barrier);
+                for (int i = 0; i < iterations; i++) {
+                    expansion.add(10);
+                }
+            });
+            workers.add(worker);
+            worker.start();
+        }
+        safeAwait(barrier);
+        // adds racing with or following the close are reverted, so that nothing remains charged once all of them returned
+        expansion.close();
+        for (Thread worker : workers) {
+            worker.join();
+        }
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentIngestExpansionBytes());
+    }
+
+    public void testCoordinatingExpansionConcurrentAdds() throws Exception {
         // limits that are never reached, as this is about the counters staying consistent
         IndexingPressure indexingPressure = new IndexingPressure(
             Settings.builder()
@@ -512,9 +553,7 @@ public class IndexingPressureTests extends ESTestCase {
                 final Thread worker = new Thread(() -> {
                     safeAwait(barrier);
                     for (int i = 0; i < iterations; i++) {
-                        expansion.add(100);
                         expansion.add(10);
-                        expansion.remove(100);
                     }
                 });
                 workers.add(worker);
@@ -528,6 +567,6 @@ public class IndexingPressureTests extends ESTestCase {
         }
         assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
         assertEquals(0, indexingPressure.stats().getCurrentIngestExpansionBytes());
-        assertEquals(110L * threads * iterations, indexingPressure.stats().getTotalIngestExpansionBytes());
+        assertEquals(10L * threads * iterations, indexingPressure.stats().getTotalIngestExpansionBytes());
     }
 }

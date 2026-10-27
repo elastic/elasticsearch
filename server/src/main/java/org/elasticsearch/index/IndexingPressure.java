@@ -198,21 +198,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
                 public void add(long bytes) {}
 
                 @Override
-                public void remove(long bytes) {}
-
-                @Override
                 public void close() {}
             };
         }
 
         /**
-         * Accounts for additional bytes.
+         * Accounts for additional bytes. They are held until the tracker is closed, as the grown documents are retained that long.
          *
          * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was accounted
          */
         void add(long bytes) throws EsRejectedExecutionException;
-
-        void remove(long bytes);
     }
 
     private final class CoordinatingExpansionTrackerImpl implements CoordinatingExpansionTracker {
@@ -243,25 +238,11 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         @Override
-        public void remove(long bytes) {
-            if (expandedBytes.get() == CLOSED_FLAG) {
-                logger.error("Releasing IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
-                return;
-            }
-            releaseExpansionBytes(bytes);
-            long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current - bytes);
-            if (value == CLOSED_FLAG) {
-                // Closed concurrently, close did not see this release, so undo it
-                addExpansionBytes(bytes, true);
-                logger.error("Releasing IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
-            }
-        }
-
-        @Override
         public void close() {
             long expansion = expandedBytes.getAndSet(CLOSED_FLAG);
             if (expansion == CLOSED_FLAG) {
                 logger.error("CoordinatingExpansionTracker has been closed twice", new IllegalStateException("closed twice"));
+                assert false : "CoordinatingExpansionTracker has been closed twice";
             } else {
                 releaseExpansionBytes(expansion);
             }

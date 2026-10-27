@@ -118,6 +118,12 @@ public class SnapshotEncryptedDataTests extends ESTestCase {
         validate("aaaaaaaaaaaaaaa");
     }
 
+    public void testValidatePasswordTooLong() {
+        validate("a".repeat(SnapshotEncryptedData.MAX_PASSWORD_LENGTH));
+        var e = expectThrows(IllegalArgumentException.class, () -> validate("a".repeat(SnapshotEncryptedData.MAX_PASSWORD_LENGTH + 1)));
+        assertThat(e.getMessage(), containsString("at most 1024 characters"));
+    }
+
     public void testValidateRequiresPassword() {
         var e = expectThrows(
             IllegalArgumentException.class,

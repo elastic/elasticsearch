@@ -71,6 +71,7 @@ public class TransportCreateSnapshotActionTests extends ESTestCase {
     }
 
     public void testRejectsEncryptedDataUntilAllNodesSupportIt() {
+        assumeTrue("snapshot_encrypted_data feature flag must be enabled", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
         assertFalse(featureService.clusterHasFeature(clusterService.state(), SnapshotEncryptedDataFeatures.CREATE_ENCRYPTED_DATA));
         final CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").encryptedData(
             new SnapshotEncryptedData(

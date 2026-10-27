@@ -22,32 +22,42 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
+
+import java.util.function.Supplier;
 
 /**
  * Emits a Warning response header and log message when a snapshot is requested and the cluster
  * contains data encrypted under the project encryption key (PEK) that the snapshot will exclude:
  * all of it while the snapshot encryption feature flag is disabled, otherwise the data of customs
  * not written into snapshots, plus everything else when no {@code encrypted_data} is supplied.
+ *
+ * <p>Rejects a snapshot with {@code encrypted_data} up front if that data cannot be decrypted for re-wrapping because the encryption
+ * service is not {@link EncryptionServiceState#READY}, rather than failing at finalization after all shards have been copied.
  */
-class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
+class SnapshotEncryptedDataFilter implements MappedActionFilter {
 
     static final String WARNING_MESSAGE =
         "Encrypted credentials cannot be included in this snapshot and must be reconfigured after restore.";
 
-    private static final Logger logger = LogManager.getLogger(SnapshotEncryptedDataWarningFilter.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotEncryptedDataFilter.class);
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final EncryptedDataHandlerRegistry handlerRegistry;
+    private final Supplier<EncryptionServiceState> encryptionServiceState;
 
-    SnapshotEncryptedDataWarningFilter(
+    SnapshotEncryptedDataFilter(
         ClusterService clusterService,
         ProjectResolver projectResolver,
-        EncryptedDataHandlerRegistry handlerRegistry
+        EncryptedDataHandlerRegistry handlerRegistry,
+        Supplier<EncryptionServiceState> encryptionServiceState
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.handlerRegistry = handlerRegistry;
+        this.encryptionServiceState = encryptionServiceState;
     }
 
     @Override
@@ -65,9 +75,23 @@ class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
     ) {
         final CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
         if (createSnapshotRequest.includeGlobalState()) {
+            if (createSnapshotRequest.encryptedData() != null) {
+                final EncryptionServiceState state = encryptionServiceState.get();
+                if (state != EncryptionServiceState.READY && hasIncludableData()) {
+                    listener.onFailure(new EncryptionServiceUnavailableException(state));
+                    return;
+                }
+            }
             warnIfEncryptedDataExcluded(createSnapshotRequest.encryptedData() != null);
         }
         chain.proceed(task, action, request, listener);
+    }
+
+    private boolean hasIncludableData() {
+        var projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
+        return handlerRegistry.handlers()
+            .stream()
+            .anyMatch(h -> EncryptedDataHandlerRegistry.hasData(h, projectMetadata) && includable(h, projectMetadata));
     }
 
     private void warnIfEncryptedDataExcluded(boolean encryptedDataSupplied) {

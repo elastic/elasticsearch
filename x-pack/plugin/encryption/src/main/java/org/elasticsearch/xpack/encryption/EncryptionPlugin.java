@@ -50,7 +50,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
-    private final SetOnce<SnapshotEncryptedDataWarningFilter> snapshotWarningFilter = new SetOnce<>();
+    private final SetOnce<SnapshotEncryptedDataFilter> snapshotEncryptedDataFilter = new SetOnce<>();
 
     private volatile Settings pekSettings;
 
@@ -86,8 +86,8 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
         EncryptedDataHandlerRegistry.setInstance(handlerRegistry);
-        snapshotWarningFilter.set(
-            new SnapshotEncryptedDataWarningFilter(services.clusterService(), services.projectResolver(), handlerRegistry)
+        snapshotEncryptedDataFilter.set(
+            new SnapshotEncryptedDataFilter(services.clusterService(), services.projectResolver(), handlerRegistry, pekService::state)
         );
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),
@@ -154,7 +154,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        return singletonList(snapshotWarningFilter.get());
+        return singletonList(snapshotEncryptedDataFilter.get());
     }
 
     @Override

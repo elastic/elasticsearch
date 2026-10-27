@@ -34,6 +34,8 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -44,12 +46,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
+public class SnapshotEncryptedDataFilterTests extends ESTestCase {
 
     private static final EnumSet<Metadata.XContentContext> SNAPSHOT_CONTEXT = EnumSet.of(
         Metadata.XContentContext.GATEWAY,
@@ -90,14 +93,56 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
         assertNoWarning(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(true, false), plainRequest());
     }
 
+    public void testRejectsEncryptedDataWhenEncryptionUnavailable() {
+        assumeTrue("only relevant when snapshot encryption feature is enabled", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
+        final EncryptionServiceState unavailable = randomUnavailableState();
+        final var filter = filter(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(), unavailable);
+        final AtomicBoolean proceeded = new AtomicBoolean();
+        final EncryptionServiceUnavailableException e = safeAwaitFailure(
+            EncryptionServiceUnavailableException.class,
+            ActionResponse.class,
+            l -> filter.apply(mock(Task.class), "action", requestWithEncryptedData(), l, chain(proceeded))
+        );
+        assertThat(e.serviceState(), equalTo(unavailable));
+        assertFalse("chain.proceed must not be called", proceeded.get());
+    }
+
+    public void testNoRejectionWhenEncryptionUnavailableWithoutEncryptedData() {
+        assertWarningEmitted(stateWithCustom(SNAPSHOT_CONTEXT), new TestHandler(), plainRequest(), randomUnavailableState());
+    }
+
+    public void testNoRejectionWhenEncryptionUnavailableAndNothingToRewrap() {
+        assertNoWarning(stateWithoutCustom(), new TestHandler(), requestWithEncryptedData(), randomUnavailableState());
+        assertWarningEmitted(
+            stateWithCustom(SNAPSHOT_CONTEXT),
+            new TestHandler(false, true),
+            requestWithEncryptedData(),
+            randomUnavailableState()
+        );
+    }
+
+    private static EncryptionServiceState randomUnavailableState() {
+        return randomValueOtherThan(EncryptionServiceState.READY, () -> randomFrom(EncryptionServiceState.values()));
+    }
+
     private static void assertWarningEmitted(ClusterState state, TestHandler handler, CreateSnapshotRequest request) {
+        assertWarningEmitted(state, handler, request, EncryptionServiceState.READY);
+    }
+
+    private static void assertWarningEmitted(
+        ClusterState state,
+        TestHandler handler,
+        CreateSnapshotRequest request,
+        EncryptionServiceState encryptionServiceState
+    ) {
         final ThreadContext threadContext = applyFilter(
             state,
             handler,
+            encryptionServiceState,
             request,
             new MockLog.SeenEventExpectation(
                 "warning logged",
-                SnapshotEncryptedDataWarningFilter.class.getName(),
+                SnapshotEncryptedDataFilter.class.getName(),
                 Level.WARN,
                 "*Encrypted credentials*"
             )
@@ -108,35 +153,55 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
     }
 
     private static void assertNoWarning(ClusterState state, TestHandler handler, CreateSnapshotRequest request) {
+        assertNoWarning(state, handler, request, EncryptionServiceState.READY);
+    }
+
+    private static void assertNoWarning(
+        ClusterState state,
+        TestHandler handler,
+        CreateSnapshotRequest request,
+        EncryptionServiceState encryptionServiceState
+    ) {
         final ThreadContext threadContext = applyFilter(
             state,
             handler,
+            encryptionServiceState,
             request,
-            new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
+            new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataFilter.class.getName(), Level.WARN, "*")
         );
         assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
+    }
+
+    private static SnapshotEncryptedDataFilter filter(
+        ClusterState state,
+        TestHandler handler,
+        EncryptionServiceState encryptionServiceState
+    ) {
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        return new SnapshotEncryptedDataFilter(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            new EncryptedDataHandlerRegistry(List.of(handler)),
+            () -> encryptionServiceState
+        );
     }
 
     private static ThreadContext applyFilter(
         ClusterState state,
         TestHandler handler,
+        EncryptionServiceState encryptionServiceState,
         CreateSnapshotRequest request,
         MockLog.LoggingExpectation expectation
     ) {
-        final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(state);
-        final var filter = new SnapshotEncryptedDataWarningFilter(
-            clusterService,
-            DefaultProjectResolver.INSTANCE,
-            new EncryptedDataHandlerRegistry(List.of(handler))
-        );
+        final var filter = filter(state, handler, encryptionServiceState);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
             final AtomicBoolean proceeded = new AtomicBoolean();
             MockLog.assertThatLogger(
                 () -> filter.apply(mock(Task.class), "action", request, ActionListener.noop(), chain(proceeded)),
-                SnapshotEncryptedDataWarningFilter.class,
+                SnapshotEncryptedDataFilter.class,
                 expectation
             );
             assertTrue("chain.proceed was not called", proceeded.get());

@@ -44,6 +44,8 @@ public final class SnapshotEncryptedData implements Writeable {
     static final String REDACTED_SENTINEL = "::es_redacted::";
 
     private static final int MIN_PASSWORD_LENGTH = 15;
+    // bounds the size of the in-progress snapshot custom that carries the password in cluster state
+    static final int MAX_PASSWORD_LENGTH = 1024;
 
     // a secure_setting password_id becomes part of a setting name
     private static final Pattern PASSWORD_ID_PATTERN = Pattern.compile("[A-Za-z0-9_-]{1,128}");
@@ -185,6 +187,9 @@ public final class SnapshotEncryptedData implements Writeable {
     private static void validatePassword(SecureString password) {
         if (password.length() < MIN_PASSWORD_LENGTH) {
             throw new IllegalArgumentException("encrypted_data.password must be at least " + MIN_PASSWORD_LENGTH + " characters");
+        }
+        if (password.length() > MAX_PASSWORD_LENGTH) {
+            throw new IllegalArgumentException("encrypted_data.password must be at most " + MAX_PASSWORD_LENGTH + " characters");
         }
         if (REDACTED_SENTINEL.contentEquals(password)) {
             throw new IllegalArgumentException("encrypted_data.password must not be the redaction sentinel");

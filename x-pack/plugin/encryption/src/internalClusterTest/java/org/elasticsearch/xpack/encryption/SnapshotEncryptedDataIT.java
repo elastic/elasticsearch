@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.encryption;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,6 +61,7 @@ import java.util.function.UnaryOperator;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -72,6 +75,11 @@ public class SnapshotEncryptedDataIT extends AbstractSnapshotIntegTestCase {
 
     private static final String REPO = "test-repo";
     private static final String SNAPSHOT_PASSWORD = "correct-horse-battery-staple";
+
+    @BeforeClass
+    public static void checkFeatureFlagEnabled() {
+        assumeTrue("snapshot_encrypted_data feature flag must be enabled", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -262,6 +270,37 @@ public class SnapshotEncryptedDataIT extends AbstractSnapshotIntegTestCase {
         assertArrayEquals(secret, PasswordBasedEncryption.unwrap(stored.blob, SNAPSHOT_PASSWORD.toCharArray()));
     }
 
+    /**
+     * A value that can't be decrypted for re-wrapping, here because its key is unknown, fails the snapshot at finalization without
+     * writing it to the repository, drops its password from cluster state, and doesn't block later snapshots.
+     */
+    public void testFinalizationFailureFailsSnapshotCleanly() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        awaitProjectEncryptionKey();
+        seedBlob(new EncryptedData("unknown-key", randomByteArrayOfLength(32)));
+        createRepository(REPO, "fs");
+        createIndexWithContent("index");
+
+        final CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, REPO, "snap").includeGlobalState(true)
+            .waitForCompletion(true)
+            .encryptedData(
+                new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_PASSWORD, new SecureString(SNAPSHOT_PASSWORD.toCharArray()), null)
+            );
+        final Exception e = safeAwaitFailure(
+            CreateSnapshotResponse.class,
+            l -> client(masterNode).execute(TransportCreateSnapshotAction.TYPE, request, l)
+        );
+        assertThat(e.getMessage(), containsString("project encryption key [unknown-key] is not yet available"));
+        awaitNoMoreRunningOperations();
+
+        assertThat(getRepositoryData(REPO).getSnapshotIds(), empty());
+        final ClusterState masterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        assertThat(SnapshotsInProgressEncryptedData.get(masterState), equalTo(SnapshotsInProgressEncryptedData.EMPTY));
+
+        assertThat(createFullSnapshot(REPO, "snap-without-password").state(), equalTo(SnapshotState.SUCCESS));
+    }
+
     private TestBlob blobInSnapshot(SnapshotInfo snapshotInfo) {
         final Repository repository = getRepositoryOnMaster(REPO);
         return repository.getSnapshotGlobalMetadata(snapshotInfo.snapshotId(), false).getProject(ProjectId.DEFAULT).custom(TestBlob.TYPE);
@@ -271,11 +310,18 @@ public class SnapshotEncryptedDataIT extends AbstractSnapshotIntegTestCase {
      * Waits for the initial project encryption key, then stores {@code secret} encrypted under it in a SNAPSHOT-context custom.
      */
     private void seedEncryptedBlob(byte[] secret) throws Exception {
+        awaitProjectEncryptionKey();
+        seedBlob(internalCluster().getCurrentMasterNodeInstance(EncryptionService.class).encrypt(secret));
+    }
+
+    private void awaitProjectEncryptionKey() throws Exception {
         assertBusy(() -> {
             final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
             assertThat(clusterService.state().metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE), notNullValue());
         });
-        final EncryptedData encrypted = internalCluster().getCurrentMasterNodeInstance(EncryptionService.class).encrypt(secret);
+    }
+
+    private void seedBlob(EncryptedData encrypted) {
         safeAwait(
             listener -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
                 .submitUnbatchedStateUpdateTask("seed-test-blob", new ClusterStateUpdateTask() {

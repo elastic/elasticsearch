@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -15,13 +16,16 @@ import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCas
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Parity tests for {@link ConstantKeywordFieldMapper#mapColumnBatch} against the row path.
@@ -174,35 +178,37 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
      * because a data field only takes part in the batch path in a strict-columnar or TSDB index mode, and strict-columnar modes do not
      * allow stored source.
      *
-     * <p>When stored source support lands, this test starts failing. Replace it with an {@link #assertColumnarMatchesXContent} parity
-     * check: under stored source {@code isSourceSynthetic()} is false, so {@code mapColumnBatch} validates values but emits no
-     * presence-marker column.
+     * <p>The parity check below is the one the field needs under stored source: {@code isSourceSynthetic()} is false, so
+     * {@code mapColumnBatch} validates values but emits no presence-marker column. When stored source support lands, the check passes
+     * and the surrounding {@code expectThrows} fails; remove it then.
      */
-    public void testGate_storedSourceFallsBackToRowPath() throws IOException {
-        final MapperService ms = createMapperService(
+    public void testGate_storedSourceFallsBackToRowPath() {
+        final BytesRef tsid = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
+        final int routingHash = 42;
+        final long timestamp = 1622505600000L; // 2021-06-01T00:00:00.000Z
+        final String id = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+        final String routing = TimeSeriesRoutingHashFieldMapper.encode(routingHash);
+
+        final AssertionError e = expectThrows(AssertionError.class, () -> assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject();
+        }),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
                 .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
                 .build(),
-            mapping(b -> {
-                b.startObject("@timestamp").field("type", "date").endObject();
-                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
-                b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject();
-            })
-        );
-        final IndexSettings indexSettings = ms.getIndexSettings();
-        final FieldMapper fieldMapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
-        assertTrue("the field itself must not be what blocks the batch path", fieldMapper.supportsColumnarParse(indexSettings));
-        final SourceFieldMapper sourceMapper = ms.mappingLookup().getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
-        assertFalse(
-            "SourceFieldMapper must refuse the columnar batch path under stored source",
-            sourceMapper.supportsColumnarMetadataParse(indexSettings)
-        );
+            batch(
+                "stored source",
+                1L,
+                doc(id, routing, tsid, 1L, "{\"@timestamp\":\"2021-06-01T00:00:00.000Z\",\"dim\":\"a\",\"f\":\"hello\"}")
+            )
+        ));
+        assertThat(e.getMessage(), containsString("ShardBatchMapper.resolveMappers refused this mapping and schema"));
     }
 
     public void testBailOutOnNull() throws IOException {

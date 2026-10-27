@@ -409,6 +409,10 @@ public final class CircuitBreakingRegExp {
      *   4       nothing       0
      * </pre>
      * that is 2 accept states times (3 + 2 + 1), 12 links, plus the pieces' own 4 transitions: 16.
+     * <p>
+     * Each piece visited is a unit of work on top of what is built, because Lucene visits it whether or not it has initial
+     * transitions to give: pieces that accept only the empty string link nothing, yet {@code (a{0}){n}} walks n * (n - 1) / 2
+     * of them.
      */
     static Cost concatenateCost(Automaton[] pieces) {
         Shape[] shapes = new Shape[pieces.length];
@@ -423,13 +427,17 @@ public final class CircuitBreakingRegExp {
         long states = 0;
         long transitions = 0;
         long chained = 0;
+        long walked = 0;
+        long visits = 0;
         for (int i = shapes.length - 1; i >= 0; i--) {
             Shape piece = shapes[i];
             states = addSaturating(states, piece.states());
             transitions = addSaturating(transitions, addSaturating(piece.transitions(), multiplySaturating(piece.accepts(), chained)));
+            visits = addSaturating(visits, multiplySaturating(piece.accepts(), walked));
             chained = addSaturating(piece.initial(), piece.nullable() ? chained : 0);
+            walked = addSaturating(1, piece.nullable() ? walked : 0);
         }
-        return Cost.of(states, transitions, multiplySaturating(listSize, REPEAT_BYTES_PER_COPY), listSize);
+        return Cost.of(states, transitions, multiplySaturating(listSize, REPEAT_BYTES_PER_COPY), addSaturating(listSize, visits));
     }
 
     /**
@@ -602,7 +610,8 @@ public final class CircuitBreakingRegExp {
      * states each receive {@code (count - k) * initial} transitions plus the tail's initial ones; summed over the copies that
      * is {@code count * (count - 1) / 2 * initial}, plus {@code count} times the tail's. Otherwise each copy links only to
      * the next one, and the last to the tail: {@code (count - 1) * initial}, plus the tail's. For {@code x?{4}} that is
-     * 4 * 3 / 2 = 6 links for each of the 2 accept states, 12 in all; for {@code [ab]{4}}, 3.
+     * 4 * 3 / 2 = 6 links for each of the 2 accept states, 12 in all; for {@code [ab]{4}}, 3. The copies visited are work
+     * even when they have no initial transitions to give.
      */
     static Cost copiesCost(Shape a, int count, Shape tail) {
         long n = count;
@@ -616,16 +625,21 @@ public final class CircuitBreakingRegExp {
         }
         // what the accept states of copy k receive: the initial transitions of the pieces chained after it
         long linked;
+        // how many pieces each of them visits to receive those
+        long visited;
         if (a.nullable()) {
             // copy k (1-based) chains through the n - k copies after it, then into the tail, which also accepts empty
             long pairs = multiplySaturating(n, n - 1) / 2;
             linked = addSaturating(multiplySaturating(pairs, a.initial()), multiplySaturating(n, tailInitial));
+            visited = addSaturating(pairs, tail == null ? 0 : n);
         } else {
             // each copy but the last links to the next copy only; the last links to the tail
             linked = addSaturating(multiplySaturating(n - 1, a.initial()), tailInitial);
+            visited = addSaturating(n - 1, tail == null ? 0 : 1);
         }
         transitions = addSaturating(transitions, multiplySaturating(a.accepts(), linked));
         long listSize = tail == null ? n : n + 1;
-        return Cost.of(states, transitions, multiplySaturating(listSize, REPEAT_BYTES_PER_COPY), listSize);
+        long visits = multiplySaturating(a.accepts(), visited);
+        return Cost.of(states, transitions, multiplySaturating(listSize, REPEAT_BYTES_PER_COPY), addSaturating(listSize, visits));
     }
 }

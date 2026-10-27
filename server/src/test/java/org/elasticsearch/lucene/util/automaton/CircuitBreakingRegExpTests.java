@@ -208,6 +208,25 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
     }
 
     /**
+     * An operand that accepts only the empty string adds no transitions when its copies are linked, but Lucene still walks
+     * every later copy from each accept state, so the time grows with the square of the count while the automaton stays
+     * tiny. The limit is lowered to keep the refused walk short; the same count of a one-character operand walks one copy
+     * per accept state and fits.
+     */
+    public void testRepeatsOfTheEmptyStringCountTheirWalkAsWork() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        for (String pattern : List.of("(a{0}){20000}", "(a{0}){20000,}", "(a{0}){20000,20001}")) {
+            expectThrows(
+                TooComplexToDeterminizeException.class,
+                () -> new CircuitBreakingRegExp(pattern, FLAGS, 0).toAutomaton(breaker, "test", 100_000_000)
+            );
+            assertEquals(pattern, 0L, breaker.getUsed());
+        }
+        new CircuitBreakingRegExp("(a{1}){20000}", FLAGS, 0).toAutomaton(breaker, "test", 100_000_000);
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
      * An intersection's size is only known once it is built, so it is refused as soon as it outgrows the work left, even
      * when the breaker would let it continue. The limit is lowered to keep the refused product small.
      */

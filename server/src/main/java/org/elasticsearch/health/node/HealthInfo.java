@@ -47,9 +47,7 @@ public record HealthInfo(
     public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
 
     static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
-    static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName(
-        "dlm_frozen_transitions_health_info"
-    );
+    static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName("dlm_frozen_transitions_health_info");
     static final TransportVersion DATA_RECOVERY_HEALTH_INFO = TransportVersion.fromName("data_recovery_health_info");
     static final TransportVersion LOCAL_RECOVERY_RETRIES_HEALTH_INFO = TransportVersion.fromName("local_recovery_retries_health_info");
 

@@ -38,6 +38,10 @@ public class KoelnerPhonetik implements StringEncoder {
     private static final String[] POSTEL_VARIATIONS_PATTERNS = { "AUN", "OWN", "RB", "RW", "WSK", "RSK" };
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = { "OWN", "AUN", "RW", "RB", "RSK", "WSK" };
 
+    // Whitespace, control and punctuation characters split a token into the segments generateParts() combines.
+    private static final Pattern SEGMENT_SEPARATOR = Pattern.compile("[\\p{Z}\\p{C}\\p{P}]");
+    private static final Pattern SEPARATORS_ONLY = Pattern.compile("[\\p{Z}\\p{C}\\p{P}]*");
+
     /**
      * Limit on the number of variations one {@code encode()} call may produce, shared across every part that
      * {@code partition()} generates. Each pattern match in a part doubles its variations, and a token with
@@ -162,14 +166,14 @@ public class KoelnerPhonetik implements StringEncoder {
             // the cap above ever gets a chance to apply, so a punctuation-heavy token with many segments
             // would still force an allocation proportional to its segment count. The "+ 1" is a single extra
             // slot used only to detect whether more segments exist beyond what we keep.
-            String[] rawParts = str.split("[\\p{Z}\\p{C}\\p{P}]", MAX_VARIATIONS + 1);
+            String[] rawParts = SEGMENT_SEPARATOR.split(str, MAX_VARIATIONS + 1);
             // A positive split() limit, unlike the unlimited split() it replaces, does not drop trailing
             // empty strings, and a long enough run of trailing separators lands entirely inside the final
             // slot as one non-empty separator-only string (e.g. "----"). Trim any trailing slot that is
             // wholly separator characters (including empty ones, matched by "*" as zero occurrences), not
             // just empty ones, so trailing separators have no effect regardless of how many there are.
             int effectiveLength = rawParts.length;
-            while (effectiveLength > 0 && rawParts[effectiveLength - 1].matches("[\\p{Z}\\p{C}\\p{P}]*")) {
+            while (effectiveLength > 0 && SEPARATORS_ONLY.matcher(rawParts[effectiveLength - 1]).matches()) {
                 effectiveLength--;
             }
             boolean moreSegmentsExist = effectiveLength > MAX_VARIATIONS;

@@ -124,6 +124,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
     private final AtomicLong logicalSize = new AtomicLong();
+    // Size fields technically don't need to be atomic since they are written under a lock.
+    // But having them volatile produces a warning in the IDE, and there is pretty much no logical difference between the two anyway.
+    private final AtomicLong headersSizeBytes = new AtomicLong();
+    private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
+    private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
@@ -346,11 +351,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles.put(commitFile, blobLocation);
             }
         }
+        copiedGenerationalFilesSizeBytes.addAndGet(copiedGenerationalFilesSize);
 
         var replicatedContent = useInternalFilesReplicatedContent
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
             : ReplicatedContent.EMPTY;
         var replicatedContentHeader = replicatedContent.header();
+        replicatedContentSizeBytes.addAndGet(replicatedContentHeader.dataSizeInBytes());
 
         // We replicate referenced .si files into hollow commits as extra content appended after the internal files in the compound commit.
         final List<InternalFile> extraContentFiles = reference.isHollow() ? new ArrayList<>() : List.of();
@@ -374,6 +381,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             timestampFieldValueRange
         );
         final int headerLength = Math.toIntExact(headerReader.headerSize());
+        headersSizeBytes.addAndGet(headerLength);
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
@@ -859,6 +867,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     /// and would trigger frequent uploads resulting in write amplification.
     public long sizeInBytesExcludingCopiedGenerationalFiles() {
         return logicalSize.get();
+    }
+
+    /// Returns the total size (the sum) of headers of all compound commits in this batched commit.
+    public long headersSizeInBytes() {
+        return headersSizeBytes.get();
+    }
+
+    /// Returns the size of copied generational files in this batched commit.
+    /// Such files are copied into the first commit of a BCC only.
+    public long copiedGenerationalFilesSizeInBytes() {
+        return copiedGenerationalFilesSizeBytes.get();
+    }
+
+    /// Returns the total size (the sum) of replicated content of all compound commits in this batched commit.
+    public long replicatedContentSizeInBytes() {
+        return replicatedContentSizeBytes.get();
     }
 
     public Map<String, BlobLocation> getInternalLocations() {

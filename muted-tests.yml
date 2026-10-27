@@ -569,3 +569,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163462
+- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/160826

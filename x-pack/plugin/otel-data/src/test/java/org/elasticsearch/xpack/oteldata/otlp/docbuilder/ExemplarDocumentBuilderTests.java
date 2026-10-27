@@ -14,6 +14,7 @@ import io.opentelemetry.proto.metrics.v1.Metric;
 import com.google.protobuf.ByteString;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ExemplarDocumentBuilderTests extends ESTestCase {
 
-    private static final IndexVersion INDEX_VERSION = IndexVersion.current();
+    private static final TsidLayout TSID_LAYOUT = TsidLayout.forVersion(IndexVersion.current());
     private final BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
     private final ExemplarDocumentBuilder exemplarDocumentBuilder = new ExemplarDocumentBuilder(byteStringAccessor);
 
@@ -106,14 +107,14 @@ public class ExemplarDocumentBuilderTests extends ESTestCase {
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, MappingHints.DEFAULT_TDIGEST);
         BytesRef metricTsid;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            metricTsid = metricDocumentBuilder.buildMetricDocument(builder, group, new HashMap<>(), new HashMap<>(), INDEX_VERSION);
+            metricTsid = metricDocumentBuilder.buildMetricDocument(builder, group, new HashMap<>(), new HashMap<>(), TSID_LAYOUT);
         }
 
         Set<BytesRef> exemplarTsids = new HashSet<>();
         Set<String> exemplarMetricNames = new HashSet<>();
         for (DataPoint dataPoint : group.dataPoints()) {
             Exemplar exemplar = dataPoint.getExemplars().getFirst();
-            BytesRef exemplarTsid = group.buildExemplarTsid(dataPoint.getMetricName(), INDEX_VERSION);
+            BytesRef exemplarTsid = group.buildExemplarTsid(dataPoint.getMetricName(), TSID_LAYOUT);
             try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                 exemplarDocumentBuilder.buildExemplarDocument(builder, group, dataPoint, exemplar, group.targetIndex().exemplarsTarget());
                 assertNotEquals(metricTsid, exemplarTsid);

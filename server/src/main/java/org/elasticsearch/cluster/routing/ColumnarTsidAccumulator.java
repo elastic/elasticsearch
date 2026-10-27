@@ -28,7 +28,7 @@ import java.util.Arrays;
  * <p>Callers must present each row's dimensions in {@code (path, insertion order)} order, which a
  * column-major scan gets for free by visiting columns sorted by path.
  *
- * <p>Obtain an instance with {@link #create}; the two tsid layouts differ only in their prefix bytes.
+ * <p>Obtain an instance with {@link #create}; the tsid layouts differ only in their prefix bytes.
  */
 abstract class ColumnarTsidAccumulator {
 
@@ -53,8 +53,8 @@ abstract class ColumnarTsidAccumulator {
     /** Dimensions folded per slot. Drives both stream lengths and the name stream's tail parity. */
     private final int[] entryCount;
 
-    // Three distinct holders: a finished full hash stays live while the prefix byte is derived, and
-    // deriving it overwrites `scratch`.
+    // Distinct holders: a finished full hash stays live while the prefix bytes are derived, and
+    // deriving the prefix byte overwrites `scratch`.
     private final MurmurHash3.Hash128 fullHash = new MurmurHash3.Hash128();
     private final MurmurHash3.Hash128 nameHash = new MurmurHash3.Hash128();
     final MurmurHash3.Hash128 scratch = new MurmurHash3.Hash128();
@@ -62,11 +62,13 @@ abstract class ColumnarTsidAccumulator {
     /**
      * Creates an accumulator for all rows of a batch.
      *
-     * @param docCount            total number of rows in the batch
-     * @param singleBytePrefixLayout selects the tsid layout
+     * @param docCount               total number of rows in the batch
+     * @param singleBytePrefixLayout selects the tsid layout, see {@link TsidLayout#singleBytePrefix()}
+     * @param prefixedDimensionsHash whether the single-prefix-byte layout carries the prefixed-dimensions hash, which is the case
+     *                               when {@link TsidLayout#prefixedDimensionMatcher()} is non-null
      */
-    static ColumnarTsidAccumulator create(int docCount, boolean singleBytePrefixLayout) {
-        return singleBytePrefixLayout ? new SingleBytePrefix(docCount, null) : new MultiBytePrefix(docCount, null);
+    static ColumnarTsidAccumulator create(int docCount, boolean singleBytePrefixLayout, boolean prefixedDimensionsHash) {
+        return create(docCount, null, singleBytePrefixLayout, prefixedDimensionsHash);
     }
 
     /**
@@ -78,23 +80,36 @@ abstract class ColumnarTsidAccumulator {
      * {@code result[k]} being the tsid for {@code rows[k]}.
      *
      * <p>When {@code rows} is null the behavior is identical to
-     * {@link #create(int, boolean)}: every row contributes and the result has length {@code docCount}.
+     * {@link #create(int, boolean, boolean)}: every row contributes and the result has length {@code docCount}.
      *
-     * @param docCount            total number of rows in the source batch (used to size the rowToSlot map)
-     * @param rows                batch row indices in the subset, or null for all rows
-     * @param singleBytePrefixLayout selects the tsid layout
+     * @param docCount               total number of rows in the source batch (used to size the rowToSlot map)
+     * @param rows                   batch row indices in the subset, or null for all rows
+     * @param singleBytePrefixLayout selects the tsid layout, see {@link TsidLayout#singleBytePrefix()}
+     * @param prefixedDimensionsHash whether the single-prefix-byte layout carries the prefixed-dimensions hash, which is the case
+     *                               when {@link TsidLayout#prefixedDimensionMatcher()} is non-null
      */
-    static ColumnarTsidAccumulator create(int docCount, @Nullable int[] rows, boolean singleBytePrefixLayout) {
-        if (rows == null) {
-            return create(docCount, singleBytePrefixLayout);
+    static ColumnarTsidAccumulator create(
+        int docCount,
+        @Nullable int[] rows,
+        boolean singleBytePrefixLayout,
+        boolean prefixedDimensionsHash
+    ) {
+        int slotCount = docCount;
+        int[] rowToSlot = null;
+        if (rows != null) {
+            // Build the inverse map: rowToSlot[batchRow] = slot in result array, or -1 when not in subset.
+            rowToSlot = new int[docCount];
+            Arrays.fill(rowToSlot, -1);
+            for (int k = 0; k < rows.length; k++) {
+                rowToSlot[rows[k]] = k;
+            }
+            slotCount = rows.length;
         }
-        // Build the inverse map: rowToSlot[batchRow] = slot in result array, or -1 when not in subset.
-        int[] rowToSlot = new int[docCount];
-        Arrays.fill(rowToSlot, -1);
-        for (int k = 0; k < rows.length; k++) {
-            rowToSlot[rows[k]] = k;
+        if (singleBytePrefixLayout) {
+            return new SingleBytePrefix(slotCount, rowToSlot, prefixedDimensionsHash);
         }
-        return singleBytePrefixLayout ? new SingleBytePrefix(rows.length, rowToSlot) : new MultiBytePrefix(rows.length, rowToSlot);
+        assert prefixedDimensionsHash == false : "the multi-prefix-byte layout predates the prefixed-dimensions hash";
+        return new MultiBytePrefix(slotCount, rowToSlot);
     }
 
     private ColumnarTsidAccumulator(int slotCount, @Nullable int[] rowToSlot) {
@@ -111,12 +126,23 @@ abstract class ColumnarTsidAccumulator {
      * Folds one dimension value into {@code row}. When a row-subset was specified at creation, rows
      * outside the subset are silently ignored.
      *
-     * @param pathGroup  id of the value's path, equal for consecutive values sharing one. Keyed on path
-     *                   equality rather than column identity, because two leaf columns can report the
-     *                   same full path (dotted and nested spellings are not merged).
-     * @param prefixRank {@link TsidBuilder#prefixByteRank} of the value's path
+     * @param pathGroup          id of the value's path, equal for consecutive values sharing one. Keyed on path
+     *                           equality rather than column identity, because two leaf columns can report the
+     *                           same full path (dotted and nested spellings are not merged).
+     * @param prefixRank         {@link TsidBuilder#prefixByteRank} of the value's path
+     * @param prefixedDimension  {@link TsidBuilder#isPrefixedDimension} of the value's path; must be false unless the
+     *                           accumulator was created with the prefixed-dimensions hash
      */
-    final void add(int row, long pathH1, long pathH2, long valueH1, long valueH2, int pathGroup, int prefixRank) {
+    final void add(
+        int row,
+        long pathH1,
+        long pathH2,
+        long valueH1,
+        long valueH2,
+        int pathGroup,
+        int prefixRank,
+        boolean prefixedDimension
+    ) {
         int slot = rowToSlot == null ? row : rowToSlot[row];
         if (slot < 0) {
             // row is outside the subset; skip it
@@ -135,7 +161,7 @@ abstract class ColumnarTsidAccumulator {
             MurmurHash3.mixBlock(nameState, stateOffset, namePending[slot], nameWord);
         }
 
-        addPrefixInput(slot, valueH1, valueH2, pathGroup, prefixRank);
+        addPrefixInput(slot, pathH1, pathH2, valueH1, valueH2, pathGroup, prefixRank, prefixedDimension);
 
         entryCount[slot] = count + 1;
     }
@@ -154,7 +180,16 @@ abstract class ColumnarTsidAccumulator {
     }
 
     /** Records whatever this layout derives its prefix bytes from. {@code slot} is the accumulator slot, not the batch row. */
-    abstract void addPrefixInput(int slot, long valueH1, long valueH2, int pathGroup, int prefixRank);
+    abstract void addPrefixInput(
+        int slot,
+        long pathH1,
+        long pathH2,
+        long valueH1,
+        long valueH2,
+        int pathGroup,
+        int prefixRank,
+        boolean prefixedDimension
+    );
 
     /** Assembles one slot's tsid from its finished full hash. */
     abstract BytesRef finish(int slot, int count, MurmurHash3.Hash128 fullHash);
@@ -171,29 +206,54 @@ abstract class ColumnarTsidAccumulator {
 
     /**
      * Takes the prefix byte from the row's lowest-ranked special dimension, or from the
-     * name-similarity stream when it has none.
+     * name-similarity stream when it has none. When the layout carries the prefixed-dimensions hash,
+     * the row's prefixed dimensions are folded into a third stream, shaped like the full hash: 4 words
+     * per dimension, so always block aligned.
      */
     private static final class SingleBytePrefix extends ColumnarTsidAccumulator {
 
         /** Lowest rank seen per slot, and the value hash that produced it. */
         private final int[] bestRank;
         private final long[] bestValue;
+        /** Prefixed-dimensions accumulator, {@link MurmurHash3#STATE_SIZE} words per slot; null when the layout has no such hash. */
+        @Nullable
+        private final long[] prefixedState;
+        /** Prefixed dimensions folded per slot; null when the layout has no such hash. */
+        @Nullable
+        private final int[] prefixedCount;
+        private final MurmurHash3.Hash128 prefixedHash = new MurmurHash3.Hash128();
 
-        SingleBytePrefix(int slotCount, @Nullable int[] rowToSlot) {
+        SingleBytePrefix(int slotCount, @Nullable int[] rowToSlot, boolean prefixedDimensionsHash) {
             super(slotCount, rowToSlot);
             this.bestRank = new int[slotCount];
             Arrays.fill(this.bestRank, TsidBuilder.PREFIX_RANK_NONE);
             this.bestValue = new long[slotCount * 2];
+            this.prefixedState = prefixedDimensionsHash ? new long[slotCount * MurmurHash3.STATE_SIZE] : null;
+            this.prefixedCount = prefixedDimensionsHash ? new int[slotCount] : null;
         }
 
         @Override
-        void addPrefixInput(int slot, long valueH1, long valueH2, int pathGroup, int prefixRank) {
+        void addPrefixInput(
+            int slot,
+            long pathH1,
+            long pathH2,
+            long valueH1,
+            long valueH2,
+            int pathGroup,
+            int prefixRank,
+            boolean prefixedDimension
+        ) {
             // Strict `<` keeps the first occurrence, so an array-valued special field uses its first
             // value, as the row path's sorted-order lookup does.
             if (prefixRank < bestRank[slot]) {
                 bestRank[slot] = prefixRank;
                 bestValue[slot * 2] = valueH1;
                 bestValue[slot * 2 + 1] = valueH2;
+            }
+            if (prefixedDimension) {
+                assert prefixedState != null : "prefixed dimension folded into a layout without the prefixed-dimensions hash";
+                MurmurHash3.mixTwoBlocks(prefixedState, slot * MurmurHash3.STATE_SIZE, pathH1, pathH2, valueH1, valueH2);
+                prefixedCount[slot]++;
             }
         }
 
@@ -208,7 +268,17 @@ abstract class ColumnarTsidAccumulator {
                 nameSimilarityHash,
                 scratch
             );
-            return TsidBuilder.writeSingleBytePrefixTsid(prefixByte, fullHash);
+            // A row without prefixed dimensions keeps the full hash in those bytes, as the row path does.
+            MurmurHash3.Hash128 prefixedDimensionsHash = null;
+            if (prefixedCount != null && prefixedCount[slot] > 0) {
+                prefixedDimensionsHash = MurmurHash3.finalizeAlignedHash(
+                    prefixedHash,
+                    prefixedCount[slot] * FULL_HASH_BYTES_PER_DIMENSION,
+                    prefixedState,
+                    slot * MurmurHash3.STATE_SIZE
+                );
+            }
+            return TsidBuilder.writeSingleBytePrefixTsid(prefixByte, prefixedDimensionsHash, fullHash);
         }
     }
 
@@ -234,7 +304,16 @@ abstract class ColumnarTsidAccumulator {
         }
 
         @Override
-        void addPrefixInput(int slot, long valueH1, long valueH2, int pathGroup, int prefixRank) {
+        void addPrefixInput(
+            int slot,
+            long pathH1,
+            long pathH2,
+            long valueH1,
+            long valueH2,
+            int pathGroup,
+            int prefixRank,
+            boolean prefixedDimension
+        ) {
             // Only the first value of each distinct path contributes, as the row path's sorted-order
             // skip-if-same-as-previous does.
             if (valueSimilarityCount[slot] < TsidBuilder.MAX_TSID_VALUE_SIMILARITY_FIELDS && pathGroup != lastPathGroup[slot]) {

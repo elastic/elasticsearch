@@ -230,7 +230,8 @@ public abstract class AbstractPhysicalOperationProviders {
                     .aggregationBatchSize(aggregationBatchSize)
                     .parallelConfig(parallelConfig)
                     .analysisRegistry(analysisRegistry)
-                    .allowPartitionedOutput(allowPartitionedOutput);
+                    .allowPartitionedOutput(allowPartitionedOutput)
+                    .directTable(context.plannerSettings().directTable());
                 HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
                 if (topAggregation != null) {
                     builder.topAggregation(topAggregation);

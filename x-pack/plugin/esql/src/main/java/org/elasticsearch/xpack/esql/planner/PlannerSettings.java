@@ -178,6 +178,60 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    private static final int MAX_DIRECT_TABLE_SLOTS = 1 << 22;
+
+    /**
+     * The number of slots of the direct-mapped table that a partial aggregation switches to when its keys are mostly distinct.
+     * A regular table is slow once it is larger than the CPU cache, but only pays off if keys repeat. The direct-mapped table
+     * stays small and never resolves collisions, so a key can be emitted more than once. A larger table finds more repeated
+     * keys and a smaller one is faster. Must be a power of two. {@code 0} disables the switch.
+     * See {@link HashAggregationOperator.DirectTableConfig}.
+     */
+    public static final Setting<Integer> AGG_DIRECT_TABLE_SLOTS = Setting.intSetting(
+        "esql.agg.direct_table_slots",
+        HashAggregationOperator.DEFAULT_DIRECT_TABLE_SLOTS,
+        0,
+        value -> {
+            if (value != 0 && Integer.bitCount(value) != 1) {
+                throw new IllegalArgumentException("[esql.agg.direct_table_slots] must be zero or a power of two; got [" + value + "]");
+            }
+            if (value > MAX_DIRECT_TABLE_SLOTS) {
+                throw new IllegalArgumentException(
+                    "[esql.agg.direct_table_slots] must be at most [" + MAX_DIRECT_TABLE_SLOTS + "]; got [" + value + "]"
+                );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The minimum number of keys that the regular table of a partial aggregation holds before it can switch to the
+     * direct-mapped table. Early on, a stream of mostly distinct keys looks the same as a small set of keys that
+     * will repeat, so the switch waits for a table that is large enough to be slow.
+     * See {@link #AGG_DIRECT_TABLE_SLOTS}.
+     */
+    public static final Setting<Integer> AGG_DIRECT_TABLE_SWITCH_MIN_KEYS = Setting.intSetting(
+        "esql.agg.direct_table_switch_min_keys",
+        HashAggregationOperator.DEFAULT_DIRECT_TABLE_SWITCH_MIN_KEYS,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The minimum ratio of new keys to rows, over the most recent pages, for a partial aggregation to switch to the
+     * direct-mapped table. At the default of {@code 0.5}, the keys must repeat less than twice on average.
+     * See {@link #AGG_DIRECT_TABLE_SLOTS}.
+     */
+    public static final Setting<Double> AGG_DIRECT_TABLE_SWITCH_UNIQUENESS = Setting.doubleSetting(
+        "esql.agg.direct_table_switch_uniqueness",
+        HashAggregationOperator.DEFAULT_DIRECT_TABLE_SWITCH_UNIQUENESS,
+        0.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /**
      * Target number of rows per output page when the time-series aggregation operator chunks its output. The same target
      * applies to partial/intermediate output sent to the coordinator and final output emitted by the coordinator.
@@ -374,7 +428,10 @@ public class PlannerSettings {
             MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
             MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
             AGG_PARTITIONING_COUNT_THRESHOLD,
-            AGG_PARTITIONING_MEMORY_THRESHOLD
+            AGG_PARTITIONING_MEMORY_THRESHOLD,
+            AGG_DIRECT_TABLE_SLOTS,
+            AGG_DIRECT_TABLE_SWITCH_MIN_KEYS,
+            AGG_DIRECT_TABLE_SWITCH_UNIQUENESS
         );
     }
 
@@ -455,6 +512,15 @@ public class PlannerSettings {
                 AGG_PARTITIONING_MEMORY_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.aggregationPartitioningMemoryThreshold(v))
             );
+            clusterSettings.initializeAndWatch(AGG_DIRECT_TABLE_SLOTS, v -> settings.updateAndGet(s -> s.directTableSlots(v)));
+            clusterSettings.initializeAndWatch(
+                AGG_DIRECT_TABLE_SWITCH_MIN_KEYS,
+                v -> settings.updateAndGet(s -> s.directTableSwitchMinKeys(v))
+            );
+            clusterSettings.initializeAndWatch(
+                AGG_DIRECT_TABLE_SWITCH_UNIQUENESS,
+                v -> settings.updateAndGet(s -> s.directTableSwitchUniqueness(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -486,6 +552,7 @@ public class PlannerSettings {
     private final int minCompetitiveGlobalMergeMaxPendingKeys;
     private final int aggregationPartitioningCountThreshold;
     private final ByteSizeValue aggregationPartitioningMemoryThreshold;
+    private final HashAggregationOperator.DirectTableConfig directTable;
 
     /**
      * Defaults.
@@ -514,7 +581,12 @@ public class PlannerSettings {
         MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS.getDefault(Settings.EMPTY),
         AGG_PARTITIONING_COUNT_THRESHOLD.getDefault(Settings.EMPTY),
-        AGG_PARTITIONING_MEMORY_THRESHOLD.getDefault(Settings.EMPTY)
+        AGG_PARTITIONING_MEMORY_THRESHOLD.getDefault(Settings.EMPTY),
+        new HashAggregationOperator.DirectTableConfig(
+            AGG_DIRECT_TABLE_SLOTS.getDefault(Settings.EMPTY),
+            AGG_DIRECT_TABLE_SWITCH_MIN_KEYS.getDefault(Settings.EMPTY),
+            AGG_DIRECT_TABLE_SWITCH_UNIQUENESS.getDefault(Settings.EMPTY)
+        )
     );
 
     /**
@@ -544,7 +616,8 @@ public class PlannerSettings {
         int minCompetitiveGlobalMergeBatchPages,
         int minCompetitiveGlobalMergeMaxPendingKeys,
         int aggregationPartitioningCountThreshold,
-        ByteSizeValue aggregationPartitioningMemoryThreshold
+        ByteSizeValue aggregationPartitioningMemoryThreshold,
+        HashAggregationOperator.DirectTableConfig directTable
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -570,6 +643,7 @@ public class PlannerSettings {
         this.minCompetitiveGlobalMergeMaxPendingKeys = minCompetitiveGlobalMergeMaxPendingKeys;
         this.aggregationPartitioningCountThreshold = aggregationPartitioningCountThreshold;
         this.aggregationPartitioningMemoryThreshold = aggregationPartitioningMemoryThreshold;
+        this.directTable = directTable;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -597,7 +671,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -630,7 +705,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -663,7 +739,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -710,7 +787,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -743,7 +821,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -776,7 +855,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -809,7 +889,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -842,7 +923,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -882,7 +964,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -918,7 +1001,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -954,7 +1038,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -987,7 +1072,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1020,7 +1106,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1053,7 +1140,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1086,7 +1174,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1119,7 +1208,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1152,7 +1242,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1185,7 +1276,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1218,7 +1310,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1251,7 +1344,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1284,7 +1378,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1317,7 +1412,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1350,7 +1446,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1387,7 +1484,8 @@ public class PlannerSettings {
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
+            aggregationPartitioningMemoryThreshold,
+            directTable
         );
     }
 
@@ -1397,5 +1495,60 @@ public class PlannerSettings {
      */
     public ByteSizeValue aggregationPartitioningMemoryThreshold() {
         return aggregationPartitioningMemoryThreshold;
+    }
+
+    private PlannerSettings directTable(HashAggregationOperator.DirectTableConfig directTable) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold,
+            directTable
+        );
+    }
+
+    public PlannerSettings directTableSlots(int slots) {
+        return directTable(
+            new HashAggregationOperator.DirectTableConfig(slots, directTable.switchMinKeys(), directTable.switchUniqueness())
+        );
+    }
+
+    public PlannerSettings directTableSwitchMinKeys(int switchMinKeys) {
+        return directTable(
+            new HashAggregationOperator.DirectTableConfig(directTable.slots(), switchMinKeys, directTable.switchUniqueness())
+        );
+    }
+
+    public PlannerSettings directTableSwitchUniqueness(double switchUniqueness) {
+        return directTable(
+            new HashAggregationOperator.DirectTableConfig(directTable.slots(), directTable.switchMinKeys(), switchUniqueness)
+        );
+    }
+
+    /**
+     * When a partial aggregation switches to a direct-mapped table. See {@link #AGG_DIRECT_TABLE_SLOTS}.
+     */
+    public HashAggregationOperator.DirectTableConfig directTable() {
+        return directTable;
     }
 }

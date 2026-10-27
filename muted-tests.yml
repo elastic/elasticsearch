@@ -457,11 +457,6 @@ tests:
   - :x-pack:qa:rolling-upgrade-multi-cluster:v9.6.0#bwcTest
   method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=2 followerNodesUpgraded=3}
   issue: https://github.com/elastic/elasticsearch/issues/163301
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecChangePointIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#csvSpecTestsOldCoordinator
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/163319
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest

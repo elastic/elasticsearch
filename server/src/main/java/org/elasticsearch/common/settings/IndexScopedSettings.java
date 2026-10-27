@@ -256,6 +256,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.TIME_SERIES_BATCH_INDEXING,
+                IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
                 IndexSettings.SYNTHETIC_ID,
                 SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,

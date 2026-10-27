@@ -22,6 +22,10 @@ import java.util.Map;
 /// A [HealthTracker] which captures the [LocalRecoveryRetriesHealthInfo] for a node.
 public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecoveryRetriesHealthInfo> {
 
+    // TODO: Resolve any potential discrepancies associated with the fact that the health indicator consumes localRetries the same as
+    // failedAllocations – but, at time of writing, the former is reset by direct cancellation and the latter is not.
+    // See elastic/elasticsearch-team#5557
+
     private final IndicesService indicesService;
 
     public LocalRecoveryRetriesHealthTracker(IndicesService indicesService) {

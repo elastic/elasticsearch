@@ -32,8 +32,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,7 +57,7 @@ public class DocValuesSliceQueryTests extends ESTestCase {
         int max = randomIntBetween(2, 10);
         int[] sliceCounters1 = new int[max];
         int[] sliceCounters2 = new int[max];
-        Set<String> keys = new HashSet<>();
+        Set<String> keys = ConcurrentHashMap.newKeySet();
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             String uuid = UUIDs.base64UUID();
@@ -80,7 +80,7 @@ public class DocValuesSliceQueryTests extends ESTestCase {
 
             DocValuesSliceQuery query2 = new DocValuesSliceQuery("doubleField", id, max);
             assertThat(searcher.count(query2), equalTo(sliceCounters2[id]));
-            searcher.search(query1, new Collector() {
+            searcher.search(query1, collectorManager(() -> new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                     StoredFields storedFields = context.reader().storedFields();
@@ -102,7 +102,7 @@ public class DocValuesSliceQueryTests extends ESTestCase {
                 public ScoreMode scoreMode() {
                     return ScoreMode.COMPLETE_NO_SCORES;
                 }
-            });
+            }));
         }
         assertThat(keys.size(), equalTo(0));
         w.close();

@@ -25,7 +25,7 @@ import java.util.Objects;
  * duplicates and inline {@code null} positions; unlike it, the slot count travels in the blob, so there is no companion field to advance
  * on and every shape a document takes — values, nulls, an empty array — arrives as one payload.
  */
-public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     private final String name;
     private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
 
@@ -35,7 +35,8 @@ public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer imple
     private boolean hasField;
     private BytesRef payload;
     private int slotCount;
-    private int nonNullCount;
+    // Only computed for payloads of at most one slot: more slots always render as an array whatever they hold.
+    private boolean allNull;
 
     public ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
         this.name = Objects.requireNonNull(name);
@@ -60,7 +61,7 @@ public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer imple
         // The blob stays valid until the next advance, and nothing touches it between here and write().
         payload = values.binaryValue();
         slotCount = decoder.reset(payload);
-        nonNullCount = slotCount - decoder.nullSlotCount();
+        allNull = slotCount == 0 || (slotCount == 1 && decoder.nullSlotCount() == 1);
         return true;
     }
 
@@ -74,7 +75,7 @@ public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer imple
         if (hasField == false) {
             return 0;
         }
-        if (nonNullCount == 0) {
+        if (allNull) {
             // An empty array, or one holding nothing but nulls, still has to render as an array. Two is simply
             // "more than one" to CompositeSyntheticFieldLoader, which is all it takes to get the brackets.
             return 2;
@@ -95,8 +96,13 @@ public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer imple
             if (value == null) {
                 b.nullValue();
             } else {
-                b.utf8Value(value.bytes, value.offset, value.length);
+                writeValue(b, value);
             }
         }
+    }
+
+    /** Writes one value; UTF-8 text unless a field stores its values in another form. */
+    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+        b.utf8Value(value.bytes, value.offset, value.length);
     }
 }

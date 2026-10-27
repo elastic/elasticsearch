@@ -1304,6 +1304,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
                     CsvFormatReader.CONFIG_ENCODING,
                     encoding,
                     CsvFormatReader.CONFIG_TRIM_SPACES,
+                    true,
+                    // Unset multiline_fields cuts on newlines, which takes the read off the Jackson bulk path this pins.
+                    "multiline_fields",
                     true
                 )
             ).read(o, ctx)

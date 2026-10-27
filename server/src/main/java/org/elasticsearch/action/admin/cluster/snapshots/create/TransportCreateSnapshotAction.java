@@ -23,7 +23,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.snapshots.SnapshotEncryptedDataFeatures;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,14 +90,6 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
     ) {
-        if (request.waitForCompletion()) {
-            snapshotsService.executeSnapshot(projectResolver.getProjectId(), request, listener.map(CreateSnapshotResponse::new));
-        } else {
-            snapshotsService.createSnapshot(
-                projectResolver.getProjectId(),
-                request,
-                listener.map(snapshot -> new CreateSnapshotResponse((SnapshotInfo) null))
-            );
-        }
+        snapshotsService.createSnapshot(projectResolver.getProjectId(), request, listener.map(CreateSnapshotResponse::new));
     }
 }

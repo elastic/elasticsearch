@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -96,6 +97,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Boolean cachedExists;
     /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
     private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
+    /** Strong ETag of the HEAD that a probe fell back to. It is the version the probe saw, and it does not pin. */
+    private volatile String probedEtag;
     /** Some S3-compatible stores do not implement If-Match on GET; validate each response ETag instead. */
     private volatile boolean ifMatchUnsupported;
 
@@ -493,6 +496,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
+     * The pin. A HEAD's ETag is not used here: it is the current version when the HEAD ran, and reads of this object
+     * are not conditional on it, so an overwrite before the first GET would pair the old footer with the new bytes.
+     * A metadata call reports its HEAD's ETag on its {@link StorageEntry} instead, and that seeds the pin when used.
+     */
+    @Override
+    @Nullable
+    public String version() {
+        return pinnedEtag.get();
+    }
+
+    /** The version the existence probe saw: the HEAD's ETag when the probe fell back to a HEAD, otherwise the pin. */
+    @Override
+    @Nullable
+    public String probedVersion() {
+        String etag = probedEtag;
+        return etag != null ? etag : super.probedVersion();
+    }
+
+    /**
      * Issues GET, sending If-Match of the first strong ETag on later opens. A store that answers
      * {@code NotImplemented} does not support If-Match on GET: one unconditioned retry is allowed,
      * but its response and every later response must carry the pinned ETag.
@@ -780,7 +802,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                     // the resolve path caches that as the file's metadata.
                     throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
                 }
-                return new StorageEntry(path, cachedLength, cachedLastModified);
+                return new StorageEntry(path, cachedLength, cachedLastModified, pinnedEtag.get());
             }
             throw throwReadFailure("Failed to read object metadata for", e);
         }
@@ -803,7 +825,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (length == null) {
             throw new IOException("Failed to determine external object size: HeadObject response carried no Content-Length");
         }
-        return new StorageEntry(path, length, response.lastModified());
+        return new StorageEntry(path, length, response.lastModified(), strongEtag(response.eTag()));
+    }
+
+    /**
+     * Seeds the pin with the version a listing reported, before any request, so that the first GET is sent with
+     * {@code If-Match} and an overwrite since the listing fails with {@link ExternalObjectChangedException} rather than
+     * serving the new bytes under the old footer. Ignored for a null or weak ETag, and never replaces a pin already set.
+     */
+    void seedVersion(@Nullable String version) {
+        String strong = strongEtag(version);
+        if (strong != null) {
+            pinnedEtag.compareAndSet(null, strong);
+        }
+    }
+
+    /** The ETag as a version, or {@code null} when it is absent or weak: a weak ETag is not a byte-for-byte identifier. */
+    @Nullable
+    static String strongEtag(@Nullable String etag) {
+        return etag != null && etag.isBlank() == false && isStrongEtag(etag) ? etag : null;
     }
 
     private void probeObjectViaHead() throws IOException {
@@ -813,6 +853,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             ExternalPlanningIo.addMetadataGet(0);
 
             cachedExists = true;
+            probedEtag = strongEtag(response.eTag());
             // HEAD is not a GET: it reports whatever generation is current, which is not necessarily the
             // one reads are pinned to. It must neither establish the pin nor overwrite the pinned
             // generation's size (already set by the GET that pinned it).

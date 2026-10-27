@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -104,8 +105,9 @@ public class ToText extends AbstractConvertFunction
         returnType = "text",
         briefSummary = "Converts a value to text.",
         description = "Converts an input value into text.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
         examples = { @Example(file = "convert", tag = "to_text") }
     )
     public ToText(
@@ -250,6 +252,11 @@ public class ToText extends AbstractConvertFunction
         Holder<Attribute> current = new Holder<>((Attribute) input);
         Holder<Boolean> mapped = new Holder<>(false);
         plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            // FILLNULL keeps the id of a column it fills until the optimizer expands it, but the column is no longer the field below.
+            if (p instanceof FillNull fillNull && fillNull.fills(current.get())) {
+                breakEarly.set(true);
+                return;
+            }
             List<? extends NamedExpression> aliases;
             if (p instanceof Project project) {
                 aliases = project.projections();

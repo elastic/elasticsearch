@@ -11,6 +11,7 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
@@ -29,6 +30,7 @@ import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringGroup.CONTENT_FIELD;
+import static org.elasticsearch.inference.InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES;
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
@@ -36,6 +38,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -117,27 +120,70 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         }
     }
 
+    public void testConstructor_withUnsupportedDataType_throws() {
+        var unsupportedDataType = randomFrom(EnumSet.complementOf(EnumSet.copyOf(SUPPORTED_EMBEDDING_DATA_TYPES)));
+        var unsupportedInput = InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(unsupportedDataType));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceStringGroup(List.of(InferenceStringTests.createRandomEmbeddingInput(), unsupportedInput))
+        );
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Data type [%s] is not supported for embedding inputs, supported data types are [text, image, audio, video, pdf]",
+                    unsupportedDataType
+                )
+            )
+        );
+    }
+
+    public void testParser_withHtmlDataType_throws() throws IOException {
+        var requestJson = """
+                {
+                    "content": {"type": "html", "format": "url", "value": "https://example.com/page.html"}
+                }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
+            Throwable rootCause = exception;
+            while (rootCause.getCause() != null) {
+                rootCause = rootCause.getCause();
+            }
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertThat(rootCause.getMessage(), containsString("Data type [html] is not supported for embedding inputs"));
+        }
+    }
+
     public void testValue_withMoreThanOneElement_throws() {
-        var input = new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom()));
+        var input = new InferenceStringGroup(
+            List.of(InferenceStringTests.createRandomEmbeddingInput(), InferenceStringTests.createRandomEmbeddingInput())
+        );
         var expectedException = expectThrows(AssertionError.class, input::value);
         assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
 
     public void testTextValue_withMoreThanOneElement_throws() {
-        var input = new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom()));
+        var input = new InferenceStringGroup(
+            List.of(InferenceStringTests.createRandomEmbeddingInput(), InferenceStringTests.createRandomEmbeddingInput())
+        );
         var expectedException = expectThrows(AssertionError.class, input::textValue);
         assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
 
     public void testToInferenceStringList() {
-        var inferenceString1 = InferenceStringTests.createRandom();
-        var inferenceString2 = InferenceStringTests.createRandom();
+        var inferenceString1 = InferenceStringTests.createRandomEmbeddingInput();
+        var inferenceString2 = InferenceStringTests.createRandomEmbeddingInput();
         var inputs = List.of(new InferenceStringGroup(inferenceString1), new InferenceStringGroup(inferenceString2));
         assertThat(toInferenceStringList(inputs), contains(inferenceString1, inferenceString2));
     }
 
     public void testToInferenceStringList_withMoreThanOneElement_throws() {
-        var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
+        var input = List.of(
+            new InferenceStringGroup(
+                List.of(InferenceStringTests.createRandomEmbeddingInput(), InferenceStringTests.createRandomEmbeddingInput())
+            )
+        );
         var expectedException = expectThrows(AssertionError.class, () -> toInferenceStringList(input));
         assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
@@ -150,16 +196,18 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testToStringList_withMoreThanOneElement_throws() {
-        var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
+        var input = List.of(
+            new InferenceStringGroup(
+                List.of(InferenceStringTests.createRandomEmbeddingInput(), InferenceStringTests.createRandomEmbeddingInput())
+            )
+        );
         var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
         assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
 
     public void testToStringList_WithNonTextValue_Throws() {
         var input = randomList(1, 5, () -> new InferenceStringGroup(randomAlphaOfLength(5)));
-        var nonTextInput = new InferenceStringGroup(
-            InferenceStringTests.createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(TEXT)))
-        );
+        var nonTextInput = new InferenceStringGroup(InferenceStringTests.createRandomNonTextEmbeddingInput());
         input.add(randomInt(input.size()), nonTextInput);
         var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
         assertThat(expectedException.getMessage(), is("Non-text input returned from InferenceString.textValue"));
@@ -171,7 +219,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testContainsNonTextEntry_withNonTextInput() {
-        DataType nonTextDataType = randomValueOtherThan(TEXT, () -> randomFrom(DataType.values()));
+        DataType nonTextDataType = randomValueOtherThan(TEXT, () -> randomFrom(SUPPORTED_EMBEDDING_DATA_TYPES));
         var inputs = List.of(
             new InferenceStringGroup("string1"),
             new InferenceStringGroup(
@@ -307,7 +355,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         int inferenceStringsToCreate = randomIntBetween(1, 5);
         var inferenceStrings = new ArrayList<InferenceString>(inferenceStringsToCreate);
         for (int j = 0; j < inferenceStringsToCreate; ++j) {
-            inferenceStrings.add(InferenceStringTests.createRandom());
+            inferenceStrings.add(InferenceStringTests.createRandomEmbeddingInput());
         }
         return new InferenceStringGroup(inferenceStrings);
     }
@@ -319,11 +367,11 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         var maintainListSize = randomBoolean();
         if (maintainListSize) {
             var firstElement = newInferenceStrings.getFirst();
-            newInferenceStrings.set(0, randomValueOtherThan(firstElement, InferenceStringTests::createRandom));
+            newInferenceStrings.set(0, randomValueOtherThan(firstElement, InferenceStringTests::createRandomEmbeddingInput));
         } else {
             // Don't remove from the list if there is only one element
             if (inferenceStrings.size() == 1 || randomBoolean()) {
-                newInferenceStrings.add(InferenceStringTests.createRandom());
+                newInferenceStrings.add(InferenceStringTests.createRandomEmbeddingInput());
             } else {
                 newInferenceStrings.removeLast();
             }

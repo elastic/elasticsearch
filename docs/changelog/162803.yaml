@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162803
+summary: Render each Lucene query once per operator
+type: enhancement

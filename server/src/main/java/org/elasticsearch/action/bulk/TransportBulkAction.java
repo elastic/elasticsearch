@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -45,8 +46,10 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -111,6 +114,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private volatile boolean pastTsdbIndexCreationEnabled;
     private final BatchIndexingEnabled batchIndexingEnabled;
+    private final Recycler<BytesRef> bytesRefRecycler;
 
     @Inject
     public TransportBulkAction(
@@ -128,7 +132,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamLifecycleSettings dataStreamLifecycleSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
+        BigArrays bigArrays
     ) {
         this(
             threadPool,
@@ -146,7 +151,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             dataStreamFailureStoreSettings,
             featureService,
             timeSeriesEligibleWriteWindowLocator,
-            dataStreamLifecycleSettings
+            dataStreamLifecycleSettings,
+            bigArrays
         );
     }
 
@@ -166,7 +172,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamLifecycleSettings dataStreamLifecycleSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
+        BigArrays bigArrays
     ) {
         super(
             TYPE,
@@ -194,6 +201,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(PAST_TSDB_INDEX_CREATION_ENABLED_SETTING, this::setPastTsdbIndexCreationEnabled);
         this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
+        this.bytesRefRecycler = bigArrays.bytesRefRecycler();
     }
 
     private void setPastTsdbIndexCreationEnabled(boolean pastTsdbIndexCreationEnabled) {
@@ -876,7 +884,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterSupportsFailureStore,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            bytesRefRecycler
         ).run();
     }
 

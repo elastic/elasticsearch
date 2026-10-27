@@ -2000,17 +2000,17 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testFieldBasedFullTextFunctions() throws Exception {
         // MATCH and : support runtime search; after mv_expand on the same field, the expanded attribute is no
         // longer a direct FieldAttribute so isRuntimeSearch()=true and command restrictions are bypassed.
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
 
-        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
 
         // MATCH_PHRASE supports runtime search on text and keyword expressions
         fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
         fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
         fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")");
 
-        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
+        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
     public void testFullTextFunctionsRuntimeAnalyzerOption() throws Exception {
@@ -2206,12 +2206,31 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(
-        String functionName,
-        String functionType,
-        String functionInvocation,
-        boolean supportsRuntimeSearch
-    ) {
+    public void testFullTextFunctionsRuntimeOptionValueThatCannotBuildQuery() throws Exception {
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match(t, \"cat\", {\"max_expansions\": 0})",
+            containsString("[MATCH] function failed to build query for non-index-mapped field [t]")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match_phrase(t, \"cat\", {\"slop\": -1})",
+            containsString("[MATCH_PHRASE] function failed to build query for non-index-mapped field [t]")
+        );
+    }
+
+    public void testMatchRuntimeQueryValueTypeMismatch() throws Exception {
+        // lenient is the default, so a query value that cannot be converted to the field's type passes verification
+        // (but matches nothing)
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\")");
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": true})");
+
+        // 'lenient: false' results in an error about the mismatched types
+        fullText().error(
+            "from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": false})",
+            containsString("does not match the type ([integer]) of non-index-mapped field [k]")
+        );
+    }
+
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -2233,20 +2252,9 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test | sort id | limit 1 by id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        if (supportsRuntimeSearch) {
-            // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
-            // so runtime search takes over and command restrictions are bypassed.
-            fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
-        } else {
-            fullText().stripErrorPrefix(false)
-                .error(
-                    "from test | mv_expand " + fieldName + " | where " + functionInvocation,
-                    allOf(
-                        containsString("Found 1 problem"),
-                        containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
-                    )
-                );
-        }
+        // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
+        // so runtime search takes over and command restrictions are bypassed.
+        fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
         if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
             fullText().error(
                 "from test | dedup | where " + functionInvocation,
@@ -2367,15 +2375,9 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
             containsString("[QSTR] function cannot be used after FORK")
         );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
-            containsString("[KNN] function cannot be used after FORK")
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])"
         );
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
-                allOf(containsString("Found 1 problem"), containsString("[KNN] function cannot be used after FORK"))
-            );
     }
 
     public void testFullTextFunctionsAfterForkWithEvalInBranch() {
@@ -2680,23 +2682,6 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
         // match_phrase supports runtime search on text EVAL columns
         fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
-    }
-
-    /**
-     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
-     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
-     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
-     */
-    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
-        // Uses KNN because it is the only field-based full-text function left without runtime search support; if
-        // that lands too, this guard needs another way to trigger the "not a field from an index mapping" failure.
-        fullText().error(
-            "from test | eval v = vector | where knn(v, [1, 2, 3])",
-            allOf(
-                containsString("[KNN] function cannot operate on [v], which is not a field from an index mapping"),
-                not(containsString("federated"))
-            )
-        );
     }
 
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
@@ -4007,7 +3992,7 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     private static int filledColumns(LogicalPlan plan) {
-        return plan.collect(FillNull.class).stream().mapToInt(fillNull -> fillNull.fields().size()).sum();
+        return plan.collect(FillNull.class).stream().mapToInt(fillNull -> fillNull.fillAliases().size()).sum();
     }
 
     private static String fillNullLimitError(int filled, int limit) {
@@ -4081,6 +4066,43 @@ public class VerifierTests extends AnalyzerTestCase {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         fullText().query("from test | FILLNULL \"\" ON title | where match(title, \"data\")");
         fullText().query("from test | FILLNULL \"\" ON title | where title : \"data\"");
+    }
+
+    public void testFillNullThenToTextAnalyzerOnAFilledColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | FILLNULL \"x\" ON title | eval t = to_text(title, {\"analyzer\": \"whitespace\"})");
+        fullText().query("from test | rename title as m | FILLNULL \"x\" ON m | eval t = to_text(m, {\"analyzer\": \"whitespace\"})");
+    }
+
+    public void testFillNullThenFullTextAfterLimitIsRuntimeSearch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | limit 10 | FILLNULL \"\" ON title | where match(title, \"data\")");
+        fullText().query("from test | mv_expand title | FILLNULL \"\" ON title | where title : \"data\"");
+    }
+
+    public void testFillNullThenFullTextOnAFilledLookupFieldIsRuntimeSearch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().addLanguagesLookup().query("""
+            from test
+            | eval language_code = 1
+            | lookup join languages_lookup on language_code
+            | FILLNULL "" ON language_name
+            | where match(language_name, "English")""");
+        fullText().addLanguagesLookup().query("""
+            from test
+            | eval language_code = 1
+            | lookup join languages_lookup on language_code
+            | rename language_name as ln
+            | FILLNULL "" ON ln
+            | where match(ln, "English")""");
+    }
+
+    public void testFillNullThenTimeSeriesGroupingByAFilledMetric() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        tsdb().query(
+            "TS test | FILLNULL 0 ON network.connections | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), "
+                + "network.connections"
+        );
     }
 
     public void testFullTextFunctionsInStats() {
@@ -4589,6 +4611,21 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
     }
 
+    public void testTextEmbeddingFunctionNonFoldableArguments() {
+        defaultAnalyzer().addInferenceResolution(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .error(
+                "from test | EVAL embedding = TEXT_EMBEDDING(first_name, ?)",
+                equalTo("1:30: first argument of [TEXT_EMBEDDING(first_name, ?)] must be a constant, received [first_name]"),
+                TEXT_EMBEDDING_INFERENCE_ID
+            );
+
+        defaultAnalyzer().error(
+            "from test | EVAL embedding = TEXT_EMBEDDING(?, first_name)",
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, first_name)] must be a constant, received [first_name]"),
+            "query text"
+        );
+    }
+
     public void testEmbeddingFunctionInvalidQuery() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
@@ -4638,9 +4675,18 @@ public class VerifierTests extends AnalyzerTestCase {
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
             equalTo(
-                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image, audio, video, pdf]"
+                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], "
+                    + "must be one of [text, image, audio, video, pdf, html]"
             ),
             "query text",
+            EMBEDDING_INFERENCE_ID
+        );
+
+        // html is a valid data type, but only for document extraction
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"html\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unsupported type [html], must be one of [text, image, audio, video, pdf]"),
+            "https://example.com/page.html",
             EMBEDDING_INFERENCE_ID
         );
 

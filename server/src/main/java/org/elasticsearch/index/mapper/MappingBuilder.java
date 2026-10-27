@@ -11,10 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
@@ -68,11 +70,24 @@ public class MappingBuilder {
      * Merges another {@link MappingBuilder} into this one, mutating this builder in place,
      * enforcing all limits in the provided {@link ParseFieldLimits}.
      */
-    public void merge(MappingBuilder incoming, MergeReason reason, ParseFieldLimits fieldLimits) {
+    public void merge(
+        MappingBuilder incoming,
+        MergeReason reason,
+        ParseFieldLimits fieldLimits,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         mergeWith(
             incoming,
             reason,
-            MapperMergeContext.root(isSourceSynthetic(), false, reason, fieldLimits, isStrictColumnar, isSourceColumnarStored())
+            MapperMergeContext.root(
+                isSourceSynthetic(),
+                false,
+                reason,
+                fieldLimits,
+                isStrictColumnar,
+                isSourceColumnarStored(),
+                clusterSupportsFeature
+            )
         );
     }
 

@@ -184,6 +184,43 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * The survey's term table cannot hold a value longer than 32766 bytes, so such a value is never given an ordinal. It has to
+     * escape and read back whole. That is the longest value the table takes and the shortest it cannot.
+     */
+    public void testValuesLongerThanTheTermTableCanHoldEscape() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final int longestTerm = 32_766;
+        final BytesRef atLimit = new BytesRef("a".repeat(longestTerm));
+        final BytesRef justOver = new BytesRef("b".repeat(longestTerm + 1));
+        final BytesRef wellOver = new BytesRef("c".repeat(40_000));
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = new BytesRef[] { switch (d % 11) {
+                case 3 -> atLimit;
+                case 5 -> justOver;
+                case 7 -> wellOver;
+                default -> new BytesRef(terms[d % terms.length]);
+            } };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final StringColumnMetadata.Dictionary dictionary = dictionaryOf(metadata);
+            final DictionaryStringColumnReader column = (DictionaryStringColumnReader) reader;
+            assertTrue("expected the long values to have escaped", dictionary.hasEscapes());
+            for (int d = 0; d < docSlots.length; d++) {
+                final BytesRef value = reader.valueAt(reader.firstValueAddress(d));
+                assertEquals("doc [" + d + "]", docSlots[d][0], value);
+                if (docSlots[d][0].length > longestTerm) {
+                    assertEquals(
+                        "doc [" + d + "] is too long for the table, so it escapes",
+                        dictionary.escapeOrdinal(),
+                        column.ordinalAt(reader.firstValueAddress(d))
+                    );
+                }
+            }
+        });
+    }
+
     /** Nothing repeats, so there is no vocabulary and the values are stored as they are. */
     public void testAllDistinctValuesStayPlain() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 1500)];
@@ -380,7 +417,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             SummaryPolicy.sized(200),
             ChunkCodec.ZSTD,
             StringColumnOptions.DEFAULT_SIZES,
-            StringColumnOptions.DEFAULT_SINGLE_VALUED
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
         withColumn(singleValued(docValues), options, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
@@ -808,7 +846,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                 ColumNARDocValuesFormat.MAX_BLOCK_SIZE
             ),
-            StringColumnOptions.DEFAULT_SINGLE_VALUED
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
     }
 
@@ -863,12 +902,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                             ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                         ),
-                        StringColumnOptions.DEFAULT_SINGLE_VALUED
+                        StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                        StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
                     ),
                     known,
                     dir,
                     IOContext.DEFAULT,
-                    out.outputs()
+                    out.outputs(),
+                    out.skipIndex()
                 );
             }
             assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());

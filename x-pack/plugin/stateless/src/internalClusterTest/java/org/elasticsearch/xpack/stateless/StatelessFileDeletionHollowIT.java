@@ -598,7 +598,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
     }
 
     private static void ensureSearcherCanAccessStoredFieldFile(Engine.Searcher searcher) throws IOException {
-        searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;
@@ -618,7 +618,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
                     }
                 };
             }
-        });
+        }));
     }
 
     private static void ensureSnapshotCanReadFiles(Engine.IndexCommitRef snapshot) throws IOException {

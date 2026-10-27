@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -78,7 +77,6 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
@@ -255,7 +253,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            dataSourceModule.formatReaderRegistry()
+            dataSourceModule.formatReaderRegistry(),
+            client
         );
 
         this.activityLogger = new QueryLogger<>(
@@ -494,6 +493,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         planningCpu,
                         QueryMetricsListener.CPU_NANOS,
                         executionCpu,
+                        QueryMetricsListener.DRIVER_NANOS,
+                        ci.driverNanos(),
                         QueryMetricsListener.READ_NANOS,
                         ci.readNanos(),
                         QueryMetricsListener.READ_CPU_NANOS,
@@ -596,10 +597,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        // Already named _unmapped_fields by EsqlSession.
         var result = versionedResult.inner();
-        assert result.schema().stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unnamed: " + Expressions.names(result.schema());
         // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
@@ -648,6 +646,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.completionInfo().readNanos(),
                 result.completionInfo().readCpuNanos(),
                 result.completionInfo().cpuNanos(),
+                result.completionInfo().driverNanos(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -670,6 +669,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.completionInfo().readNanos(),
             result.completionInfo().readCpuNanos(),
             result.completionInfo().cpuNanos(),
+            result.completionInfo().driverNanos(),
             profile,
             request.columnar(),
             null,

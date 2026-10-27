@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -279,6 +280,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
@@ -298,8 +300,17 @@ public class IndexResolver {
                 v -> List.copyOf(v.expression())
             ),
             listener.delegateResponse((l, e) -> {
+                if (e instanceof IllegalArgumentException
+                    && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
+                    l.onResponse(new Versioned<>(IndexResolution.empty(indexPattern), TransportVersion.minimumCompatible()));
+                    return;
+                }
                 var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
-                l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
+                if (infe != null) {
+                    l.onFailure(new VerificationException(EsqlCCSUtils.unknownIndexError(infe.getIndex().getName(), indexViewOrigins)));
+                    return;
+                }
+                l.onFailure(e);
             })
         );
     }

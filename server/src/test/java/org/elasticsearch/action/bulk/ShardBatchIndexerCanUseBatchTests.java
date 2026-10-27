@@ -153,7 +153,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
                     IllegalArgumentException.class,
                     () -> clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build())
                 );
-                assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("batch_indexing feature flag"));
+                assertThat(ex.getCause().getMessage(), org.hamcrest.Matchers.containsString("batch_indexing feature flag"));
             }
         }
     }

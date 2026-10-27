@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -99,10 +100,17 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
         DiscoveryNode node,
         ShardId shardId
     ) {
-        ActionListener.completeWith(
-            listener,
-            () -> new FetchShardCommitsInUseAction.NodeResponse(node, getPrimaryTermAndGenerationsFromClosedShardService(shardId))
-        );
+        ActionListener.completeWith(listener, () -> {
+            final Set<PrimaryTermAndGeneration> fromClosedShardService = getPrimaryTermAndGenerationsFromClosedShardService(shardId);
+            logger.debug(
+                () -> format(
+                    "%s fetch-shard-commits-in-use answered from ClosedShardService (no live SearchEngine): %s",
+                    shardId,
+                    new TreeSet<>(fromClosedShardService)
+                )
+            );
+            return new FetchShardCommitsInUseAction.NodeResponse(node, fromClosedShardService);
+        });
     }
 
     private Set<PrimaryTermAndGeneration> getPrimaryTermAndGenerationsFromClosedShardService(ShardId shardId) {
@@ -153,17 +161,22 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
                 }
 
                 if (engineOrNull instanceof SearchEngine searchEngine) {
-                    ActionListener.completeWith(
-                        subscribedListener,
-                        () -> new FetchShardCommitsInUseAction.NodeResponse(
-                            localNode,
-                            // Even if the index is officially closed by the time we fetch the commit generations, the SearchEngine will
-                            // remain active and its list of `openReaders` will remain valid. Search operations retain a reference to the
-                            // SearchEngine and only remove active reader tracking when done. The ClosedShardService acts as a concurrent
-                            // intermediary only in cases where the SearchEngine becomes inaccessible after the IndexShard destructs.
-                            searchEngine.getAcquiredPrimaryTermAndGenerations()
-                        )
-                    );
+                    ActionListener.completeWith(subscribedListener, () -> {
+                        // Even if the index is officially closed by the time we fetch the commit generations, the SearchEngine will
+                        // remain active and its list of `openReaders` will remain valid. Search operations retain a reference to the
+                        // SearchEngine and only remove active reader tracking when done. The ClosedShardService acts as a concurrent
+                        // intermediary only in cases where the SearchEngine becomes inaccessible after the IndexShard destructs.
+                        final Set<PrimaryTermAndGeneration> acquired = searchEngine.getAcquiredPrimaryTermAndGenerations();
+                        logger.debug(
+                            () -> format(
+                                "%s fetch-shard-commits-in-use answered from live SearchEngine: %s (%s)",
+                                request.getShardId(),
+                                new TreeSet<>(acquired),
+                                searchEngine.describeAcquiredPrimaryTermAndGenerations()
+                            )
+                        );
+                        return new FetchShardCommitsInUseAction.NodeResponse(localNode, acquired);
+                    });
                 } else {
                     final var exception = new ElasticsearchException("expecting SearchEngine but got " + engineOrNull);
                     logger.error("unexpected", exception);

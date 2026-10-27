@@ -1728,3 +1728,233 @@ on_failure sidecar of a denied field is not exposed under FLS (columnar):
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
   - is_false: "hits.hits.0._source.secret"
+
+---
+Unmapped fields kept in the _unmapped field under FLS (columnar):
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+      reason: "the _unmapped field of a columnar index"
+
+  - do:
+      indices.create:
+        index: index_fls_unmapped_sink
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: index_fls_unmapped_sink
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"name": "a", "k": "secret", "visible": "v", "obj": {"hidden": "h", "shown": "s"}}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-except"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_unmapped_sink" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "k", "obj.hidden" ]
+  - set:
+      encoded: except_credentials
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-grant"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_unmapped_sink" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name", "visible", "obj.shown" ]
+  - set:
+      encoded: grant_credentials
+
+  # With superuser: the unmapped fields render at their original paths
+  - do:
+      search:
+        index: index_fls_unmapped_sink
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "a" }
+  - match: { hits.hits.0._source.k: "secret" }
+  - match: { hits.hits.0._source.visible: "v" }
+  - match: { hits.hits.0._source.obj\.hidden: "h" }
+  - match: { hits.hits.0._source.obj\.shown: "s" }
+
+  # Granted all but k and obj.hidden: those two are hidden, the other unmapped fields stay
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      search:
+        index: index_fls_unmapped_sink
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "a" }
+  - is_false: "hits.hits.0._source.k"
+  - match: { hits.hits.0._source.visible: "v" }
+  - is_false: 'hits.hits.0._source.obj\.hidden'
+  - match: { hits.hits.0._source.obj\.shown: "s" }
+
+  # Granted name, visible and obj.shown only: the granted unmapped fields stay
+  - do:
+      headers:
+        Authorization: "ApiKey ${grant_credentials}"
+      search:
+        index: index_fls_unmapped_sink
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "a" }
+  - is_false: "hits.hits.0._source.k"
+  - match: { hits.hits.0._source.visible: "v" }
+  - is_false: 'hits.hits.0._source.obj\.hidden'
+  - match: { hits.hits.0._source.obj\.shown: "s" }
+
+  # Get and the fields option read the same filtered source
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      get:
+        index: index_fls_unmapped_sink
+        id: "1"
+  - match: { _source.visible: "v" }
+  - is_false: "_source.k"
+  - is_false: '_source.obj\.hidden'
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      search:
+        index: index_fls_unmapped_sink
+        body:
+          fields: [ { "field": "*", "include_unmapped": true } ]
+  - match: { hits.hits.0.fields.visible: [ "v" ] }
+  - is_false: "hits.hits.0.fields.k"
+  - is_false: 'hits.hits.0.fields.obj\.hidden'
+
+---
+Fields of a columnar_stored _source under FLS:
+  # columnar_stored keeps the whole _source in one _ignored_source entry named _source, which FLS used to grant as a metadata field,
+  # handing out every field of the document.
+  - requires:
+      cluster_features: [ "mapper.columnar_stored.source_fls_fix" ]
+      reason: "the fields of a columnar_stored _source are filtered under FLS since mapper.columnar_stored.source_fls_fix"
+
+  - do:
+      indices.create:
+        index: index_fls_columnar_stored
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: keyword
+
+  - do:
+      bulk:
+        index: index_fls_columnar_stored
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"name": "a", "secret": "m"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-except"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_columnar_stored" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - set:
+      encoded: except_credentials
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-grant"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_columnar_stored" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+  - set:
+      encoded: grant_credentials
+
+  # With superuser: every field is there
+  - do:
+      search:
+        index: index_fls_columnar_stored
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "a" }
+  - match: { hits.hits.0._source.secret: "m" }
+
+  # Granted all but secret
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      search:
+        index: index_fls_columnar_stored
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "a" }
+  - is_false: "hits.hits.0._source.secret"
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      get:
+        index: index_fls_columnar_stored
+        id: "1"
+  - match: { _source.name: "a" }
+  - is_false: "_source.secret"
+
+  # Granted name only
+  - do:
+      headers:
+        Authorization: "ApiKey ${grant_credentials}"
+      search:
+        index: index_fls_columnar_stored
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "a" }
+  - is_false: "hits.hits.0._source.secret"
+
+  # ES|QL reads the same filtered source
+  - do:
+      headers:
+        Authorization: "ApiKey ${except_credentials}"
+      esql.query:
+        body:
+          query: 'FROM index_fls_columnar_stored METADATA _source | KEEP _source | LIMIT 1'
+  - match: { values.0.0.name: "a" }
+  - is_false: "values.0.0.secret"

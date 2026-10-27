@@ -13,7 +13,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -613,11 +612,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
 
-        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
-            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
-            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
-
-        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
+        // Use the GA (non-feature-flag) threshold for all builds. An earlier snapshot-only threshold
+        // (IGNORED_SOURCE_AS_DOC_VALUES = 9_078_0_00) was removed because it overlapped with the max
+        // index version of the 9.4.6 release (9_094_0_00), which wrote _ignored_source using stored
+        // fields. Using the snapshot threshold on a node that is upgrading from 9.4.6 caused a Lucene
+        // field-type conflict ("cannot change field _ignored_source from doc values type NONE to BINARY").
+        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF)
+            && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

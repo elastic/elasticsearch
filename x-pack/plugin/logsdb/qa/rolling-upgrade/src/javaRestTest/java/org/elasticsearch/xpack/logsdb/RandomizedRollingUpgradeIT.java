@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -171,8 +172,24 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         if (randomBoolean()) {
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
+        if (ignoredSourceFormatIsStable() == false) {
+            builder.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), false);
+        }
         String indexNameBase = "test-index-synthetic-";
         testIndexing(indexNameBase, builder);
+    }
+
+    /**
+     * Returns true if old cluster version is before 9.4.0 and on or after 9.5.0.
+     * The ignored source format within 9.4 release line is not stable if time series doc value format is enabled.
+     */
+    private static boolean ignoredSourceFormatIsStable() {
+        String oldVersionProp = System.getProperty("tests.old_cluster_version");
+        if (oldVersionProp == null) {
+            return true;
+        }
+        Version oldVersion = Version.fromString(oldVersionProp);
+        return oldVersion.before(Version.fromString("9.4.0")) || oldVersion.onOrAfter(Version.fromString("9.5.0"));
     }
 
     private void indexDocuments(TestIndexConfig indexConfig) throws IOException {

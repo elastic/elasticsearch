@@ -135,6 +135,8 @@ teardown:
   - match: { results.0.recall: 1.0 }
   - match: { results.0.included_queries: 10 }
   - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
+  # only HNSW-family fields report it
+  - is_false: index_info
   - length: { failures: 0 }
   - gte: { baseline_took_ms: 0 }
   - gte: { results.0.took_ms: 0 }
@@ -216,6 +218,45 @@ teardown:
   - gte: { results.0.recall: 0.0 }
   - lte: { results.0.recall: 1.0 }
   - match: { results.1.recall: 1.0 }
+
+---
+"num_candidates is accepted on a bbq_disk field":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 30
+          baseline:
+            num_candidates: 100
+          knn_settings:
+            - num_candidates: 10
+            - num_candidates: 100
+
+  - length: { results: 2 }
+  - length: { failures: 0 }
+  - match: { baseline.num_candidates: 100 }
+  - match: { results.0.knn_settings.num_candidates: 10 }
+  - match: { results.0.included_queries: 30 }
+
+---
+"num_candidates with a positive visit_percentage is rejected on a bbq_disk field":
+  - do:
+      catch: /\[num_candidates\] has no effect on bbq_disk with a positive \[visit_percentage\]/
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 30
+          knn_settings:
+            - visit_percentage: 50
+              num_candidates: 100
 
 ---
 "A field must resolve identically across indices":
@@ -448,12 +489,48 @@ teardown:
             from: docs
             size: 10
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 20
+              rescore_vector:
+                oversample: 100
 
   - is_false: baseline.exact
   - match: { baseline.visit_percentage: 20.0 }
   - match: { baseline.rescore_vector.oversample: 100.0 }
   - match: { results.0.recall: 1.0 }
+
+---
+"A candidate deeper than the baseline is rejected":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 21
+
+  - match: { error.reason: "/.*searches\\sdeeper\\sthan\\sthe\\sbaseline.*/" }
+
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          baseline:
+            visit_percentage: 50
+          knn_settings:
+            - visit_percentage: 60
+
+  - match: { error.reason: "/.*searches\\sdeeper\\sthan\\sthe\\sbaseline.*/" }
 
 ---
 "An evaluation can store its result in the task API":
@@ -546,7 +623,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - do:
       cluster.put_settings:
@@ -564,7 +641,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - length: { results: 1 }
 
@@ -587,7 +664,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - do:
       indices.put_settings:
@@ -605,7 +682,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
   - length: { results: 1 }
 
@@ -627,7 +704,7 @@ teardown:
             from: docs
             size: 5
           knn_settings:
-            - visit_percentage: 100
+            - visit_percentage: 5
 
 ---
 "A disabled index whose mapping can't be read is still refused":

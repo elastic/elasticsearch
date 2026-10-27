@@ -166,13 +166,13 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
     /// Local recovery retries are considered equivalent to failed allocations, so an inactive primary which would otherwise be `YELLOW`
     /// (because it is in an unexceptional recovery) becomes `RED`.
     public void testInactivePrimaryHealthWithLocalRecoveryRetries() {
-        for (var recoverySource : List.of(
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            RecoverySource.LocalShardsRecoverySource.INSTANCE,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE
-        )) {
-            var routing = inactivePrimary(recoverySource, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-            assertThat(ClusterShardHealth.getInactivePrimaryHealth(routing, true), equalTo(ClusterHealthStatus.RED));
+        List<ShardRouting> shardRoutings = List.of(
+            inactivePrimary(RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
+            inactivePrimary(RecoverySource.LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
+            inactivePrimary(RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null))
+        );
+        for (ShardRouting shardRouting : shardRoutings) {
+            assertThat(ClusterShardHealth.getInactivePrimaryHealth(shardRouting, true), equalTo(ClusterHealthStatus.RED));
         }
     }
 
@@ -181,7 +181,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
     public void testInactivePrimaryHealthOfReshardSplitTargetIgnoresRetriesAndFailures() {
         var recoverySource = new RecoverySource.ReshardSplitRecoverySource(new ShardId("index", "_na_", 1));
         var unassignedInfos = List.of(
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
             new UnassignedInfo(
                 UnassignedInfo.Reason.ALLOCATION_FAILED,
                 "failed",

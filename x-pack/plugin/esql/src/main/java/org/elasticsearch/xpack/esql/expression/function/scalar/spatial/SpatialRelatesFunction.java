@@ -27,6 +27,7 @@ import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -58,7 +59,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         EvaluatorMapper,
         SpatialEvaluatorFactory.SpatialSourceSupplier,
         TranslationAware,
-        SurrogateExpression {
+        SurrogateExpression,
+        AnyNullIsNull {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false, false);

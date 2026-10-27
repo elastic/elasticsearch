@@ -62,18 +62,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards
   issue: https://github.com/elastic/elasticsearch/issues/156063
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156079
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
-  method: testSimple
-  issue: https://github.com/elastic/elasticsearch/issues/155069
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldGetProperty
   issue: https://github.com/elastic/elasticsearch/issues/157330
@@ -217,16 +211,16 @@ tests:
   - :x-pack:plugin:downsample:test
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  tasks:
-  - :x-pack:plugin:yamlRestTest
-  method: test {yaml=snapshot/10_basic/Create a source only snapshot and then restore it}
-  issue: https://github.com/elastic/elasticsearch/issues/163270
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=indices.get_field_mapping/20_missing_field/Return empty object if field doesn't exist, but index does}
   issue: https://github.com/elastic/elasticsearch/issues/163303
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/163488
 
 # Examples:
 #

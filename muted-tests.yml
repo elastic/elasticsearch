@@ -516,11 +516,6 @@ tests:
   - :x-pack:qa:rolling-upgrade:v9.0.8#yamlBwcTest
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/163260
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  tasks:
-  - :modules:repository-azure:test
-  method: testWriteLargeBlob
-  issue: https://github.com/elastic/elasticsearch/issues/163262
 - class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
   tasks:
   - :x-pack:qa:rolling-upgrade-multi-cluster:v9.5.6#bwcTest

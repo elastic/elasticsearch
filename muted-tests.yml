@@ -221,6 +221,11 @@ tests:
   - :server:internalClusterTest
   method: testSkipUnmatchedShards
   issue: https://github.com/elastic/elasticsearch/issues/163314
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/163488
 
 # Examples:
 #

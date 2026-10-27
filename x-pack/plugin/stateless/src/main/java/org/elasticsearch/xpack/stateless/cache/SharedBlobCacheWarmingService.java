@@ -1257,7 +1257,7 @@ public class SharedBlobCacheWarmingService {
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
             );
         } else {
-            try (var warmer = new Region0Warmer(warmingRun, store::isClosing, lastCommitBlobs, directory, listener)) {
+            try (var warmer = new Region0Warmer(warmingRun, indexShard, store::isClosing, lastCommitBlobs, directory, listener)) {
                 warmer.run();
             }
         }
@@ -1736,16 +1736,19 @@ public class SharedBlobCacheWarmingService {
      * This is used before BCC header reads during indexing shard recovery to avoid cache misses in the read chain.
      */
     private class Region0Warmer extends AbstractWarmer {
+        private final IndexShard indexShard;
         private final Set<BlobFile> blobFiles;
 
         Region0Warmer(
             WarmingRun warmingRun,
+            IndexShard indexShard,
             Supplier<Boolean> isStoreClosing,
             Set<BlobFile> blobFiles,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
             super(warmingRun, isStoreClosing, directory, listener);
+            this.indexShard = indexShard;
             this.blobFiles = blobFiles;
         }
 
@@ -1753,6 +1756,12 @@ public class SharedBlobCacheWarmingService {
             for (var blobFile : blobFiles) {
                 scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blobFile, 0, listeners.acquire()));
             }
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            // a region-0 is only prewarmed to speed up BCC-header reads of an ongoing recovery
+            return super.isCancelled() || indexShard.state() != IndexShardState.RECOVERING;
         }
 
         @Override

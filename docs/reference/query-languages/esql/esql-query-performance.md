@@ -468,11 +468,12 @@ Query logging captures Query DSL, EQL, SQL, and {{esql}} queries that exceed con
 For clusters on earlier versions, a legacy {{esql}}-specific query log {applies_to}`stack: ga 9.1+` writes slow queries to a `_esql_querylog.json` file in the {{es}} log directory. To configure it, refer to [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md).
 
 ### Task management API
+
 ```{applies_to}
 serverless: unavailable
 ```
 
-Use the task management APIs to monitor and cancel long-running {{esql}} queries. For the required privileges, action filters, and cancellation steps, refer to [Find and cancel long-running queries](/reference/query-languages/query-task-management.md).
+[**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) is the simplest way to find and cancel running queries. Use the task management APIs instead if you're on a version before 9.4, don't have {{kib}} access, or want to automate these checks. For steps, refer to [Find and cancel long-running queries](/reference/query-languages/query-task-management.md).
 
 
 ## Optimize queries for {{esql}} Data Federation

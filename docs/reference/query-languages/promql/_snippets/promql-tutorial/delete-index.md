@@ -1,0 +1,3 @@
+```console
+DELETE /promql-tutorial
+```

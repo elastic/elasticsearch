@@ -20,6 +20,9 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -28,6 +31,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -45,6 +49,10 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
     static MockAppender appender;
     static Logger testLogger1 = LogManager.getLogger(IndexingFailuresDebugListener.class);
     static Level origLogLevel = testLogger1.getLevel();
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
+        "index",
+        Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build()
+    );
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -68,6 +76,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
         IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
@@ -79,7 +88,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             equalTo(
                 "index-fail [1] seq# [-2] allocation-id ["
                     + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
+                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
             )
         );
     }
@@ -93,6 +102,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
             when(mockShard.routingEntry()).thenReturn(shardRouting);
             when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+            when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
             IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
 
             ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
@@ -110,6 +120,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
         IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
@@ -124,7 +135,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             equalTo(
                 "index-fail [1] seq# [-2] allocation-id ["
                     + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
+                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
             )
         );
     }
@@ -135,6 +146,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
         IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
@@ -152,6 +164,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
         IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
 
         IndexOperationBatch batch = primaryBatch(1);
@@ -165,7 +178,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             equalTo(
                 "real-index-fail [doc-0] seq# [-2] allocation-id ["
                     + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
+                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
             )
         );
     }
@@ -176,6 +189,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
         IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
 
         final int docCount = randomIntBetween(1, 8);
@@ -190,7 +204,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
                     + docCount
                     + "] startingSeqNo [-2] allocation-id ["
                     + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
+                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
             )
         );
     }
@@ -201,6 +215,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
         IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
 
         IndexOperationBatch batch = primaryBatch(1);
@@ -249,6 +264,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
             when(mockShard.routingEntry()).thenReturn(shardRouting);
             when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+            when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
             Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
             when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
             when(indexResult.getFailure()).thenReturn(failure);

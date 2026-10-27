@@ -4635,6 +4635,12 @@ public class EsqlCapabilities {
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
+        /**
+         * A FORK is rejected while parsing once the plan's nodes, its input counted once per branch, pass {@code max_command_count}.
+         * The FORK-wrapping csv-spec suites skip the tests that declare this capability, as the wrapping itself passes the limit.
+         */
+        PARSED_PLAN_SIZE_LIMIT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

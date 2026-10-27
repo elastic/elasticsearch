@@ -1256,8 +1256,8 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         /// Set `deferRegion0Prewarm` so that `warmCacheForBCCHeadersRead` does not warm but stores the warm into
         /// `deferredRegion0Prewarm` for the test to run the prewarming later. This way we can simulate region-0 prewarming that is
         /// still queued when the shard completes recovery.
-        static final AtomicBoolean deferRegion0Prewarm = new AtomicBoolean();
-        static final AtomicReference<Consumer<ActionListener<Void>>> deferredRegion0Prewarm = new AtomicReference<>();
+        final AtomicBoolean deferRegion0Prewarm = new AtomicBoolean();
+        final AtomicReference<Consumer<ActionListener<Void>>> deferredRegion0Prewarm = new AtomicReference<>();
 
         static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
             "test.stateless.warm_on_upload_enabled",
@@ -1549,14 +1549,15 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         );
         ensureStableCluster(3);
 
-        // defer region-0 prewarming so it does not occur during relocation
-        StatelessTestPlugin.deferRegion0Prewarm.set(true);
+        // defer region-0 prewarming on the target node so it does not occur during relocation
+        final var targetPlugin = findPlugin(indexNodeB, StatelessTestPlugin.class);
+        targetPlugin.deferRegion0Prewarm.set(true);
         try {
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
             internalCluster().awaitNodeVacated(indexName, indexNodeA);
             ensureGreen(indexName);
         } finally {
-            StatelessTestPlugin.deferRegion0Prewarm.set(false);
+            targetPlugin.deferRegion0Prewarm.set(false);
         }
 
         // assert the shard was relocated as hollow
@@ -1574,7 +1575,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         // now run the region-0 prewarming: if we didn't have the `RECOVERING` check in `Region0Warmer.isCancelled`
         // this would fetch region 0 again even though it was evicted
-        final var deferredPrewarm = StatelessTestPlugin.deferredRegion0Prewarm.getAndSet(null);
+        final var deferredPrewarm = targetPlugin.deferredRegion0Prewarm.getAndSet(null);
         assertThat("expected the recovery to schedule region-0 prewarming", deferredPrewarm, notNullValue());
         final var prewarmFuture = new PlainActionFuture<Void>();
         deferredPrewarm.accept(prewarmFuture);

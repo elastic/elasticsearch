@@ -47,10 +47,10 @@ public class KoelnerPhonetik implements StringEncoder {
      * {@code partition()} generates. Each pattern match in a part doubles its variations, and a token with
      * n separator-delimited segments yields n(n+1)/2 parts, so without this limit certain tokens (e.g. "AUN" repeated,
      * or many hyphenated segments) can exhaust the heap. This constant removes the possibility of exponential heap
-     * growth. 64 fits 6 matches in one word, or a 10-segment token (55 parts) with no matches, which is well beyond
-     * what real names need.
+     * growth. 256 fits 8 pattern matches in one word, or a 22-segment token (253 parts) with no matches, which is
+     * well beyond what real names need while keeping the worst-case cost of one token small.
      */
-    static final int MAX_VARIATIONS = 64;
+    static final int MAX_VARIATIONS = 256;
 
     private Pattern[] variationsPatterns;
     private boolean primary = false;

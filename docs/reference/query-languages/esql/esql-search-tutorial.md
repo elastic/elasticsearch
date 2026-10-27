@@ -289,7 +289,8 @@ Because `summary` is not an indexed field, `MATCH` evaluates by scanning
 values row by row. This is useful for searching computed data, but may be
 slower than searching an indexed field on large datasets. This example
 also demonstrates the `TO_TEXT` function, which converts the `keyword`-type
-output from `CONCAT` to `text`.
+output from `CONCAT` to `text`. To learn more, refer to
+[runtime search](/reference/query-languages/esql/esql-runtime-search.md).
 
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 `MATCH_PHRASE` can search computed values the same way, requiring the query

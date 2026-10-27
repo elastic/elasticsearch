@@ -150,6 +150,11 @@ FROM events_*
 | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
+{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
+A full-text search on a converted union-typed field, such as `MATCH(TO_TEXT(message), "error")`, is a
+[runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row instead of
+using the index, and analyzes `text` values with the `standard` analyzer rather than the analyzers in the mappings.
+
 ### Date and date_nanos union type [esql-multi-index-date-date-nanos-union]
 ```{applies_to}
 stack: ga 9.2.0

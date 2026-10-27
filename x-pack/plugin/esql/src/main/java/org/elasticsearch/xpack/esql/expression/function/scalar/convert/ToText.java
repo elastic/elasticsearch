@@ -106,6 +106,13 @@ public class ToText extends AbstractConvertFunction
         returnType = "text",
         briefSummary = "Converts a value to text.",
         description = "Converts an input value into text.",
+        detailedDescription = """
+            Use `TO_TEXT` to search a computed value as full text with `MATCH`, or with
+            `MATCH_PHRASE` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`. String functions
+            such as `CONCAT` return `keyword`, which those functions match exactly, while `text` is analyzed.
+            The `analyzer` option declares how the values of the resulting column are analyzed when searched.
+            To learn more, refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md).
+            """,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
@@ -128,7 +135,9 @@ public class ToText extends AbstractConvertFunction
                     description = "The analyzer applied to the values of the resulting text column, playing the role the "
                         + "mapping's `analyzer` plays for an indexed text field. Defaults to `standard`. Must name a registered "
                         + "(prebuilt or plugin-provided) analyzer, and is only accepted on expressions that are not backed by an "
-                        + "index-mapped field."
+                        + "index-mapped field.",
+                    applies_to = """
+                        {"serverless": "ga", "stack": "ga 9.6.0"}"""
                 ) },
             description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",
             optional = true

@@ -77,6 +77,14 @@ public class HashAggregationOperatorDirectTableTests extends ComputeTestCase {
         runSwitching(List.of(ElementType.INT, ElementType.INT), true);
     }
 
+    public void testLongInt() {
+        runSwitching(List.of(ElementType.LONG, ElementType.INT), true);
+    }
+
+    public void testIntLong() {
+        runSwitching(List.of(ElementType.INT, ElementType.LONG), true);
+    }
+
     public void testLongLong() {
         runSwitching(List.of(ElementType.LONG, ElementType.LONG), true);
     }

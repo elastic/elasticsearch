@@ -262,7 +262,10 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             ElementType type = groups.get(0).elementType();
             return type == ElementType.LONG || type == ElementType.BYTES_REF;
         }
-        // Multiple keys use the same layout as PackedValuesBlockHash, so only the types it packs at a fixed width.
+        if (groups.size() == 2 && isLongInt(groups.get(0).elementType(), groups.get(1).elementType())) {
+            return true;
+        }
+        // Other multiple keys use the same layout as PackedValuesBlockHash, so only the types it packs at a fixed width.
         // Two LONG keys are packed too, because LongLongBlockHash is not enabled in production.
         for (GroupSpec group : groups) {
             ElementType type = group.elementType();
@@ -293,7 +296,19 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 default -> throw new IllegalStateException("unsupported type [" + group.elementType() + "]");
             };
         }
+        // Must pick the same hash class as build does for these groups, because the final stage combines the partitioned keys.
+        if (groups.size() == 2) {
+            ElementType type1 = groups.get(0).elementType();
+            ElementType type2 = groups.get(1).elementType();
+            if (isLongInt(type1, type2)) {
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, type1 == ElementType.INT, directSlots);
+            }
+        }
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize, directSlots);
+    }
+
+    private static boolean isLongInt(ElementType type1, ElementType type2) {
+        return (type1 == ElementType.LONG && type2 == ElementType.INT) || (type1 == ElementType.INT && type2 == ElementType.LONG);
     }
 
     /**

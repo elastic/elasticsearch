@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongLongHashTable;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongDirectHash;
 import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.List;
@@ -46,29 +48,48 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     // defaults to false, switch to true if we ever see input blocks
     boolean seenBlocks = false;
 
-    public LongIntBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
+    private LongIntBlockHash(
+        List<GroupSpec> specs,
+        BlockFactory blockFactory,
+        int emitBatchSize,
+        boolean reverseOutput,
+        LongLongHashTable hash
+    ) {
         super(blockFactory);
         this.longChannel = reverseOutput ? specs.get(1).channel() : specs.get(0).channel();
         this.intChannel = reverseOutput ? specs.get(0).channel() : specs.get(1).channel();
         // The emit size should be at least 256 so that prefetch taking effect.
         var emitVectorSize = Math.max(emitBatchSize, 256);
         this.reverseOutput = reverseOutput;
-        final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) emitVectorSize;
-        blockFactory.adjustBreaker(bytes);
-        this.batchUsedBytes = bytes;
+        this.hash = hash;
         boolean success = false;
-        batchKeys1 = new long[emitVectorSize];
-        batchKeys2 = new long[emitVectorSize];
-        batchIds = new int[emitVectorSize];
-        this.emitBatchSize = emitVectorSize;
         try {
-            this.hash = HashImplFactory.newLongLongHash(blockFactory);
+            final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) emitVectorSize;
+            blockFactory.adjustBreaker(bytes);
+            this.batchUsedBytes = bytes;
+            batchKeys1 = new long[emitVectorSize];
+            batchKeys2 = new long[emitVectorSize];
+            batchIds = new int[emitVectorSize];
+            this.emitBatchSize = emitVectorSize;
             success = true;
         } finally {
             if (success == false) {
-                blockFactory.adjustBreaker(-bytes);
+                // batchUsedBytes is only assigned once the breaker accepted it, so there is nothing to give back here.
+                hash.close();
             }
         }
+    }
+
+    /**
+     * Builds a hash backed by a {@link LongLongDirectHash} with {@code directSlots} slots. Only for partial aggregations,
+     * where a key may get several group ids. See {@link LongLongDirectHash}.
+     */
+    public LongIntBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput, int directSlots) {
+        this(specs, blockFactory, emitBatchSize, reverseOutput, new LongLongDirectHash(blockFactory.breaker(), directSlots));
+    }
+
+    public LongIntBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
+        this(specs, blockFactory, emitBatchSize, reverseOutput, HashImplFactory.newLongLongHash(blockFactory));
     }
 
     @Override
@@ -599,8 +620,8 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
 
     @Override
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
-        if (hash instanceof LongLongSwissHash swiss) {
-            return new PartitionedHashKeysWithSeenBlocks(swiss.splitPartition(breaker, partitionSplitter), seenBlocks);
+        if (hash instanceof PartitionedHashTable partitionable) {
+            return new PartitionedHashKeysWithSeenBlocks(partitionable.splitPartition(breaker, partitionSplitter), seenBlocks);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }

@@ -1328,7 +1328,24 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         protected Query readingValues(Query query, SearchExecutionContext context) {
-            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
+            return new ReanalyzingTextQuery(
+                query,
+                valueFetcherProvider(context, readsValueBytes(query, context)),
+                context.getIndexAnalyzer(f -> null),
+                true,
+                valuesAnalyzer(context)
+            );
+        }
+
+        /**
+         * This field's own analyzer, where its values can be read for the terms a query asks about before they are
+         * analyzed, and null where they cannot. It is the field's analyzer and not the index-wide one a query is
+         * built with, which wraps every field's and is none of them.
+         */
+        @Nullable
+        private NamedAnalyzer valuesAnalyzer(SearchExecutionContext context) {
+            final NamedAnalyzer analyzer = context.getIndexAnalyzer(name());
+            return CandidateValues.valuesSpellTheirTokens(analyzer) ? analyzer : null;
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
@@ -1346,15 +1363,25 @@ public final class TextFieldMapper extends FieldMapper {
             return parent.hasDocValues();
         }
 
-        /** Reads this field's values back, for the queries that analyze them again. */
+        /**
+         * Reads this field's values back, for the queries that analyze them again. {@code keepBytes} where a value's
+         * own bytes are read for the query's terms, since keeping them copies each value out of the column's buffer
+         * and only a reader of those bytes has any use for the copy.
+         */
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            boolean keepBytes
         ) {
             if (hasDocValues()) {
                 assert usesBinaryDocValues() : "a strictly columnar text field keeps its values in a binary column";
-                return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat());
+                return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat(), keepBytes);
             }
             return FieldValueFetchers.fromParent(context, name());
+        }
+
+        /** Whether {@code query} is answered by reading the values' own bytes before any of them is analyzed. */
+        private boolean readsValueBytes(Query query, SearchExecutionContext context) {
+            return scansEveryDocument() && valuesAnalyzer(context) != null && CandidateValues.of(query, name()).reads();
         }
 
         /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
@@ -1364,9 +1391,10 @@ public final class TextFieldMapper extends FieldMapper {
             }
             return new ReanalyzingTextQuery(
                 query,
-                valueFetcherProvider(context),
+                valueFetcherProvider(context, readsValueBytes(query, context)),
                 context.getIndexAnalyzer(f -> null),
-                scansEveryDocument()
+                scansEveryDocument(),
+                valuesAnalyzer(context)
             );
         }
 
@@ -1385,7 +1413,8 @@ public final class TextFieldMapper extends FieldMapper {
             return new ReanalyzingIntervalsSource(
                 source,
                 scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,
-                valueFetcherProvider(context),
+                // An interval analyzes every value it reads, so there is nothing a value's own bytes are read for.
+                valueFetcherProvider(context, false),
                 context.getIndexAnalyzer(f -> null)
             );
         }

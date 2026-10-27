@@ -1017,4 +1017,84 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
             }
         });
     }
+
+    /**
+     * Each value is read for the query's terms before it is analyzed, so these cover what that read must not drop:
+     * a term spelled in another case, a value holding a byte outside ASCII, a value of a row whose others spell
+     * nothing, and an analyzer whose tokens are not the whole value.
+     */
+    public void testAValueSpellingTheTermInAnotherCaseAnswers() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("quick"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("The QUICK brown fox"));
+            builder.appendBytesRef(new BytesRef("nothing of the sort"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testAValueOutsideAsciiAnswers() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("na\u00efve"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a na\u00efve answer"));
+            builder.appendBytesRef(new BytesRef("a plain one"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testARowAnswersOnAValueItsOthersDoNotSpell() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("nothing here"));
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("nothing here"));
+            builder.appendBytesRef(new BytesRef("nor there"));
+            builder.endPositionEntry();
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * Under the keyword analyzer the whole value is one token, so a value spelling the query somewhere inside it is
+     * kept by the read and then answered no by analyzing it, as it was before.
+     */
+    public void testAValueSpellingTheTermIsStillAnsweredByItsTokens() {
+        Boolean[] result = evaluate(runtimeMatchOnToText("keyword", "brown fox", null), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("brown fox"));
+            builder.appendBytesRef(new BytesRef("a brown fox here"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * All of a row's values are one document, so a conjunction is answered by values spelling its terms between
+     * them. Reading the values for those terms must keep such a row, which reading each value on its own would not.
+     */
+    public void testAConjunctionIsAnsweredAcrossARowsValues() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick fox"), TEXT, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick one"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick one"));
+                builder.appendBytesRef(new BytesRef("a brown bear"));
+                builder.endPositionEntry();
+                builder.appendBytesRef(new BytesRef("nothing of the sort"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    public void testAConjunctionSpelledInAnotherCaseAnswers() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick fox"), TEXT, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("The QUICK brown FOX"));
+                builder.appendBytesRef(new BytesRef("the quick brown bear"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
 }

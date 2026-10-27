@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.CandidateValues;
 import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -207,10 +208,16 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
 
+        final TokenStreamMatching.Matcher matcher = matcherBuilder.apply(queryTerms);
+        // Only an analyzer whose tokens its values spell can be read for, and only it decides whether they are.
+        final CandidateValues candidates = CandidateValues.valuesSpellTheirTokens(analyzer)
+            ? matcher.candidates().readingTokensOf(analyzer)
+            : CandidateValues.ANY;
         return new RuntimeSearchTextEvaluator.Factory(
             source(),
             toEvaluator.apply(field()),
-            matcherBuilder.apply(queryTerms),
+            matcher,
+            candidates,
             analyzer,
             context -> new BytesRef()
         );

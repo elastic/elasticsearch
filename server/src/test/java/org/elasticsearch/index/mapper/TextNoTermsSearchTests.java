@@ -20,6 +20,9 @@ import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -29,6 +32,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +50,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -59,6 +64,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -86,7 +92,9 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
                 "stop",
                 new NamedAnalyzer("stop", AnalyzerScope.INDEX, new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)),
                 "synonyms",
-                new NamedAnalyzer("synonyms", AnalyzerScope.INDEX, synonymAnalyzer())
+                new NamedAnalyzer("synonyms", AnalyzerScope.INDEX, synonymAnalyzer()),
+                "english",
+                new NamedAnalyzer("english", AnalyzerScope.INDEX, new EnglishAnalyzer())
             )
         );
     }
@@ -262,6 +270,258 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         }
         assertEquals("all of them, where it is asked to", List.of(0, 1, 2, 3), notIndexed.get(0));
         assertEquals("none of them otherwise", List.of(), notIndexed.get(1));
+    }
+
+    /**
+     * A document of several values answers as an index of the same values answers. Its values are read as one
+     * document, so a term spelled by any of them keeps it, while a phrase still sits inside a single value.
+     */
+    public void testSeveralValuesAnswerAsIndexed() throws IOException {
+        final List<List<String>> docs = List.of(
+            List.of("the quick brown", "fox jumps"),
+            List.of("quick", "brown"),
+            List.of("nothing", "here at all")
+        );
+        final List<QueryBuilder> queries = List.of(
+            QueryBuilders.matchQuery("body", "quick fox"),
+            QueryBuilders.matchQuery("body", "quick fox").operator(Operator.AND),
+            QueryBuilders.matchPhraseQuery("body", "quick brown"),
+            QueryBuilders.matchPhraseQuery("body", "brown fox"),
+            QueryBuilders.termQuery("body", "jumps"),
+            QueryBuilders.queryStringQuery("body:quick AND body:jumps")
+        );
+        final List<List<Integer>> indexed = matchingValues(true, null, docs, queries);
+        final List<List<Integer>> notIndexed = matchingValues(false, null, docs, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertEquals("a term of either value answers for the document", List.of(0, 1), indexed.get(0));
+        assertEquals("both terms, spread over two values, answer for it too", List.of(0), indexed.get(1));
+        // This analyzer leaves no gap between one value and the next, so a phrase runs from one into the other,
+        // and the values answer it where an index of them does.
+        assertEquals(List.of(0), indexed.get(3));
+    }
+
+    /** A conjunction answers from the values as an index of them answers, however its terms are spread. */
+    public void testConjunctionsAnswerAsIndexed() throws IOException {
+        final List<QueryBuilder> queries = List.of(
+            QueryBuilders.matchQuery("body", "quick brown").operator(Operator.AND),
+            QueryBuilders.matchQuery("body", "quick nothing").operator(Operator.AND),
+            QueryBuilders.queryStringQuery("body:quick AND body:brown"),
+            QueryBuilders.queryStringQuery("body:quick AND body:absent"),
+            QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("body", "quick")).must(QueryBuilders.matchQuery("body", "fox"))
+        );
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertFalse("and some of them answer, so the comparison means something", indexed.get(0).isEmpty());
+    }
+
+    /**
+     * Random values and random queries over them, answered from the values exactly as an index of them answers. This
+     * is what holds the read of a value's bytes to the question: a document it ruled out that an index returns shows
+     * up here.
+     */
+    public void testRandomQueriesAnswerAsIndexed() throws IOException {
+        final List<String> docs = new ArrayList<>();
+        for (int i = between(20, 50); i > 0; i--) {
+            docs.add(randomText());
+        }
+        final List<QueryBuilder> queries = new ArrayList<>();
+        for (int i = between(20, 40); i > 0; i--) {
+            queries.add(randomTextQuery());
+        }
+        final List<List<Integer>> indexed = matching(true, null, docs, queries);
+        final List<List<Integer>> notIndexed = matching(false, null, docs, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString() + " over " + docs, indexed.get(q), notIndexed.get(q));
+        }
+    }
+
+    /**
+     * Which queries the values are read for before being analyzed. A query naming its terms outright is read for;
+     * one naming them by a range of them is not, and nor is a disjunction holding such a clause, which a document
+     * answers without holding any term named anywhere in it.
+     */
+    public void testWhichQueriesTheValuesAreReadFor() throws IOException {
+        final MapperService mapperService = mapper(false);
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertRead("a term", QueryBuilders.termQuery("body", "quick"), context, true);
+        assertRead("one word of a match", QueryBuilders.matchQuery("body", "quick"), context, true);
+        assertRead("several words of a match", QueryBuilders.matchQuery("body", "quick brown"), context, true);
+        assertRead("a phrase", QueryBuilders.matchPhraseQuery("body", "quick brown"), context, true);
+        assertRead("a field and a term", QueryBuilders.queryStringQuery("body:quick"), context, true);
+        assertRead("two of them", QueryBuilders.queryStringQuery("body:quick body:brown"), context, true);
+        assertRead("both of them", QueryBuilders.queryStringQuery("body:quick AND body:brown"), context, true);
+        assertRead("a simple query string", QueryBuilders.simpleQueryStringQuery("quick").field("body"), context, true);
+        assertRead("terms", QueryBuilders.termsQuery("body", "quick", "brown"), context, true);
+        assertRead("a match of every word", QueryBuilders.matchQuery("body", "quick brown").operator(Operator.AND), context, true);
+        assertRead("a prefix", QueryBuilders.prefixQuery("body", "qui"), context, false);
+        assertRead("a match holding a prefix", QueryBuilders.matchBoolPrefixQuery("body", "quick bro"), context, false);
+        assertRead("a fuzziness", QueryBuilders.matchQuery("body", "quick").fuzziness(Fuzziness.ONE), context, false);
+        assertRead("a wildcard", QueryBuilders.wildcardQuery("body", "qui*"), context, false);
+    }
+
+    /**
+     * Asserts what every clause answered from the values makes of their bytes. A compound query wraps each of its
+     * clauses, so a query string naming two of them is two reads rather than one.
+     */
+    /**
+     * Which queries a document's tokens are walked for rather than indexed one document at a time. A query of terms
+     * is walked however its clauses are put together, and one naming a range of terms is indexed as it was.
+     */
+    public void testWhichQueriesTheTokensAreWalkedFor() throws IOException {
+        final MapperService mapperService = mapper(false);
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertWalked("a term", QueryBuilders.termQuery("body", "quick"), context, true);
+        assertWalked("one word of a match", QueryBuilders.matchQuery("body", "quick"), context, true);
+        assertWalked("several words of a match", QueryBuilders.matchQuery("body", "quick brown"), context, true);
+        assertWalked("a match of every word", QueryBuilders.matchQuery("body", "quick brown").operator(Operator.AND), context, true);
+        assertWalked(
+            "a minimum of them to match",
+            QueryBuilders.matchQuery("body", "quick brown fox").minimumShouldMatch("2"),
+            context,
+            true
+        );
+        assertWalked("a phrase", QueryBuilders.matchPhraseQuery("body", "quick brown"), context, true);
+        assertWalked("terms", QueryBuilders.termsQuery("body", "quick", "brown"), context, true);
+        assertWalked("a phrase with slop", QueryBuilders.matchPhraseQuery("body", "quick fox").slop(1), context, false);
+        assertWalked("a fuzziness", QueryBuilders.matchQuery("body", "quick").fuzziness(Fuzziness.ONE), context, false);
+        assertWalked("a match holding a prefix", QueryBuilders.matchBoolPrefixQuery("body", "quick bro"), context, false);
+    }
+
+    private void assertWalked(String what, QueryBuilder builder, SearchExecutionContext context, boolean walked) throws IOException {
+        final List<ReanalyzingTextQuery> answeredFromValues = new ArrayList<>();
+        collectValueQueries(builder.toQuery(context), answeredFromValues);
+        assertFalse(what + " is answered from the values", answeredFromValues.isEmpty());
+        for (ReanalyzingTextQuery answered : answeredFromValues) {
+            final Query in = answered.getQuery();
+            final boolean byWalk = ReanalyzingTextQuery.walkablePhrase(in) != null
+                || ReanalyzingTextQuery.walkableClauses(in, "body") != null;
+            assertEquals(what + (walked ? " is walked" : " is indexed a document at a time") + ": " + in, walked, byWalk);
+        }
+    }
+
+    private void assertRead(String what, QueryBuilder builder, SearchExecutionContext context, boolean read) throws IOException {
+        final List<ReanalyzingTextQuery> answeredFromValues = new ArrayList<>();
+        collectValueQueries(builder.toQuery(context), answeredFromValues);
+        assertFalse(what + " is answered from the values", answeredFromValues.isEmpty());
+        for (ReanalyzingTextQuery answered : answeredFromValues) {
+            assertEquals(
+                what + (read ? " names terms its values are read for" : " names no term that must be held") + ": " + answered,
+                read,
+                CandidateValues.of(answered.getQuery(), "body").reads()
+            );
+        }
+    }
+
+    private static void collectValueQueries(Query query, List<ReanalyzingTextQuery> found) {
+        switch (query) {
+            case ReanalyzingTextQuery answered -> found.add(answered);
+            case BooleanQuery bool -> bool.forEach(clause -> collectValueQueries(clause.query(), found));
+            case BoostQuery boost -> collectValueQueries(boost.getQuery(), found);
+            case ConstantScoreQuery constant -> collectValueQueries(constant.getQuery(), found);
+            default -> {
+            }
+        }
+    }
+
+    /**
+     * The yes-answer runs on the analyzer the query carries, which has to be the field's own: the index-wide
+     * analyzer a query is built with wraps every field's and is none of them, so nothing can be read for its
+     * tokens.
+     */
+    public void testTheQueryCarriesTheAnalyzerItsValuesAreReadWith() throws IOException {
+        final SearchExecutionContext context = createSearchExecutionContext(mapper(false));
+        final List<ReanalyzingTextQuery> answeredFromValues = new ArrayList<>();
+        collectValueQueries(QueryBuilders.matchQuery("body", "quick").toQuery(context), answeredFromValues);
+        assertEquals(1, answeredFromValues.size());
+        final ReanalyzingTextQuery answered = answeredFromValues.get(0);
+        final CandidateValues candidates = CandidateValues.of(answered.getQuery(), "body").readingTokensOf(answered.valuesAnalyzer());
+        assertEquals(
+            "a value holding the term as a token is answered without being analyzed",
+            CandidateValues.Answer.YES,
+            candidates.held(List.<Object>of(new BytesRef("the quick brown fox")))
+        );
+    }
+
+    /** The analyzer decides whether the values are read at all, whatever the query asks. */
+    public void testAStemmedFieldIsNotReadFor() throws IOException {
+        assertTrue(CandidateValues.valuesSpellTheirTokens(createSearchExecutionContext(mapper(false)).getIndexAnalyzer("body")));
+        assertFalse(
+            CandidateValues.valuesSpellTheirTokens(createSearchExecutionContext(mapper(false, "english")).getIndexAnalyzer("body"))
+        );
+    }
+
+    /**
+     * A stemmer leaves tokens its values do not spell, so a value's bytes say nothing about what it holds. The
+     * values answer the same queries as an index of them all the same, by analyzing every document as before.
+     */
+    public void testAStemmedFieldAnswersAsIndexed() throws IOException {
+        final List<String> docs = List.of("happy families", "happier still", "the happiest of all", "nothing here");
+        final List<QueryBuilder> queries = List.of(
+            QueryBuilders.matchQuery("body", "happy"),
+            QueryBuilders.matchQuery("body", "happier"),
+            QueryBuilders.matchQuery("body", "happiest"),
+            QueryBuilders.matchQuery("body", "families"),
+            QueryBuilders.matchPhraseQuery("body", "happy families")
+        );
+        final List<List<Integer>> indexed = matching(true, "english", docs, queries);
+        final List<List<Integer>> notIndexed = matching(false, "english", docs, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertFalse("and the stemmed queries do answer, so the comparison means something", indexed.get(0).isEmpty());
+    }
+
+    /** Words that put the read's edges in the data: the ASCII letters in both cases, and bytes outside ASCII. */
+    private static final String[] WORDS = {
+        "quick",
+        "brown",
+        "fox",
+        "jumps",
+        "the",
+        "QUICK",
+        "Brown",
+        "FOX",
+        "caf\u00e9",
+        "Caf\u00e9",
+        "na\u00efve",
+        "\u0105ngstr\u00f6m",
+        "\u0104NGSTR\u00d6M",
+        "\u03b1\u03bb\u03c6\u03b1",
+        "\u0391\u039b\u03a6\u0391",
+        "\u043c\u043e\u0441\u043a\u0432\u0430",
+        "\u041c\u041e\u0421\u041a\u0412\u0410",
+        "zeppel\u0130n",
+        "\u212Aelvin",
+        "x",
+        "xx" };
+
+    private String randomText() {
+        final StringBuilder text = new StringBuilder();
+        for (int w = between(0, 8); w > 0; w--) {
+            text.append(text.isEmpty() ? "" : randomFrom(" ", "  ", ", ", ". ", " - ")).append(randomFrom(WORDS));
+        }
+        return text.toString();
+    }
+
+    private QueryBuilder randomTextQuery() {
+        final String one = randomFrom(WORDS);
+        final String other = randomFrom(WORDS);
+        return switch (between(0, 6)) {
+            case 0 -> QueryBuilders.matchQuery("body", one);
+            case 1 -> QueryBuilders.matchQuery("body", one + " " + other);
+            case 2 -> QueryBuilders.matchPhraseQuery("body", one + " " + other);
+            case 3 -> QueryBuilders.termQuery("body", one.toLowerCase(Locale.ROOT));
+            case 4 -> QueryBuilders.boolQuery()
+                .must(QueryBuilders.matchQuery("body", one))
+                .mustNot(QueryBuilders.matchQuery("body", other));
+            case 5 -> QueryBuilders.matchQuery("body", one + " " + other).minimumShouldMatch("2");
+            default -> QueryBuilders.matchBoolPrefixQuery("body", one + " " + other);
+        };
     }
 
     private MapperService mapper(boolean indexed) throws IOException {
@@ -492,18 +752,34 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
     }
 
     private List<List<Integer>> matching(boolean indexed, String analyzer, List<QueryBuilder> queries) throws IOException {
+        return matching(indexed, analyzer, DOCS, queries);
+    }
+
+    private List<List<Integer>> matching(boolean indexed, String analyzer, List<String> docs, List<QueryBuilder> queries)
+        throws IOException {
+        final List<List<String>> ofOneValue = new ArrayList<>(docs.size());
+        for (String doc : docs) {
+            ofOneValue.add(List.of(doc));
+        }
+        return matchingValues(indexed, analyzer, ofOneValue, queries);
+    }
+
+    private List<List<Integer>> matchingValues(boolean indexed, String analyzer, List<List<String>> docs, List<QueryBuilder> queries)
+        throws IOException {
         final MapperService mapperService = mapper(indexed, analyzer);
         final List<List<Integer>> perQuery = new ArrayList<>();
         withLuceneIndex(mapperService, iw -> {
-            for (String doc : DOCS) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+            for (List<String> doc : docs) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.array("body", doc.toArray(String[]::new)))).rootDoc());
             }
         }, reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
             for (QueryBuilder query : queries) {
                 final List<Integer> hits = new ArrayList<>();
-                for (ScoreDoc hit : searcher.search(query.toQuery(context), 10).scoreDocs) {
+                // Every matching document, not a page of them: the two sides weigh a hit differently by design, so
+                // what is compared is which documents answer, not the order they come back in.
+                for (ScoreDoc hit : searcher.search(query.toQuery(context), Math.max(10, docs.size())).scoreDocs) {
                     hits.add(hit.doc);
                 }
                 hits.sort(null);

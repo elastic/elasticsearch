@@ -556,6 +556,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * The index-time analyzer of one field, or null where the field has none. It is the analyzer that relates a
+     * field's values to the tokens they hold, so it is the one to ask what those tokens can be.
+     */
+    @Nullable
+    public NamedAnalyzer getIndexAnalyzer(String field) {
+        return mappingLookup.indexAnalyzer(field, f -> null);
+    }
+
+    /**
      * Return the index-time analyzer for the current index
      * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
      */

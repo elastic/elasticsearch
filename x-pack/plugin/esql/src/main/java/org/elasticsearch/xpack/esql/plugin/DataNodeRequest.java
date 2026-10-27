@@ -78,8 +78,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     /**
      * For an external-only request: whether a worker that has not yet applied the cluster state the coordinator planned from
      * should refuse the splits at once, so the coordinator can hand them to another worker, rather than wait for that state.
-     * The coordinator sets it when it has another worker to go to. {@code false} on the wire from an old coordinator, which
-     * cannot reroute, so such a worker waits.
+     * The coordinator sets it when it has another worker still to try after this one; the last worker of its walk, or a
+     * lone one, is asked to wait. {@code false} on the wire from an old coordinator, which cannot reroute, so such a worker
+     * waits.
      */
     private final boolean declineIfNotReady;
     /**

@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,8 +63,9 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * A worker that has applied some cluster state but not yet the one the coordinator planned from (a dataset registered or
  * changed in between) cannot bind the plan's dataset. It must not fail the query with the {@code 400} its own state
- * suggests: with another worker available it declines and the coordinator hands its splits to that worker; as the only
- * worker it waits for the state, bounded by {@code esql.external.worker_ready_timeout}.
+ * suggests: with other workers available it declines and the coordinator hands its splits to the next of them in resolved
+ * order, and so on past every worker that declines, the last of them waiting for the state; as the only worker it waits
+ * at once. Each wait is bounded by {@code esql.external.worker_ready_timeout}.
  *
  * <p>A dedicated master is the only voter, so parking a data-only node's applier cannot steal quorum: the dataset PUT
  * still commits, the coordinator applies it at once, and the parked node simply cannot ack. Publication waits for that
@@ -105,15 +107,16 @@ public class ExternalLaggingWorkerIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The hop is the last attempt: when the fallback's exchange cannot be opened the query fails, with the open failure,
-     * rather than hanging on slots that are never completed. The exchanges opened on the other workers are released.
+     * A walk passes declines, not failures: when the next worker's exchange cannot be opened the query fails, with the
+     * open failure, rather than walking on or hanging on slots that are never completed. The exchanges opened on the
+     * other workers are released. With three workers the hop is the first of two, so it still asks for a decline.
      */
     @TestLogging(value = DISPATCH_LOGGER + ":DEBUG", reason = "asserts the hop was attempted before it failed")
     public void testFallbackWhoseExchangeCannotBeOpenedFailsTheQuery() throws Exception {
         assertHopFailure(ExchangeService.OPEN_EXCHANGE_ACTION_NAME, "hop_open_fails");
     }
 
-    /** Same as above, one step later: the fallback's exchange is open but the splits cannot be sent to it. */
+    /** Same as above, one step later: the next worker's exchange is open but the splits cannot be sent to it. */
     @TestLogging(value = DISPATCH_LOGGER + ":DEBUG", reason = "asserts the hop was attempted before it failed")
     public void testFallbackThatCannotBeSentTheSplitsFailsTheQuery() throws Exception {
         assertHopFailure(EsqlQueryAction.NAME + "/data", "hop_send_fails");
@@ -124,9 +127,9 @@ public class ExternalLaggingWorkerIT extends AbstractExternalDataSourceIT {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
         ensureStableCluster(4);
         String coordinator = dataNodes.get(0);
-        // The fallback is the next worker after the decliner in eligible order; the coordinator's own requests take the
-        // local connection, which the transport rule below does not see, so the lagging node is chosen such that its
-        // fallback is the third node. The reroute line asserted below names the fallback, so a wrong choice fails loudly.
+        // The first hop goes to the next worker after the decliner in eligible order; the coordinator's own requests take
+        // the local connection, which the transport rule below does not see, so the lagging node is chosen such that the
+        // hop goes to the third node. The reroute line asserted below names that node, so a wrong choice fails loudly.
         List<String> workers = eligibleWorkerNames(coordinator);
         assertThat(workers, hasSize(3));
         String lagging = workers.get((workers.indexOf(coordinator) + 1) % workers.size());
@@ -151,19 +154,7 @@ public class ExternalLaggingWorkerIT extends AbstractExternalDataSourceIT {
         try {
             dataset = putDatasetBehindTheBlock(master, coordinator, datasetName, root);
             try (var mockLog = MockLog.capture(DISPATCH_LOGGER)) {
-                mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "reroute to " + fallback,
-                        DISPATCH_LOGGER,
-                        Level.DEBUG,
-                        "external worker ["
-                            + lagging
-                            + "] has not applied the cluster state this query was planned from; rerouting [*] "
-                            + "splits to ["
-                            + fallback
-                            + "], session [*"
-                    )
-                );
+                mockLog.addExpectation(rerouted(lagging, fallback, 1, 2));
                 EsqlQueryRequest request = request(dataset, false);
                 Exception failure = expectThrows(
                     Exception.class,
@@ -238,6 +229,105 @@ public class ExternalLaggingWorkerIT extends AbstractExternalDataSourceIT {
             assertRoutedAround(coordinator, lagging, dataset);
         } finally {
             unblock(blocked);
+        }
+    }
+
+    /**
+     * Two lagging workers that follow each other in resolved order: the splits of the first walk past the second onto the
+     * ready worker after it, the splits of the second take one hop there, and nobody waits.
+     */
+    @TestLogging(value = DISPATCH_LOGGER + ":DEBUG", reason = "asserts each hop of the walk and that no worker waited")
+    public void testSplitsWalkPastTwoLaggingWorkers() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(4);
+        ensureStableCluster(5);
+        String coordinator = dataNodes.get(0);
+        // The resolved order is the cluster state's node order, not the start order, so the neighbours are read from it.
+        List<String> workers = eligibleWorkerNames(coordinator);
+        assertThat(workers, hasSize(4));
+        int at = workers.indexOf(coordinator);
+        String first = workers.get((at + 1) % workers.size());
+        String second = workers.get((at + 2) % workers.size());
+        String ready = workers.get((at + 3) % workers.size());
+        registerDataSource(DATA_SOURCE, Map.of());
+        Path root = writeFixture("walk_two");
+
+        List<BlockClusterStateProcessing> blocked = blockAll(List.of(first, second));
+        String dataset = null;
+        try {
+            dataset = putDatasetBehindTheBlock(master, coordinator, "walk_two", root);
+            try (var mockLog = MockLog.capture(DISPATCH_LOGGER)) {
+                mockLog.addExpectation(rerouted(first, second, 1, 3));
+                mockLog.addExpectation(rerouted(second, ready, 2, 3));
+                mockLog.addExpectation(rerouted(second, ready, 1, 3));
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "no wait",
+                        DISPATCH_LOGGER,
+                        Level.DEBUG,
+                        "waiting up to [*] for the cluster state before running [*] external splits on [*"
+                    )
+                );
+                try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, request(dataset, true)).actionGet(TIMEOUT)) {
+                    assertThat(response.isPartial(), equalTo(false));
+                    assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
+                    assertThat(externalScanNodeNames(response), not(hasItem(first)));
+                    assertThat(externalScanNodeNames(response), not(hasItem(second)));
+                }
+                mockLog.assertAllExpectationsMatched();
+            }
+        } finally {
+            unblockAll(blocked);
+            deleteDataset(master, dataset);
+        }
+    }
+
+    /**
+     * Every worker lagging: each worker's splits walk the other two, which decline, and wait on the last, so no query
+     * fails while the state is on its way, and all of them complete once it lands.
+     */
+    @TestLogging(value = DISPATCH_LOGGER + ":DEBUG", reason = "waits for every walk to park on its last worker before releasing the state")
+    public void testWalkEndsWaitingOnTheLastWorker() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        // A coordinating-only node is not an external worker, so the three data nodes are the whole resolved set.
+        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        TimeValue budget = TimeValue.timeValueMinutes(1);
+        List<String> dataNodes = List.of(
+            startDataNodeWithWaitBudget(budget),
+            startDataNodeWithWaitBudget(budget),
+            startDataNodeWithWaitBudget(budget)
+        );
+        ensureStableCluster(5);
+        List<String> workers = eligibleWorkerNames(coordinator);
+        assertThat(workers, hasSize(3));
+        assertThat(workers, containsInAnyOrder(dataNodes.toArray()));
+        registerDataSource(DATA_SOURCE, Map.of());
+        Path root = writeFixture("walk_all");
+
+        List<BlockClusterStateProcessing> blocked = blockAll(workers);
+        String dataset = null;
+        try {
+            dataset = putDatasetBehindTheBlock(master, coordinator, "walk_all", root);
+            try (var mockLog = MockLog.capture(DISPATCH_LOGGER)) {
+                for (int i = 0; i < workers.size(); i++) {
+                    String target = workers.get(i);
+                    String next = workers.get((i + 1) % workers.size());
+                    String last = workers.get((i + 2) % workers.size());
+                    mockLog.addExpectation(rerouted(target, next, 1, 2));
+                    mockLog.addExpectation(rerouted(next, last, 2, 2));
+                    mockLog.addExpectation(waiting(last));
+                }
+                ActionFuture<EsqlQueryResponse> future = client(coordinator).execute(EsqlQueryAction.INSTANCE, request(dataset, false));
+                mockLog.awaitAllExpectationsMatched();
+                unblockAll(blocked);
+                try (var response = future.actionGet(TIMEOUT)) {
+                    assertThat(response.isPartial(), equalTo(false));
+                    assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
+                }
+            }
+        } finally {
+            unblockAll(blocked);
+            deleteDataset(master, dataset);
         }
     }
 
@@ -361,6 +451,23 @@ public class ExternalLaggingWorkerIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    private static MockLog.SeenEventExpectation rerouted(String declined, String next, int hop, int hops) {
+        return new MockLog.SeenEventExpectation(
+            "reroute " + declined + " -> " + next + " on hop " + hop,
+            DISPATCH_LOGGER,
+            Level.DEBUG,
+            "external worker ["
+                + declined
+                + "] has not applied the cluster state this query was planned from; rerouting [*] splits to ["
+                + next
+                + "] on hop ["
+                + hop
+                + "/"
+                + hops
+                + "], session [*"
+        );
+    }
+
     private static MockLog.SeenEventExpectation waiting(String node) {
         return new MockLog.SeenEventExpectation(
             "wait on " + node,
@@ -412,6 +519,34 @@ public class ExternalLaggingWorkerIT extends AbstractExternalDataSourceIT {
             internalCluster().clearDisruptionScheme();
         }
         return null;
+    }
+
+    /**
+     * Blocks several nodes at once. The test cluster registers a single disruption scheme and the base class clears only
+     * that one, so these are applied directly and stopped by {@link #unblockAll}, which the tests run unconditionally.
+     */
+    private List<BlockClusterStateProcessing> blockAll(List<String> nodes) {
+        List<BlockClusterStateProcessing> blocked = new ArrayList<>();
+        try {
+            for (String node : nodes) {
+                BlockClusterStateProcessing block = new BlockClusterStateProcessing(node, random());
+                block.applyToCluster(internalCluster());
+                block.startDisrupting();
+                blocked.add(block);
+            }
+        } catch (RuntimeException | AssertionError e) {
+            // A block that failed to start must not leave the earlier ones parked: the test's finally never sees them.
+            unblockAll(blocked);
+            throw e;
+        }
+        return blocked;
+    }
+
+    /** Idempotent: stopping a stopped block is a no-op. */
+    private static void unblockAll(List<BlockClusterStateProcessing> blocked) {
+        for (BlockClusterStateProcessing block : blocked) {
+            block.stopDisrupting();
+        }
     }
 
     /** Datasets put behind the block bypass the base class bookkeeping; the base deletes the data source after this. */

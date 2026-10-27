@@ -1,6 +1,5 @@
 area: ES|QL
 issues: []
 pr: 163169
-summary: "ESQL:DS: Route external splits around a worker behind the coordinators cluster\
-  \ state"
-type: enhancement
+summary: Fix ES|QL queries on external data failing while a node joins the cluster or applies a dataset change
+type: bug

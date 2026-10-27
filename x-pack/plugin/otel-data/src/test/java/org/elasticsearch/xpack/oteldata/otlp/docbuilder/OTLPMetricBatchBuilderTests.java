@@ -8,19 +8,21 @@
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
+import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.escf.EscfBatch;
-import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -39,9 +41,8 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 
-public class MetricColumnarBuilderTests extends ESTestCase {
+public class OTLPMetricBatchBuilderTests extends ESTestCase {
 
-    private final MetricColumnarBuilder builder = new MetricColumnarBuilder(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM);
     private final long nowNanos = System.currentTimeMillis() * 1_000_000L;
 
     // -------------------------------------------------------------------------
@@ -109,14 +110,16 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         DataPointGroupingContext context = newContext();
         context.groupDataPoints(request);
 
-        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
         context.consume(group -> {
             Map<String, String> templates = new HashMap<>();
             Map<String, Map<String, String>> templateParams = new HashMap<>();
-            assertTrue(builder.buildMetricRow(batchBuilder, group, templates, templateParams));
-            batchBuilder.commit(0);
+            assertTrue(batchBuilder.buildMetricRow(group, templates, templateParams));
         });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         assertFalse(readLongColumn(batch, "@timestamp").isEmpty());
@@ -152,12 +155,12 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         DataPointGroupingContext context = newContext();
         context.groupDataPoints(request);
 
-        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
-        context.consume(group -> {
-            assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
-            batchBuilder.commit(0);
-        });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(2, batch.docCount());
         List<String> names = readStringColumn(batch, "resource.attributes.service.name");
@@ -204,17 +207,71 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         DataPointGroupingContext context = newContext();
         context.groupDataPoints(request);
 
-        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
-        context.consume(group -> {
-            assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
-            batchBuilder.commit(0);
-        });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         assertEquals(List.of("prod"), readStringColumn(batch, "attributes.env"));
         assertEquals(List.of("us-east-1"), readStringColumn(batch, "attributes.region"));
         assertEquals(List.of("v2"), readStringColumn(batch, "attributes.version"));
+    }
+
+    /**
+     * A key repeated within a resource, scope, or data-point attribute list keeps its first value and the
+     * rest are dropped — even a repeat whose value alone would make the row ineligible.
+     */
+    public void testDuplicateAttributeKeysKeepFirstValue() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                createResourceMetrics(
+                    List.of(keyValue("service.name", "svc"), keyValue("host", "first"), keyValue("host", "second")),
+                    List.of(
+                        ScopeMetrics.newBuilder()
+                            .setScope(
+                                InstrumentationScope.newBuilder()
+                                    .setName("s")
+                                    .addAttributes(keyValue("lib", 1L))
+                                    .addAttributes(keyValue("lib", 2L))
+                            )
+                            .addMetrics(
+                                createGaugeMetric(
+                                    "cpu",
+                                    "1",
+                                    List.of(
+                                        NumberDataPoint.newBuilder()
+                                            .setTimeUnixNano(nowNanos)
+                                            .setAsDouble(1.0)
+                                            .addAttributes(keyValue("env", "prod"))
+                                            .addAttributes(keyValue("env", "staging"))
+                                            .addAttributes(keyValue("env", "a", "b"))
+                                            .build()
+                                    )
+                                )
+                            )
+                            .build()
+                    )
+                )
+            )
+            .build();
+
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(request);
+
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        EscfBatch batch = batchBuilder.build();
+
+        assertEquals(1, batch.docCount());
+        assertEquals(List.of("first"), readStringColumn(batch, "resource.attributes.host"));
+        assertEquals(List.of(1L), readLongColumn(batch, "scope.attributes.lib"));
+        assertEquals(List.of("prod"), readStringColumn(batch, "attributes.env"));
     }
 
     /** A histogram data point causes buildMetricRow to return false (falls back to XContent path). */
@@ -250,9 +307,12 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         DataPointGroupingContext context = newContext();
         context.groupDataPoints(request);
 
-        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
-        context.consume(group -> { assertFalse(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>())); });
-        assertFalse(batchBuilder.hasPartition(0));
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        context.consume(group -> { assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        assertEquals(0, batchBuilder.docCount());
     }
 
     /** Dotted metric names (e.g. {@code gauge.0}) are written as a nested-path column, not a top-level key. */
@@ -271,12 +331,12 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         DataPointGroupingContext context = newContext();
         context.groupDataPoints(request);
 
-        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
-        context.consume(group -> {
-            assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
-            batchBuilder.commit(0);
-        });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         // The dotted metric name "gauge.0" must produce a column at path "metrics.gauge.0".
@@ -315,8 +375,11 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         DataPointGroupingContext context = newContext();
         context.groupDataPoints(request);
 
-        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
-        context.consume(group -> { assertFalse(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>())); });
-        assertFalse(batchBuilder.hasPartition(0));
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        context.consume(group -> { assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        assertEquals(0, batchBuilder.docCount());
     }
 }

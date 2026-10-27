@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -183,10 +182,7 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarDropsUnmappedFields() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(settings, topMapping(b -> {
             b.field("dynamic", false);
             b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();

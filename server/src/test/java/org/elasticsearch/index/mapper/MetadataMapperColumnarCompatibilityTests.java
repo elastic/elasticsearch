@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Columnar ↔ x-content compatibility tests for the metadata mappers implemented on the
  * {@code columnar_mappers} branch. See {@link AbstractColumnarMapperCompatibilityTestCase} for
- * the test harness and the rationale for synthetic source + recovery-disabled as the base settings.
+ * the test harness and the rationale for synthetic source as the base settings.
  *
  * <p>Coverage: {@link ProvidedIdFieldMapper} ({@code mode=document}/{@code columnar}),
  * {@link SourceFieldMapper} (no-op and synthetic-recovery branches),
@@ -47,14 +46,11 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
-    /** Base settings builder: synthetic source + recovery source disabled (see class Javadoc). */
+    /** Base settings builder: synthetic source (see class Javadoc). */
     private static Settings.Builder syntheticSourceSettingsBuilder() {
         return Settings.builder()
             // Synthetic source: no stored _source; SourceFieldMapper produces nothing on either path.
-            .put("index.mapping.source.mode", "synthetic")
-            // Disable recovery source: prevents _recovery_source fields on the x-content path that
-            // the columnar path cannot yet produce (SourceFieldMapper.supportsColumnarParse would be false).
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+            .put("index.mapping.source.mode", "synthetic");
     }
 
     private static Settings syntheticSourceSettings() {
@@ -62,10 +58,7 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     /** {@code _routing doc_values=true}: routing lands in sorted doc values; no {@code _field_names} divergence. */

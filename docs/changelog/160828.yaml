@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 160828
+summary: Count request context in indexing pressure
+type: enhancement

@@ -27,6 +27,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -74,6 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
@@ -256,6 +258,8 @@ public class BooleanFieldMapper extends FieldMapper {
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
 
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value((Boolean) v);
+
     public static final class BooleanFieldType extends TermBasedFieldType {
 
         private final Boolean nullValue;
@@ -364,7 +368,9 @@ public class BooleanFieldMapper extends FieldMapper {
             return switch (sValue) {
                 case "true" -> Values.TRUE;
                 case "false" -> Values.FALSE;
-                default -> throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
+                default -> throw new IllegalArgumentException(
+                    "Can't parse boolean value [" + truncateForError(sValue) + "], expected [true] or [false]"
+                );
             };
         }
 
@@ -660,7 +666,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                        FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                     }
                     return;
                 } else {
@@ -671,9 +677,9 @@ public class BooleanFieldMapper extends FieldMapper {
         indexValue(context, value);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

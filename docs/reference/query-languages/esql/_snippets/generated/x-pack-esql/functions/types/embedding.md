@@ -5,4 +5,5 @@
 | value | inference_id | options | result |
 | --- | --- | --- | --- |
 | keyword | keyword | named parameters | dense_vector |
+| keyword | keyword | | dense_vector |
 

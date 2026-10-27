@@ -889,6 +889,8 @@ class KibanaOwnedReservedRoleDescriptors {
 
     private static final String[] ALERTZERO_WORKER_COMMON_FEATURE_PRIVILEGES = {
         "feature_alertzero.all",
+        "feature_agenticInvestigations.minimal_all",
+        "feature_agenticInvestigations.investigations_all",
         "feature_agentBuilder.read",
         "feature_contextEngine.all",
         "feature_proposals.all",
@@ -952,6 +954,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 .privileges("index", "maintenance")
                 .build(),
             RoleDescriptor.IndicesPrivileges.builder()
+                .indices("ai-index-idx-security-attack-fingerprints")
+                .privileges("read", "view_index_metadata", "index", "auto_configure")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".kibana-elastic-ai-assistant-anonymization-fields-*")
                 .privileges("read")
                 .build(),
@@ -981,12 +987,24 @@ class KibanaOwnedReservedRoleDescriptors {
                 "feature_siemV5.minimal_read",
                 "feature_siemV5.host_isolation_all",
                 "feature_siemV5.process_operations_all",
-                "feature_siemV5.actions_log_management_read" },
+                "feature_siemV5.actions_log_management_read",
+                "feature_securitySolutionAlertsV1.all" },
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".alerts-security.attack.discovery.alerts-*", ".adhoc.alerts-security.attack.discovery.alerts-*")
-                .privileges("read")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
                 .build(),
-            RoleDescriptor.IndicesPrivileges.builder().indices(".alerts-security.alerts-*").privileges("read").build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.attack.discovery.alerts-*", ".internal.adhoc.alerts-security.attack.discovery.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.alerts-*")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(
                     "logs-endpoint.events.process-*",
@@ -1021,7 +1039,8 @@ class KibanaOwnedReservedRoleDescriptors {
                     "winlogbeat-*"
                 )
                 .privileges("read")
-                .build()
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metadata_current_*").privileges("read").build()
         );
     }
 

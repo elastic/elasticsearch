@@ -104,8 +104,8 @@ import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccSize
 public class SharedBlobCacheWarmingService {
 
     public enum Type {
-        INDEXING_EARLY(true, Priority.NORMAL),
-        INDEXING(true, Priority.NORMAL),
+        INDEXING_EARLY(true, Priority.HIGH),
+        INDEXING(true, Priority.HIGH),
         INDEXING_MERGE(false, Priority.LOW),
         // search shard recovery doesn't guarantee that all of region 0 has been cached, because header reads served from
         // index shards are served at page rather than region granularity.
@@ -118,9 +118,12 @@ public class SharedBlobCacheWarmingService {
 
         /// Priority of a warming task where a task with higher priority is warmed before a task with lower priority
         /// (see [AbstractWarmingTask#compareTo] and [PrioritizedThrottledAsyncTaskRunner]).
-        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING_MERGE] that have HIGH and LOW
-        /// priority respectively. Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
-        /// because it is in the hot path for relocations.
+        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM], [Type#INDEXING_EARLY], and [Type#INDEXING] that
+        /// have HIGH priority, and [Type#INDEXING_MERGE] that has LOW priority.
+        /// [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING] are HIGH because both are on the hot path of a relocation: region-0
+        /// warming precedes the BCC header reads, and [Type#INDEXING] warms metadata that may reside outside region 0 but is still
+        /// needed to open the engine. [Type#INDEXING_EARLY] is HIGH as well: it is not on the hot path itself, but it warms the same
+        /// files ahead of the handoff, so if little has changed on the source it can reduce the handoff time.
         enum Priority {
             LOW(0),
             NORMAL(1),
@@ -383,6 +386,15 @@ public class SharedBlobCacheWarmingService {
         0.5,
         0.0,
         1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /// When computing the equal-share warming timeout for a relocation whose source is shutting down, exclude shards on the source
+    /// that are relocating to a different target from the per-shard divisor.
+    public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING = Setting.boolSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_filter_source_shards_by_target",
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -795,7 +807,7 @@ public class SharedBlobCacheWarmingService {
     /**
      * Search shard recovery path: warms the blob cache for the recovered commit and completes {@code resumeRecoveryListener} when recovery
      * may proceed. When {@code endTargetsToWarm} is non-null (internal replicated-files path),
-     * {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} decides whether to race warming against a timeout;
+     * {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} decides whether to wait for warming up to a timeout;
      * otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via {@link ActionListener#noop()}).
      *
      * Notice that this may synchronously invoke the listener.
@@ -1035,7 +1047,7 @@ public class SharedBlobCacheWarmingService {
     /**
      * Completes {@code resumeRecoveryListener} when warming finishes, or when the timeout budget is exhausted (whichever comes first).
      * Records {@link #searchRecoveryWaitDurationMetric} with {@link SearchRecoveryWaitOutcome#TIMEOUT} or
-     * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two won the race. A warming failure that beats the
+     * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two completed first. A warming failure that beats the
      * timeout also records the metric (attributed to {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE}) and then fails
      * {@code resumeRecoveryListener}.
      *
@@ -1055,10 +1067,10 @@ public class SharedBlobCacheWarmingService {
         assert initialPlan.awaitWarming();
         final long startedMillis = threadPool.relativeTimeInMillis();
         final long bytesWarmedAtStart = directory.totalBytesWarmedFromObjectStore();
-        // First of the two events to complete `race` wins and decides the recorded outcome. The second event is discarded. Events:
+        // The first of the two events to complete `recoveryWait` decides the recorded outcome. The second event is discarded. Events:
         // - timeout: the scheduled task (possibly re-evaluated) completes it with TIMEOUT
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
-        final SubscribableListener<SearchRecoveryWaitOutcome> race = new SubscribableListener<>();
+        final SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait = new SubscribableListener<>();
 
         final var timeoutTask = new ReevaluatingTimeoutTask(
             clusterStateSupplier,
@@ -1066,7 +1078,7 @@ public class SharedBlobCacheWarmingService {
             bytesToWarm,
             () -> directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart,
             startedMillis,
-            race
+            recoveryWait
         );
         timeoutTask.scheduleNextTimeoutReevaluation(initialPlan);
 
@@ -1108,7 +1120,7 @@ public class SharedBlobCacheWarmingService {
                 return null;
             }).delegateResponse((delegate, e) -> {
                 // Warming failed before the timeout fired. Record the wait metric anyway, attributed to WARMING_COMPLETE since the
-                // warming side won the race, before propagating the failure to the resume listener.
+                // warming side completed first, before propagating the failure to the resume listener.
                 recordSearchRecoveryWaitDuration(startedMillis, SearchRecoveryWaitOutcome.WARMING_COMPLETE);
                 delegate.onFailure(e);
             });
@@ -1116,10 +1128,10 @@ public class SharedBlobCacheWarmingService {
         // Best-effort inline cleanup on every completion path; the result is intentionally ignored. If the timeout won, the task has
         // already fired and cancel() is a no-op; if warming won or failed, the latest task is still pending and cancel() stops it.
         // The outcome is already decided by SubscribableListener regardless, so a redundant or too-late cancel is harmless.
-        race.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
+        recoveryWait.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
 
         // warming finishing wins with WARMING_COMPLETE; warming failures propagate (after recording the wait metric).
-        return race.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+        return recoveryWait.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
     private class ReevaluatingTimeoutTask implements Runnable {
@@ -1129,7 +1141,7 @@ public class SharedBlobCacheWarmingService {
         private final long bytesToWarm;
         private final LongSupplier bytesWarmedSoFar;
         private final long startedMillis;
-        private final SubscribableListener<SearchRecoveryWaitOutcome> race;
+        private final SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait;
 
         private volatile SearchRecoveryTimeout latestPlan;
         private volatile Scheduler.ScheduledCancellable scheduledTask;
@@ -1140,22 +1152,22 @@ public class SharedBlobCacheWarmingService {
             long bytesToWarm,
             LongSupplier bytesWarmedSoFar,
             long startedMillis,
-            SubscribableListener<SearchRecoveryWaitOutcome> race
+            SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait
         ) {
             this.clusterStateSupplier = clusterStateSupplier;
             this.indexShard = indexShard;
             this.bytesToWarm = bytesToWarm;
             this.bytesWarmedSoFar = bytesWarmedSoFar;
             this.startedMillis = startedMillis;
-            this.race = race;
+            this.recoveryWait = recoveryWait;
         }
 
         void scheduleNextTimeoutReevaluation(SearchRecoveryTimeout plan) {
             latestPlan = plan;
             scheduledTask = threadPool.schedule(this, plan.timeout(), threadPool.generic());
-            // If the race completed meanwhile, its cancel() missed this task. Checking only after assigning scheduledTask
-            // guarantees that either this check or that cancel() sees it.
-            if (race.isDone()) {
+            // If recoveryWait completed meanwhile, the cancel() triggered by its completion missed this task. Checking only after
+            // assigning scheduledTask guarantees that either this check or that cancel() sees it.
+            if (recoveryWait.isDone()) {
                 scheduledTask.cancel();
             }
         }
@@ -1163,8 +1175,8 @@ public class SharedBlobCacheWarmingService {
         @Override
         public void run() {
             // cancel() on the scheduled task is best-effort: if this command was already dequeued when cancel() ran, it
-            // executes anyway. Skip the work in that case avoids a pointless re-evaluation and a second completion of race.
-            if (race.isDone()) {
+            // executes anyway. Skipping the work in that case avoids a pointless re-evaluation and a second completion of recoveryWait.
+            if (recoveryWait.isDone()) {
                 return;
             }
             try {
@@ -1186,7 +1198,7 @@ public class SharedBlobCacheWarmingService {
                 // offline warming should not fail the recovery, so ignore the exception
                 logger.warn("Search shard recovery offline warming failed.", e);
             }
-            race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
+            recoveryWait.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
         }
 
         private void logTimeoutExtension(SearchRecoveryTimeout previousPlan, final SearchRecoveryTimeout plan, final TimeValue elapsed) {
@@ -1248,7 +1260,7 @@ public class SharedBlobCacheWarmingService {
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
             );
         } else {
-            try (var warmer = new Region0Warmer(warmingRun, store::isClosing, lastCommitBlobs, directory, listener)) {
+            try (var warmer = new Region0Warmer(warmingRun, indexShard, store::isClosing, lastCommitBlobs, directory, listener)) {
                 warmer.run();
             }
         }
@@ -1727,16 +1739,19 @@ public class SharedBlobCacheWarmingService {
      * This is used before BCC header reads during indexing shard recovery to avoid cache misses in the read chain.
      */
     private class Region0Warmer extends AbstractWarmer {
+        private final IndexShard indexShard;
         private final Set<BlobFile> blobFiles;
 
         Region0Warmer(
             WarmingRun warmingRun,
+            IndexShard indexShard,
             Supplier<Boolean> isStoreClosing,
             Set<BlobFile> blobFiles,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
             super(warmingRun, isStoreClosing, directory, listener);
+            this.indexShard = indexShard;
             this.blobFiles = blobFiles;
         }
 
@@ -1744,6 +1759,12 @@ public class SharedBlobCacheWarmingService {
             for (var blobFile : blobFiles) {
                 scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blobFile, 0, listeners.acquire()));
             }
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            // a region-0 is only prewarmed to speed up BCC-header reads of an ongoing recovery
+            return super.isCancelled() || indexShard.state() != IndexShardState.RECOVERING;
         }
 
         @Override

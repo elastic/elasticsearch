@@ -8,7 +8,7 @@ products:
   - id: elasticsearch
 ---
 
-# Manage datasets with the {{es}} API
+# Create and manage datasets with the {{es}} API
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::

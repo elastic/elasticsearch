@@ -30,6 +30,9 @@ The following example shows two datasets that read from the same data source:
 ![The Datasets tab listing two datasets that read from the ookla_speedtest data source](images/data-federation/datasets-tab.png)
 
 ## Add a new dataset
+```{applies_to}
+stack: experimental 9.6+
+```
 
 Click **Add dataset** to open a four-step wizard. A progress bar at the top of the page shows each step:
 
@@ -61,7 +64,7 @@ Change settings in these cases:
   - For a separator other than a comma, set **Delimiter**.
   - For files without a header row, turn off **Header row**. Columns are then named by position, such as `col0` and `col1`.
   - For files that mark missing values with a string such as `NA`, set **Null value**.
-- Your dates aren't in ISO 8601 format, in CSV, TSV, or NDJSON files: set **Date and time format**.
+- Your dates in CSV, TSV, or NDJSON files aren't in ISO 8601 format: set **Date and time format**.
 - Your folder paths encode values in a pattern other than `key=value`: set **Partition detection** to **Template** and describe the pattern.
 - Some rows are malformed: by default, one bad row fails the query. To skip bad rows or read their bad fields as null, change **Error mode**.
 
@@ -73,7 +76,7 @@ To learn what each setting does, refer to [dataset settings](esql-data-federatio
 
 ### Schema mappings
 
-The third step sets the dataset's schema. To learn how declared and inferred columns combine, refer to [schema inference](esql-data-federation-schema.md#declare-a-schema-explicitly).
+The third step sets the dataset's schema. To learn how declared and inferred columns combine, refer to [](esql-data-federation-schema.md#declare-a-schema-explicitly).
 
 - **Enable time-based filtering**: On by default. In **Field name**, enter the date column to map to `@timestamp`, so queries and dashboards can filter the dataset by time.
 - **Infer unmapped fields**: The default. Fields you don't map are inferred from the files. To choose how schemas from different files are combined, select **Configure schema resolution**.
@@ -103,6 +106,9 @@ The last step summarizes the dataset on the **Summary** tab. The **Request** tab
 Click **Add dataset** to create the dataset.
 
 ## Edit a dataset
+```{applies_to}
+stack: experimental 9.6+
+```
 
 To change a dataset:
 

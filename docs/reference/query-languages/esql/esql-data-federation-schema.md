@@ -192,7 +192,7 @@ The `mappings` block supports the following properties:
 
 - `properties`: Columns keyed by their logical name. Each column supports:
   - `type`: Required. The column's data type. Refer to [supported types](#declared-types).
-  - `path`: Optional physical column name. Use it to expose a file column under a different logical name. For example: renaming a timestamp column to `@timestamp`.
+  - `path`: Optional physical column name. Use it to expose a file column under a different logical name. For example, to rename a timestamp column to `@timestamp`.
     - {applies_to}`stack: experimental 9.6+` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Refer to [date columns](#declared-date-columns).
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference, and leave undeclared columns unavailable to queries.

@@ -74,22 +74,31 @@ public class SplitSourceServiceTests extends ESTestCase {
     /// state without the target shard. It must abandon the handoff and release the permits, not throw from the cluster state listener
     /// (which would leave the observer registered and the permits held).
     public void testHandoffIsAbandonedWhenRestoreRemovedTheTargetShard() throws Exception {
-        assertHandoffIsAbandonedByRestore(2, 3);
+        assertHandoffIsAbandonedByRestore(2, 3, null);
     }
 
     /// As above, but the restored index has as many shards as the split was going to create, so the target shard still exists. The
     /// primary terms are no higher than the ones the handoff was started with, so without checking the resharding metadata the
     /// observer would keep waiting, holding the permits.
     public void testHandoffIsAbandonedWhenRestoreDiscardedTheReshardingMetadata() throws Exception {
-        assertHandoffIsAbandonedByRestore(4, 3);
+        assertHandoffIsAbandonedByRestore(4, 3, null);
     }
 
-    private void assertHandoffIsAbandonedByRestore(int restoredShardCount, int targetShardId) throws Exception {
+    /// A handoff that was stuck while a restore replaced the index and a new split was then started on it only looks at the cluster state
+    /// afterward. The state has resharding metadata, but of a split that doesn't have the handoff's shards (here a split of 1 shard
+    /// into 2, for a handoff to shard 3 from shard 1). The handoff belongs to the split that was discarded, and needs to be abandoned
+    /// without looking up the primary terms of shards that the index doesn't have.
+    public void testHandoffIsAbandonedWhenANewSplitWithoutItsShardsHasStarted() throws Exception {
+        assertHandoffIsAbandonedByRestore(2, 3, IndexReshardingMetadata.newSplitByMultiple(1, 2));
+    }
+
+    private void assertHandoffIsAbandonedByRestore(int restoredShardCount, int targetShardId, IndexReshardingMetadata newSplit)
+        throws Exception {
         final var permitsClosed = new AtomicInteger();
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {
             final var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
             final var index = new Index("restored", "restored-uuid");
-            // The state after the restore: no resharding metadata, and the shard count of the snapshot
+            // The state after the restore: no resharding metadata (unless a new split has started), and the shard count of the snapshot
             ClusterServiceUtils.setState(
                 clusterService,
                 ClusterState.builder(clusterService.state())
@@ -103,6 +112,7 @@ public class SplitSourceServiceTests extends ESTestCase {
                                             index.getUUID()
                                         )
                                     )
+                                    .reshardingMetadata(newSplit)
                             )
                     )
                     .build()

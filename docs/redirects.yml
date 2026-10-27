@@ -805,3 +805,9 @@ redirects:
       - to: 'reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md'
         anchors:
           'cluster-total-shards-per-node': 'cluster-routing-allocation-total-shards-per-node'
+
+  'reference/query-languages/esql/esql-task-management.md':
+    to: 'reference/query-languages/query-task-management.md'
+    anchors:
+      'esql-task-management-get-all': 'query-task-management-list'
+      'esql-task-management-cancelEsqlQueryRequestTests': 'query-task-management-cancel'

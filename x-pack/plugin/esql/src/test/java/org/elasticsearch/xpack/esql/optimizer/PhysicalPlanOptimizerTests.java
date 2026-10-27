@@ -2442,10 +2442,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         var boolQuery = as(sv(source.query(), "emp_no"), BoolQueryBuilder.class);
-        assertThat(boolQuery.mustNot(), hasSize(1));
-        var termQuery = as(boolQuery.mustNot().get(0), TermQueryBuilder.class);
-        assertThat(termQuery.fieldName(), is("emp_no"));
-        assertThat(termQuery.value(), is(10010));  // TODO this will match multivalued fields and we don't want that
+        assertThat(boolQuery.should(), hasSize(2));
+        var lt = as(boolQuery.should().get(0), RangeQueryBuilder.class);
+        assertThat(lt.fieldName(), is("emp_no"));
+        assertThat(lt.to(), is(10010));
+        assertFalse(lt.includeUpper());
+        var gt = as(boolQuery.should().get(1), RangeQueryBuilder.class);
+        assertThat(gt.fieldName(), is("emp_no"));
+        assertThat(gt.from(), is(10010));
+        assertFalse(gt.includeLower());
     }
 
     /**

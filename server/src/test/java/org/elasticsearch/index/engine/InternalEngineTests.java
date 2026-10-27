@@ -735,7 +735,9 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testPreCommitRecordedSegmentGeneration() throws IOException {
         engine.close();
-        final AtomicLong preCommitGen = new AtomicLong(-1);
+        // Before the first commit of this engine instance, the recorded pre-commit generation is the
+        // generation the engine opened on, which a flush that has nothing to commit leaves untouched.
+        final AtomicLong preCommitGen = new AtomicLong(store.readLastCommittedSegmentsInfo().getGeneration());
         final AtomicLong lastSegmentInfoGenUponCommit = new AtomicLong(-1);
         final AtomicLong postFlushSegmentInfoGen = new AtomicLong(-1);
         engine = new InternalEngine(engine.config()) {

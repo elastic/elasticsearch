@@ -179,7 +179,7 @@ public class InternalEngine extends Engine {
     // TODO: move the following two to the stateless plugin
     private final AtomicLong lastUnsafeSegmentGenerationForGets;
     // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
-    private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
+    private final AtomicLong preCommitSegmentGeneration;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -330,6 +330,7 @@ public class InternalEngine extends Engine {
             this.externalReaderManager = wrapForAssertions(externalReaderManager, engineConfig);
             internalReaderManager.addListener(versionMap);
             this.lastUnsafeSegmentGenerationForGets = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
+            this.preCommitSegmentGeneration = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
@@ -1187,15 +1188,22 @@ public class InternalEngine extends Engine {
         if (versionMap.isUnsafeForGets()) {
             synchronized (versionMap) {
                 if (versionMap.isUnsafeForGets()) {
-                    refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
-                    // After the refresh, the doc that triggered it must now be part of the last commit.
-                    // In rare cases, there could be other flush cycles completed in between the above line
-                    // and the line below which push the last commit generation further. But that's OK.
-                    // The invariant here is that doc is available within the generations of commits upto
-                    // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
-                    // which means the search shard needs to wait for extra generations and these generations
-                    // are guaranteed to happen since they are all committed.
-                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
+                    final long safeGeneration = versionMap.safeGenerationForGets(lastCommittedSegmentInfos.getGeneration());
+                    if (safeGeneration != -1) {
+                        // Every unsafe operation is already contained in a committed generation, so there is nothing
+                        // to refresh or flush: gets just need to wait for that generation.
+                        lastUnsafeSegmentGenerationForGets.accumulateAndGet(safeGeneration, Math::max);
+                    } else {
+                        refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
+                        // After the refresh, the doc that triggered it must now be part of the last commit.
+                        // In rare cases, there could be other flush cycles completed in between the above line
+                        // and the line below which push the last commit generation further. But that's OK.
+                        // The invariant here is that doc is available within the generations of commits upto
+                        // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
+                        // which means the search shard needs to wait for extra generations and these generations
+                        // are guaranteed to happen since they are all committed.
+                        lastUnsafeSegmentGenerationForGets.accumulateAndGet(lastCommittedSegmentInfos.getGeneration(), Math::max);
+                    }
                 }
                 versionMap.enforceSafeAccess();
             }
@@ -4479,6 +4487,11 @@ public class InternalEngine extends Engine {
         checkGenerationFlushed(generation, listener);
     }
 
+    /**
+     * The segment generation up to which (inclusive) commits contain every operation that was indexed while the
+     * live version map was unsafe. Such operations have no version map entry, so a real-time get that misses the
+     * version map is only safe to serve from a searcher that includes this generation. Monotonically increasing.
+     */
     public long getLastUnsafeSegmentGenerationForGets() {
         return lastUnsafeSegmentGenerationForGets.get();
     }

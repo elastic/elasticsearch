@@ -551,3 +551,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
   issue: https://github.com/elastic/elasticsearch/issues/163504
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  tasks:
+  - :server:internalClusterTest
+  method: testBulkRequestSameOutcomeAsSeparateRequests
+  issue: https://github.com/elastic/elasticsearch/issues/163520

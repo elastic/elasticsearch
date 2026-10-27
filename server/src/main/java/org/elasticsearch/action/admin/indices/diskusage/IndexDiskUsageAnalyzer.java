@@ -54,6 +54,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
+import org.elasticsearch.index.codec.lucene50.Lucene50PostingsFormat;
+import org.elasticsearch.index.codec.lucene84.Lucene84PostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.shard.ShardId;
@@ -340,6 +342,12 @@ final class IndexDiskUsageAnalyzer {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final Lucene84PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
             assert false : "unsupported postings format: " + termState;

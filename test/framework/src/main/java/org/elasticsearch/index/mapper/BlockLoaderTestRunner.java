@@ -185,10 +185,6 @@ public class BlockLoaderTestRunner {
         this.doc = doc;
     }
 
-    private static boolean containsTimestampField(ParsedDocument doc) {
-        return doc.rootDoc().getField("@timestamp") != null;
-    }
-
     /**
      * Run the test and compare to {@code expected}.
      */

@@ -74,6 +74,10 @@ public final class SearchCapabilities {
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
+    /** Case-insensitive queries on keyed {@code flattened} subfields match their key exactly, and prefix queries run on doc values. */
+    private static final String KEYED_FLATTENED_EXACT_KEY_QUERIES = "keyed_flattened_exact_key_queries";
+    /** Keyed {@code flattened} subfields answer wildcard, regexp and fuzzy queries. */
+    private static final String KEYED_FLATTENED_PATTERN_QUERIES = "keyed_flattened_pattern_queries";
     /** Terms-family aggregations reject an include/exclude regex longer than index.max_regex_length instead of compiling it. */
     private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT = "aggregation_include_exclude_regex_length_limit";
     /**
@@ -134,6 +138,8 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
+        capabilities.add(KEYED_FLATTENED_EXACT_KEY_QUERIES);
+        capabilities.add(KEYED_FLATTENED_PATTERN_QUERIES);
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT);
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
         capabilities.add(REGEXP_QUERY_CHARGED);

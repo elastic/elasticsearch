@@ -32,7 +32,7 @@ To extract a subfield from a [`flattened`](/reference/elasticsearch/mapping-refe
 
 ## How {{esql}} handles unmapped fields [esql-unmapped-fields-how-it-works]
 
-The `unmapped_fields` setting accepts four values, which range from strict to permissive. These values also control how {{esql}} resolves a partially unmapped field, one that exists in the mapping of some indices but not others, across a multi-index query.
+The `unmapped_fields` setting accepts the following values, which range from strict to permissive. These values also control how {{esql}} resolves a partially unmapped field, one that exists in the mapping of some indices but not others, across a multi-index query.
 
 | Value | What it does | When to use it
 | --- | --- | --- |
@@ -58,27 +58,19 @@ serverless: preview
 
 `LOAD` only loads the unmapped fields that your query names. With `LOAD_ALL`, {{esql}} also reads the rest of the unmapped fields from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), so you can see what is in your documents without listing every field.
 
-```esql
-SET unmapped_fields="LOAD_ALL";
-FROM partial_mapping_sample_data
-| SORT @timestamp
-| LIMIT 1
-```
-
-| @timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source |
-| --- | --- | --- | --- | --- |
-| 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | {"unmapped_message":"Disconnected from 10.1.0.3","unmapped_event_duration":"3450234","unmapped.nested":"g","language_code":"4"} |
+:::{include} _snippets/generated/x-pack-esql/commands/examples/unmapped-load-all.csv-spec/unmapped-load-all-sample.md
+:::
 
 Mapped fields are returned as columns as usual. Every unmapped field is returned in the extra `_unmapped_fields` column, which has the type `_source`.
 
 ### How `_unmapped_fields` works [esql-unmapped-fields-load-all-rules]
 
 - **One column, one JSON object per row.** `_unmapped_fields` holds the unmapped fields of the row. It is `null` for a row that has none.
-- **Flattened, like a [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) field.** Nested objects are flattened into dotted paths such as `unmapped.nested`, in the order the fields appear in `_source`. All values are returned as `keyword`. A field with several values becomes a multivalue.
+- **Flattened, like a [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) field.** Nested objects are flattened into dotted paths such as `unmapped.nested`, in the order the fields appear in `_source`. Values keep their JSON form from `_source`, so a field with several values is a JSON array. They become typed `keyword` columns only when the query names them.
 - **Empty values are left out.** Explicit `null` values, empty arrays, and empty objects don't appear in the column.
-- **Fields you name become their own column.** A field that the query refers to, for example in `WHERE`, `KEEP`, or `EVAL`, is loaded like with `LOAD`, as a `keyword` column, and is no longer part of `_unmapped_fields`. The same applies if a command creates a column with the same name as an unmapped field, for example with `EVAL` or `RENAME`.
+- **Fields you name become their own column.** A field that the query refers to, for example in `WHERE`, `KEEP`, or `EVAL`, is loaded the same way as with `LOAD`, as a `keyword` column, and is no longer part of `_unmapped_fields`. The same applies if a command creates a column with the same name as an unmapped field, for example with `EVAL` or `RENAME`.
 - **`KEEP` and `DROP` with wildcards apply to the unmapped fields.** `DROP unmapped_*` removes the matching fields from `_unmapped_fields`. `KEEP @timestamp, unmapped_*` keeps only the matching fields in `_unmapped_fields`. A `KEEP` with only exact names doesn't return `_unmapped_fields` at all.
-- **Commands that apply to sets of fields don't see them.** For example, full-text search functions that take wildcard field patterns, such as `KQL` and `QSTR`, don't search the fields in `_unmapped_fields`.
+- **Commands and functions that take field patterns don't see them.** For example, full-text search functions such as `KQL` and `QSTR` don't search the fields in `_unmapped_fields`.
 - **Partially mapped fields behave as in `LOAD`.** Where a field is mapped in some of the queried indices only, {{esql}} reads it from the mapping where it exists and from `_source` where it doesn't. These fields are columns, not part of `_unmapped_fields`.
 
 :::{note}
@@ -109,7 +101,7 @@ FROM idx
 | LIMIT 10
 ```
 
-In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read documents (and parse `_source` for the loaded field) across the queried data. Large `_source` documents make this even slower. Prefer mapped fields for selective filters and sorts on large indices; use `LOAD` for exploration and for fields you haven't mapped yet. `LOAD_ALL` reads every unmapped field, so it is more expensive still.
+In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read documents (and parse `_source` for the loaded field) across the queried data. Large `_source` documents make this even slower. Prefer mapped fields for selective filters and sorts on large indices; use `LOAD` for exploration and for fields you haven't mapped yet. `LOAD_ALL` reads every unmapped field, so it is even more expensive.
 
 ### Scope of loaded fields [esql-unmapped-fields-scope]
 
@@ -140,8 +132,8 @@ serverless: preview
 In addition to the restrictions above, `LOAD_ALL` has these limitations:
 
 - It supports only a subset of the processing commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
-- It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: a view doesn't return an `_unmapped_fields` column, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. Indices and subqueries next to a view are loaded as usual.
-- Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. Very large documents can still exhaust memory in some cases. If you know which fields you need, name them and use `LOAD`.
+- It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: a view doesn't return an `_unmapped_fields` column, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. A view definition can't use `LOAD_ALL`. Indices and subqueries next to a view are loaded as usual.
+- Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. If you know which fields you need, name them and use `LOAD`.
 
 ## Unmapped fields and runtime fields [esql-unmapped-fields-vs-runtime-fields]
 

@@ -2061,8 +2061,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
 
             Rewriteable.rewrite(request.getRewriteable(), context, true);
-            assert context.getQueryConstructionMemoryUsed() == 0
-                : "rewrite phase should not build queries; found " + context.getQueryConstructionMemoryUsed() + " bytes tracked";
+            assert context.getQueryConstructionMemoryUsed() == 0 && context.hasQueryConstructionReleasables() == false
+                : "rewrite phase should not build queries; found "
+                    + context.getQueryConstructionMemoryUsed()
+                    + " bytes tracked, releasables registered: "
+                    + context.hasQueryConstructionReleasables();
 
             if (context.getTimeRangeFilterFromMillis() != null) {
                 // range queries may get rewritten to match_all or a range with open bounds. Rewriting in that case is the only place

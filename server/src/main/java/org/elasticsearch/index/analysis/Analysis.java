@@ -194,11 +194,18 @@ public class Analysis {
      */
     public static String sha256Hex(CharSequence text) {
         MessageDigest digest = MessageDigests.sha256();
+        byte[] buf = new byte[8192];
+        int n = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            digest.update((byte) (c >>> 8));
-            digest.update((byte) c);
+            buf[n++] = (byte) (c >>> 8);
+            buf[n++] = (byte) c;
+            if (n == buf.length) {
+                digest.update(buf, 0, n);
+                n = 0;
+            }
         }
+        digest.update(buf, 0, n);
         return MessageDigests.toHexString(digest.digest());
     }
 

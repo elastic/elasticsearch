@@ -92,3 +92,4 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
 
 cd "$ES_HOME"
+

@@ -6,7 +6,7 @@ There are three files in this directory:
 
 ## ${P12}
 
-The "${P12}" file is a PKCS#12 format keystore.
+The "${P12}" file is a ${FORMAT} format keystore.
 It contains a copy of your certificate and the associated private key.
 You should keep this file secure, and should not provide it to anyone else.
 

@@ -47,6 +47,7 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
@@ -583,6 +585,21 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             long heapOverWire = RamUsageTester.ramUsed(deserialized.getValues()) + listReferences - serializedBytes;
             assertEquals(original.fieldName(), heapOverWire, deserialized.getValues().decodedBytesOverWire(), heapOverWire * 0.05);
         }
+    }
+
+    /**
+     * A {@code terms} list parsed from a request is held by the coordinator for as long as the search, while the request body it came
+     * from is charged to the in-flight requests breaker. The parsed form must therefore stay close to the size of that body, or the
+     * breaker undercounts what the coordinator retains (#162788).
+     */
+    public void testParsedTermsStayCloseToRequestBodySize() throws IOException {
+        List<String> terms = randomTermsList(60_000);
+        String json = "{\"terms\": {\"" + KEYWORD_FIELD_NAME + "\": [\"" + String.join("\",\"", terms) + "\"]}}";
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        // RamUsageTester cannot look inside JDK lists and leaves out their reference array
+        long retained = RamUsageTester.ramUsed(parsed.getValues()) + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * terms.size();
+        long bodyBytes = json.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("parsed [" + retained + "] bytes from a [" + bodyBytes + "] byte body", retained, lessThan(3 * bodyBytes));
     }
 
     private static List<String> randomTermsList(int count) {

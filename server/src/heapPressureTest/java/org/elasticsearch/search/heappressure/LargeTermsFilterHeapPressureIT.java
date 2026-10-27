@@ -50,6 +50,9 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     private static final int TERMS = 62_000;
     private static final int SEARCHES_PER_MULTI_SEARCH = 5;
     private static final int THREADS = 8;
+    // About 1.4 MB of JSON per sub-search, so about 86 MB of body, under the default http.max_content_length of 100 MB, while the parsed
+    // sub-searches are several times that and more than the heap.
+    private static final int OVERSIZED_MULTI_SEARCH_SIZE = 60;
     // Each sub-search parses its own TermsQueryBuilder. A parsed JSON string becomes a BytesRef whose byte[] is sized for the worst-case
     // UTF-8 length, 3 bytes per char, so a 20-char id takes about 108 bytes and TERMS ids about 6.7 MB, on top of about 1.4 MB of request
     // JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
@@ -91,6 +94,28 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     public void testConcurrentKnnWithTermsFilterMultiSearchesDoNotKillTheNode() throws Exception {
         createIndex();
         assertOverlappingMultiSearchesSurvive(knnSearch());
+    }
+
+    /**
+     * One multi-search whose sub-searches, all parsed before any of them runs, hold more than the heap between them, though each stays
+     * under {@code index.max_terms_count} and the request stays under {@code http.max_content_length}. Parsing must be rejected by a
+     * circuit breaker, or the search must complete, never kill the node.
+     */
+    public void testOversizedTermsFilterMultiSearchDoesNotKillTheNode() throws Exception {
+        createIndex();
+        assertOversizedMultiSearchSurvives(termsSearch());
+    }
+
+    /** As {@link #testOversizedTermsFilterMultiSearchDoesNotKillTheNode}, with the filter as the pre-filter of a nested kNN query. */
+    public void testOversizedKnnWithTermsFilterMultiSearchDoesNotKillTheNode() throws Exception {
+        createIndex();
+        assertOversizedMultiSearchSurvives(knnSearch());
+    }
+
+    private void assertOversizedMultiSearchSurvives(String searchBody) throws Exception {
+        List<Object> failures = nonBreakerFailures(multiSearch(searchBody, OVERSIZED_MULTI_SEARCH_SIZE));
+        assertTrue("expected only circuit_breaking_exception failures, but got: " + failures, failures.isEmpty());
+        assertNodeAlive();
     }
 
     private void assertOverlappingMultiSearchesSurvive(String searchBody) throws Exception {
@@ -155,9 +180,13 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     }
 
     private static Request multiSearch(String searchBody) {
+        return multiSearch(searchBody, SEARCHES_PER_MULTI_SEARCH);
+    }
+
+    private static Request multiSearch(String searchBody, int searches) {
         String compactBody = searchBody.replace("\n", " ");
         StringBuilder body = new StringBuilder();
-        for (int i = 0; i < SEARCHES_PER_MULTI_SEARCH; i++) {
+        for (int i = 0; i < searches; i++) {
             body.append(Strings.format("{\"index\": \"%s\", \"request_cache\": false}\n%s\n", INDEX, compactBody));
         }
         Request request = new Request("POST", "/_msearch");
@@ -221,5 +250,6 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
                 .collect(Collectors.joining(","));
             return Strings.format("{\"id\": \"%s\", \"chunks\": [%s]}", id(i), chunks);
         });
+        logger.info("Created index " + INDEX);
     }
 }

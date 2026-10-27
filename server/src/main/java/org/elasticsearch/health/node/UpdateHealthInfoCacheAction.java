@@ -34,6 +34,9 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.health.node.HealthInfo.DATA_RECOVERY_HEALTH_INFO;
+import static org.elasticsearch.health.node.HealthInfo.DLM_FROZEN_TRANSITIONS_HEALTH_INFO;
+import static org.elasticsearch.health.node.HealthInfo.FILE_SETTINGS_HEALTH_INFO;
 import static org.elasticsearch.health.node.HealthInfo.LOCAL_RECOVERY_RETRIES_HEALTH_INFO;
 
 /**
@@ -43,12 +46,6 @@ import static org.elasticsearch.health.node.HealthInfo.LOCAL_RECOVERY_RETRIES_HE
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
-
-    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
-    private static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName(
-        "dlm_frozen_transitions_health_info"
-    );
-    private static final TransportVersion DATA_RECOVERY_HEALTH_INFO = TransportVersion.fromName("data_recovery_health_info");
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;

@@ -49,6 +49,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapArchive;
 import org.junit.Before;
@@ -82,6 +83,8 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAcces
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -959,6 +962,89 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }
         assertThat(getFromTranslogAttempts.get(), equalTo(1));
         assertThat(shardGetsOnSearchB.get(), equalTo(0));
+    }
+
+    public void testNoConflictsOrLostUpdatesDuringRefreshes() throws Exception {
+        // LiveVersionMap could leave safe access mode between an update's enforceSafeAccess() and its put. This caused a bug where an
+        // update could succeed without putting the version into the version map. The next update then either hit a version conflict,
+        // or, when the stale version was used for both the get for update and the version check, succeeded on top of stale data and
+        // silently dropped the earlier update. Each update adds its own field so that both symptoms are detected.
+        String indexNodeA = startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                // Set a large max size and amount to control the uploads manually in the test
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
+                .build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+
+        String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var map = indexEngine.getLiveVersionMap();
+
+        assertFalse(isUnsafeForGets(map));
+
+        String docId = "doc-1";
+        // index 1 doc with doc-id. This should enforce safe access mode
+        client().prepareIndex(indexName).setId(docId).setSource("f_init", 0).get();
+        assertTrue(isSafeAccessRequired(map));
+        assertNotNull(get(map, docId));
+
+        var stopThreads = new AtomicBoolean(false);
+
+        final Thread refreshThread = new Thread(() -> {
+            while (stopThreads.get() == false) {
+                // trigger an internal refresh. We want this to cause safe -> unsafe transition in the middle of indexing
+                indexEngine.refresh("VERSION_CONFLICT_TEST");
+            }
+        }, "RefreshThread");
+        refreshThread.start();
+
+        // 30 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
+        final int updates = 30;
+        final List<Integer> acked = new ArrayList<>();
+        final List<String> failures = new ArrayList<>();
+        try {
+            for (int i = 0; i < updates; ++i) {
+                var response = client().prepareBulk().add(client().prepareUpdate(indexName, docId).setDoc("f" + i, i)).get();
+                if (response.hasFailures()) {
+                    failures.add("update " + i + ": " + response.buildFailureMessage());
+                } else {
+                    acked.add(i);
+                }
+            }
+        } finally {
+            stopThreads.set(true);
+            refreshThread.join();
+        }
+
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+        indicesAdmin().prepareRefresh(indexName).get();
+        final List<Integer> lost = new ArrayList<>();
+        assertResponse(client().prepareSearch(indexName), r -> {
+            assertThat(r.getHits().getHits().length, equalTo(1));
+            var source = r.getHits().getHits()[0].getSourceAsMap();
+            // The last acked update must be visible, so missing earlier fields cannot be explained by a stale read.
+            if (acked.isEmpty() == false) {
+                assertTrue("last acked update missing: " + source.keySet(), source.containsKey("f" + acked.get(acked.size() - 1)));
+            }
+            for (int i : acked) {
+                if (source.containsKey("f" + i) == false) {
+                    lost.add(i);
+                }
+            }
+        });
+        assertThat("failures: " + failures + ", lost acked updates: " + lost, failures.size() + lost.size(), equalTo(0));
     }
 
     private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {

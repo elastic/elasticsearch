@@ -68,6 +68,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -301,6 +302,21 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             case 2 -> ft.rangeQuery(false, true, false, true, null, null, null, ctx);
             default -> throw new UnsupportedOperationException();
         };
+    }
+
+    public void testLongNonBooleanTermIsTruncatedInError() {
+        String value = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        String expected = "Failed to parse value ["
+            + value.substring(0, MAX_INPUT_LENGTH_IN_ERROR)
+            + "..."
+            + "] as only [true] or [false] are allowed.";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> simpleMappedFieldType().termQuery(value, mockContext())
+        );
+        assertEquals(expected, e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().termQuery(new BytesRef(value), mockContext()));
+        assertEquals(expected, e.getMessage());
     }
 
     @Override

@@ -1554,7 +1554,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         try {
                             memoryAccountant.add(growth);
                         } catch (EsRejectedExecutionException rejection) {
-                            // Failed items stay referenced by the bulk, and the failure store path reads the source of the request
+                            // revert the updated source to the original one to stop referencing the rejected expanded source
                             indexRequest.source(originalSource, originalContentType);
                             exceptionHandler.accept(rejection);
                             return; // document failed!

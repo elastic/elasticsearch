@@ -711,6 +711,29 @@ public final class IndexSettings {
     );
 
     /**
+     * Patterns of the dimensions that are hashed into the second and third bytes of the tsid of time series indices created on or
+     * after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}: full dimension paths, or wildcard patterns like those of
+     * {@link IndexMetadata#INDEX_ROUTING_PATH}, e.g. {@code resource.attributes.*} for OTel metrics and
+     * {@code labels.job,labels.instance} for Prometheus metrics. Since the tsid is the primary index sort key and its first byte is
+     * derived from the metric name, this clusters the time series of one metric by the resource or target they come from. Empty by
+     * default, which keeps those bytes from the hash over all dimensions; the OTel and Prometheus index templates set it. Final
+     * because changing it would change the tsids of existing time series. See {@link org.elasticsearch.cluster.routing.TsidBuilder}.
+     */
+    public static final Setting<List<String>> TIME_SERIES_TSID_PREFIXED_DIMENSIONS = Setting.stringListSetting(
+        "index.time_series.tsid_prefixed_dimensions",
+        patterns -> {
+            for (String pattern : patterns) {
+                if (pattern.isBlank()) {
+                    throw new IllegalArgumentException("[index.time_series.tsid_prefixed_dimensions] must not contain empty patterns");
+                }
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
     public boolean isES87TSDBCodecEnabled() {

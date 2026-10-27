@@ -16,3 +16,5 @@ jobs:
     with:
       # Fail breaking-change PRs whose description or changelog entry lacks Impact and Action.
       require-impact-action: true
+      # Skip the checks and the PR comment on drafts. Needs ready_for_review above.
+      skip-drafts: true

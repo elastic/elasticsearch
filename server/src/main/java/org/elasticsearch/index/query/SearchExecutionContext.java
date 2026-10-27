@@ -69,6 +69,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -632,8 +633,28 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 )
             ),
             sourceProvider,
-            fieldLookupProvider
+            fieldLookupProvider,
+            // Account decode buffers that script doc-values readers retain (e.g. the uncompressed-block buffer of
+            // the TSDB binary doc-values format) on the request breaker. One such buffer is held per field, leaf
+            // and clause that reads doc values through a script, so an unbounded fan-out (many runtime-field
+            // clauses in a filters aggregation, say) trips the breaker instead of exhausting the heap. When the
+            // request is driven by a ContextIndexSearcher with a breaker, the memory is attributed to the leaf it
+            // was opened against and released as soon as that leaf is done being collected, so sequential execution
+            // does not accumulate charges across leaves. Otherwise (percolator's memory-index searcher, contexts
+            // without a searcher) it accumulates in this context's query construction pool and is drained at
+            // request end by releaseQueryConstructionMemory().
+            this::accountScriptFieldMemory
         );
+    }
+
+    // Package-private for testing.
+    void accountScriptFieldMemory(long bytes, String field, LeafReaderContext ctx) {
+        if (searcher instanceof ContextIndexSearcher contextIndexSearcher
+            && ContextIndexSearcher.circuitBreakerOrNull(contextIndexSearcher) != null) {
+            contextIndexSearcher.chargeLeaf(ctx, bytes, "script_doc_values:" + field);
+        } else {
+            addCircuitBreakerMemory(bytes, "script_doc_values:" + field);
+        }
     }
 
     public NestedScope nestedScope() {

@@ -36,6 +36,7 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                 "bdc68b4b9cbc4ebcb30745c85038d91d"
             ),
             OracleOpenJdkToolchainResolver.getBundledJdkBuild("24.0.2+12@fdc5d0102fe0414db21410ad5834341f", "24"),
+            OracleOpenJdkToolchainResolver.getBundledJdkBuild("27.0.1.0.2+1@924dbdccfc234bb9b9355d7c6b66034b", "27"),
         ]
         toolChain
     }
@@ -61,7 +62,13 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [24, anyVendor(), MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-aarch64_bin.tar.gz"],
          [24, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz"],
          [24, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-aarch64_bin.tar.gz"],
-         [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_windows-x64_bin.zip"]
+         [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_windows-x64_bin.zip"],
+         // bundled jdk with an out-of-band security release version
+         [27, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk27.0.1.0.2/924dbdccfc234bb9b9355d7c6b66034b/1/GPL/openjdk-27.0.1.0.2_macos-aarch64_bin.tar.gz"],
+         [27, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/GA/jdk27.0.1.0.2/924dbdccfc234bb9b9355d7c6b66034b/1/GPL/openjdk-27.0.1.0.2_linux-x64_bin.tar.gz"],
+         [27, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk27.0.1.0.2/924dbdccfc234bb9b9355d7c6b66034b/1/GPL/openjdk-27.0.1.0.2_linux-aarch64_bin.tar.gz"],
+         [27, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk27.0.1.0.2/924dbdccfc234bb9b9355d7c6b66034b/1/GPL/openjdk-27.0.1.0.2_windows-x64_bin.zip"],
+         [27, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk27.0.1.0.2/924dbdccfc234bb9b9355d7c6b66034b/1/GPL/openjdk-27.0.1.0.2_linux-x64_bin.tar.gz"]
         ]
     }
 

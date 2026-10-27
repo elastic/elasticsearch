@@ -31,6 +31,6 @@ public class ElasticsearchAuthenticationProcessingError extends ElasticsearchSec
     }
 
     public ElasticsearchAuthenticationProcessingError(StreamInput in) throws IOException {
-         super(in);
+        super(in);
     }
 }

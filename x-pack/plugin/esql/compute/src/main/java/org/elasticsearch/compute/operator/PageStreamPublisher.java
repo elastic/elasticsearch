@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -71,6 +72,10 @@ import java.util.function.Function;
  * {@link Action#SEND_ERROR} path, which releases the buffer and unparks the producers. The error footer reuses the
  * values of a footer already recorded, otherwise it comes from the {@code failureFooterFactory}.
  * If the scheduler rejects the timer (the node is shutting down) the stream continues without a deadline.
+ * {@link #consumerTimedOut()} identifies this failure: a subscriber is expected to drop its connection, because a
+ * consumer that has stopped requesting pages is not reading and cannot receive the error footer.
+ * {@link #addDrainedListener} reports when the outcome is final, so a caller can record the query's result
+ * only after a deadline can no longer turn it into a failure.
  */
 public class PageStreamPublisher implements Flow.Publisher<Page> {
 
@@ -116,6 +121,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private StreamFooter footer = null;
 
     private Exception failure = null;
+    private boolean consumerTimedOut = false;
     private boolean terminalSignalSent = false;
     private boolean cancelled = false;
 
@@ -125,6 +131,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private long pagesDelivered;
     private long rowsPublished;
     private final SubscribableListener<Void> closedListener = new SubscribableListener<>();
+    private final SubscribableListener<Void> drainedListener = new SubscribableListener<>();
 
     // Decremented on each Producer.finish(); zero → pagesFinished = true.
     private int outstandingProducers;
@@ -235,6 +242,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                 footer = fresh;
             }
             failure = timeout;
+            consumerTimedOut = true;
         }
         logger.debug("streaming consumer did not request the next batch within [{}], failing the streaming query", consumerTimeout);
         deliverPages();
@@ -272,6 +280,20 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
     public void addCloseListener(ActionListener<Void> listener) {
         closedListener.addListener(listener);
+    }
+
+    public void addDrainedListener(ActionListener<Void> listener, Executor executor, ThreadContext threadContext) {
+        drainedListener.addListener(listener, executor, threadContext);
+    }
+
+    private void notifyIfDrained() {
+        boolean drained;
+        synchronized (this) {
+            drained = cancelled || terminated() || onlyFooterRemains();
+        }
+        if (drained) {
+            drainedListener.onResponse(null);
+        }
     }
 
     public synchronized Producer registerProducer() {
@@ -349,6 +371,10 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         return failure;
     }
 
+    public synchronized boolean consumerTimedOut() {
+        return consumerTimedOut;
+    }
+
     private boolean terminated() {
         return failure != null || terminalSignalSent;
     }
@@ -402,6 +428,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                 }
                 notifyWritable();
                 closedListener.onResponse(null);
+                notifyIfDrained();
             }
         };
         subscriber.onSubscribe(subscription);
@@ -424,6 +451,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
             stopDelivering();
             throw e;
         }
+        notifyIfDrained();
     }
 
     private enum Action {

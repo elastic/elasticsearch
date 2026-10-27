@@ -27,12 +27,14 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -82,6 +84,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
@@ -222,18 +225,41 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
+        AtomicBoolean outputComputeFinished = new AtomicBoolean(false);
+        AtomicReference<List<String>> startWarnings = new AtomicReference<>(List.of());
+        Function<Exception, PageStreamPublisher.StreamFooter> streamFailureFooter = ex -> {
+            DriverCompletionInfo work = completedWork.finish();
+            return failureFooter(
+                ex,
+                executionInfo,
+                work.withAdditionalWarnings(startWarnings.get()),
+                threadPool.getThreadContext(),
+                outputComputeFinished.get() ? work : null
+            );
+        };
         PageStreamPublisher publisher = new PageStreamPublisher(
             request.batchSize(),
             streamingConsumerTimeout,
             threadPool,
             threadPool.generic(),
-            ex -> failureFooter(ex, executionInfo, completedWork.finish(), threadPool.getThreadContext())
+            streamFailureFooter
         );
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
             listener,
             new EsqlStreamLogContextBuilder(task, request, executionInfo, publisher, resultRef::get),
-            l -> innerExecute(task, request, executionInfo, publisher, resultRef, completedWork, l)
+            l -> innerExecute(
+                task,
+                request,
+                executionInfo,
+                publisher,
+                resultRef,
+                completedWork,
+                outputComputeFinished,
+                startWarnings,
+                streamFailureFooter,
+                l
+            )
         );
     }
 
@@ -244,6 +270,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
         DriverCompletionInfo.AtomicAccumulator completedWork,
+        AtomicBoolean outputComputeFinished,
+        AtomicReference<List<String>> startWarnings,
+        Function<Exception, PageStreamPublisher.StreamFooter> streamFailureFooter,
         ActionListener<ActionResponse.Empty> listener
     ) {
         EsqlFlags flags = computeService.createFlags();
@@ -297,6 +326,10 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
                 Consumer<boolean[]> startCompute = nullColumns -> {
                     try {
+                        // A consumer timeout or a task cancellation while rows drain builds its error line on whichever thread raised it
+                        // (the timer's or the canceller's), which carries none of this request's response headers. Capture the
+                        // planning-time warnings here, while they are still in scope, so that error line can report them.
+                        startWarnings.set(footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY));
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
                         Exception startFailure = startStream(
                             request,
@@ -320,12 +353,21 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             executionInfo,
                             planTimeProfile,
                             resultListener.delegateFailureAndWrap((l, r) -> {
-                                Exception streamFailure = publisher.failure();
-                                if (streamFailure != null) {
-                                    l.onFailure(streamFailure);
-                                } else {
-                                    l.onResponse(r);
-                                }
+                                completedWork.accumulate(r.completionInfo());
+                                outputComputeFinished.set(true);
+                                CancellableTask cancellableTask = (CancellableTask) task;
+                                cancellableTask.addListener(() -> {
+                                    TaskCancelledException cancelled = cancellableTask.getTaskCancelledException();
+                                    publisher.failStream(cancelled, streamFailureFooter.apply(cancelled));
+                                });
+                                publisher.addDrainedListener(l.delegateFailureAndWrap((l2, ignored) -> {
+                                    Exception streamFailure = publisher.failure();
+                                    if (streamFailure != null) {
+                                        l2.onFailure(streamFailure);
+                                    } else {
+                                        l2.onResponse(r);
+                                    }
+                                }), requestExecutor, threadPool.getThreadContext());
                             })
                         );
                     } catch (Exception e) {
@@ -601,12 +643,26 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         DriverCompletionInfo completedWork,
         ThreadContext threadContext
     ) {
+        return failureFooter(ex, executionInfo, completedWork, threadContext, null);
+    }
+
+    /**
+     * @param completionInfo the completion info to write on the error line, or {@code null} to omit it. Passed only
+     *                       when the output compute has finished, so the error line reports what compute did.
+     */
+    static PageStreamPublisher.StreamFooter failureFooter(
+        Exception ex,
+        EsqlExecutionInfo executionInfo,
+        DriverCompletionInfo completedWork,
+        ThreadContext threadContext,
+        @Nullable DriverCompletionInfo completionInfo
+    ) {
         return new PageStreamPublisher.StreamFooter(
             ExceptionsHelper.status(ex).getStatus(),
             tookMillis(executionInfo),
             executionInfo.isPartial() || completedWork.partial(),
             footerWarnings(threadContext, completedWork),
-            null,
+            completionInfo,
             null,
             ex,
             null

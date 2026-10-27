@@ -668,8 +668,9 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A client that stops reading mid-stream never requests the next batch. With a short consumer deadline the
-     * stream must be failed with an error footer, and the coordinator must release all of its compute and buffers
-     * rather than staying parked until the client goes away.
+     * stream must be failed and the connection closed, and the coordinator must release all of its compute, buffers
+     * and the batch in flight rather than staying parked until the client goes away. The client sees the body cut
+     * short without a terminal line.
      */
     public void testStalledConsumerTimesOut() throws Exception {
         updateClusterSettings(Settings.builder().put(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey(), "1s"));
@@ -677,7 +678,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             // ~16MB or more of padding so the response cannot be absorbed by socket buffers while the client is suspended.
             StreamOutcome outcome = streamPausingAt(
                 1,
-                streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 32768) | LIMIT " + streamDocCount),
+                streamBody("FROM " + STREAM_INDEX + " | EVAL bad = TO_INT(\"foo\"), pad = REPEAT(\"x\", 32768) | LIMIT " + streamDocCount),
                 true,
                 () -> Thread.sleep(5000),
                 "batch_size=1"
@@ -686,18 +687,8 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             assertServerFullyCleanedUp();
             assertStreamInvariants(outcome, false, streamDocCount);
             assertThat("HTTP status must be 200 because it was already flushed", outcome.httpStatus(), equalTo(200));
-            assertThat("a stalled consumer must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
-            assertThat(
-                "in-body status must be the timeout status",
-                ((Number) outcome.terminalLine().get("status")).intValue(),
-                equalTo(429)
-            );
-            assertThat(
-                "the error line must report the real elapsed time, not a zeroed placeholder",
-                ((Number) outcome.terminalLine().get("took")).longValue(),
-                greaterThan(0L)
-            );
-            assertThat("the error line must carry the warnings array", outcome.terminalLine(), hasKey("warnings"));
+            assertThat("a stalled consumer cannot receive an error line, so there is none", outcome.terminal(), equalTo(Terminal.NONE));
+            assertNotNull("the server must have closed the connection mid-body", outcome.transportFailure());
             assertThat("the stream must have been cut short", outcome.rowCount(), lessThan((long) streamDocCount));
         } finally {
             updateClusterSettings(Settings.builder().putNull(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey()));
@@ -725,7 +716,8 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                 "batch_size=1"
             );
             assertServerFullyCleanedUp();
-            assertThat("the client saw the timeout", outcome.terminal(), equalTo(Terminal.ERROR));
+            assertThat("the connection was closed without a terminal line", outcome.terminal(), equalTo(Terminal.NONE));
+            assertNotNull("the server must have closed the connection mid-body", outcome.transportFailure());
 
             long totalDelta = planExecutor.metrics().stats().get("queries.rest.total") - totalBefore;
             long failedDelta = planExecutor.metrics().stats().get("queries.rest.failed") - failedBefore;
@@ -733,6 +725,134 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             assertThat("the query was counted", totalDelta, equalTo(1L));
             assertThat("the query log must record the timeout as a failure", logEntry.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
             assertThat("the timeout must count as a failed query", failedDelta, equalTo(1L));
+        } finally {
+            Loggers.removeAppender(queryLog, appender);
+            appender.stop();
+            Loggers.setLevel(queryLog, origLevel);
+            ActivityLoggingUtils.disableLoggers();
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey()));
+        }
+    }
+
+    public void testStalledConsumerTimeoutAfterComputeFinishedIsRecordedAsFailure() throws Exception {
+        String index = "stream_one_page";
+        assertAcked(
+            prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("value", "type=integer")
+        );
+        int docCount = 1000;
+        List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
+        for (int i = 0; i < docCount; i++) {
+            docs.add(client().prepareIndex(index).setSource(Map.of("value", i)));
+        }
+        indexRandom(true, docs);
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        ensureGreen(index);
+
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey(), "1s"));
+        ActivityLoggingUtils.enableLoggers();
+        Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
+        Level origLevel = queryLog.getLevel();
+        AccumulatingMockAppender appender = new AccumulatingMockAppender("stream_query_log");
+        appender.start();
+        Loggers.addAppender(queryLog, appender);
+        Loggers.setLevel(queryLog, Level.TRACE);
+        PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, coordinatingNode);
+        long failedBefore = planExecutor.metrics().stats().get("queries.rest.failed");
+        try {
+            StreamOutcome outcome = streamPausingAt(
+                1,
+                streamBody("FROM " + index + " | EVAL pad = REPEAT(\"x\", 32768) | LIMIT " + docCount),
+                true,
+                () -> Thread.sleep(5000),
+                "batch_size=1"
+            );
+            assertServerFullyCleanedUp();
+            assertThat("the connection was closed without a terminal line", outcome.terminal(), equalTo(Terminal.NONE));
+            assertNotNull("the server must have closed the connection mid-body", outcome.transportFailure());
+
+            long failedDelta = planExecutor.metrics().stats().get("queries.rest.failed") - failedBefore;
+            Map<String, String> logEntry = ActivityLoggingUtils.getMessageData(appender.getLastEventAndReset());
+            assertThat("the query log must record the timeout as a failure", logEntry.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
+            assertThat("the timeout must count as a failed query", failedDelta, equalTo(1L));
+        } finally {
+            Loggers.removeAppender(queryLog, appender);
+            appender.stop();
+            Loggers.setLevel(queryLog, origLevel);
+            ActivityLoggingUtils.disableLoggers();
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey()));
+        }
+    }
+
+    public void testTaskCancelledAfterComputeFinishedIsRecordedAsFailure() throws Exception {
+        String index = "stream_one_page_cancel";
+        assertAcked(
+            prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("value", "type=integer")
+        );
+        int docCount = 1000;
+        List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
+        for (int i = 0; i < docCount; i++) {
+            docs.add(client().prepareIndex(index).setSource(Map.of("value", i)));
+        }
+        indexRandom(true, docs);
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        ensureGreen(index);
+
+        // No deadline, so only the task cancellation can end the wait for the buffered rows to drain.
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey(), "-1"));
+        ActivityLoggingUtils.enableLoggers();
+        Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
+        Level origLevel = queryLog.getLevel();
+        AccumulatingMockAppender appender = new AccumulatingMockAppender("stream_query_log");
+        appender.start();
+        Loggers.addAppender(queryLog, appender);
+        Loggers.setLevel(queryLog, Level.TRACE);
+        PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, coordinatingNode);
+        long failedBefore = planExecutor.metrics().stats().get("queries.rest.failed");
+        try {
+            StreamOutcome outcome = streamPausingAt(
+                1,
+                streamBody("FROM " + index + " | EVAL bad = TO_INT(\"foo\"), pad = REPEAT(\"x\", 32768) | LIMIT " + docCount),
+                true,
+                () -> {
+                    assertBusy(() -> {
+                        ListTasksResponse computeTasks = clusterAdmin().prepareListTasks()
+                            .setActions(ComputeService.DATA_ACTION_NAME, DriverTaskRunner.ACTION_NAME)
+                            .get();
+                        assertThat("compute must have finished", computeTasks.getTasks(), empty());
+                        ListTasksResponse streamTasks = clusterAdmin().prepareListTasks().setActions(EsqlStreamQueryAction.NAME).get();
+                        assertThat("the session is held while rows are buffered", streamTasks.getTasks(), not(empty()));
+                    });
+                    clusterAdmin().prepareCancelTasks().setActions(EsqlStreamQueryAction.NAME).get();
+                },
+                "batch_size=1"
+            );
+            assertServerFullyCleanedUp();
+            assertThat("the client saw the cancellation", outcome.terminal(), equalTo(Terminal.ERROR));
+            assertThat(
+                "in-body status must be the task cancelled status",
+                ((Number) outcome.terminalLine().get("status")).intValue(),
+                equalTo(400)
+            );
+            assertThat("compute had finished", outcome.terminalLine(), hasKey("documents_found"));
+            assertThat(
+                "the error line must not report a zeroed took",
+                ((Number) outcome.terminalLine().get("took")).longValue(),
+                greaterThan(0L)
+            );
+            @SuppressWarnings("unchecked")
+            List<String> warnings = (List<String>) outcome.terminalLine().get("warnings");
+            assertThat(
+                "the error line must carry the query's planning-time warnings",
+                warnings,
+                hasItem(containsString("evaluation of [TO_INT(\"foo\")]"))
+            );
+
+            long failedDelta = planExecutor.metrics().stats().get("queries.rest.failed") - failedBefore;
+            Map<String, String> logEntry = ActivityLoggingUtils.getMessageData(appender.getLastEventAndReset());
+            assertThat("the query log must record the cancellation as a failure", logEntry.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
+            assertThat("the cancellation must count as a failed query", failedDelta, equalTo(1L));
         } finally {
             Loggers.removeAppender(queryLog, appender);
             appender.stop();

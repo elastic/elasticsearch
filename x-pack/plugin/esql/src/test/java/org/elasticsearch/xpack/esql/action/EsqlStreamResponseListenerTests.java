@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -28,6 +29,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestResponse;
@@ -55,6 +57,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -370,6 +373,42 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testConsumerTimeoutClosesTheConnectionAndFreesTheInFlightPage() throws IOException {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = new PageStreamPublisher(
+            1,
+            TimeValue.timeValueSeconds(30),
+            taskQueue.getThreadPool(),
+            taskQueue.getThreadPool().generic(),
+            null
+        );
+        Subscribed s = subscribe(publisher, simpleColumns(), null, ZoneOffset.UTC);
+        AtomicBoolean connectionClosed = new AtomicBoolean();
+        s.channel().request().getHttpChannel().addCloseListener(ActionListener.running(() -> connectionClosed.set(true)));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
+        assertNotNull(pagePart);
+        assertFalse(connectionClosed.get());
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertTrue("the consumer deadline must be the cause of the failure", publisher.consumerTimedOut());
+        assertTrue("a consumer timeout after the response was sent must close the connection", connectionClosed.get());
+        assertThat("the page is still held until the response is closed", blockFactory.breaker().getUsed(), greaterThan(0L));
+        s.response().close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testFailureOtherThanConsumerTimeoutDoesNotCloseTheConnection() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        AtomicBoolean connectionClosed = new AtomicBoolean();
+        s.channel().request().getHttpChannel().addCloseListener(ActionListener.running(() -> connectionClosed.set(true)));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
+        encodeBodyPart(pagePart);
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> s.publisher().failStream(new RuntimeException("compute failed")));
+        assertErrorLine(errorPart, 500, "runtime_exception", "compute failed");
+        assertFalse("the client is still reading, so the error line is delivered over the open connection", connectionClosed.get());
+    }
+
     public void testInFlightPageNotDoubleReleasedAfterEncode() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(2, "bob"));
@@ -538,7 +577,10 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, int pageSize, ZoneId zoneId) {
-        PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        return subscribe(new PageStreamPublisher(pageSize), columns, nullColumns, zoneId);
+    }
+
+    private Subscribed subscribe(PageStreamPublisher publisher, List<ColumnInfoImpl> columns, boolean[] nullColumns, ZoneId zoneId) {
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));

@@ -167,6 +167,11 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/163632
+- class: org.elasticsearch.xpack.esql.action.EsqlAsyncActionIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFromStatsLimit
+  issue: https://github.com/elastic/elasticsearch/issues/163634
 
 # Examples:
 #

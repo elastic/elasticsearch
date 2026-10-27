@@ -38,7 +38,8 @@ public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWo
             minWordSize,
             minSubwordSize,
             maxSubwordSize,
-            // TODO: LUCENE11 expose onlyLongestMatchIgnoreSubwords; deprecate dictionary only_longest_match
+            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163528):
+            // onlyLongestMatchIgnoreSubwords is hard-coded; dictionary only_longest_match is not passed to Lucene
             true
         );
     }

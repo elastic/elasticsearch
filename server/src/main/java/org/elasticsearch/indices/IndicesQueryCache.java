@@ -273,7 +273,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     @Override
     public void close() {
         assert shardKeyMap.size() == 0 : shardKeyMap.size();
-        // TODO: LUCENE11 restore after onCacheEntryInserted / onCacheEntryEvicted (lucene#15558)
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): restore after hook migration
         // assert shardStats.isEmpty() : shardStats.keySet();
         // assert stats2.isEmpty() : stats2;
 
@@ -341,7 +341,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     public void onClose(ShardId shardId) {
-        // TODO: LUCENE11 restore after hook migration (lucene#15558)
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): restore after hook migration
         // assert empty(shardStats.get(shardId));
         shardStats.remove(shardId);
     }
@@ -386,9 +386,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             sharedRamBytesUsed = 0;
         }
 
-        // TODO: LUCENE11 these hooks now fire per (segment, query) (lucene#15558). Switch to
-        // onCacheEntryInserted / onCacheEntryEvicted so shard QueryCacheStats and sharedRam
-        // are not over/undercounted; close() / onClose asserts depend on that.
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
+        // these hooks now fire per (segment, query); shard QueryCacheStats and sharedRam
+        // can over/undercount; close() / onClose asserts depend on that.
         @Override
         protected void onQueryCache(Query filter, long ramBytesUsed) {
             super.onQueryCache(filter, ramBytesUsed);

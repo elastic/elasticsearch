@@ -424,10 +424,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     /**
      * Tests a filter that needs the cache to be fast.
      */
-    // TODO: LUCENE11 Lucene 11 left IndexSearcher.DEFAULT_QUERY_CACHE null, so the
-    // second pass never sees a cached phrase bitset and
-    // segments_counted_in_constant_time stays 0. Muted until test searchers have a
-    // real query cache (production uses IndicesQueryCache).
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
+    // IndexSearcher.DEFAULT_QUERY_CACHE is null, so the second pass never sees a cached
+    // phrase bitset and segments_counted_in_constant_time stays 0.
     public void testPhraseFilter() throws IOException {
         MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean(), false);
         AggregationBuilder builder = new FiltersAggregationBuilder(

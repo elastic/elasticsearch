@@ -152,8 +152,6 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 .toQuery(searchExecutionContext);
             try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
                 Query rewrittenQuery = searcher.rewrite(parsedQuery);
-                // Lucene 11 TermQuery.equals includes TermStates; CROSS_FIELDS rewrite
-                // attaches them via BlendedTermQuery.
                 Term last = new Term("name.last", "banon");
                 Term first = new Term("name.first", "banon");
                 Query tq1 = new BoostQuery(new TermQuery(last, TermStates.build(searcher, last, true)), 3);

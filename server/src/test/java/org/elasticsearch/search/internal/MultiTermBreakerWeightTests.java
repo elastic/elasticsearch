@@ -321,8 +321,8 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     }
 
     /** A clause served from the query cache builds nothing, so only the search that fills the cache is charged. */
-    // TODO: LUCENE11 Lucene 11 LRUQueryCache getHitCount stays 0 after a fill
-    // (lucene#15558). Same leftover as PointRangeBreakerWeightTests.
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
+    // getHitCount stays 0 after a fill. Same leftover as PointRangeBreakerWeightTests.
     public void testClauseServedFromQueryCacheIsNotCharged() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         LRUQueryCache queryCache = new LRUQueryCache(10, Long.MAX_VALUE, leaf -> true, Float.POSITIVE_INFINITY);

@@ -260,48 +260,48 @@ tests:
     - testAndNotRLike {WILDCARD}
     - testAndNotCaseInsensitiveRLike {WILDCARD}
   issue: https://github.com/elastic/elasticsearch/issues/162974
-# Lucene 11 LRUQueryCache fires onQueryCache/onDocIdSetCache per (segment, query)
-# (lucene#15558). Shard QueryCacheStats / close asserts still expect the old hooks.
+# Lucene 11 LRUQueryCache fires onQueryCache/onDocIdSetCache per (segment, query).
+# Shard QueryCacheStats / close asserts still expect the old hooks.
 - class: org.elasticsearch.indices.IndicesQueryCacheTests
   methods:
     - testBasics
     - testTwoShards
     - testStatsOnEviction
     - testGetStatsMemory
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 - class: org.elasticsearch.indices.IndicesServiceCloseTests
   methods:
     - testCloseAfterRequestHasUsedQueryCache
     - testCloseWhileOngoingRequestUsesQueryCache
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   methods:
     - testClearAllCaches
     - testFilterCacheStats
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 - class: org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheParamsIT
   methods:
     - testNoParamsClearsAll
     - testClearOnlyQueryCache
     - testClearQueryAndRequestCache
     - testClearQueryAndFielddataCache
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 # Lucene 11 IndexSearcher.DEFAULT_QUERY_CACHE is null. The second pass expects a
 # cached constant-time phrase count and stays at 0 without a default cache.
 - class: org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregatorTests
   methods:
     - testPhraseFilter
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 # #161932 cache-hit breaker tests: Lucene 11 LRUQueryCache getHitCount stays 0
-# after a fill (lucene#15558 per-(segment, query) keys).
+# after a fill (per-(segment, query) keys).
 - class: org.elasticsearch.search.internal.PointRangeBreakerWeightTests
   methods:
     - testClauseServedFromQueryCacheIsNotCharged
     - testScorersOfACachedLeafAreNotCharged
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 - class: org.elasticsearch.search.internal.MultiTermBreakerWeightTests
   method: testClauseServedFromQueryCacheIsNotCharged
-  issue: https://github.com/apache/lucene/issues/15558
+  issue: https://github.com/elastic/elasticsearch/issues/163523
 # Lucene 11 int8 knn on 8.x-written segments can reorder near-tied hits
 # (VectorSearchIT 8.19 rolling upgrade; SemanticTextHighlighter on a random
 # 8.x / early 9.x IndexVersion). hasItem("0") still fails when "0" drops out

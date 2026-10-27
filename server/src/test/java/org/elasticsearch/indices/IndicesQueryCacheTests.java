@@ -162,9 +162,8 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
     }
 
-    // TODO: LUCENE11 Lucene 11 LRUQueryCache fires onQueryCache/onDocIdSetCache per
-    // (segment, query); shard stats no longer match. Unmute after ElasticsearchLRUQueryCache
-    // moves to onCacheEntryInserted/onCacheEntryEvicted (lucene#15558).
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
+    // shard stats no longer match after the per-(segment, query) hook change.
     public void testBasics() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -281,7 +280,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         return cacheCount;
     }
 
-    // TODO: LUCENE11 see testBasics — shard cacheSize/cacheCount after lucene#15558.
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): see testBasics — shard cacheSize/cacheCount.
     public void testTwoShards() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());
@@ -410,7 +409,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
     // with an empty cache gets closed. In that particular case, the eviction
     // callback is called with a number of evicted entries equal to 0
     // see https://github.com/elastic/elasticsearch/issues/15043
-    // TODO: LUCENE11 see testBasics — eviction stats after lucene#15558.
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): see testBasics — eviction stats.
     public void testStatsOnEviction() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());
@@ -577,7 +576,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         return indicesService;
     }
 
-    // TODO: LUCENE11 see testBasics — sharedRam / per-shard memory after lucene#15558.
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): see testBasics — sharedRam / per-shard memory.
     public void testGetStatsMemory() throws Exception {
         /*
          * This test creates 2 shards, one with two segments and one with one. It makes unique queries against all 3 segments (so that each

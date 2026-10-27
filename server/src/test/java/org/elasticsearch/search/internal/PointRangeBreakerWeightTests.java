@@ -616,8 +616,8 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     /** A clause served from the query cache builds nothing, so only the search that fills the cache is charged. */
-    // TODO: LUCENE11 Lucene 11 LRUQueryCache getHitCount stays 0 after a fill
-    // (lucene#15558 per-(segment, query) keys). Muted until the hook migration.
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
+    // getHitCount stays 0 after a fill (per-(segment, query) keys).
     public void testClauseServedFromQueryCacheIsNotCharged() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         LRUQueryCache queryCache = newQueryCache();
@@ -636,7 +636,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     /** Scorers built for a leaf that is already cached, as concurrent readers of one segment do, are not charged. */
-    // TODO: LUCENE11 see testClauseServedFromQueryCacheIsNotCharged — lucene#15558.
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): see testClauseServedFromQueryCacheIsNotCharged.
     public void testScorersOfACachedLeafAreNotCharged() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         LRUQueryCache queryCache = newQueryCache();

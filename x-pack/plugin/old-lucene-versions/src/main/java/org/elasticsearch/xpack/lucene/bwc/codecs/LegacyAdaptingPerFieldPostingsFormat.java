@@ -49,10 +49,10 @@ import java.util.TreeMap;
  * latter only supports Lucene 7 and above (as it was shipped with backwards-codecs of Lucene 9 that
  * only has support for N-2).
  *
- * This class can be removed once Elasticsearch gets upgraded to Lucene 11 and Lucene50PostingsFormat is no longer
- * shipped as part of bwc jars.
+ * Lucene 11 no longer ships {@code Lucene50PostingsFormat} in the BWC jars, so this adapter is
+ * leftover cleanup (https://github.com/elastic/elasticsearch/issues/163535).
  */
-// TODO: LUCENE11 remove this class; Lucene50PostingsFormat is no longer in Lucene BWC jars
+// TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163535): remove this class
 @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
 public final class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     /** Name of this {@link PostingsFormat}. */

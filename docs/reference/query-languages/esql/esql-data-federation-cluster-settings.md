@@ -98,7 +98,7 @@ A node that has just joined the cluster, or that is behind a dataset change, can
 $$$esql-external-worker-ready-timeout$$$
 
 `esql.external.worker_ready_timeout` {applies_to}`stack: experimental 9.7+`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long a node waits for the cluster state it lacks before failing a query's external reads with a retryable `503`. Applies to the only node able to run those reads, and to the node they were handed to after another node turned them down. One bound per query on a node, whatever it has to wait for in turn.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long a node waits to catch up with the cluster state before failing the query with a retryable `503` error (`WORKER_NOT_READY`). The wait applies only when no other node can run the query's external reads. If you see these errors while nodes join the cluster, increase this value or retry the query.
 
     - **Default:** `10s`
     - **Valid values:** A [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units) of `0` or more. `0` fails at once.

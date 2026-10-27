@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 163640
+summary: Tie API keys created by user-managed service accounts to their account
+type: enhancement

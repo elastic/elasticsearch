@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
@@ -275,5 +276,92 @@ public class SubstituteFillNullTests extends AbstractLogicalPlanOptimizerTests {
             """);
         assertFalse(plan.anyMatch(FillNull.class::isInstance));
         assertThat(Expressions.names(plan.output()), contains("emp_no", "first_name"));
+    }
+
+    public void testFillNullInAnInSubquery() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        for (String query : List.of(
+            "FROM test | WHERE emp_no IN (FROM test | FILLNULL 0 ON emp_no | KEEP emp_no)",
+            "FROM test | WHERE emp_no NOT IN (FROM test | FILLNULL 0 ON emp_no | KEEP emp_no)",
+            "FROM test | EVAL found = emp_no IN (FROM test | FILLNULL 0 ON emp_no | KEEP emp_no)"
+        )) {
+            LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
+            AbstractSubqueryJoin join = as(substituted.collect(AbstractSubqueryJoin.class).getFirst(), AbstractSubqueryJoin.class);
+            Alias fill = fillAliases(join.right()).getFirst();
+            assertThat(query, join.config().rightFields(), contains(fill.toAttribute()));
+            assertFalse(query, plan(query).anyMatch(FillNull.class::isInstance));
+        }
+    }
+
+    public void testEvalRedefiningTheFilledColumn() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertColumnRedefinedAboveTheFill("""
+            FROM test
+            | KEEP emp_no, first_name
+            | FILLNULL "x" ON first_name
+            | EVAL first_name = TO_UPPER(first_name)
+            | WHERE first_name != "y"
+            """, "first_name", true);
+    }
+
+    public void testStatsRedefiningTheFilledColumn() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertColumnRedefinedAboveTheFill("""
+            FROM test
+            | KEEP emp_no, first_name
+            | FILLNULL "x" ON first_name
+            | STATS first_name = MAX(first_name) BY emp_no
+            | WHERE first_name != "y"
+            """, "first_name", true);
+    }
+
+    public void testLookupJoinShadowingTheFilledColumn() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertColumnRedefinedAboveTheFill("""
+            FROM test
+            | EVAL language_code = languages, language_name = first_name
+            | FILLNULL "x" ON language_name
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name != "y"
+            """, "language_name", false);
+    }
+
+    public void testEnrichShadowingTheFilledColumn() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertColumnRedefinedAboveTheFill("""
+            FROM test
+            | EVAL language_name = first_name
+            | FILLNULL "x" ON language_name
+            | ENRICH languages_idx ON first_name WITH language_name
+            | WHERE language_name != "y"
+            """, "language_name", false);
+    }
+
+    public void testDropThenEvalRedefiningTheFilledColumn() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertColumnRedefinedAboveTheFill("""
+            FROM test
+            | KEEP emp_no, first_name
+            | FILLNULL "x" ON first_name
+            | DROP first_name
+            | EVAL first_name = "z"
+            | WHERE first_name != "y"
+            """, "first_name", false);
+    }
+
+    private void assertColumnRedefinedAboveTheFill(String query, String column, boolean redefinitionReadsTheFill) {
+        LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
+
+        Alias fill = fillAliases(substituted).getFirst();
+        Filter filter = as(as(substituted, Limit.class).child(), Filter.class);
+        Attribute redefined = filter.child().output().stream().filter(a -> a.name().equals(column)).findFirst().orElseThrow();
+        assertNotEquals(fill.id(), redefined.id());
+        assertNotEquals(filledColumn(fill).id(), redefined.id());
+        assertEquals(redefinitionReadsTheFill, filter.child().references().contains(fill.toAttribute()));
+        assertTrue(filter.condition().references().contains(redefined));
+        assertFalse(filter.condition().references().contains(fill.toAttribute()));
+        assertTrue(substituted.outputSet().contains(redefined));
+        assertFalse(plan(query).anyMatch(FillNull.class::isInstance));
     }
 }

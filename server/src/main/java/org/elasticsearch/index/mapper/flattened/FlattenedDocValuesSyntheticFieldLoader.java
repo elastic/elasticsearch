@@ -15,22 +15,20 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -442,7 +440,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
         private final BinaryDocValues binary;
         private final NumericDocValues counts;
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader slots =
+            new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
 
         /**
          * Slots grouped by key in document order; a {@code null} element represents a null slot.
@@ -461,6 +460,15 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             slotsByKey.clear();
             totalSlotCount = 0;
 
+            // Skip the slots of the keys a reader must not see while decoding, rather than reading a copy without them
+            if (binary instanceof KeyFilteredSlots filtered) {
+                if (filtered.advanceExactStored(docId) == false) {
+                    return false;
+                }
+                totalSlotCount = decodeSlots(filtered.storedSlots(), filtered.storedSlotCount(), filtered::grants);
+                return totalSlotCount > 0;
+            }
+
             if (counts == null || counts.advanceExact(docId) == false) {
                 return false;
             }
@@ -471,32 +479,22 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             }
             BytesRef bytes = binary.binaryValue();
 
-            decodeSlots(bytes, slotCount);
-            totalSlotCount = slotCount;
-            return slotCount > 0;
+            totalSlotCount = decodeSlots(bytes, slotCount, key -> true);
+            return totalSlotCount > 0;
         }
 
-        private void decodeSlots(BytesRef bytes, int slotCount) throws IOException {
-            in.reset(bytes.bytes, bytes.offset, bytes.length);
-            for (int i = 0; i < slotCount; i++) {
-                int prefix = in.readVInt();
-                int slotKeyStart = in.getPosition();
-                int remaining = bytes.length - (slotKeyStart - bytes.offset);
-                int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyStart, remaining, (byte) 0);
-                String key = new String(bytes.bytes, slotKeyStart, keyLen, StandardCharsets.UTF_8);
-                if (prefix == 0) {
-                    // Null slot: [0]key\0
-                    in.setPosition(slotKeyStart + keyLen + 1);
-                    slotsByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(null);
-                } else {
-                    // Non-null slot: [valueLen+1]key\0value
-                    int valueLen = prefix - 1;
-                    int valueStart = slotKeyStart + keyLen + 1;
-                    in.setPosition(valueStart + valueLen);
-                    slotsByKey.computeIfAbsent(key, k -> new ArrayList<>())
-                        .add(new BytesRef(bytes.bytes, valueStart, valueLen).utf8ToString());
+        /** Decodes the {@code slotCount} slots of {@code bytes} whose key {@code keys} accepts, and returns how many it decoded. */
+        private int decodeSlots(BytesRef bytes, int slotCount, Predicate<String> keys) throws IOException {
+            int decoded = 0;
+            slots.reset(bytes, slotCount);
+            while (slots.next()) {
+                String key = slots.key();
+                if (keys.test(key)) {
+                    decoded++;
+                    slotsByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(slots.isNull() ? null : slots.value().utf8ToString());
                 }
             }
+            return decoded;
         }
 
         @Override

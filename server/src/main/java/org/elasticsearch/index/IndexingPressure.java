@@ -227,16 +227,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
         @Override
         public void add(long bytes) {
             if (expandedBytes.get() == CLOSED_FLAG) {
-                // Deliberately no assertion: a late add must not fail a bulk, and callers close only once no more adds are expected
-                logger.error("Expanding IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
+                // Callers may close only once, no more adds are expected
+                assert false : "Expanding IndexingPressure memory on a closed tracker";
                 return;
             }
             addExpansionBytes(bytes, forceExecution);
             long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current + bytes);
             if (value == CLOSED_FLAG) {
-                // Closed concurrently, reverting the increase to avoid any lasting impact on the index pressure
+                // Closed concurrently, close did not see this increase so reverting it here
                 releaseExpansionBytes(bytes);
-                logger.error("Expanding IndexingPressure memory on a closed tracker", new IllegalStateException("closed tracker"));
+                assert false : "Expanding IndexingPressure memory on a closed tracker";
             }
         }
 

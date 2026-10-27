@@ -9,14 +9,12 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -470,19 +468,8 @@ public class IndexingPressureTests extends ESTestCase {
         expansion.close();
         assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
 
-        try (var mockLog = MockLog.capture(IndexingPressure.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "add after close",
-                    IndexingPressure.class.getCanonicalName(),
-                    Level.ERROR,
-                    "Expanding IndexingPressure memory on a closed tracker"
-                )
-            );
-            // reverted, not thrown, so that a late add cannot fail a bulk
-            expansion.add(1024);
-            mockLog.assertAllExpectationsMatched();
-        }
+        // a late add is a bug, which assertions catch. Without them it is ignored, so that it cannot fail a bulk
+        expectThrows(AssertionError.class, () -> expansion.add(1024));
         assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
         assertEquals(0, indexingPressure.stats().getCurrentIngestExpansionBytes());
         assertEquals(1024, indexingPressure.stats().getTotalIngestExpansionBytes());
@@ -515,7 +502,11 @@ public class IndexingPressureTests extends ESTestCase {
             final Thread worker = new Thread(() -> {
                 safeAwait(barrier);
                 for (int i = 0; i < iterations; i++) {
-                    expansion.add(10);
+                    try {
+                        expansion.add(10);
+                    } catch (AssertionError e) {
+                        // expected for adds racing with or following the close, they are reverted before the assertion is raised
+                    }
                 }
             });
             workers.add(worker);

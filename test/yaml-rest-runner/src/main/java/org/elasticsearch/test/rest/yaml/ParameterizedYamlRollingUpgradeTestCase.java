@@ -95,7 +95,7 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
     // pkg private for tests
     static List<Object[]> phaseParameters(String scoped, String... testPaths) throws Exception {
         Predicate<String> suiteFilter = suiteNameFilter(scoped);
-        String global = System.getProperty(REST_TESTS_SUITE);
+        String global = scoped == null ? System.getProperty(REST_TESTS_SUITE) : null;
         List<Object[]> result = new ArrayList<>();
         for (int i = 0; i < testPaths.length; i++) {
             for (Object[] candidate : explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), null, global, testPaths[i])) {

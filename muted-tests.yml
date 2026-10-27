@@ -552,3 +552,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#csvSpecTestsOldCoordinator
   issue: https://github.com/elastic/elasticsearch/issues/163577
+- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
+  issue: https://github.com/elastic/elasticsearch/issues/163583

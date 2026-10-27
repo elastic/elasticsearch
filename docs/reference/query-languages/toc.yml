@@ -476,6 +476,7 @@ toc:
       - file: esql/limitations.md
   - file: promql.md
     children:
+      - file: promql/promql-tutorial.md
       - file: promql/promql-http-api.md
       - file: promql/functions.md
         children:

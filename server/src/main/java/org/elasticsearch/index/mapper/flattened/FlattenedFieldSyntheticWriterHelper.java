@@ -154,106 +154,110 @@ public class FlattenedFieldSyntheticWriterHelper {
      * field's sorted-unique value list back to the original document-order array (with {@code -1} for null slots and
      * repeated ordinals for duplicate values). When no sidecar entry exists for a field, values are returned in their
      * sorted order.
+     * <p>
+     * The full ordered field list is computed eagerly at construction by grouping the sorted key/value stream by
+     * path, collecting the offset sidecar, and merging the two, applying the offset permutation where a field has a
+     * matching sidecar entry. {@link #next()} then simply iterates the precomputed list.
      */
     public static class OffsetKeyedValueProducer implements KeyedValueProducer {
 
-        private final SortedKeyedValues sortedKeyedValues;
-        private final SortedOffsetValues sortedOffsetValues;
+        private final List<OrderedField> fields;
+        private int idx = 0;
 
-        private boolean initialized = false;
-        private FlattenedKey peekKey;
-        private String peekValue;
-        private FlattenedFieldArrayContext.KeyedOffsetField peekOffsets;
-
-        public OffsetKeyedValueProducer(final SortedKeyedValues sortedKeyedValues, final SortedOffsetValues sortedOffsetValues) {
-            this.sortedKeyedValues = sortedKeyedValues;
-            this.sortedOffsetValues = sortedOffsetValues;
+        public OffsetKeyedValueProducer(final SortedKeyedValues sortedKeyedValues, final SortedOffsetValues sortedOffsetValues)
+            throws IOException {
+            this.fields = buildFields(sortedKeyedValues, sortedOffsetValues);
         }
 
         public void reset() {
-            initialized = false;
-            peekKey = null;
-            peekValue = null;
-            peekOffsets = null;
-        }
-
-        private void advanceKey() throws IOException {
-            BytesRef raw = sortedKeyedValues.next();
-            if (raw != null) {
-                peekKey = FlattenedKey.fromBytesRef(raw);
-                peekValue = FlattenedFieldParser.extractValue(raw).utf8ToString();
-            } else {
-                peekKey = null;
-                peekValue = null;
-            }
-        }
-
-        private FlattenedFieldArrayContext.KeyedOffsetField consumeOffsets() throws IOException {
-            var ret = peekOffsets;
-            peekOffsets = sortedOffsetValues.next();
-            return ret;
-        }
-
-        private FlattenedKey consumeValues(List<String> values) throws IOException {
-            var curr = peekKey;
-            values.add(peekValue);
-            advanceKey();
-
-            // Gather all values with the same path into a list so they can be written to a field together.
-            while (peekKey != null && curr.pathEquals(peekKey)) {
-                values.add(peekValue);
-                advanceKey();
-            }
-
-            return curr;
+            idx = 0;
         }
 
         @Override
-        public OrderedField next() throws IOException {
-            if (initialized == false) {
-                initialized = true;
-                advanceKey();
-                peekOffsets = sortedOffsetValues.next();
-            }
-            if (peekKey == null && peekOffsets == null) {
-                return null;
-            }
+        public OrderedField next() {
+            return idx < fields.size() ? fields.get(idx++) : null;
+        }
 
-            if (peekKey == null) {
-                // Offsets without values: all-null array.
-                var offsets = consumeOffsets();
-                return new OrderedField(new FlattenedKey(offsets.fieldName()), nullList(offsets.offsets().length));
-            }
+        /**
+         * Eagerly reconstruct the document-order fields by grouping the sorted key/value stream, collecting the
+         * offset sidecar, and merging the two sorted-by-path lists.
+         */
+        private static List<OrderedField> buildFields(
+            final SortedKeyedValues sortedKeyedValues,
+            final SortedOffsetValues sortedOffsetValues
+        ) throws IOException {
+            List<OrderedField> grouped = groupByPath(sortedKeyedValues);
+            List<FlattenedFieldArrayContext.KeyedOffsetField> offsets = collectOffsets(sortedOffsetValues);
 
-            if (peekOffsets == null) {
-                // Values without offsets: return sorted values directly (single-valued or no-null multi-valued).
-                List<String> values = new ArrayList<>();
-                FlattenedKey key = consumeValues(values);
-                return new OrderedField(key, values);
-            }
+            List<OrderedField> result = new ArrayList<>(grouped.size() + offsets.size());
+            int gi = 0;
+            int oi = 0;
+            while (gi < grouped.size() || oi < offsets.size()) {
+                OrderedField field = gi < grouped.size() ? grouped.get(gi) : null;
+                FlattenedFieldArrayContext.KeyedOffsetField offset = oi < offsets.size() ? offsets.get(oi) : null;
 
-            int comparison = peekOffsets.fieldName().compareTo(peekKey.fullPath());
-            if (comparison < 0) {
-                // Offset precedes next value: all-null array.
-                var offsets = consumeOffsets();
-                return new OrderedField(new FlattenedKey(offsets.fieldName()), nullList(offsets.offsets().length));
-            } else if (comparison > 0) {
-                // Value precedes next offset: return sorted values directly.
-                List<String> values = new ArrayList<>();
-                FlattenedKey key = consumeValues(values);
-                return new OrderedField(key, values);
-            } else {
-                // Matching path: expand the sorted-unique value list into document order using the offset permutation.
-                var offsets = consumeOffsets();
-                List<String> values = new ArrayList<>();
-                FlattenedKey key = consumeValues(values);
-                assert offsets.fieldName().equals(key.fullPath());
-                List<String> ordered = new ArrayList<>(offsets.offsets().length);
-                for (int ord : offsets.offsets()) {
-                    ordered.add(ord == -1 ? null : values.get(ord));
+                // Compare the next value path against the next offset path to decide which side to consume. The
+                // comparison direction mirrors the original fullPath-vs-fieldName ordering.
+                int comparison = (field == null || offset == null) ? 0 : field.key().fullPath().compareTo(offset.fieldName());
+                if (offset == null || comparison < 0) {
+                    // Value precedes next offset (or offsets exhausted): return sorted values directly.
+                    result.add(field);
+                    gi++;
+                } else if (field == null || comparison > 0) {
+                    // Offset precedes next value (or values exhausted): all-null array.
+                    result.add(new OrderedField(new FlattenedKey(offset.fieldName()), nullList(offset.offsets().length)));
+                    oi++;
+                } else {
+                    // Matching path: expand the sorted-unique value list into document order using the offset permutation.
+                    assert offset.fieldName().equals(field.key().fullPath());
+                    result.add(new OrderedField(field.key(), applyOffsets(field.values(), offset.offsets())));
+                    gi++;
+                    oi++;
                 }
-                return new OrderedField(key, ordered);
             }
+            return result;
+        }
+
+        /**
+         * Drain the sorted key/value stream into one {@link OrderedField} per distinct path, gathering all values
+         * with the same path into a single list so they can be written to a field together.
+         */
+        private static List<OrderedField> groupByPath(final SortedKeyedValues sortedKeyedValues) throws IOException {
+            List<OrderedField> grouped = new ArrayList<>();
+            BytesRef raw = sortedKeyedValues.next();
+            while (raw != null) {
+                FlattenedKey key = FlattenedKey.fromBytesRef(raw);
+                List<String> values = new ArrayList<>();
+                values.add(FlattenedFieldParser.extractValue(raw).utf8ToString());
+
+                raw = sortedKeyedValues.next();
+                while (raw != null && key.pathEquals(FlattenedKey.fromBytesRef(raw))) {
+                    values.add(FlattenedFieldParser.extractValue(raw).utf8ToString());
+                    raw = sortedKeyedValues.next();
+                }
+
+                grouped.add(new OrderedField(key, values));
+            }
+            return grouped;
+        }
+
+        private static List<FlattenedFieldArrayContext.KeyedOffsetField> collectOffsets(final SortedOffsetValues sortedOffsetValues)
+            throws IOException {
+            List<FlattenedFieldArrayContext.KeyedOffsetField> offsets = new ArrayList<>();
+            FlattenedFieldArrayContext.KeyedOffsetField offset = sortedOffsetValues.next();
+            while (offset != null) {
+                offsets.add(offset);
+                offset = sortedOffsetValues.next();
+            }
+            return offsets;
+        }
+
+        private static List<String> applyOffsets(List<String> values, int[] offsets) {
+            List<String> ordered = new ArrayList<>(offsets.length);
+            for (int ord : offsets) {
+                ordered.add(ord == -1 ? null : values.get(ord));
+            }
+            return ordered;
         }
 
         private static List<String> nullList(int length) {

@@ -44,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -91,7 +92,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
     public static class Coordinator {
 
-        /** Breaker label for the lookup responses held while the slot listeners run; same category as the shard-side charge. */
+        /** Breaker label for the lookup responses held until the slot listeners have run; same category as the shard-side charge. */
         static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[enrich_coordinator]";
 
         /** Per-hit constant for the {@code SearchHit} object and its holders, mirroring the one used for msearch responses. */
@@ -105,15 +106,13 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final Semaphore remoteRequestPermits;
         final LongAdder remoteRequestsTotal = new LongAdder();
         final LongAdder executedSearchesTotal = new LongAdder();
-        final CircuitBreaker breaker;
 
         public Coordinator(Client client, Settings settings, CircuitBreaker breaker) {
             this(
-                lookupFunction(client),
+                lookupFunction(client, breaker),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings),
-                EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings),
-                breaker
+                EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings)
             );
         }
 
@@ -121,10 +120,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction,
             int maxLookupsPerRequest,
             int maxNumberOfConcurrentRequests,
-            int queueCapacity,
-            CircuitBreaker breaker
+            int queueCapacity
         ) {
-            this.breaker = Objects.requireNonNull(breaker);
             this.lookupFunction = lookupFunction;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
@@ -204,32 +201,14 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
             if (response != null) {
                 assert slots.size() == response.getResponses().length;
-                // The hits of a remote response are slices of the inbound transport buffer that stay alive until every slot listener
-                // below has run, and nothing else accounts for them on this node.
-                final long responseBytes = estimateResponseBytes(response);
-                try {
-                    if (responseBytes > 0) {
-                        breaker.addEstimateBytesAndMaybeBreak(responseBytes, BREAKER_LABEL);
-                    }
-                } catch (CircuitBreakingException e1) {
-                    slots.forEach(slot -> slot.listener.onFailure(e1));
-                    coordinateLookups();
-                    return;
-                }
-                try {
-                    for (int i = 0; i < response.getResponses().length; i++) {
-                        MultiSearchResponse.Item responseItem = response.getResponses()[i];
-                        Slot slot = slots.get(i);
+                for (int i = 0; i < response.getResponses().length; i++) {
+                    MultiSearchResponse.Item responseItem = response.getResponses()[i];
+                    Slot slot = slots.get(i);
 
-                        if (responseItem.isFailure()) {
-                            slot.listener.onFailure(responseItem.getFailure());
-                        } else {
-                            slot.listener.onResponse(responseItem.getResponse());
-                        }
-                    }
-                } finally {
-                    if (responseBytes > 0) {
-                        breaker.addWithoutBreaking(-responseBytes);
+                    if (responseItem.isFailure()) {
+                        slot.listener.onFailure(responseItem.getFailure());
+                    } else {
+                        slot.listener.onResponse(responseItem.getResponse());
                     }
                 }
             } else if (e != null) {
@@ -245,7 +224,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         /**
          * Estimates the heap held by the hits of a lookup response: the exact length of each source plus a constant per hit. Items that
          * are still charged on the shard side (local responses, see {@link EnrichShardMultiSearchAction.ChargedSearchResponse}) are
-         * skipped, their charge is released when the coordinator releases the item.
+         * skipped; their charge is released when the coordinator releases the item. This relies on the local transport path and
+         * {@link #reduce} passing the shard-side items through as they are, without wrapping or copying them.
          */
         static long estimateResponseBytes(MultiSearchResponse response) {
             long bytes = 0;
@@ -267,7 +247,17 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             }
         }
 
-        static BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction(ElasticsearchClient client) {
+        /**
+         * Splits a batch into one shard lookup per enrich index and reduces their responses into one. The hits of a remote response are
+         * slices of the inbound transport buffer that nothing else accounts for on this node, so each per-index response is charged to
+         * {@code breaker} as soon as it arrives, while it waits for the other indices, and released once the consumer has run. A breaker
+         * trip fails the slots of that index only and frees its response right away.
+         */
+        static BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction(
+            ElasticsearchClient client,
+            CircuitBreaker breaker
+        ) {
+            Objects.requireNonNull(breaker);
             return (request, consumer) -> {
                 int slot = 0;
                 final Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
@@ -281,31 +271,45 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 }
 
                 final AtomicInteger counter = new AtomicInteger(0);
+                // every charge is added before its counter increment, so the thread that completes the batch releases all of them
+                final AtomicLong chargedBytes = new AtomicLong();
                 final ConcurrentMap<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new ConcurrentHashMap<>();
+                final Runnable maybeReduce = () -> {
+                    if (counter.incrementAndGet() == itemsPerIndex.size()) {
+                        var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
+                        try {
+                            consumer.accept(res, null);
+                        } finally {
+                            res.decRef();
+                            final long bytes = chargedBytes.get();
+                            if (bytes > 0) {
+                                breaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
+                            }
+                        }
+                    }
+                };
                 for (Map.Entry<String, List<Tuple<Integer, SearchRequest>>> entry : itemsPerIndex.entrySet()) {
                     final String enrichIndexName = entry.getKey();
                     final List<Tuple<Integer, SearchRequest>> enrichIndexRequestsAndSlots = entry.getValue();
                     ActionListener<MultiSearchResponse> listener = ActionListener.wrap(response -> {
-                        shardResponses.put(enrichIndexName, new Tuple<>(response, null));
-                        response.incRef(); // will be released during reduce
-                        if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
-                            try {
-                                consumer.accept(res, null);
-                            } finally {
-                                res.decRef();
+                        final long bytes = estimateResponseBytes(response);
+                        Tuple<MultiSearchResponse, Exception> shardResponse;
+                        try {
+                            if (bytes > 0) {
+                                breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+                                chargedBytes.addAndGet(bytes);
                             }
+                            response.incRef(); // will be released during reduce
+                            shardResponse = new Tuple<>(response, null);
+                        } catch (CircuitBreakingException e) {
+                            // not retained, so the response is freed as soon as this listener returns
+                            shardResponse = new Tuple<>(null, e);
                         }
+                        shardResponses.put(enrichIndexName, shardResponse);
+                        maybeReduce.run();
                     }, e -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(null, e));
-                        if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
-                            try {
-                                consumer.accept(res, null);
-                            } finally {
-                                res.decRef();
-                            }
-                        }
+                        maybeReduce.run();
                     });
 
                     MultiSearchRequest mrequest = new MultiSearchRequest();
@@ -329,6 +333,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     MultiSearchResponse shardResponse = rspEntry.getValue().v1();
                     for (int i = 0; i < shardResponse.getResponses().length; i++) {
                         int slot = reqSlots.get(i).v1();
+                        // passed through as is, estimateResponseBytes relies on this to recognize items charged on the shard side
                         var res = shardResponse.getResponses()[i];
                         items[slot] = res;
                         var r = res.getResponse();

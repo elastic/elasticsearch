@@ -208,7 +208,7 @@ teardown:
             terms_agg:
               terms:
                 field: str
-                include: "x?{2000}"
+                include: "x?{1300}"
   - match: { status: 429 }
   - match: { error.root_cause.0.type: circuit_breaking_exception }
   - match: { error.root_cause.0.reason: "/.*Data\\stoo\\slarge,\\sdata\\sfor\\s\\[regexp\\].*/" }

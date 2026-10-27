@@ -452,7 +452,7 @@ public class IncludeExcludeTests extends ESTestCase {
      * breaker rather than exhaust the heap. The 1 MB limit is far below what this pattern's NFA would need.
      */
     public void testHugeRegexTripsTheBreaker() {
-        IncludeExclude inexcl = new IncludeExclude("[ab]{1000}{1000}{20}", null, null, null);
+        IncludeExclude inexcl = new IncludeExclude("[ab]{1000}{300}{20}", null, null, null);
         CircuitBreaker limited = newLimitedBreaker(ByteSizeValue.ofMb(1));
         expectThrows(
             CircuitBreakingException.class,

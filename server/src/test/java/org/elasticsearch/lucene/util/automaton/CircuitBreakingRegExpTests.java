@@ -329,8 +329,8 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
 
     /** Repeating an empty language builds nothing, but Lucene still allocates per copy. */
     public void testRepeatOfEmptyLanguageIsCharged() {
-        for (String pattern : List.of("#{200000000}", "#{200000000,}", "#{0,2000000000}")) {
-            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        for (String pattern : List.of("#{200000000}", "#{200000000,}", "#{0,5000000}")) {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
             expectThrows(CircuitBreakingException.class, () -> new CircuitBreakingRegExp(pattern, FLAGS, 0).toAutomaton(breaker, "test"));
             assertEquals(0L, breaker.getUsed());
         }

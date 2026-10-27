@@ -17,12 +17,15 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class AutomatonQueriesTests extends ESTestCase {
 
@@ -208,14 +211,45 @@ public class AutomatonQueriesTests extends ESTestCase {
         assertTrue(AutomatonTestUtil.sameLanguage(lucene, dfa));
     }
 
-    public void testToRegexpAutomatonTripsBreakerForHugeRepetitionBeforeBuild() {
+    /** A repetition past the work limit is refused before anything is reserved, so it cannot trip the breaker. */
+    public void testToRegexpAutomatonRefusesHugeRepetitionBeforeReserving() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(500));
         Term term = new Term("field", "a{10000000}");
+        expectThrows(
+            TooComplexToDeterminizeException.class,
+            () -> AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker)
+        );
+        assertEquals("nothing is reserved for a pattern refused for its work", 0, breaker.getUsed());
+        assertEquals("the breaker is not tripped by a pattern refused for its work", 0, breaker.getTrippedCount());
+    }
+
+    /** A repetition within the work limit whose predicted peak exceeds the breaker trips it before the build starts. */
+    public void testToRegexpAutomatonTripsBreakerForLargeRepetitionBeforeBuild() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        Term term = new Term("field", "a{300000}");
         expectThrows(
             CircuitBreakingException.class,
             () -> AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker)
         );
         assertEquals("no memory should remain reserved after the breaker trips", 0, breaker.getUsed());
+    }
+
+    /**
+     * Lucene parses nested groups recursively, so a deep pattern overflows the stack while parsing; it must surface as a
+     * client error, with and without a breaker.
+     */
+    public void testDeeplyNestedRegexpIsAClientError() {
+        int depth = 20_000;
+        Term term = new Term("field", "(".repeat(depth) + "a" + ")".repeat(depth));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        for (CircuitBreaker maybeBreaker : new CircuitBreaker[] { breaker, null }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, maybeBreaker)
+            );
+            assertThat(e.getMessage(), containsString("too deeply nested"));
+        }
+        assertEquals(0, breaker.getUsed());
     }
 
     private static void assertCollapsedAndLanguagePreserved(String pattern, String collapsed) {

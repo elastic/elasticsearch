@@ -120,13 +120,14 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     /**
-     * Nested bounded repeats expand far beyond the pattern's length: the budget must refuse the outer repeat before it is
-     * built, in a single-value and in a multi-value matcher alike.
+     * Nested bounded repeats expand far beyond the pattern's length: the budget must refuse a repeat before it is built,
+     * in a single-value and in a multi-value matcher alike. The middle repeat fits the work limit and predicts well past
+     * the budget, so that is where the build stops.
      */
     public void testHugeRegexIsRefusedBeforeItIsBuilt() {
-        LabelMatcher single = new LabelMatcher("l", "[ab]{1000}{1000}{1000}", Matcher.REG);
+        LabelMatcher single = new LabelMatcher("l", "[ab]{1000}{900}{1000}", Matcher.REG);
         expectThrows(FoldContext.FoldTooMuchMemoryException.class, single::automaton);
-        LabelMatcher multi = new LabelMatcher("l", List.of("a", "[ab]{1000}{1000}{1000}"), Matcher.NREG);
+        LabelMatcher multi = new LabelMatcher("l", List.of("a", "[ab]{1000}{900}{1000}"), Matcher.NREG);
         expectThrows(FoldContext.FoldTooMuchMemoryException.class, multi::automaton);
     }
 

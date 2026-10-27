@@ -250,16 +250,18 @@ public final class CircuitBreakingRegExp {
         }
 
         /**
-         * Runs Lucene's {@code build} with its predicted peak reserved, after checking that its predicted work fits in what
-         * is left. The reservation is released on return; the caller holds the result at its real size.
+         * Checks that {@code build}'s predicted work fits in what is left, then runs it with its predicted peak reserved.
+         * The work is checked first so that a pattern refused for its work never touches the breaker: it fails the same
+         * way on every node, and a pattern that would never be built cannot trip the breaker. The reservation is released
+         * on return; the caller holds the result at its real size.
          */
         private Automaton predicted(Cost cost, Supplier<Automaton> build) {
+            work = addSaturating(work, cost.work());
+            if (work > workLimit) {
+                throw tooComplex();
+            }
             long reserved = CircuitBreakingOperations.reserve(breaker, cost.bytes(), label);
             try {
-                work = addSaturating(work, cost.work());
-                if (work > workLimit) {
-                    throw tooComplex();
-                }
                 return build.get();
             } finally {
                 breaker.addWithoutBreaking(-reserved, label);

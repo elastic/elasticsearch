@@ -20,6 +20,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
@@ -216,6 +217,7 @@ public class AutomatonQueries {
      * bounded by {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT}. When {@code circuitBreaker} is {@code null} the NFA is
      * built by {@link RegExp#toAutomaton()} without accounting.
      */
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private static Automaton buildRegexpNfa(
         String pattern,
         int syntaxFlags,
@@ -223,13 +225,18 @@ public class AutomatonQueries {
         @Nullable CircuitBreaker circuitBreaker,
         String field
     ) {
-        if (circuitBreaker == null) {
-            return new RegExp(pattern, syntaxFlags, matchFlags).toAutomaton();
+        try {
+            if (circuitBreaker == null) {
+                return new RegExp(pattern, syntaxFlags, matchFlags).toAutomaton();
+            }
+            return new CircuitBreakingRegExp(pattern, syntaxFlags, matchFlags).toAutomaton(
+                circuitBreaker,
+                ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+            );
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // Lucene's parser recurses on nested groups; the pattern is the user's, so this is a client error, not an Error
+            throw new IllegalArgumentException("The regex used in the regexp query on field [" + field + "] is too deeply nested");
         }
-        return new CircuitBreakingRegExp(pattern, syntaxFlags, matchFlags).toAutomaton(
-            circuitBreaker,
-            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
-        );
     }
 
     /**

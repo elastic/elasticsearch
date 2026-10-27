@@ -1,0 +1,8 @@
+Project[[@timestamp{r}#0]]
+\_Limit[1000[INTEGER],false,false]
+  \_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
+    |_Project[[@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f}#4]]
+    | \_EsRelation[partial_mapping_sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f}#4]
+    \_Project[[@timestamp{r}#5, client_ip{r}#6, event_duration{r}#7, message{r}#8]]
+      \_Eval[[COALESCE(@timestamp{f(PotentiallyUnmappedKeywordEsField)}#9,x[KEYWORD]) AS @timestamp#10, COALESCE(client_ip{f(PotentiallyUnmappedKeywordEsField)}#11,x[KEYWORD]) AS client_ip#12, COALESCE(event_duration{f(PotentiallyUnmappedKeywordEsField)}#13,x[KEYWORD]) AS event_duration#14, COALESCE(message{f(PotentiallyUnmappedKeywordEsField)}#15,x[KEYWORD]) AS message#8, TODATETIME(@timestamp{r}#10) AS @timestamp#5, TO_IP(client_ip{r}#12) AS client_ip#6, TOLONG(event_duration{r}#14) AS event_duration#7]]
+        \_EsRelation[no_mapping_sample_data][<no-fields>{r$}#16, @timestamp{f(PotentiallyUnmappedKeywordEsField)}#9, client_ip{f(PotentiallyUnmappedKeywordEsField)}#11, event_duration{f(PotentiallyUnmappedKeywordEsField)}#13, message{f(PotentiallyUnmappedKeywordEsField)}#15]

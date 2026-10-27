@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 163641
-summary: Add GPU graph building for `bbq_hnsw`
-type: enhancement

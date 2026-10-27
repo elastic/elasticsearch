@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -161,9 +162,9 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         this.collator = collator;
-        // Key on the settings the collator is built from, with rules resolved to the file content they were read from.
+        // Keyed on the settings the collator is built from; rules are the resolved text, hashed since they are unbounded.
         this.sharingKey = new Key(
-            rules,
+            rules == null ? null : Analysis.sha256Hex(rules),
             settings.get("language"),
             settings.get("country"),
             settings.get("variant"),
@@ -189,7 +190,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     private record Key(
-        String rules,
+        String rulesSha256,
         String language,
         String country,
         String variant,

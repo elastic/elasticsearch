@@ -141,6 +141,23 @@ public class KnnEvalFieldTypeTests extends ESTestCase {
         fieldTypeFor(randomFrom(QUANTIZED_GRAPH_TYPES)).validateSettings(oversample, role);
     }
 
+    public void testRejectsNumCandidatesWithAFixedVisitOnDisk() {
+        String role = randomAlphaOfLength(8);
+        KnnEvalFieldType disk = fieldTypeFor("bbq_disk");
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> disk.validateSettings(
+                    new KnnEvalSettings(randomFloatBetween(1.0f, 100.0f, true), randomNumCandidates(), null, false),
+                    role
+                )
+            ).getMessage(),
+            containsString("[num_candidates] has no effect on bbq_disk with a positive [visit_percentage]")
+        );
+        // visit_percentage 0 lets DiskBBQ pick the visit per query, so num_candidates still applies
+        disk.validateSettings(new KnnEvalSettings(0.0f, randomNumCandidates(), null, false), role);
+    }
+
     public void testEveryIndexTypeAcceptsItsOwnSettings() {
         String role = randomAlphaOfLength(8);
         fieldTypeFor("bbq_disk").validateSettings(

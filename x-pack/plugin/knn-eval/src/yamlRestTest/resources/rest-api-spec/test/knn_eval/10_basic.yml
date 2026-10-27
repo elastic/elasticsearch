@@ -231,7 +231,6 @@ teardown:
             from: docs
             size: 30
           baseline:
-            visit_percentage: 100
             num_candidates: 100
           knn_settings:
             - num_candidates: 10
@@ -242,6 +241,22 @@ teardown:
   - match: { baseline.num_candidates: 100 }
   - match: { results.0.knn_settings.num_candidates: 10 }
   - match: { results.0.included_queries: 30 }
+
+---
+"num_candidates with a positive visit_percentage is rejected on a bbq_disk field":
+  - do:
+      catch: /\[num_candidates\] has no effect on bbq_disk with a positive \[visit_percentage\]/
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 30
+          knn_settings:
+            - visit_percentage: 50
+              num_candidates: 100
 
 ---
 "A field must resolve identically across indices":

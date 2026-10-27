@@ -119,6 +119,8 @@ record KnnEvalFieldType(VectorIndexType indexType, @Nullable Float mappingOversa
                 "[visit_percentage] applies only to bbq_disk, but the field is [%s]; use [num_candidates]",
                 indexType.getName()
             );
+        } else if (isGraph() == false && hasFixedVisit(settings) && settings.getNumCandidates() != null) {
+            problem = "[num_candidates] has no effect on bbq_disk with a positive [visit_percentage]; set only one";
         } else if (isQuantized() == false && settings.getRescoreOversample() != null) {
             problem = "[rescore_vector] does not apply to an unquantized [hnsw] field";
         }

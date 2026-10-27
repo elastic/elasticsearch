@@ -49,6 +49,12 @@ public class KoelnerPhonetik implements StringEncoder {
     static final int DEFAULT_MAX_VARIATIONS = 256;
 
     /**
+     * Largest {@code maxVariations} accepted. generateParts() passes {@code maxVariations + 1} as the split() limit,
+     * and overflowing that to a negative limit would make split() unbounded again.
+     */
+    static final int MAX_VARIATIONS_UPPER_BOUND = Integer.MAX_VALUE - 1;
+
+    /**
      * Limit on the number of variations one {@code encode()} call may produce, shared across every part that
      * {@code partition()} generates. Each pattern match in a part doubles its variations, and a token with
      * n separator-delimited segments yields n(n+1)/2 parts, so without this limit certain tokens (e.g. "AUN" repeated,
@@ -71,12 +77,15 @@ public class KoelnerPhonetik implements StringEncoder {
     }
 
     /**
-     * @param maxVariations limit on the variations generated for one token, see {@code maxVariations}; at least 1
+     * @param maxVariations limit on the variations generated for one token, see {@code maxVariations}; between 1 and
+     *                      {@link #MAX_VARIATIONS_UPPER_BOUND}
      */
     @SuppressWarnings("this-escape")
     public KoelnerPhonetik(int maxVariations) {
-        if (maxVariations < 1) {
-            throw new IllegalArgumentException("maxVariations must be at least 1, got [" + maxVariations + "]");
+        if (maxVariations < 1 || maxVariations > MAX_VARIATIONS_UPPER_BOUND) {
+            throw new IllegalArgumentException(
+                "maxVariations must be between 1 and " + MAX_VARIATIONS_UPPER_BOUND + ", got [" + maxVariations + "]"
+            );
         }
         this.maxVariations = maxVariations;
         init();

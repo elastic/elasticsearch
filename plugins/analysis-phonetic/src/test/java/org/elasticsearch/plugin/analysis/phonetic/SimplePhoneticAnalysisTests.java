@@ -268,13 +268,21 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.invalid.type", "phonetic")
             .put("index.analysis.filter.invalid.encoder", randomFrom("koelnerphonetik", "haasephonetik"))
-            .put("index.analysis.filter.invalid.max_variations", randomIntBetween(Integer.MIN_VALUE, 0))
+            .put(
+                "index.analysis.filter.invalid.max_variations",
+                randomBoolean() ? randomIntBetween(Integer.MIN_VALUE, 0) : Integer.MAX_VALUE
+            )
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin())
         );
-        assertThat(e.getMessage(), containsString("[max_variations] must be at least 1"));
+        assertThat(e.getMessage(), containsString("[max_variations] must be between 1 and " + KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND));
+    }
+
+    public void testKoelnerPhonetikAcceptsUpperBound() throws Exception {
+        String expected = new KoelnerPhonetik().encode("BRAUN");
+        assertEquals(expected, new KoelnerPhonetik(KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND).encode("BRAUN"));
     }
 
     private static int singleTokenVariationCount(TokenFilterFactory filterFactory, String token) throws IOException {

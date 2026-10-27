@@ -111,9 +111,13 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     // for every other encoder, like the other encoder-specific settings above.
     private static int maxVariations(Settings settings) {
         int maxVariations = settings.getAsInt("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
-        if (maxVariations < 1) {
+        if (maxVariations < 1 || maxVariations > KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND) {
             throw new IllegalArgumentException(
-                "[max_variations] must be at least 1 for phonetic token filter, got [" + maxVariations + "]"
+                "[max_variations] must be between 1 and "
+                    + KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND
+                    + " for phonetic token filter, got ["
+                    + maxVariations
+                    + "]"
             );
         }
         return maxVariations;

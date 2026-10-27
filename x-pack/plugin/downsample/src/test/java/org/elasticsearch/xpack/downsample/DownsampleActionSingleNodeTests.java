@@ -223,6 +223,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
+        if (randomBoolean()) {
+            settings.putList(
+                IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(),
+                randomBoolean() ? List.of(FIELD_DIMENSION_1) : List.of(FIELD_DIMENSION_1, FIELD_DIMENSION_2)
+            );
+        }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         mapping.startObject(FIELD_TIMESTAMP).field("type", "date");
@@ -1528,6 +1534,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(
             sourceSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
             downsampleSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey())
+        );
+        // The downsample index computes the same tsids as the source index, so it inherits the tsid layout setting as is.
+        assertEquals(
+            sourceSettings.getAsList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey()),
+            downsampleSettings.getAsList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
+        );
+        assertEquals(
+            sourceSettings.hasValue(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey()),
+            downsampleSettings.hasValue(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
         );
 
         assertNotNull(sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));

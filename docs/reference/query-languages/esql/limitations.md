@@ -308,14 +308,18 @@ FROM books
 | WHERE MATCH(title, "Tolkien")
 ```
 
-### KNN on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
+### `KNN` on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
 
-{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
-`KNN` on a `dense_vector` expression requires all nodes in the cluster to be on version 9.6+.
-During a rolling upgrade, or when using cross-cluster search (CCS) with a remote cluster on a version earlier than 9.6,
-the coordinator rejects the query before it runs with the error: KNN over a non-index-mapped field or expression
-is not supported on every participating node. To avoid this, ensure all participating nodes and remote clusters are
-upgraded before sending queries that use KNN on an expression.
+{applies_to}`stack: preview 9.6+`
+`KNN` on a `dense_vector` expression requires every participating node to run version 9.6 or later.
+During a rolling upgrade, or when a remote cluster in a cross-cluster search (CCS) runs an earlier version,
+the coordinating node rejects the query before it runs with this error:
+
+```text
+KNN over a non-index-mapped field or expression is not supported on every participating node; rolling upgrade in progress, or a remote cluster is on an older version
+```
+
+Upgrade all nodes and remote clusters before you run queries that use `KNN` on an expression.
 
 ### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
 

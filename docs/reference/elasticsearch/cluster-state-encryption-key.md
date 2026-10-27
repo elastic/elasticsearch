@@ -29,7 +29,7 @@ Each node keeps a copy of the key in memory. To survive a restart, a node also p
 
 ## Protect the cluster state encryption key with a password [cluster-state-encryption-key-password]
 
-To let a node persist the key to disk, configure a password as a [secure setting](docs-content://deploy-manage/security/secure-settings.md) in the Elasticsearch keystore:
+To let a node persist the key to disk, configure a password as a [secure setting](docs-content://deploy-manage/security/secure-settings.md) in the {{es}} keystore:
 
 `cluster.state.encryption.password.<id>`
 :   A secure setting holding an encryption password, identified by `<id>`.

@@ -296,7 +296,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                     ".feature-flags-definitions*"
                   ],
                   "privileges": [
-                    "read"
+                    "read",
+                    "view_index_metadata"
                   ],
                   "allow_restricted_indices": true
                 },

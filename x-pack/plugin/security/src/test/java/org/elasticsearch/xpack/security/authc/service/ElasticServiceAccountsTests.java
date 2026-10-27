@@ -352,6 +352,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(featureFlagsDefinitionsIndex),
             is(false)
         );
+        assertThat(role.indices().allowedIndicesMatcher(GetSettingsAction.NAME).test(featureFlagsDefinitionsIndex), is(true));
 
         final IndexAbstraction featureFlagsObservedContextsIndex = mockIndexAbstraction(
             ".feature-flags-observed-contexts" + randomAlphaOfLengthBetween(0, 20)
@@ -376,6 +377,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(featureFlagsObservedContextsIndex),
             is(false)
         );
+        assertThat(role.indices().allowedIndicesMatcher(GetSettingsAction.NAME).test(featureFlagsObservedContextsIndex), is(false));
 
         // Other feature flags indices are not accessible
         final IndexAbstraction otherFeatureFlagsIndex = mockIndexAbstraction(".feature-flags-other" + randomAlphaOfLengthBetween(0, 20));

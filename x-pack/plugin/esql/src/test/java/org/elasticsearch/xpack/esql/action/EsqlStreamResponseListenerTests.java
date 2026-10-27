@@ -137,6 +137,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             params -> List.<ToXContent>of((b, p) -> b.startObject("profile").field("k", "v").endObject()).iterator()
         );
 
@@ -163,6 +164,32 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(footerLine.get("is_partial"), equalTo(false));
     }
 
+    public void testFooterReportsApproximationApplied() throws IOException {
+        boolean applied = randomBoolean();
+        Map<String, Object> footerLine = footerLineFor(
+            new PageStreamPublisher.StreamFooter(200, 10L, false, List.of(), null, applied, null, null, null)
+        );
+        assertThat(footerLine.get("approximation_applied"), equalTo(applied));
+    }
+
+    public void testFooterOmitsApproximationAppliedWhenNotRequested() throws IOException {
+        Map<String, Object> footerLine = footerLineFor(
+            new PageStreamPublisher.StreamFooter(200, 10L, false, List.of(), null, null, null, null, null)
+        );
+        assertThat(footerLine, not(hasKey("approximation_applied")));
+    }
+
+    private Map<String, Object> footerLineFor(PageStreamPublisher.StreamFooter footer) throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.producer().finish();
+        s.publisher().completeWithFooter(footer);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {});
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+        return decodeLine(footerPart);
+    }
+
     public void testLargeFooterSplitsAcrossChunks() throws IOException {
         // Build a profile stub that produces many small chunks.
         final int chunkCount = 100;
@@ -171,6 +198,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             0L,
             false,
             List.of(),
+            null,
             null,
             null,
             null,
@@ -602,7 +630,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     public void testFailStreamBeforeFirstPageUsesTransportFooter() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         ElasticsearchStatusException e = new ElasticsearchStatusException("too many", RestStatus.TOO_MANY_REQUESTS);
-        s.publisher().failStream(e, new PageStreamPublisher.StreamFooter(429, 17L, false, List.of("w1"), null, null, e, null));
+        s.publisher().failStream(e, new PageStreamPublisher.StreamFooter(429, 17L, false, List.of("w1"), null, null, null, e, null));
         RestResponse response = s.response();
         assertThat(response.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         Map<String, Object> line = decodeLine(response.chunkedContent());
@@ -645,7 +673,8 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
         Subscribed s = subscribe(simpleColumns(), null);
         s.producer().finish();
-        s.publisher().completeWithFooter(new PageStreamPublisher.StreamFooter(200, 50L, false, List.of(), null, clusters, null, null));
+        s.publisher()
+            .completeWithFooter(new PageStreamPublisher.StreamFooter(200, 50L, false, List.of(), null, null, clusters, null, null));
         ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
         encodeBodyPart(columnsPart);
 
@@ -805,6 +834,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             12345L,
             false,
             List.of("warning from sub-plan"),
+            null,
             null,
             null,
             cause,

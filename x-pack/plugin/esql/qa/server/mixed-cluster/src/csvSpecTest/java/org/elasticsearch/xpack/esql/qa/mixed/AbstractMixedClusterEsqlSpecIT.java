@@ -127,6 +127,16 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return super.clusterHasCapability(capability);
     }
 
+    // The streaming protocol is snapshot-only and still changing without per-change capabilities, so an older
+    // coordinator may stream a format the current test client does not expect. Never stream in a mixed-version cluster.
+    @Override
+    protected String streamingIncompatibility(String query) {
+        if (bwcVersion != null && bwcVersion.before(Version.CURRENT)) {
+            return "streaming is not tested in mixed-version clusters";
+        }
+        return super.streamingIncompatibility(query);
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);

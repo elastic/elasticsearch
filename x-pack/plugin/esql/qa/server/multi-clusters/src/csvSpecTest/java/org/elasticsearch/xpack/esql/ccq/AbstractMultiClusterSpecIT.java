@@ -572,6 +572,16 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
     }
 
+    // The streaming protocol is snapshot-only and still changing without per-change capabilities, so an older
+    // cluster may stream a format the current test client does not expect. Never stream in a mixed-version CCS setup.
+    @Override
+    protected String streamingIncompatibility(String query) {
+        if (bothClustersAtCurrentVersion() == false) {
+            return "streaming is not tested in mixed-version CCS";
+        }
+        return super.streamingIncompatibility(query);
+    }
+
     private static boolean bothClustersAtCurrentVersion() {
         return Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion()).before(Version.CURRENT) == false;
     }

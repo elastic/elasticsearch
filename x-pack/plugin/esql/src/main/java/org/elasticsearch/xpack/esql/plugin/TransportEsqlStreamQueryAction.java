@@ -409,6 +409,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         executionInfo.isPartial(),
                         warnings,
                         result.completionInfo(),
+                        result.approximationApplied(),
                         footerClusters(executionInfo),
                         null,
                         profile
@@ -584,6 +585,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             tookMillis(executionInfo),
             executionInfo.isPartial() || completedWork.partial(),
             footerWarnings(threadContext, completedWork),
+            null,
             null,
             null,
             ex,

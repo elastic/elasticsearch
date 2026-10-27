@@ -25,6 +25,7 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvAssert;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -536,22 +537,24 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected Map<String, Object> executeQuery(RequestObjectBuilder builder, String query) throws Exception {
+        AssertWarnings assertWarnings = testCase.assertWarnings(deduplicateExactWarnings());
         if (queryMode == QueryMode.STREAMING && streamingIncompatibility(query) == null) {
-            return executeQueryStreaming(builder, query);
+            return executeQueryStreaming(builder, query, assertWarnings);
         }
         Mode mode = switch (queryMode) {
             case SYNC -> Mode.SYNC;
             case ASYNC -> Mode.ASYNC;
             case STREAMING -> randomFrom(Mode.values()); // fallback for specs that cannot stream
         };
-        return RestEsqlTestCase.runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()), profileLogger, mode);
+        return RestEsqlTestCase.runEsql(builder.query(query), assertWarnings, profileLogger, mode);
     }
 
-    private Map<String, Object> executeQueryStreaming(RequestObjectBuilder builder, String query) throws Exception {
+    private Map<String, Object> executeQueryStreaming(RequestObjectBuilder builder, String query, AssertWarnings assertWarnings)
+        throws Exception {
         boolean dropNullColumns = randomBoolean();
         int batchSize = randomBoolean() ? between(1, 5) : between(1, 1000);
         LOGGER.info("running query through streaming: batch_size={}, drop_null_columns={}", batchSize, dropNullColumns);
-        return RestEsqlTestCase.runEsqlStreaming(builder.query(query), testCase.assertWarnings(true), dropNullColumns, batchSize);
+        return RestEsqlTestCase.runEsqlStreaming(builder.query(query), assertWarnings, dropNullColumns, batchSize);
     }
 
     private static final Pattern UNMAPPED_FIELDS_LOAD_ALL = Pattern.compile(
@@ -565,9 +568,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         if (UNMAPPED_FIELDS_LOAD_ALL.matcher(query).find()) {
             return "streaming rejects unmapped_fields=LOAD_ALL";
-        }
-        if (testCase.expectedApproximationApplied != null) {
-            return "the streaming footer does not report approximation_applied";
         }
         return null;
     }

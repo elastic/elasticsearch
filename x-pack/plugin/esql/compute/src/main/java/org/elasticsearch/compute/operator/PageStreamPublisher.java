@@ -60,6 +60,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         boolean isPartial,
         List<String> warnings,
         DriverCompletionInfo completionInfo,
+        @Nullable Boolean approximationApplied,
         @Nullable ToXContent clusters,
         Exception error,
         @Nullable ChunkedToXContent profile
@@ -206,7 +207,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     }
 
     public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
-        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null, null, null));
+        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null, null, null, null));
     }
 
     public synchronized StreamFooter footer() {

@@ -54,8 +54,10 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  * <ul>
  *   <li>First line: {@code {"columns":[...]}}</li>
  *   <li>One line per page: {@code {"values":[[...],...]}}
- *   <li>Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...,"_clusters":{...}}}
- *       ({@code _clusters} is present only when {@link EsqlExecutionInfo#hasMetadataToReport()} is true: with
+ *   <li>Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"approximation_applied":true,
+ *       "documents_found":N,...,"_clusters":{...}}}
+ *       ({@code approximation_applied} is present only when query approximation was requested;
+ *       {@code _clusters} is present only when {@link EsqlExecutionInfo#hasMetadataToReport()} is true: with
  *       {@code include_execution_metadata: true} (local-only queries included), on cross-cluster queries with
  *       {@code include_ccs_metadata: true}, or when a partial result carries cluster failures), optionally
  *       followed by a {@code "profile"} object when {@code profile: true} was set.</li>
@@ -120,6 +122,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             elapsedMillis,
             false,
             TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            null,
             null,
             null,
             e,
@@ -609,6 +612,9 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         b.field("took", footer.tookMillis());
                         b.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
                         b.array("warnings", footer.warnings().toArray(String[]::new));
+                        if (footer.approximationApplied() != null) {
+                            b.field("approximation_applied", footer.approximationApplied());
+                        }
                         if (footer.completionInfo() != null) {
                             DriverCompletionInfo ci = footer.completionInfo();
                             b.field("documents_found", ci.documentsFound());

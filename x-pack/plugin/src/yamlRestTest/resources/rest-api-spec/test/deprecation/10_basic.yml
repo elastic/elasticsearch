@@ -19,7 +19,7 @@ setup:
       migration.deprecations:
         index: "*"
   - length: { cluster_settings: 0 }
-  - length: { node_settings: 0 }
+  ### node deprecations may depend on the test environment, so those tests exist as javaRestTests, see NodeSettingsDeprecationIT
   - length: { index_settings: 0 }
   - length: { ml_settings: 0 }
   - length: { data_streams: 0 }

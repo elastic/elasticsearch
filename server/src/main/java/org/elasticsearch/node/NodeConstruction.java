@@ -502,6 +502,16 @@ class NodeConstruction {
                 "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
             );
         }
+        if (Runtime.version().feature() < 25) {
+            deprecationLogger.critical(
+                DeprecationCategory.OTHER,
+                "java-version-below-25",
+                "Running Elasticsearch with Java 21-24 is deprecated. This node is running Java [{}] "
+                    + "from [{}]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                Runtime.version(),
+                System.getProperty("java.home")
+            );
+        }
 
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -1420,6 +1430,7 @@ class NodeConstruction {
                 throttlingRecoveryService,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService.getClusterSettings(),
+                clusterService.getSettings(),
                 JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);

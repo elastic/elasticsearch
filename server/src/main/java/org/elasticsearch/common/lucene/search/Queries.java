@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -25,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.Collection;
@@ -159,10 +161,22 @@ public final class Queries {
     /**
      * Potentially apply minimum should match value if we have a query that it can be applied to,
      * otherwise return the original query.
+     * <p>
+     * Also applies it to a boolean query inside a {@link ReanalyzingTextQuery}, optionally wrapped in a
+     * {@link ConstantScoreQuery}. That is how fields matching against their values (e.g. {@code index: false}) return
+     * their query.
      */
     public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        }
+        if (query instanceof ConstantScoreQuery constantScore && constantScore.getQuery() instanceof ReanalyzingTextQuery reanalyzing) {
+            final Query applied = maybeApplyMinimumShouldMatch(reanalyzing, minimumShouldMatch);
+            return applied == reanalyzing ? query : new ConstantScoreQuery(applied);
+        }
+        if (query instanceof ReanalyzingTextQuery reanalyzing && reanalyzing.getQuery() instanceof BooleanQuery inner) {
+            final Query applied = applyMinimumShouldMatch(inner, minimumShouldMatch);
+            return applied == inner ? query : reanalyzing.withQuery(applied);
         }
         return query;
     }

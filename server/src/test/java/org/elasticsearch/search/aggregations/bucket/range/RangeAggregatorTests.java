@@ -592,7 +592,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Aggregation [r] cannot have a global sub-aggregation [g]. Global aggregations can only be defined as top level aggregations"
+                "Aggregation [r] cannot have a global sub-aggregation [g]. "
+                    + "Global aggregations can only be defined as top level aggregations"
             )
         );
     }

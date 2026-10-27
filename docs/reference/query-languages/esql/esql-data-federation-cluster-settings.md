@@ -101,7 +101,7 @@ $$$esql-external-worker-ready-timeout$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long a node waits to catch up with the cluster state before failing the query with a retryable `503` error (`WORKER_NOT_READY`). The wait applies only when no other node can run the query's external reads. If you see these errors while nodes join the cluster, increase this value or retry the query.
 
     - **Default:** `10s`
-    - **Valid values:** A [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units) of `0` or more. `0` fails at once.
+    - **Valid values:** A [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units) of `0` or more. `0` disables waiting, so the query fails immediately.
 
 ## Glob and file-discovery limits
 

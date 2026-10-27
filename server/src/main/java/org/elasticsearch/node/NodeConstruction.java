@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
+import org.elasticsearch.action.admin.cluster.stats.SearchTierStatsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -501,6 +502,16 @@ class NodeConstruction {
                 DeprecationCategory.SETTINGS,
                 "multiple-data-paths-list",
                 "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
+            );
+        }
+        if (Runtime.version().feature() < 25) {
+            deprecationLogger.critical(
+                DeprecationCategory.OTHER,
+                "java-version-below-25",
+                "Running Elasticsearch with Java 21-24 is deprecated. This node is running Java [{}] "
+                    + "from [{}]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                Runtime.version(),
+                System.getProperty("java.home")
             );
         }
 
@@ -1592,7 +1603,11 @@ class NodeConstruction {
 
     private UsageService createUsageService() {
         ClusterStatsTagsProvider tagsProvider = pluginsService.loadSingletonServiceProvider(ClusterStatsTagsProvider.class, () -> null);
-        UsageService usageService = new UsageService(tagsProvider);
+        SearchTierStatsProvider searchTierStatsProvider = pluginsService.loadSingletonServiceProvider(
+            SearchTierStatsProvider.class,
+            () -> null
+        );
+        UsageService usageService = new UsageService(tagsProvider, searchTierStatsProvider);
         modules.bindToInstance(UsageService.class, usageService);
         return usageService;
     }

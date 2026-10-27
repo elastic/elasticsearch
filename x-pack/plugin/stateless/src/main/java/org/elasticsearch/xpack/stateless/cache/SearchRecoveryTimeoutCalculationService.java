@@ -299,11 +299,11 @@ public class SearchRecoveryTimeoutCalculationService {
             if (ignoreNonSearchNodeShutdowns == false) {
                 return true;
             }
-            if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) == false) {
+            if (node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) == false) {
                 continue;
             }
             final RoutingNode routingNode = state.getRoutingNodes().node(node.getId());
-            if (routingNode != null && routingNode.size() > 0) {
+            if (routingNode != null && !routingNode.isEmpty()) {
                 return true;
             }
         }

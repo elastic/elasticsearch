@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 163541
+summary: "Fix(security): hide doc values skippers of FLS-hidden fields"
+type: bug

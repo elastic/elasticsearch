@@ -26,6 +26,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -191,6 +193,23 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertThat(query, instanceOf(IntervalQuery.class));
     }
 
+    /**
+     * The {@link IntervalQuery} that {@link IntervalQueryBuilder} builds for {@code source} on {@code field}.
+     */
+    private static IntervalQuery expectedQuery(String field, IntervalsSource source) {
+        return new IntervalQuery(field, new ExpansionLimitIntervalsSource(source));
+    }
+
+    private static void assertExpansionLimitException(IllegalArgumentException e) {
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), containsString("expanded to too many terms (limit 1)"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[intervals] rule on field [" + TEXT_FIELD_NAME + "] " + e.getCause().getMessage() + "; use a more selective pattern")
+        );
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+    }
+
     @Override
     public IntervalQueryBuilder mutateInstance(IntervalQueryBuilder instance) throws IOException {
         if (randomBoolean()) {
@@ -216,7 +235,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, XIntervals.unordered(Intervals.term("hello"), Intervals.term("world")));
+        Query expected = expectedQuery(TEXT_FIELD_NAME, XIntervals.unordered(Intervals.term("hello"), Intervals.term("world")));
 
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
@@ -233,7 +252,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.maxgaps(40, XIntervals.unordered(Intervals.term("hello"), Intervals.term("world")))
         );
@@ -253,10 +272,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new BoostQuery(
-            new IntervalQuery(TEXT_FIELD_NAME, XIntervals.ordered(Intervals.term("hello"), Intervals.term("world"))),
-            2
-        );
+        expected = new BoostQuery(expectedQuery(TEXT_FIELD_NAME, XIntervals.ordered(Intervals.term("hello"), Intervals.term("world"))), 2);
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         json = Strings.format("""
@@ -274,7 +290,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.maxgaps(10, XIntervals.ordered(Intervals.term("Hello"), Intervals.term("world")))
         );
@@ -296,7 +312,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME, MASKED_FIELD);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(MASKED_FIELD, Intervals.maxgaps(10, XIntervals.ordered(Intervals.term("Hello"), Intervals.term("world"))))
         );
@@ -324,7 +340,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.containing(
                 Intervals.maxgaps(10, XIntervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
@@ -358,7 +374,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.or(Intervals.term("one"), Intervals.term("two")));
+        Query expected = expectedQuery(TEXT_FIELD_NAME, Intervals.or(Intervals.term("one"), Intervals.term("two")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         json = Strings.format("""
@@ -390,7 +406,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.notContaining(Intervals.or(Intervals.term("one"), Intervals.term("two")), Intervals.term("three"))
         );
@@ -434,7 +450,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new BoostQuery(
-            new IntervalQuery(
+            expectedQuery(
                 TEXT_FIELD_NAME,
                 Intervals.containedBy(
                     Intervals.maxgaps(
@@ -494,7 +510,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(
+        Query expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.notContainedBy(
                 Intervals.maxgaps(
@@ -609,7 +625,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query q = builder.toQuery(context);
 
-        IntervalQuery expected = new IntervalQuery(
+        IntervalQuery expected = expectedQuery(
             TEXT_FIELD_NAME,
             new IntervalsSourceProvider.ScriptFilterSource(Intervals.term("term1"), "interval.start > 3", null)
         );
@@ -629,7 +645,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.prefix(new BytesRef("term"), IndexSearcher.getMaxClauseCount()));
+        Query expected = expectedQuery(TEXT_FIELD_NAME, Intervals.prefix(new BytesRef("term"), IndexSearcher.getMaxClauseCount()));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String no_positions_json = Strings.format("""
@@ -674,7 +690,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(prefix_json);
-        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
+        expected = expectedQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String short_prefix_json = Strings.format("""
@@ -688,7 +704,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             PREFIXED_FIELD,
             Intervals.or(
                 Intervals.fixField(
@@ -713,7 +729,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME, PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(fix_field_prefix_json);
         // This looks weird, but it's fine, because the innermost fixField wins
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")))
         );
@@ -731,7 +747,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(keyword_json);
-        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")));
+        expected = expectedQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String keyword_fix_field_json = Strings.format("""
@@ -748,7 +764,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }
             """, TEXT_FIELD_NAME, PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(keyword_fix_field_json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")))
         );
@@ -768,7 +784,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.regexp(new BytesRef("te.*m"), IndexSearcher.getMaxClauseCount()));
+        Query expected = expectedQuery(TEXT_FIELD_NAME, Intervals.regexp(new BytesRef("te.*m"), IndexSearcher.getMaxClauseCount()));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String no_positions_json = Strings.format("""
@@ -800,7 +816,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(MASKED_FIELD, Intervals.regexp(new BytesRef("te.*m"), IndexSearcher.getMaxClauseCount()))
         );
@@ -883,11 +899,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                         IntervalQueryBuilder queryBuilder = new IntervalQueryBuilder(TEXT_FIELD_NAME, provider);
                         IndexSearcher searcher = newSearcher(reader);
                         Query query = queryBuilder.toQuery(createSearchExecutionContext(searcher));
-                        RuntimeException exc = expectThrows(
-                            RuntimeException.class,
+                        IllegalArgumentException scorerException = expectThrows(
+                            IllegalArgumentException.class,
                             () -> query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).scorer(searcher.getLeafContexts().get(0))
                         );
-                        assertThat(exc.getMessage(), containsString("expanded to too many terms (limit 1)"));
+                        assertExpansionLimitException(scorerException);
                     } finally {
                         IndexSearcher.setMaxClauseCount(origBoolMaxClauseCount);
                     }
@@ -909,7 +925,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m"), IndexSearcher.getMaxClauseCount()));
+        Query expected = expectedQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m"), IndexSearcher.getMaxClauseCount()));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String no_positions_json = Strings.format("""
@@ -941,7 +957,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(keyword_json);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("Te?m"), IndexSearcher.getMaxClauseCount()));
+        expected = expectedQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("Te?m"), IndexSearcher.getMaxClauseCount()));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String fixed_field_json = Strings.format("""
@@ -957,7 +973,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("te?m"), IndexSearcher.getMaxClauseCount()))
         );
@@ -993,7 +1009,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("Te?m"), IndexSearcher.getMaxClauseCount()))
         );
@@ -1063,7 +1079,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
 
-        Query expected = new IntervalQuery(
+        Query expected = expectedQuery(
             TEXT_FIELD_NAME,
             buildFuzzySource("term", "term", FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH, true, Fuzziness.AUTO.asDistance("term"))
         );
@@ -1081,7 +1097,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_with_prefix);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.AUTO.asDistance("term")));
+        expected = expectedQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_with_fuzziness = Strings.format("""
@@ -1097,7 +1113,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_with_fuzziness);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")));
+        expected = expectedQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_no_transpositions = Strings.format("""
@@ -1113,7 +1129,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_no_transpositions);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, false, Fuzziness.AUTO.asDistance("term")));
+        expected = expectedQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, false, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_with_analyzer = Strings.format("""
@@ -1129,7 +1145,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_with_analyzer);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("Term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
+        expected = expectedQuery(TEXT_FIELD_NAME, buildFuzzySource("Term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_with_fixfield = Strings.format("""
@@ -1146,7 +1162,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME, MASKED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(json_with_fixfield);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.fixField(MASKED_FIELD, buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")))
         );
@@ -1166,7 +1182,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(
+        Query expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), true, true, IndexSearcher.getMaxClauseCount())
         );
@@ -1184,7 +1200,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
               }
             }""", TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(
+        expected = expectedQuery(
             TEXT_FIELD_NAME,
             Intervals.range(new BytesRef("aaa"), new BytesRef("aab"), false, false, IndexSearcher.getMaxClauseCount())
         );

@@ -473,11 +473,17 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     /**
-     * A data-point group whose resource carries an ARRAY attribute must be rejected by
-     * {@link OTLPMetricsTransportAction#isEscfEligible} so the transport action falls back to doc-mode.
-     * This test exercises the transport-action gate directly (not just {@code buildMetricRow}).
+     * A data-point group whose resource carries an ARRAY attribute cannot be expressed as scalar ESCF
+     * columns. The transport action now discovers this optimistically — while actually writing the row,
+     * not via an upfront eligibility scan — and falls all the way back to the doc-mode (XContent) path for
+     * the whole request rather than throwing.
      */
-    public void testIsEscfEligibleFalseForArrayResourceAttribute() throws Exception {
+    public void testEscfFallsBackToDocModeForArrayResourceAttribute() throws Exception {
+        assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        String target = "metrics-generic.otel-default";
+        OTLPMetricsTransportAction action = createMetricsAction(Settings.EMPTY, batchIndexingProject(target));
+        clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
+
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
             .addResourceMetrics(
                 OtlpUtils.createResourceMetrics(
@@ -493,72 +499,14 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             )
             .build();
 
-        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(request);
-        assertFalse("array resource attribute must make group ineligible", OTLPMetricsTransportAction.isEscfEligible(groups));
-    }
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+        action.prepareBulkRequest(new OTLPActionRequest(new BytesArray(request.toByteArray())), bulkRequestBuilder);
 
-    /**
-     * A data-point group whose attribute list contains a duplicate key must be rejected by
-     * {@link OTLPMetricsTransportAction#isEscfEligible}. Without this check, the duplicate would
-     * reach {@code EscfRowBuffer} as an {@code IllegalArgumentException} and surface as a 500.
-     */
-    public void testIsEscfEligibleFalseForDuplicateDataPointAttributeKey() throws Exception {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
-            .addResourceMetrics(
-                OtlpUtils.createResourceMetrics(
-                    List.of(keyValue("service.name", "svc")),
-                    List.of(
-                        OtlpUtils.createScopeMetrics(
-                            "s",
-                            "1",
-                            List.of(
-                                OtlpUtils.createGaugeMetric(
-                                    "cpu",
-                                    "1",
-                                    List.of(
-                                        OtlpUtils.createDoubleDataPoint(
-                                            0,
-                                            0,
-                                            List.of(keyValue("env", "prod"), keyValue("env", "staging")) // duplicate key
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-            .build();
-
-        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(request);
-        assertFalse("duplicate data-point attribute key must make group ineligible", OTLPMetricsTransportAction.isEscfEligible(groups));
-    }
-
-    /** Scalar-only groups with unique keys must remain eligible. */
-    public void testIsEscfEligibleTrueForScalarAttributes() throws Exception {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
-            .addResourceMetrics(
-                OtlpUtils.createResourceMetrics(
-                    List.of(keyValue("service.name", "svc"), keyValue("host.name", "h1")),
-                    List.of(
-                        OtlpUtils.createScopeMetrics(
-                            "s",
-                            "1",
-                            List.of(
-                                OtlpUtils.createGaugeMetric(
-                                    "cpu",
-                                    "1",
-                                    List.of(OtlpUtils.createDoubleDataPoint(0, 0, List.of(keyValue("env", "prod"))))
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-            .build();
-
-        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(request);
-        assertTrue("scalar unique-key group must be eligible", OTLPMetricsTransportAction.isEscfEligible(groups));
+        BulkRequest bulkRequest = bulkRequestBuilder.request();
+        assertFalse("ESCF batch must not be registered once a non-scalar attribute is found", bulkRequest.hasPreBuiltBatches());
+        var requests = bulkRequest.requests();
+        assertThat(requests, hasSize(1));
+        assertThat(requests.get(0).index(), equalTo(target));
     }
 
     private static List<DataPointGroupingContext.DataPointGroup> collectGroups(ExportMetricsServiceRequest request) throws Exception {

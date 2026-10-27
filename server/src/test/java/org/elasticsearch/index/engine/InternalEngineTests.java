@@ -630,8 +630,8 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
 
         engine = new InternalEngine(engine.config());
-        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
-        expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
+        expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
+        expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {

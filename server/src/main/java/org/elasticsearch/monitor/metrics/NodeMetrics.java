@@ -19,7 +19,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
@@ -630,6 +632,58 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                     .map(o -> o.getIndices())
                     .map(o -> o.getFlush())
                     .map(o -> o.getTotalTimeExcludingWaitingOnLockMillis())
+                    .orElse(0L)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.failed.total",
+                "Total number of failed flushes, excluding the flush an engine runs as it closes",
+                "operations",
+                () -> Optional.ofNullable(stats.getOrRefresh())
+                    .map(NodeStats::getIndices)
+                    .map(NodeIndicesStats::getFlush)
+                    .map(FlushStats::getFailed)
+                    .orElse(0L)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.failed.shard_closed.total",
+                "Best-effort total number of failed flushes due to a closed shard (a subset of es.flush.failed.total)",
+                "operations",
+                () -> Optional.ofNullable(stats.getOrRefresh())
+                    .map(NodeStats::getIndices)
+                    .map(NodeIndicesStats::getFlush)
+                    .map(FlushStats::getFailedShardClosed)
+                    .orElse(0L)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.failed.engine_closed.total",
+                "Total number of failed flushes due to an engine closed without a failure (a subset of es.flush.failed.total)",
+                "operations",
+                () -> Optional.ofNullable(stats.getOrRefresh())
+                    .map(NodeStats::getIndices)
+                    .map(NodeIndicesStats::getFlush)
+                    .map(FlushStats::getFailedEngineClosed)
+                    .orElse(0L)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.failed.pending_translog_recovery.total",
+                "Total number of failed flushes due to a pending translog recovery (a subset of es.flush.failed.total)",
+                "operations",
+                () -> Optional.ofNullable(stats.getOrRefresh())
+                    .map(NodeStats::getIndices)
+                    .map(NodeIndicesStats::getFlush)
+                    .map(FlushStats::getFailedPendingTranslogRecovery)
                     .orElse(0L)
             )
         );

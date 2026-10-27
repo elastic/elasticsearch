@@ -3962,7 +3962,7 @@ public class InternalEngine extends Engine {
         // engine otherwise we might loose documents if the flush succeeds
         // and the translog recovery fails when we "commit" the translog on flush.
         if (pendingTranslogRecovery.get()) {
-            throw new IllegalStateException(shardId.toString() + " flushes are disabled - pending translog recovery");
+            throw new PendingTranslogRecoveryException(shardId.toString() + " flushes are disabled - pending translog recovery");
         }
     }
 

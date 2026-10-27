@@ -88,8 +88,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.FlushFailedEngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -1761,6 +1763,97 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
+    }
+
+    public void testFlushFailureIsCountedAsRealFailure() throws IOException {
+        AtomicBoolean failCommit = new AtomicBoolean();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                if (failCommit.get()) {
+                    throw new IOException("test flush failure");
+                }
+                super.commitIndexWriter(writer, translog);
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        flushShard(shard);
+        assertThat(shard.flushStats().getFailed(), equalTo(0L));
+
+        failCommit.set(true);
+        assertThat(flushFailure(shard), instanceOf(FlushFailedEngineException.class));
+
+        assertFlushFailureCounts(shard, 1L, 0L, 0L, 0L);
+        failCommit.set(false);
+        closeShards(shard);
+    }
+
+    public void testFlushOnClosedShardIsCountedAsShardClosedFailure() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        closeShards(shard);
+
+        assertThat(flushFailure(shard), instanceOf(IndexShardClosedException.class));
+
+        assertFlushFailureCounts(shard, 1L, 1L, 0L, 0L);
+    }
+
+    public void testFlushFailureClassification() throws IOException {
+        AtomicReference<Exception> engineFailure = new AtomicReference<>();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+                if (engineFailure.get() != null) {
+                    listener.onFailure(engineFailure.get());
+                } else {
+                    super.flushHoldingLock(force, waitIfOngoing, listener);
+                }
+            }
+        });
+
+        engineFailure.set(new PendingTranslogRecoveryException("pending translog recovery"));
+        flushFailure(shard);
+        assertFlushFailureCounts(shard, 1L, 0L, 0L, 1L);
+
+        engineFailure.set(new AlreadyClosedException("engine closed"));
+        flushFailure(shard);
+        assertFlushFailureCounts(shard, 2L, 0L, 1L, 1L);
+
+        engineFailure.set(new AlreadyClosedException("tragic event", new IOException("disk failure")));
+        flushFailure(shard);
+        assertFlushFailureCounts(shard, 3L, 0L, 1L, 1L);
+
+        engineFailure.set(new IllegalStateException("unexpected"));
+        flushFailure(shard);
+        assertFlushFailureCounts(shard, 4L, 0L, 1L, 1L);
+
+        engineFailure.set(null);
+        flushShard(shard);
+        assertFlushFailureCounts(shard, 4L, 0L, 1L, 1L);
+        closeShards(shard);
+    }
+
+    private Exception flushFailure(IndexShard shard) {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        shard.flush(
+            new FlushRequest().force(true).waitIfOngoing(true),
+            ActionListener.wrap(result -> fail("flush must fail"), failure::set)
+        );
+        assertThat(failure.get(), notNullValue());
+        return failure.get();
+    }
+
+    private static void assertFlushFailureCounts(
+        IndexShard shard,
+        long failed,
+        long failedShardClosed,
+        long failedEngineClosed,
+        long failedPendingTranslogRecovery
+    ) {
+        FlushStats flushStats = shard.flushStats();
+        assertThat(flushStats.getFailed(), equalTo(failed));
+        assertThat(flushStats.getFailedShardClosed(), equalTo(failedShardClosed));
+        assertThat(flushStats.getFailedEngineClosed(), equalTo(failedEngineClosed));
+        assertThat(flushStats.getFailedPendingTranslogRecovery(), equalTo(failedPendingTranslogRecovery));
     }
 
     public void testIndexingErrors() throws IOException {

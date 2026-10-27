@@ -116,4 +116,29 @@ public final class VersionAllocationEstimators {
         long decoded = decodedVersionBytes(receiver, index);
         return decoded == 0 ? 0 : addSat(decoded, VERSION_OBJECT_BYTES);
     }
+
+    /** An iterator over a list: header, two ints and three references. */
+    private static final long ITERATOR_BYTES = pad8(OBJECT_HEADER + 2L * Integer.BYTES + 3L * REFERENCE_SIZE);
+
+    /** {@code iterator()} or {@code stream()} on the doc values: the iterator plus every decoded String, charged up front. */
+    public static long versionIteratorBytes(VersionScriptDocValues receiver) {
+        long bytes = ITERATOR_BYTES;
+        if (receiver != null) {
+            for (int index = 0; index < receiver.size(); index++) {
+                bytes = addSat(bytes, decodedVersionBytes(receiver.field(), index));
+            }
+        }
+        return bytes;
+    }
+
+    /** {@code iterator()} on the field: the iterator plus every decoded {@link Version}, charged up front. */
+    public static long versionIteratorBytes(VersionStringDocValuesField receiver) {
+        long bytes = ITERATOR_BYTES;
+        if (receiver != null) {
+            for (int index = 0; index < receiver.size(); index++) {
+                bytes = addSat(bytes, versionObjectBytes(receiver, index, null));
+            }
+        }
+        return bytes;
+    }
 }

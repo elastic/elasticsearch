@@ -13,10 +13,12 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.DoubleDocValuesField;
@@ -25,8 +27,13 @@ import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
+import org.elasticsearch.script.field.vectors.BinaryDenseVector;
+import org.elasticsearch.script.field.vectors.DenseVector;
+import org.elasticsearch.script.field.vectors.KnnDenseVector;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -150,6 +157,145 @@ public class AllocationEsFieldTests extends AllocationTestCase {
 
     public void testKeywordReadTripsLimit() throws IOException {
         assertTripsLimit("params.field.get(0, '')", "1b", Map.of("field", keywordField("hello")));
+    }
+
+    /**
+     * Iterating keyword doc values decodes a new String on every {@code next()}. The loop never sees the script, so the whole
+     * document is charged up front with the iterator, sized from the stored bytes: five and six bytes here.
+     */
+    public void testKeywordIterationChargedUpFront() throws IOException {
+        KeywordDocValuesField field = keywordField("hello", "world!");
+        Map<String, Object> params = Map.of("docValues", field.toScriptDocValues(), "field", field);
+        long decode = AllocationEstimators.termDecodeBytes(5) + AllocationEstimators.termDecodeBytes(6);
+        long loop = AllocSizes.ITERATOR_BYTES + decode;
+
+        assertEquals(loop, AllocationEstimators.iteratorBytes(field.toScriptDocValues()));
+        assertEquals(loop, AllocationEstimators.iteratorBytes(field));
+        assertEquals(loop, AllocationEstimators.streamBytes(field.toScriptDocValues()));
+        // A plain list is charged its iterator alone.
+        assertEquals(AllocSizes.ITERATOR_BYTES, AllocationEstimators.iteratorBytes(List.of("hello")));
+        assertEquals(AllocSizes.ITERATOR_BYTES, AllocationEstimators.streamBytes(List.of("hello")));
+
+        // Through def and typed loops, over the doc values and the field.
+        assertEquals(loop, allocatedBytes("int n = 0; for (def s : params.docValues) { n++; } return 'x';", params));
+        assertEquals(loop, allocatedBytes("int n = 0; for (def s : params.field) { n++; } return 'x';", params));
+        assertEquals(
+            loop,
+            allocatedBytes(
+                "ScriptDocValues.Strings f = (ScriptDocValues.Strings) params.docValues;"
+                    + " int n = 0; for (String s : f) { n++; } return 'x';",
+                params
+            )
+        );
+        assertEquals(loop, allocatedBytes("Field f = (Field) params.field; int n = 0; for (def s : f) { n++; } return 'x';", params));
+        // An explicit iterator() or stream() call costs the same.
+        assertEquals(loop, allocatedBytes("params.docValues.iterator(); return 'x';", params));
+        assertEquals(loop, allocatedBytes("params.docValues.stream(); return 'x';", params));
+        assertEquals(loop, allocatedBytes("List l = (List) params.docValues; l.stream(); return 'x';", params));
+        // A loop that stops early still pays for the whole document.
+        assertEquals(loop, allocatedBytes("int n = 0; for (def s : params.docValues) { n++; if (n > 0) { break; } } return 'x';", params));
+        // The loop alone is past a 60 byte limit.
+        assertTripsLimit("int n = 0; for (def s : params.docValues) { n++; } return 'x';", "60b", params);
+    }
+
+    /** Ip doc values format text per value and the ip field hands out addresses, so each loop is charged its own decode. */
+    public void testIpIterationChargedUpFront() throws IOException {
+        IpDocValuesField field = new IpDocValuesField(ipDocValues("192.168.0.1", "10.0.0.1"), "test");
+        field.setNextDocId(0);
+        Map<String, Object> params = Map.of("docValues", field.toScriptDocValues(), "field", field);
+        long text = AllocSizes.ITERATOR_BYTES + 2L * AllocationEstimators.ipStringReadBytes(45);
+        long addresses = AllocSizes.ITERATOR_BYTES + 2L * AllocationEstimators.ipAddressReadBytes(field, null);
+
+        assertEquals(text, allocatedBytes("int n = 0; for (def s : params.docValues) { n++; } return 'x';", params));
+        assertEquals(text, allocatedBytes("params.docValues.stream(); return 'x';", params));
+        assertEquals(addresses, allocatedBytes("int n = 0; for (def a : params.field) { n++; } return 'x';", params));
+    }
+
+    /** BytesRef doc values copy the bytes per value and the binary field wraps the copy in a buffer. */
+    public void testBytesIterationChargedUpFront() throws IOException {
+        BinaryDocValuesField field = new BinaryDocValuesField(binaryDocValues("hello", "world!"), "test");
+        field.setNextDocId(0);
+        Map<String, Object> params = Map.of("refs", field.toScriptDocValues(), "field", field);
+        long refs = AllocSizes.ITERATOR_BYTES + AllocationEstimators.termCopyBytes(5) + AllocationEstimators.termCopyBytes(6);
+        long buffers = AllocSizes.ITERATOR_BYTES + AllocationEstimators.byteBufferBytes(5) + AllocationEstimators.byteBufferBytes(6);
+
+        assertEquals(refs, allocatedBytes("int n = 0; for (def b : params.refs) { n++; } return 'x';", params));
+        assertEquals(refs, allocatedBytes("params.refs.stream(); return 'x';", params));
+        assertEquals(buffers, allocatedBytes("int n = 0; for (def b : params.field) { n++; } return 'x';", params));
+    }
+
+    /**
+     * The helpers that walk their receiver decode every element over doc values, so each charges the document up front. The
+     * same call over a plain list of the same strings differs by exactly that decode, whatever else the helper builds.
+     */
+    public void testReceiverWalkingHelpersChargeTheDecode() throws IOException {
+        KeywordDocValuesField field = keywordField("hello", "world!");
+        Map<String, Object> docValues = Map.of("r", field.toScriptDocValues());
+        Map<String, Object> list = Map.of("r", new ArrayList<>(List.of("hello", "world!")));
+        long decode = AllocationEstimators.decodeBytes(field.toScriptDocValues());
+        assertTrue(decode > 0);
+
+        String[] calls = new String[] {
+            "r.forEach(x -> x.length())",
+            "r.any(x -> x == 'z')",
+            "r.asCollection()",
+            "r.asList()",
+            "r.count(x -> true)",
+            "r.each(x -> x.length())",
+            "r.eachWithIndex((x, i) -> x.length())",
+            "r.every(x -> x != null)",
+            "r.findResults(x -> x)",
+            "r.groupBy(x -> x)",
+            "r.join(',')",
+            "try { r.sum() } catch (Exception e) {}",
+            "r.sum(x -> x.length())",
+            "r.removeIf(x -> false)",
+            "r.collect(x -> x)",
+            "r.collect(new ArrayList(), x -> x)",
+            "r.find(x -> x == 'z')",
+            "r.findAll(x -> true)",
+            "r.findResult(x -> null)",
+            "r.findResult('d', x -> null)",
+            "r.split(x -> true)",
+            "try { r.replaceAll(x -> x) } catch (Exception e) {}" };
+        for (String call : calls) {
+            String script = "def r = params.r; " + call + (call.endsWith("}") ? " " : "; ") + "return 'x';";
+            assertEquals(call, decode, allocatedBytes(script, docValues) - allocatedBytes(script, list));
+        }
+    }
+
+    /** {@code getVector()} copies the vector out of the index. The stored float form hands out its decoded array instead. */
+    public void testDenseVectorCopyCharged() {
+        float[] vector = new float[] { 1f, 2f, 3f };
+        long copy = AllocSizes.arrayBytes(3, Float.BYTES);
+        Map<String, Object> params = Map.of("vec", new KnnDenseVector(vector));
+
+        assertEquals(copy, AllocationEstimators.denseVectorCopyBytes(new KnnDenseVector(vector)));
+        assertEquals(
+            0L,
+            AllocationEstimators.denseVectorCopyBytes(new BinaryDenseVector(vector, new BytesRef(), 3, IndexVersion.current()))
+        );
+        assertEquals(0L, AllocationEstimators.denseVectorCopyBytes(DenseVector.EMPTY));
+        assertEquals(copy, allocatedBytes("params.vec.getVector(); return 'x';", params));
+        assertEquals(copy, allocatedBytes("DenseVector v = (DenseVector) params.vec; v.getVector(); return 'x';", params));
+
+        // The doc values read makes the same copy, sized from the field's dimensions.
+        DenseVectorScriptDocValues docValues = new DenseVectorScriptDocValues(new DenseVectorScriptDocValues.DenseVectorSupplier() {
+            @Override
+            public void setNextDocId(int docId) {}
+
+            @Override
+            public DenseVector getInternal() {
+                return new KnnDenseVector(vector);
+            }
+
+            @Override
+            public int size() {
+                return 1;
+            }
+        }, 3);
+        assertEquals(copy, AllocationEstimators.denseVectorCopyBytes(docValues));
+        assertEquals(copy, allocatedBytes("params.dv.getVectorValue(); return 'x';", Map.of("dv", docValues)));
     }
 
     /** {@code asDoubles()}: a list of boxed doubles, 40 + 40 + 3 * 24 = 152. */

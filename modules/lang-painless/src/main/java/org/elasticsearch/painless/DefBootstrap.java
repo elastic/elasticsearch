@@ -173,7 +173,7 @@ public final class DefBootstrap {
                 case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
                 case ARRAY_LOAD -> Def.lookupArrayLoad(painlessLookup, receiver, args.length > 0 && ((int) args[0]) != 0);
                 case ARRAY_STORE -> Def.lookupArrayStore(receiver);
-                case ITERATOR -> Def.lookupIterator(receiver);
+                case ITERATOR -> Def.lookupIterator(painlessLookup, receiver, args.length > 0 && ((int) args[0]) != 0);
                 case REFERENCE -> Def.lookupReference(
                     painlessLookup,
                     functions,
@@ -540,14 +540,15 @@ public final class DefBootstrap {
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
-            case LOAD, ARRAY_LOAD -> {
-                // an optional int flag says the script instance follows the other arguments, for a getter or list get that needs it
+            case LOAD, ARRAY_LOAD, ITERATOR -> {
+                // an optional int flag says the script instance follows the other arguments, for a getter, list get or iterator
+                // that charges with it
                 if (args.length > 1 || (args.length == 1 && args[0] instanceof Integer == false)) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
-            case STORE, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
+            case STORE, ARRAY_STORE, INDEX_NORMALIZE -> {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }

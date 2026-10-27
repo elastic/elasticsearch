@@ -21,8 +21,8 @@ import java.lang.foreign.ValueLayout;
 
 /**
  * Native scorer for quantized vectors, optimized for JDK 22+ with heap segment support.
- * All methods assume {@code NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS} and use
- * {@link MemorySegment#ofArray} directly (no arena copies).
+ * All methods assume {@code NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS}. The query is copied
+ * into a scorer-owned off-heap buffer (once per array identity change).
  *
  * <p>Subclasses provide only the native dot-product function and bit-scale constants;
  * the scoring logic (quantize, bulk, corrections) is handled by template methods here.
@@ -36,6 +36,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     private MemorySegment cachedQuerySeg;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSeg;
+    private final SegmentBufferScratch queryScratch = new SegmentBufferScratch();
     private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     NativeMemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
@@ -45,7 +46,9 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     private MemorySegment querySegment(byte[] q) {
         if (q != cachedQueryArray) {
             cachedQueryArray = q;
-            cachedQuerySeg = MemorySegment.ofArray(q);
+            MemorySegment segment = queryScratch.apply(q.length);
+            MemorySegment.copy(q, 0, segment, ValueLayout.JAVA_BYTE, 0, q.length);
+            cachedQuerySeg = segment;
         }
         return cachedQuerySeg;
     }

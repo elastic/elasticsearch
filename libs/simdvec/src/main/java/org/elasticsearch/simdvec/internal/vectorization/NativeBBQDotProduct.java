@@ -39,7 +39,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     /**
-     * The query and score arrays are wrapped as heap segments, which native calls only accept
+     * The score array is wrapped as a heap segment, which native calls only accept
      * from JDK 22 onwards.
      */
     public static boolean supports(IndexInput in) {
@@ -60,12 +60,16 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         return new NativeBBQDotProduct(in, bbqEncoding, planeBytes(nDims));
     }
 
-    // Heap segments wrapping the caller's arrays. The caller reuses the same query and scores arrays
-    // across a whole posting list, so the wrappers are cached against array identity.
+    // The caller reuses the same query and scores arrays across a whole posting list, so their
+    // segments are cached against array identity.
+    // The query is copied into a scorer-owned off-heap buffer, once per array identity change.
+    // Scores can be written either to a scorer-owned off-heap buffer or to a caller-owned
+    // heap array (wrapped in a heap MemorySegment, which we cache).
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySegment;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSegment;
+    private final SegmentBufferScratch queryScratch = new SegmentBufferScratch();
     private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     private NativeBBQDotProduct(IndexInput in, BBQEncoding bbqEncoding, int planeBytes) {
@@ -75,7 +79,9 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     private MemorySegment querySegment(byte[] query) {
         if (query != cachedQueryArray) {
             cachedQueryArray = query;
-            cachedQuerySegment = MemorySegment.ofArray(query);
+            MemorySegment segment = queryScratch.apply(query.length);
+            MemorySegment.copy(query, 0, segment, ValueLayout.JAVA_BYTE, 0, query.length);
+            cachedQuerySegment = segment;
         }
         return cachedQuerySegment;
     }

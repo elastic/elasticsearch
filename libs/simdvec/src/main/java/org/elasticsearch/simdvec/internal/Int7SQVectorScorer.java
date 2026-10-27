@@ -23,6 +23,7 @@ import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Optional;
@@ -74,7 +75,9 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         assert queryVector.length == values.getVectorByteLength();
         this.vectorByteSize = values.getVectorByteLength();
         this.vectorPitch = vectorByteSize + Float.BYTES;
-        this.query = MemorySegment.ofArray(queryVector);
+        MemorySegment querySeg = Arena.ofAuto().allocate(queryVector.length, 32);
+        MemorySegment.copy(queryVector, 0, querySeg, ValueLayout.JAVA_BYTE, 0, queryVector.length);
+        this.query = querySeg;
         this.queryCorrection = queryCorrection;
         this.scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
         this.scratch = new FixedSizeSegmentScratch(vectorPitch);

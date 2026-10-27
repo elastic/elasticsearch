@@ -604,8 +604,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
     private static final Set<String> ALERTZERO_ALL_FEATURE_PRIVILEGES = Set.of(
         "feature_actions.read",
         "feature_agentBuilder.read",
+        "feature_agenticInvestigations.all",
+        "feature_agenticInvestigations.escalations_all",
+        "feature_agenticInvestigations.escalations_read",
         "feature_agenticInvestigations.investigations_all",
         "feature_agenticInvestigations.minimal_all",
+        "feature_agenticInvestigations.read",
         "feature_alertzero.all",
         "feature_alertzero.read",
         "feature_contextEngine.all",

@@ -42,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
@@ -346,9 +347,10 @@ public class KnnIndexTester {
                 );
                 yield switch (quantizeBits) {
                     case null -> new ES92GpuHnswVectorsFormat(graphDegree, intermediateGraphDegree);
+                    case 1 -> new ES97GpuHnswBBQVectorsFormat(graphDegree, intermediateGraphDegree);
                     case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);
                     default -> throw new IllegalArgumentException(
-                        "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+                        "GPU HNSW index type only supports 1 or 7 bits quantization, but got: " + quantizeBits
                     );
                 };
             }
@@ -880,9 +882,9 @@ public class KnnIndexTester {
                 }
                 break;
             case GPU_HNSW: {
-                if (args.quantizeBits() != null && args.quantizeBits() != 7) {
+                if (args.quantizeBits() != null && args.quantizeBits() != 1 && args.quantizeBits() != 7) {
                     throw new IllegalArgumentException(
-                        "GPU HNSW index type only supports 7 bits quantization, but got: " + args.quantizeBits()
+                        "GPU HNSW index type only supports 1 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
                 }
             }

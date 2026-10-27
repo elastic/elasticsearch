@@ -49,6 +49,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IndexingKnnVectorsWriter;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -109,7 +110,8 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
-            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
+            // BBQ codes can't be used as a CAGRA dataset, so for bbq_hnsw the graph is built from the raw float vectors
+            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter || flatVectorsFormat instanceof ES93BinaryQuantizedVectorsFormat;
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
@@ -641,6 +643,8 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                     // we just build a mock graph where every node is connected to every other node
                     generateMockGraphAndWriteMeta(fieldInfo, numVectors);
                 } else if (dataType == CuVSMatrix.DataType.FLOAT) {
+                    // For bbq_hnsw, floatVectorValues wraps the merged raw vectors and exposes their slice,
+                    // so the graph is built from raw floats rather than from the 1-bit codes.
                     mergeFloatVectorField(fieldInfo, mergeState, floatVectorValues, numVectors);
                 } else {
                     // During merging, we use quantized data, so we need to support byte[] too.

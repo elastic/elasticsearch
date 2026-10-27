@@ -1,0 +1,119 @@
+---
+# bbq_hnsw requires at least 64 dims. Vectors are well separated, and k * oversample (3x by default)
+# covers all docs, so rescoring with the raw vectors makes the results exact despite 1-bit quantization.
+# Single shard avoids tiny per-shard segments where CAGRA graph parameters get
+# clamped to near-trivial values.
+"Test GPU vector operations":
+
+  - requires:
+      cluster_features: [ "vectors.indexing.use_gpu" ]
+      reason: "A cluster should have a GPU plugin to run these tests"
+
+  - do:
+      indices.create:
+        index: my_vectors
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
+          settings:
+            index.number_of_shards: 1
+            index.refresh_interval: -1
+  - match: { error: null }
+
+  - do:
+      bulk:
+        index: my_vectors
+        refresh: true
+        body:
+          - index:
+              _id: "1"
+          - vector: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+          - index:
+              _id: "2"
+          - vector: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+          - index:
+              _id: "3"
+          - vector: [-1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, -1.1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  - match: { errors: false }
+
+  # Search before force merge
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+
+  # Delete a doc and force merge
+  - do:
+      delete:
+        index: my_vectors
+        id: "1"
+        refresh: true
+  - match: { result: "deleted" }
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+
+  # Re-index doc 3 with doc 1's original vector, then force merge
+  - do:
+      index:
+        index: my_vectors
+        id: "3"
+        refresh: true
+        body:
+          vector: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, -0.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -96,14 +97,20 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     protected static String randomType() {
-        return randomFrom("hnsw", "int8_hnsw");
+        return randomFrom("hnsw", "int8_hnsw", "bbq_hnsw");
+    }
+
+    /** bbq_hnsw requires at least {@link DenseVectorFieldMapper#BBQ_MIN_DIMS} dimensions */
+    protected static int randomDims(String type) {
+        int minDims = "bbq_hnsw".equals(type) ? DenseVectorFieldMapper.BBQ_MIN_DIMS : 4;
+        return randomIntBetween(minDims, 128);
     }
 
     public void testBasic() {
         String indexName = "index1";
-        final int dims = randomIntBetween(4, 128);
-        final String similarity = randomSimilarity();
         final String type = randomType();
+        final int dims = randomDims(type);
+        final String similarity = randomSimilarity();
         final int[] numDocs = new int[] { randomIntBetween(1, 100), 1, 2, randomIntBetween(1, 100) };
         createIndex(indexName, dims, false, internalCluster().numDataNodes(), similarity, type);
         int totalDocs = 0;
@@ -117,9 +124,9 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     public void testSearchAndIndexAfterDisablingGpu() {
         String indexName = "index1";
-        final int dims = randomIntBetween(4, 128);
-        final String similarity = randomSimilarity();
         final String type = randomType();
+        final int dims = randomDims(type);
+        final String similarity = randomSimilarity();
         final int numDocs = randomIntBetween(1, 500);
         createIndex(indexName, dims, false, internalCluster().numDataNodes(), similarity, type);
         ensureGreen();
@@ -152,9 +159,9 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
-        final int dims = randomIntBetween(4, 128);
-        final String similarity = randomSimilarity();
         final String type = randomType();
+        final int dims = randomDims(type);
+        final String similarity = randomSimilarity();
         createIndex(indexName1, dims, false, similarity, type);
         createIndex(indexName2, dims, true, similarity, type);
 
@@ -179,7 +186,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         float[] queryVector = randomFloatVector(dims, similarity);
         int k = 10;
         int numCandidates = k * 5;
-        int minMatches = "int8_hnsw".equals(type) ? k - 4 : k - 3;
+        int minMatches = "hnsw".equals(type) ? k - 3 : k - 4;
 
         // Test 1: Approximate KNN search - expect at least minMatches out of k matches
         var searchResponse1 = prepareSearch(indexName1).setSize(k)
@@ -277,9 +284,9 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     public void testDeletesUpdates() {
         String indexName = "index_deletes_updates";
-        final int dims = randomIntBetween(4, 128);
-        final String similarity = randomSimilarity();
         final String type = randomType();
+        final int dims = randomDims(type);
+        final String similarity = randomSimilarity();
         createIndex(indexName, dims, false, internalCluster().numDataNodes(), similarity, type);
 
         final int numDocs = randomIntBetween(700, 1000);
@@ -471,7 +478,8 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
      * Asserts that two result sets from exact (brute-force) KNN search agree. For float32 the search is deterministic,
      * so we require the same document IDs in the same order with the same scores (k out of k). For int8_hnsw the
      * quantiles differ between the sorted and unsorted index, so near-tied docs can reorder or drop out; there we only
-     * require at least k - 1 of k to match, order-insensitively.
+     * require at least k - 1 of k to match, order-insensitively. For bbq_hnsw the centroid can differ slightly
+     * (summation order), which can flip single bits of 1-bit codes, so we require at least k - 2 of k.
      */
     protected static void assertExactMatches(SearchHit[] hits1, SearchHit[] hits2, int k, String type) {
         Assert.assertEquals("Both result sets should have k hits", k, hits1.length);
@@ -479,6 +487,10 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
         if ("int8_hnsw".equals(type)) {
             assertAtLeastNOutOfKMatches(hits1, hits2, k - 1, k);
+            return;
+        }
+        if ("bbq_hnsw".equals(type)) {
+            assertAtLeastNOutOfKMatches(hits1, hits2, k - 2, k);
             return;
         }
 

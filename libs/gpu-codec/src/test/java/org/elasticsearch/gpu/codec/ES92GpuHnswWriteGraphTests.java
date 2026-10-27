@@ -31,9 +31,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -113,6 +116,44 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
             try (DirectoryReader gpuReader = DirectoryReader.open(gpuDir); DirectoryReader luceneReader = DirectoryReader.open(luceneDir)) {
                 assertGraphStructureEqual(getGraph(gpuReader), getGraph(luceneReader));
                 assertEqualRecallAgainstBruteForce(gpuReader, luceneReader, vectors, sqSimilarity);
+            }
+        }
+    }
+
+    public void testCpuFallbackBBQGraphMatchesLucene() throws Exception {
+        float[][] vectors = generateVectors(numVectors, dims);
+        if (similarity == VectorSimilarityFunction.COSINE) {
+            // the BBQ scorer requires unit-length cosine query vectors (Elasticsearch normalizes them before searching)
+            for (float[] vector : vectors) {
+                VectorUtil.l2normalize(vector);
+            }
+        }
+        var gpuFormat = new ES97GpuHnswBBQVectorsFormat(
+            () -> new NullResourceManager(),
+            0L,
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            false,
+            false
+        );
+        // hnswGraphThreshold=0 to always build a graph, as the GPU writer does
+        var luceneFormat = new ES93HnswBinaryQuantizedVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            1,
+            null,
+            0,
+            false
+        );
+
+        try (Directory gpuDir = newDirectory(); Directory luceneDir = newDirectory()) {
+            indexVectors(gpuDir, gpuFormat, vectors, similarity);
+            indexVectors(luceneDir, luceneFormat, vectors, similarity);
+            try (DirectoryReader gpuReader = DirectoryReader.open(gpuDir); DirectoryReader luceneReader = DirectoryReader.open(luceneDir)) {
+                assertGraphStructureEqual(getGraph(gpuReader), getGraph(luceneReader));
+                assertEqualRecallAgainstBruteForce(gpuReader, luceneReader, vectors, similarity);
             }
         }
     }

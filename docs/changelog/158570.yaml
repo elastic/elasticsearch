@@ -4,8 +4,9 @@ breaking:
   details: >-
     The `include` and `exclude` regular expressions of the `terms`, `significant_terms`, `significant_text`, `rare_terms` and
     `frequent_item_sets` aggregations are now bounded by the `index.max_regex_length` index setting, which defaults to `1000`
-    characters, the same bound the `regexp` query has always applied. Previously a pattern of any length was compiled, and
-    its compilation was not accounted for against the request circuit breaker. The patterns are now compiled on the shard,
+    characters, the same bound the `regexp` query has always applied; raise the setting on the index to keep using a longer
+    pattern. Previously a pattern of any length was compiled, and its compilation was not accounted for against the request
+    circuit breaker. The patterns are now compiled on the shard,
     with every step charged to the request circuit breaker and bounded by a fixed amount of work, so a pattern that is too
     complex to build is rejected instead of occupying a search thread. Both constructors of the pattern now compile it with
     the same flags, so `~` is the complement operator on every shard; before, a shard that received the request from

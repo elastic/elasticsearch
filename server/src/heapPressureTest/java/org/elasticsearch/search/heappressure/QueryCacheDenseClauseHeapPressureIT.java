@@ -11,7 +11,9 @@ package org.elasticsearch.search.heappressure;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.HeapPressureTestCase;
@@ -41,7 +43,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /// - The caching policy of the shard admits a clause after it has been seen 5 times among the last 256 filters used, and in this test
 ///   almost every lookup is a miss that needs that again. A search can therefore have at most about 50 clauses: `CLAUSES` of them, which
 ///   `WARMUP_SEARCHES` warm-up searches first get admitted.
-/// - The cache refuses a segment unless it has room for 5 bitsets of it, about 2.5 MB here, so the cache size has to be more than that.
+/// - The cache refuses a segment unless it has room for 5 bitsets of it, about 600 KB here, so the cache size has to be more than that.
 /// - The cache is not much larger than that, so concurrent searches cannot be answered from one another's bitsets, which a cache hit
 ///   would not allocate.
 /// - One shard, so that one search task builds the bitsets of all the clauses at once. With the documents spread over many shards each
@@ -53,8 +55,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
 
     private static final String INDEX = "query-cache-dense-clause-heap-pressure";
-    // A bitset takes DOCS / 8 bytes, about 500 KB.
-    private static final int DOCS = 4_000_000;
+    // A bitset takes DOCS / 8 bytes, about 125 KB.
+    private static final int DOCS = 1_000_000;
     // A clause is admitted to the cache after being seen 5 times among the last 256 filters used, so a search can have at most about 50
     // clauses.
     private static final int CLAUSES = 40;
@@ -62,16 +64,16 @@ public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
     private static final int WARMUP_SEARCHES = 8;
     private static final int BULK_SIZE = 10_000;
     private static final int BULKS_PER_FLUSH = 3;
-    // A search holds CLAUSES * DOCS / 8 bytes, about 20 MB, and 16 of them hold more than the heap.
-    private static final int THREAD_COUNT = 16;
+    // A search holds CLAUSES * DOCS / 8 bytes, about 5 MB, and 64 of them hold more than the heap.
+    private static final int THREAD_COUNT = 64;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
-        .setting("thread_pool.search.size", "16")
-        // Room for 6 bitsets, just over the 5 that the cache needs to admit the segment, instead of the default tenth of the heap, so that
+        .setting("thread_pool.search.size", Integer.toString(THREAD_COUNT))
+        // Room for 8 bitsets, just over the 5 that the cache needs to admit the segment, instead of the default tenth of the heap, so that
         // the clauses of concurrent searches cannot be answered from one another's bitsets.
-        .setting("indices.queries.cache.size", "3mb")
+        .setting("indices.queries.cache.size", "1mb")
         .jvmArg("-Xms128m")
         .jvmArg("-Xmx128m")
         .build();
@@ -79,6 +81,13 @@ public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
     @Override
     protected ElasticsearchCluster cluster() {
         return cluster;
+    }
+
+    /** The client keeps at most 10 connections per route by default, which would cap the searches that reach the node at 10. */
+    @Override
+    protected void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        super.configureClient(builder, settings);
+        builder.setHttpClientConfigCallback(http -> http.setMaxConnPerRoute(THREAD_COUNT).setMaxConnTotal(THREAD_COUNT));
     }
 
     @Before

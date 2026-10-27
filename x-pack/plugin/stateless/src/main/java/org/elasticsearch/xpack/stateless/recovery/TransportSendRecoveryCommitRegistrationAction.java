@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -129,6 +130,16 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             // Forward the request to the indexing shard
             final ProjectMetadata projectMetadata = state.metadata().projectFor(shardId.getIndex()); // can throw IndexNotFoundException
             var shardRoutingTable = state.routingTable(projectMetadata.id()).shardRoutingTable(shardId);
+
+            // Because recovery is forked from `IndicesClusterStateService` it is possible to arrive here
+            // while `IndicesClusterStateService` or a different cluster state applier is still processing
+            // the state which assigned this shard to this node.
+            // In this case `state` read from `ClusterService` is a state _before_ this search shard is assigned.
+            // It doesn't make sense to send `TransportRegisterCommitForRecoveryAction` to the index shard
+            // with this cluster state version since the action checks routing of the search shard and we know it is not present.
+            if (isSearchShardAssigned(shardRoutingTable, request.getNodeId()) == false) {
+                throw new ShardNotFoundException(shardId, "search shard is not assigned in the cluster state");
+            }
             if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
                 // TODO: A search shard should be able to continue using the found commit despite not being able to register it.
                 // For now, we retry the request to register the commit.
@@ -168,5 +179,15 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             return true;
         }
         return indexShard.routingEntry().isPromotableToPrimary() == false;
+    }
+
+    /// The same idea but slightly different structure from [TransportRegisterCommitForRecoveryAction#isSearchShardInRoutingTable].
+    private boolean isSearchShardAssigned(IndexShardRoutingTable shardRoutingTable, String localNodeId) {
+        for (var shardRouting : shardRoutingTable.assignedUnpromotableShards()) {
+            if (shardRouting.currentNodeId().equals(localNodeId)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

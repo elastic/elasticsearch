@@ -731,8 +731,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
             // The merged segment's size is captured by SizeTrackingOneMerge when the merge commits, while the IndexWriter lock is held.
             // It must not be read here: by now the segment is visible to the IndexWriter, which may be updating it concurrently, and (for
-            // stateless) it may even have been merged away so that its files are gone. If no size was captured (e.g. the merge was
-            // aborted or its segment dropped), use the originally estimated merge size for metrics.
+            // stateless) it may even have been merged away so that its files are gone. If no size was captured (e.g. the size of the
+            // committed segment could not be read), use the originally estimated merge size for metrics.
             if (currentMerge instanceof SizeTrackingOneMerge sizeTrackingMerge) {
                 return sizeTrackingMerge.mergedSegmentSizeInBytes().orElse(currentMerge.estimatedMergeBytes);
             } else {

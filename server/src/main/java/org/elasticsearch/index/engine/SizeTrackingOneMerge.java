@@ -49,7 +49,10 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
     public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
         super.mergeFinished(success, segmentDropped);
         SegmentCommitInfo mergeInfo = getMergeInfo();
-        if (success && segmentDropped == false && mergeInfo != null) {
+        if (success && segmentDropped) {
+            // The merged segment was fully deleted and dropped, so the merge produced no bytes.
+            mergedSegmentSizeInBytes = 0L;
+        } else if (success && mergeInfo != null) {
             try {
                 mergedSegmentSizeInBytes = mergeInfo.sizeInBytes();
             } catch (IOException e) {
@@ -59,7 +62,8 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
     }
 
     /**
-     * @return the size of the merged segment, or empty if the merge did not commit a segment or its size could not be read
+     * @return the size of the merged segment ({@code 0} if it was dropped because all its documents were deleted), or empty if the merge
+     * did not succeed or the size of the committed segment could not be read
      */
     public OptionalLong mergedSegmentSizeInBytes() {
         long size = mergedSegmentSizeInBytes;

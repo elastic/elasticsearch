@@ -63,7 +63,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityInterceptor;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivitySinks;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -218,7 +217,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
-        ActivitySinks activitySinks,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -263,7 +261,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = ActivityInterceptor.of(queryLogger.sink(), activitySinks.forType(SearchCaptureContext.class));
+        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger.sink()));
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

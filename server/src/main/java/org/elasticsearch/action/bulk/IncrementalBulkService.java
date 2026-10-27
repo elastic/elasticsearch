@@ -196,6 +196,7 @@ public class IncrementalBulkService {
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private final IndexingPressure.Incremental incrementalOperation;
+        private final Releasable requestContextReservation;
         // Ideally this should be in RestBulkAction, but it's harder to inject the metric registry there
         private final LongHistogram chunkWaitTimeMillisHistogram;
         private boolean closed = false;
@@ -229,7 +230,19 @@ public class IncrementalBulkService {
             this.refreshPolicy = refreshPolicy;
             this.paramsUsed = paramsUsed;
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
-            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            // The REST request's context (headers and transient security metadata) is retained until this handler closes, which
+            // outlives the coordinating operations that are split off per sub-request. Reserve it once for the handler's lifetime.
+            this.requestContextReservation = indexingPressure.markCoordinatingOperationStarted(
+                0,
+                threadPool.getThreadContext().estimatedRequestContextBytes(),
+                false
+            );
+            try {
+                this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            } catch (Exception e) {
+                requestContextReservation.close();
+                throw e;
+            }
 
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                 bulkSessionTask = (CancellableTask) taskManager.register(
@@ -255,8 +268,8 @@ public class IncrementalBulkService {
                 );
                 createNewBulkRequest(EMPTY_STATE);
             } catch (Exception e) {
-                // The caller never receives this Handler, so nothing would be left to release the reservation.
-                incrementalOperation.close();
+                // The caller never receives this Handler, so nothing would be left to release the reservations.
+                Releasables.close(incrementalOperation, requestContextReservation);
                 throw e;
             }
         }
@@ -406,6 +419,7 @@ public class IncrementalBulkService {
                 closed = true;
                 cancelTimeout();
                 incrementalOperation.close();
+                requestContextReservation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {

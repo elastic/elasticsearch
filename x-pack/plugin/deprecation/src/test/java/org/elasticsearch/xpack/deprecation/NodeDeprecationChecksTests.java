@@ -989,7 +989,34 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getDetails(), org.hamcrest.Matchers.containsString("[logger.org.elasticsearch.http.HttpTracer]"));
     }
 
+    public void testJavaVersionBelow25() {
+        DeprecationIssue issue = NodeDeprecationChecks.checkJavaVersion(Runtime.Version.parse("21.0.5+11"));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Running Elasticsearch with Java 21-24 is deprecated",
+                    "https://www.elastic.co/support/matrix#matrix_jvm",
+                    "This node is running Java [21.0.5+11]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testJavaVersion25OrLater() {
+        assertThat(NodeDeprecationChecks.checkJavaVersion(Runtime.Version.parse("25")), nullValue());
+        assertThat(NodeDeprecationChecks.checkJavaVersion(Runtime.Version.parse("27.0.1+2")), nullValue());
+    }
+
     static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
-        return checks.stream().map(mapper).filter(Objects::nonNull).toList();
+        // the Java version check depends on the JVM running the tests, so exclude it when testing other checks
+        return checks.stream()
+            .map(mapper)
+            .filter(Objects::nonNull)
+            .filter(issue -> issue.equals(NodeDeprecationChecks.checkJavaVersion(Runtime.version())) == false)
+            .toList();
     }
 }

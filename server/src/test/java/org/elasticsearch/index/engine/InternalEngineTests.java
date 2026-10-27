@@ -142,6 +142,8 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1956,6 +1958,43 @@ public class InternalEngineTests extends EngineTestCase {
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
             assertThat(readAllOperationsInLucene(engine), hasSize(liveDocsWithSource.size()));
+        }
+    }
+
+    /**
+     * The merged segment size reported to the merge metrics is captured by {@link SizeTrackingOneMerge} when the merge commits, so it
+     * must match the size of the segment the merge produced.
+     */
+    public void testMergedSegmentSizeIsRecordedInMergeMetrics() throws Exception {
+        assumeTrue("requires the thread pool merge scheduler", threadPoolMergeExecutorService != null);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        mergeMetrics = new MergeMetrics(meterRegistry);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())
+        ) {
+            int segments = between(2, 5);
+            for (int i = 0; i < segments; i++) {
+                indexDoc(engine, indexForDoc(testParsedDocument(Integer.toString(i), null, testDocument(), B_1)));
+                engine.refresh("test");
+            }
+            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+            assertBusy(
+                () -> assertThat(
+                    meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, MergeMetrics.MERGE_SEGMENTS_MERGED_SIZE),
+                    hasSize(1)
+                )
+            );
+            SegmentInfos committed = engine.getLastCommittedSegmentInfos();
+            assertThat(committed.size(), equalTo(1));
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, MergeMetrics.MERGE_SEGMENTS_MERGED_SIZE)
+                    .getFirst()
+                    .getLong(),
+                equalTo(committed.info(0).sizeInBytes())
+            );
         }
     }
 

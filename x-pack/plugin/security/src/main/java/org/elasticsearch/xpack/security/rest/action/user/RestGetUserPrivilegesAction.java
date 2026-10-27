@@ -70,6 +70,8 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
     // Package protected for testing
     static class RestListener extends RestBuilderListener<GetUserPrivilegesResponse> {
+        static final String INDEX_SUMMARY = "index_summary";
+
         RestListener(RestChannel channel) {
             super(channel);
         }
@@ -90,6 +92,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             builder.endArray();
 
             builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
+            builder.field(INDEX_SUMMARY, response.getIndexSummary());
             builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
             builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
             if (response.hasRemoteIndicesPrivileges()) {

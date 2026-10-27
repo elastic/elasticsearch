@@ -194,6 +194,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
               "cluster": [],
               "global": [],
               "indices": [],
+              "index_summary": [],
               "applications": [],
               "run_as": [],
               "remote_indices": [
@@ -250,6 +251,14 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "privileges": ["all"],
                   "allow_restricted_indices": false
                 }
+              ],
+              "index_summary": [
+                "all", "auto_configure", "create", "create_dataset", "create_doc", "create_index", "create_view",
+                "cross_cluster_replication", "cross_cluster_replication_internal", "delete", "delete_dataset", "delete_index",
+                "delete_view", "index", "maintenance", "manage", "manage_data_stream_lifecycle", "manage_dataset",
+                "manage_failure_store", "manage_follow_index", "manage_ilm", "manage_leader_index", "manage_view", "monitor",
+                "read", "read_cross_cluster", "read_dataset_metadata", "read_failure_store", "read_view_metadata",
+                "view_index_metadata", "write"
               ],
               "applications": [],
               "run_as": [],

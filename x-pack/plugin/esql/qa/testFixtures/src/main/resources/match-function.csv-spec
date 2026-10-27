@@ -3135,6 +3135,201 @@ c:long | min_score:double | max_score:double
 10     | 2.0              | 3.0
 ;
 
+matchOnRuntimeTextAndScoreInOr
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: score_in_or_sees_other_searches
+
+// as with indexed fields, the _score in the OR sees the score of the other match, so the books matching both terms
+// pass without matching "English"
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings") AND (match(content, "English") OR _score > 1.0)
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+7670            | 2.0
+;
+
+matchOnRuntimeTextAndTwoScoresInOr
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: score_in_or_sees_other_searches
+
+// each _score sees only the first match, not the other OR's, so books scoring 1.0 from it and matching "Hobbit" are out
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings") AND (match(content, "Hobbit") OR _score > 1.5) AND (match(content, "English") OR _score > 1.5)
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 3.0
+2714            | 3.0
+4023            | 3.0
+5335            | 3.0
+7140            | 2.0
+7350            | 3.0
+;
+
+matchOnRuntimeTextAndScoreInNestedOr
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: score_in_or_sees_other_searches
+
+// the nested _score sees the score of the first match, so books matching "Hobbit" without "Rings" pass
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien") AND (match(content, "Rings") OR (match(content, "Hobbit") AND _score > 0.5))
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 3.0
+2301            | 2.0
+2714            | 3.0
+4023            | 3.0
+4289            | 2.0
+5335            | 3.0
+5996            | 2.0
+7140            | 2.0
+7350            | 3.0
+;
+
+matchOnRuntimeTextAndScoreInOrInTwoWheres
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: score_in_or_sees_other_searches
+
+// the filters combine, so as with indexed fields each _score sees the score of both "Tolkien" and "Hobbit"
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien") AND (match(content, "Rings") OR _score > 1.5)
+| WHERE match(content, "Hobbit") AND (match(content, "English") OR _score > 1.5)
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 3.0
+2301            | 2.0
+2714            | 3.0
+4023            | 3.0
+4289            | 2.0
+5335            | 3.0
+5996            | 2.0
+7350            | 3.0
+;
+
+matchOnRuntimeTextAndScoreInOrInWheresAroundLimit
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fn_match_runtime_anywhere
+required_capability: score_in_or_sees_other_searches
+
+// the LIMIT keeps the filters apart, so the second _score sees the first WHERE's score as well as "Hobbit"
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien") AND (match(content, "Rings") OR _score > 0.5)
+| SORT book_no
+| LIMIT 100
+| WHERE match(content, "Hobbit") AND (match(content, "English") OR _score > 2.5)
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 3.0
+2714            | 3.0
+4023            | 3.0
+5335            | 3.0
+7350            | 3.0
+;
+
+matchAndScoreOrMatchOnRuntimeText
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// as with indexed fields, the _score sees the 0.0 from before the WHERE rather than the score of the match it's ANDed
+// with, so only the books matching "Hobbit" pass
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE (match(content, "Rings") AND _score > 0.5) OR match(content, "Hobbit")
+| SORT book_no
+| KEEP book_no
+;
+
+book_no:keyword
+1463
+2301
+2675
+2714
+2936
+4023
+4289
+5335
+5996
+6405
+6760
+7350
+7480
+;
+
+matchAndScoreOrMatchOnIndexedField
+required_capability: match_function
+required_capability: metadata_score
+
+// the _score keeps the OR out of Lucene, so it sees the 0.0 from before the WHERE rather than the score of the title
+// match it's ANDed with, and only the books whose title matches "Hobbit" pass
+FROM books METADATA _score
+| WHERE (match(title, "Rings") AND _score > 0.5) OR match(title, "Hobbit")
+| SORT book_no
+| KEEP book_no
+;
+
+book_no:keyword
+4289
+6405
+7480
+;
+
+matchOnIndexedFieldInComputeAndScoreInOr
+required_capability: match_function
+required_capability: metadata_score
+required_capability: score_in_or_sees_other_searches
+
+// the OR with LENGTH keeps the title match out of Lucene, so it scores in compute; the _score in the other OR sees that
+// score rather than the 0.0 from before the WHERE, so the books whose title matches "Tolkien" pass without "English"
+FROM books METADATA _score
+| WHERE (match(title, "Tolkien") OR LENGTH(title) > 1000) AND (match(description, "English") OR _score > 0.0)
+| SORT book_no
+| KEEP book_no
+;
+
+book_no:keyword
+1463
+2130
+4023
+5335
+;
+
 matchOnRuntimeTextThenLookupJoinThenScoreFilter
 required_capability: match_function
 required_capability: metadata_score

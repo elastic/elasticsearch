@@ -1233,6 +1233,25 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code C = A @ B} where A is (n x k), B is (k x n) and C is (n x n), all row-major, for a product that
+     * is known to be symmetric, such as {@code A^T A}. It computes only the entries on and above the diagonal, about half
+     * of the work of {@link #matrixMultiply}, and copies them into the lower triangle. The result is undefined if the
+     * product is not symmetric. Whatever {@code result} held before is overwritten.
+     */
+    public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        if (a.length != n * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != n * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+    }
+
+    /**
      * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
      *
      * @param a    flat row-major matrix, length rows*cols
@@ -1257,6 +1276,29 @@ public class ESVectorUtil {
      * @param result output vector, length rows
      */
     public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix of signed bytes,
+     * accumulated in exact int32 arithmetic.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
         if (a.length != rows * cols) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
         }

@@ -213,11 +213,8 @@ public class Analysis {
      * hash stands in for them in sharing keys. Both are null when there are no rules.
      */
     public record LoadedUserDictionary<T>(T dictionary, String rulesSha256) {
-        private static final LoadedUserDictionary<?> NONE = new LoadedUserDictionary<>(null, null);
-
-        @SuppressWarnings("unchecked")
         public static <T> LoadedUserDictionary<T> none() {
-            return (LoadedUserDictionary<T>) NONE;
+            return new LoadedUserDictionary<>(null, null);
         }
     }
 

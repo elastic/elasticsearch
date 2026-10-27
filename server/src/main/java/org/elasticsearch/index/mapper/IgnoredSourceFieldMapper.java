@@ -444,11 +444,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Applies a field-level security filter to one decoded entry. The whole-document entry of a {@code columnar_stored} index holds the
-     * entire {@code _source} under the name {@link SourceFieldMapper#NAME}, which is not a field path: filtered under it, every field of
-     * the document would pass along with the {@code _} prefixed metadata fields that field-level security always grants. So its fields are
-     * filtered on their own paths instead, and the entry is never dropped, as the root reads exactly one; a document left with no field
-     * reads as an empty object.
+     * Applies a filter to one decoded entry. The whole-document entry of a {@code columnar_stored} index holds the entire {@code _source}
+     * under the name {@link SourceFieldMapper#NAME}, which is not a field path: filtered under it, every field of the document would pass
+     * along with the {@code _} prefixed metadata fields that field-level security always grants. So its fields are filtered on their own
+     * paths instead, and the entry is never dropped, as the root reads exactly one; a document left with no field reads as an empty object.
      */
     private static Map<String, Object> filterMapped(
         MappedNameValue mappedNameValue,

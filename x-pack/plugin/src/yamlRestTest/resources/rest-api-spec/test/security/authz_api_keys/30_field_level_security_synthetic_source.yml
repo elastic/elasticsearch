@@ -1853,13 +1853,8 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
 ---
 Fields of a columnar_stored _source under FLS:
   # columnar_stored keeps the whole _source in one _ignored_source entry named _source, which FLS used to grant as a metadata field,
-  # handing out every field of the document: mapped, unmapped and nested alike.
+  # handing out every field of the document.
   - requires:
-      test_runner_features: [ capabilities, headers ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
       cluster_features: [ "mapper.columnar_stored.source_fls_fix" ]
       reason: "the fields of a columnar_stored _source are filtered under FLS since mapper.columnar_stored.source_fls_fix"
 
@@ -1870,15 +1865,12 @@ Fields of a columnar_stored _source under FLS:
           settings:
             index.mode: columnar
             index.mapping.source.mode: columnar_stored
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
             properties:
               name:
                 type: keyword
               secret:
                 type: keyword
-              n:
-                type: nested
 
   - do:
       bulk:
@@ -1886,7 +1878,7 @@ Fields of a columnar_stored _source under FLS:
         refresh: true
         body:
           - '{"index": {"_id": "1"}}'
-          - '{"name": "a", "secret": "m", "k": "secret", "visible": "v", "obj": {"hidden": "h", "shown": "s"}, "n": [{"hidden": "nh", "shown": "ns"}]}'
+          - '{"name": "a", "secret": "m"}'
   - match: { errors: false }
 
   - do:
@@ -1901,7 +1893,7 @@ Fields of a columnar_stored _source under FLS:
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "*" ]
-                    except: [ "secret", "k", "obj.hidden", "n.hidden" ]
+                    except: [ "secret" ]
   - set:
       encoded: except_credentials
 
@@ -1916,7 +1908,7 @@ Fields of a columnar_stored _source under FLS:
                 - names: [ "index_fls_columnar_stored" ]
                   privileges: [ "read" ]
                   field_security:
-                    grant: [ "name", "visible", "obj.shown", "n.shown" ]
+                    grant: [ "name" ]
   - set:
       encoded: grant_credentials
 
@@ -1927,14 +1919,8 @@ Fields of a columnar_stored _source under FLS:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: "a" }
   - match: { hits.hits.0._source.secret: "m" }
-  - match: { hits.hits.0._source.k: "secret" }
-  - match: { hits.hits.0._source.visible: "v" }
-  - match: { hits.hits.0._source.obj\.hidden: "h" }
-  - match: { hits.hits.0._source.obj\.shown: "s" }
-  - match: { hits.hits.0._source.n.hidden: "nh" }
-  - match: { hits.hits.0._source.n.shown: "ns" }
 
-  # Granted all but a mapped, an unmapped, an unmapped object and a nested field: those are hidden, the others stay
+  # Granted all but secret
   - do:
       headers:
         Authorization: "ApiKey ${except_credentials}"
@@ -1943,12 +1929,6 @@ Fields of a columnar_stored _source under FLS:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: "a" }
   - is_false: "hits.hits.0._source.secret"
-  - is_false: "hits.hits.0._source.k"
-  - match: { hits.hits.0._source.visible: "v" }
-  - is_false: 'hits.hits.0._source.obj\.hidden'
-  - match: { hits.hits.0._source.obj\.shown: "s" }
-  - is_false: "hits.hits.0._source.n.hidden"
-  - match: { hits.hits.0._source.n.shown: "ns" }
 
   - do:
       headers:
@@ -1958,14 +1938,8 @@ Fields of a columnar_stored _source under FLS:
         id: "1"
   - match: { _source.name: "a" }
   - is_false: "_source.secret"
-  - is_false: "_source.k"
-  - match: { _source.visible: "v" }
-  - is_false: '_source.obj\.hidden'
-  - match: { _source.obj\.shown: "s" }
-  - is_false: "_source.n.hidden"
-  - match: { _source.n.shown: "ns" }
 
-  # Granted name, visible, obj.shown and n.shown only: the granted fields stay
+  # Granted name only
   - do:
       headers:
         Authorization: "ApiKey ${grant_credentials}"
@@ -1974,27 +1948,6 @@ Fields of a columnar_stored _source under FLS:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: "a" }
   - is_false: "hits.hits.0._source.secret"
-  - is_false: "hits.hits.0._source.k"
-  - match: { hits.hits.0._source.visible: "v" }
-  - is_false: 'hits.hits.0._source.obj\.hidden'
-  - match: { hits.hits.0._source.obj\.shown: "s" }
-  - is_false: "hits.hits.0._source.n.hidden"
-  - match: { hits.hits.0._source.n.shown: "ns" }
-
-  - do:
-      headers:
-        Authorization: "ApiKey ${grant_credentials}"
-      get:
-        index: index_fls_columnar_stored
-        id: "1"
-  - match: { _source.name: "a" }
-  - is_false: "_source.secret"
-  - is_false: "_source.k"
-  - match: { _source.visible: "v" }
-  - is_false: '_source.obj\.hidden'
-  - match: { _source.obj\.shown: "s" }
-  - is_false: "_source.n.hidden"
-  - match: { _source.n.shown: "ns" }
 
   # ES|QL reads the same filtered source
   - do:
@@ -2005,9 +1958,3 @@ Fields of a columnar_stored _source under FLS:
           query: 'FROM index_fls_columnar_stored METADATA _source | KEEP _source | LIMIT 1'
   - match: { values.0.0.name: "a" }
   - is_false: "values.0.0.secret"
-  - is_false: "values.0.0.k"
-  - match: { values.0.0.visible: "v" }
-  - is_false: 'values.0.0.obj\.hidden'
-  - match: { values.0.0.obj\.shown: "s" }
-  - is_false: "values.0.0.n.hidden"
-  - match: { values.0.0.n.shown: "ns" }

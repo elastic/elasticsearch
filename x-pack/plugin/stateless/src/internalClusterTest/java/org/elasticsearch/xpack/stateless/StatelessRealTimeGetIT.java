@@ -72,6 +72,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -771,17 +772,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var getFromTranslogSeen = new AtomicInteger();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
-                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                final var attempt = getFromTranslogSeen.incrementAndGet();
+                if (attempt <= failCount) {
                     channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+                    // Update cluster state after failed attempt to retry the get call
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("field" + attempt, "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
             });
         final var getFuture = client().prepareGet(indexName, "non-existing").setRealtime(true).execute();
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < failCount; i++) {
-            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
-        }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
@@ -869,17 +871,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var getFromTranslogSeen = new AtomicInteger();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
-                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                final var attempt = getFromTranslogSeen.incrementAndGet();
+                if (attempt <= failCount) {
                     channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+                    // Update cluster state after failed attempt to retry the multi-get call
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("field" + attempt, "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
             });
         final var getFuture = client().prepareMultiGet().addIds(indexName, "non-existing").setRealtime(true).execute();
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < failCount; i++) {
-            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
-        }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).getResponses()[0].getResponse().isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }

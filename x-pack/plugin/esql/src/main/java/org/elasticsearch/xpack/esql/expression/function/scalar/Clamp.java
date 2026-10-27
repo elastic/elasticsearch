@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Clamps the values of all samples to have a lower limit of min and an upper limit of max.
  */
-public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression {
+public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression, AnyNullIsNull {
     private final Expression field;
     private final Expression min;
     private final Expression max;

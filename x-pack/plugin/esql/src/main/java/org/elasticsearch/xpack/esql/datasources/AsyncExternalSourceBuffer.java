@@ -97,11 +97,11 @@ public final class AsyncExternalSourceBuffer {
      * {@code FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()}),
      * which do not necessarily imply a dropped record. See {@link #recordWarning} vs {@link
      * #recordInformationalWarning}. Producer / parse-worker threads append here off the driver thread;
-     * {@link AsyncExternalSourceOperator#close()} drains and re-emits them via {@link
-     * org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response headers
-     * {@code DriverRunner} collects into the client response. Emitting from the forked worker thread
-     * directly would land the header on that worker's {@code ThreadContext}, which is never merged
-     * back into the response — so the warning would be invisible to the client.
+     * {@link AsyncExternalSourceOperator#close()} drains them into the driver's
+     * {@link org.elasticsearch.compute.operator.DriverContext} sink, which {@code DriverCompletionInfo} carries back
+     * from whatever node and thread ran the scan for the coordinator to re-emit. Depositing from the forked worker
+     * thread directly is not an option: that thread's sink is not this driver's, and the {@code ThreadContext}
+     * alternative reaches the client only when the query happens to complete on a thread that inherited the header.
      */
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
 

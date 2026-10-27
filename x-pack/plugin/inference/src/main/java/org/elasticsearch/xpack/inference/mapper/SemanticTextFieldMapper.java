@@ -665,6 +665,14 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
+        protected ValueFetcher directValueFetcher(SearchExecutionContext context) {
+            if (useLegacyFormat) {
+                return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
+            }
+            return super.directValueFetcher(context);
+        }
+
+        @Override
         protected CheckedFunction<BytesRef, Object, IOException> inputDecoder() {
             return BytesRef::utf8ToString; // semantic_text stores its input as raw UTF-8 text
         }

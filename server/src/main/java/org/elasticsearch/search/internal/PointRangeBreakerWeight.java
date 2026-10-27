@@ -35,6 +35,8 @@ import java.util.Arrays;
  */
 final class PointRangeBreakerWeight extends Weight {
 
+    private static final String BREAKER_LABEL = "pointrange-execution";
+
     private final ContextIndexSearcher searcher;
     private final Weight in;
     private final PointRangeQuery pointRangeQuery;
@@ -75,14 +77,14 @@ final class PointRangeBreakerWeight extends Weight {
             @Override
             public Scorer get(long leadCost) throws IOException {
                 if (indexOrDocValues == false || (cost >>> 3) <= leadCost) {
-                    searcher.chargeLeaf(context, charge);
+                    searcher.chargeLeaf(context, charge, BREAKER_LABEL);
                 }
                 return inner.get(leadCost);
             }
 
             @Override
             public BulkScorer bulkScorer() throws IOException {
-                searcher.chargeLeaf(context, charge);
+                searcher.chargeLeaf(context, charge, BREAKER_LABEL);
                 return inner.bulkScorer();
             }
 

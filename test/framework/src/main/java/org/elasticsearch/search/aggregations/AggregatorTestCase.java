@@ -781,7 +781,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         if (aggTestConfig.testReductionCancellation()) {
             try {
                 // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
-                List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
+                List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs.size());
+                for (InternalAggregations aggs : internalAggs) {
+                    List<InternalAggregation> copied = new ArrayList<>(aggs.copyResults().size());
+                    for (InternalAggregation agg : aggs) {
+                        copied.add(copyNamedWriteable(agg, writableRegistry(), InternalAggregation.class));
+                    }
+                    internalAggsCopy.add(InternalAggregations.from(copied));
+                }
                 A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
                 if (internalAgg instanceof MultiBucketsAggregation mb) {
                     // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check

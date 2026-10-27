@@ -308,25 +308,7 @@ public class EsqlCCSUtils {
                     );
                 }
             } else {
-                // We check for the valid resolution because if we have empty resolution it's still an error.
-                for (IndexResolution indexResolution : indexResolutions) {
-                    if (indexResolution.isValid()) {
-                        List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
-                        // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
-                        if (failures.isEmpty()) {
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
-                        } else {
-                            // skip reporting index_not_found exceptions to avoid spamming users with such errors
-                            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
-                            Exception nonIndexNotFound = failures.stream()
-                                .map(FieldCapabilitiesFailure::getException)
-                                .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
-                                .findAny()
-                                .orElse(null);
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
-                        }
-                    }
-                }
+                markClusterWithNoMatchingIndices(executionInfo, c, indexResolutions);
             }
         }
         // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
@@ -353,6 +335,44 @@ public class EsqlCCSUtils {
 
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage.toString());
+        }
+    }
+
+    /**
+     * A wildcard cluster that matched no indices. Several resolutions can name the same cluster, one per
+     * {@link IndexPattern}. A resolution that did not query the cluster has an empty failure list, and marking from
+     * each resolution in turn would let that empty list overwrite a real field-caps failure.
+     */
+    private static void markClusterWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        Collection<IndexResolution> indexResolutions
+    ) {
+        boolean sawValid = false;
+        boolean sawFailure = false;
+        Exception nonIndexNotFound = null;
+        for (IndexResolution indexResolution : indexResolutions) {
+            if (indexResolution.isValid() == false) {
+                continue;
+            }
+            sawValid = true;
+            for (FieldCapabilitiesFailure failure : indexResolution.failures().getOrDefault(clusterAlias, List.of())) {
+                sawFailure = true;
+                if (nonIndexNotFound == null && ExceptionsHelper.unwrap(failure.getException(), IndexNotFoundException.class) == null) {
+                    nonIndexNotFound = failure.getException();
+                }
+            }
+        }
+        if (sawValid == false) {
+            return;
+        }
+        if (sawFailure == false) {
+            // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+            markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SUCCESSFUL, null);
+        } else {
+            // skip reporting index_not_found exceptions to avoid spamming users with such errors
+            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+            markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SKIPPED, nonIndexNotFound);
         }
     }
 

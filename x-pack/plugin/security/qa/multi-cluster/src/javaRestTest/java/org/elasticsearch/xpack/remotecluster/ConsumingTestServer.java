@@ -50,16 +50,14 @@ class ConsumingTestServer extends ExternalResource {
     private Thread consumerThread() {
         return new Thread(() -> {
             while (consumerRunning) {
-                if (consumer != null) {
-                    try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
-                            consumer.accept(msg);
-                        }
-
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                try {
+                    // Drain even without a consumer: a full queue fails intake requests and puts the APM agent into a long backoff
+                    String msg = received.poll(1L, TimeUnit.SECONDS);
+                    if (msg != null && msg.isEmpty() == false && consumer != null) {
+                        consumer.accept(msg);
                     }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
             }
         });

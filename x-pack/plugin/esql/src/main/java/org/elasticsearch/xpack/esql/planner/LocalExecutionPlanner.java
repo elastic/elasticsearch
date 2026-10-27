@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
@@ -255,6 +256,12 @@ public class LocalExecutionPlanner {
     private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    /**
+     * Whether an external source with no registered dataset behind it may be planned (the snapshot-only inline
+     * {@code EXTERNAL} command). Injected, like {@link DatasetConfigResolver}'s, so tests that plan bare execs are not
+     * tied to the build they run under.
+     */
+    private final boolean snapshotBuild;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -278,6 +285,7 @@ public class LocalExecutionPlanner {
         ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean snapshotBuild,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog
@@ -300,6 +308,7 @@ public class LocalExecutionPlanner {
         this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.snapshotBuild = snapshotBuild;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -1850,6 +1859,14 @@ public class LocalExecutionPlanner {
         // bypasses that gate and is stopped only here, after its planning-time source resolution and split discovery
         // have run.
         Federation.ensureEnabled(settings);
+        // Credential backstop. Every path that brings an external source to this point has already rebound the exec
+        // to this node's registered dataset (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
+        // .runCompute), which refuses a source with no dataset behind it on a release build. Repeat that one check
+        // here: it catches a future path that builds the operator from an unbound exec, though not one that skips the
+        // rebind for a named exec, which only the rebind itself can guard.
+        if (externalSource.datasetName() == null && snapshotBuild == false) {
+            throw DatasetConfigResolver.notRegistered(null);
+        }
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
@@ -1861,6 +1878,16 @@ public class LocalExecutionPlanner {
 
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        }
+        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
+        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+            throw new IllegalArgumentException(
+                "external dataset ["
+                    + externalSource.datasetName()
+                    + "] cannot be read through non-file source type ["
+                    + externalSource.sourceType()
+                    + "]"
+            );
         }
 
         StoragePath path = StoragePath.of(externalSource.sourcePath());

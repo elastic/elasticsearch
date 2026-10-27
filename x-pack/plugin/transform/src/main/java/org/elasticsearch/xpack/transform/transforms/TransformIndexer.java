@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.RetentionPolicyToDeleteByQueryRequestConverter.RetentionPolicyException;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedulingUtils;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -103,6 +104,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private final boolean supportsMultipleProjects;
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
+    // the same clock the checkpoint providers use to stamp checkpoint timestamps
+    private final Clock clock;
     protected final TransformFailureHandler failureHandler;
     private final IndicesOptions strictIndicesOptions;
     private volatile float docsPerSecond = -1;
@@ -163,6 +166,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.auditor();
+        this.clock = transformServices.clock();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
@@ -263,6 +267,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
         checkpointProvider.createNextCheckpoint(
             getLastCheckpoint(),
+            CheckpointProvider.getIndexCheckpointsTimeout(
+                getConfig().getSettings() == null ? null : getConfig().getSettings().getIndexerRequestTimeout(),
+                context.getFailureCount()
+            ),
             ActionListener.wrap(
                 checkpoint -> transformsConfigManager.putTransformCheckpoint(
                     checkpoint,
@@ -1038,8 +1046,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      *
      * @param listener listener to call after done
      */
-    private void cleanupOldCheckpoints(ActionListener<Void> listener) {
-        long now = getTimeNanos() * 1000;
+    void cleanupOldCheckpoints(ActionListener<Void> listener) {
+        long now = clock.millis();
         long checkpointLowerBound = context.getCheckpoint() - NUMBER_OF_CHECKPOINTS_TO_KEEP;
         long lowerBoundEpochMs = now - RETENTION_OF_CHECKPOINTS_MS;
 

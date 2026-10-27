@@ -1581,6 +1581,34 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertArrayEquals(ser.getStackTrace(), rootException.getStackTrace());
     }
 
+    public void testWriteExceptionWithAdditionalSuppressed() throws IOException {
+        IllegalStateException cause = new IllegalStateException("cause");
+        Exception exception = randomBoolean()
+            ? new ElasticsearchException("exception", cause)
+            : new IllegalArgumentException("exception", cause);
+        exception.addSuppressed(new ElasticsearchException("own suppressed"));
+        IOException additional = new IOException("additional suppressed");
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        ElasticsearchException.writeException(exception, out, new Throwable[] { additional });
+        Exception read = out.bytes().streamInput().readException();
+
+        assertThat(read, instanceOf(exception.getClass()));
+        Throwable[] readSuppressed = read.getSuppressed();
+        assertEquals(2, readSuppressed.length);
+        assertThat(readSuppressed[0].getMessage(), equalTo("own suppressed"));
+        assertThat(readSuppressed[1], instanceOf(IOException.class));
+        assertThat(readSuppressed[1].getMessage(), equalTo("additional suppressed"));
+        assertEquals(0, read.getCause().getSuppressed().length);
+        assertEquals(1, exception.getSuppressed().length);
+
+        BytesStreamOutput withoutAdditional = new BytesStreamOutput();
+        ElasticsearchException.writeException(exception, withoutAdditional, ElasticsearchException.NO_ADDITIONAL_SUPPRESSED);
+        BytesStreamOutput plain = new BytesStreamOutput();
+        ElasticsearchException.writeException(exception, plain);
+        assertEquals(plain.bytes(), withoutAdditional.bytes());
+    }
+
     static class TimeoutSubclass extends ElasticsearchException {
         TimeoutSubclass(String message) {
             super(message);

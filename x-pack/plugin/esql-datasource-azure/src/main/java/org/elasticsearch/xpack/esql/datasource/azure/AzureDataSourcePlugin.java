@@ -74,7 +74,8 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
             () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,
-            cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections)
+            cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections),
+            services.credentialPolicy()
         );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }

@@ -231,7 +231,8 @@ public class TransformTaskTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            Clock.systemUTC()
         );
     }
 

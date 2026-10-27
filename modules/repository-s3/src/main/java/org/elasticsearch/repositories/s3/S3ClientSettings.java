@@ -178,6 +178,17 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
+    /**
+     * Whether to send a {@code Content-MD5} header on requests that need a checksum (e.g. {@code DeleteObjects}), as the AWS SDK did before
+     * v2.30.0. AWS S3 itself no longer requires this, but some third-party stores that claim to be S3-compatible still do.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // temporary workaround for non-compliant stores, must be removed in v10
+    static final Setting.AffixSetting<Boolean> LEGACY_CONTENT_MD5 = Setting.affixKeySetting(
+        PREFIX,
+        "legacy_content_md5",
+        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
+    );
+
     /** An override for the s3 region to use for signing requests. */
     static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
         PREFIX,
@@ -297,6 +308,9 @@ final class S3ClientSettings {
     /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */
     final boolean alwaysSignRequests;
 
+    /** Whether to send a legacy {@code Content-MD5} header on requests that need a checksum. */
+    final boolean legacyContentMd5;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -317,7 +331,8 @@ final class S3ClientSettings {
         String region,
         ByteSizeValue maxCopySizeBeforeMultipart,
         boolean tenaciousRetriesEnabled,
-        boolean alwaysSignRequests
+        boolean alwaysSignRequests,
+        boolean legacyContentMd5
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -339,6 +354,7 @@ final class S3ClientSettings {
         this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
         this.alwaysSignRequests = alwaysSignRequests;
+        this.legacyContentMd5 = legacyContentMd5;
     }
 
     /**
@@ -399,6 +415,7 @@ final class S3ClientSettings {
             tenaciousRetriesEnabled
         );
         final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
+        final boolean newLegacyContentMd5 = getRepoSettingOrDefault(LEGACY_CONTENT_MD5, normalizedSettings, legacyContentMd5);
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -416,7 +433,8 @@ final class S3ClientSettings {
             && Objects.equals(region, newRegion)
             && Objects.equals(maxCopySizeBeforeMultipart, newMaxCopySizeBeforeMultipart)
             && tenaciousRetriesEnabled == newTenaciousRetriesEnabled
-            && newAlwaysSignRequests == alwaysSignRequests) {
+            && newAlwaysSignRequests == alwaysSignRequests
+            && newLegacyContentMd5 == legacyContentMd5) {
             return this;
         }
         return new S3ClientSettings(
@@ -439,7 +457,8 @@ final class S3ClientSettings {
             newRegion,
             newMaxCopySizeBeforeMultipart,
             newTenaciousRetriesEnabled,
-            newAlwaysSignRequests
+            newAlwaysSignRequests,
+            newLegacyContentMd5
         );
     }
 
@@ -552,7 +571,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, REGION),
                 getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART),
                 getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING),
-                getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS)
+                getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS),
+                getConfigValue(settings, clientName, LEGACY_CONTENT_MD5)
             );
         }
     }
@@ -584,7 +604,8 @@ final class S3ClientSettings {
             && Objects.equals(region, that.region)
             && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart)
             && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
-            && alwaysSignRequests == that.alwaysSignRequests;
+            && alwaysSignRequests == that.alwaysSignRequests
+            && legacyContentMd5 == that.legacyContentMd5;
     }
 
     @Override
@@ -608,7 +629,8 @@ final class S3ClientSettings {
             region,
             maxCopySizeBeforeMultipart,
             tenaciousRetriesEnabled,
-            alwaysSignRequests
+            alwaysSignRequests,
+            legacyContentMd5
         );
     }
 

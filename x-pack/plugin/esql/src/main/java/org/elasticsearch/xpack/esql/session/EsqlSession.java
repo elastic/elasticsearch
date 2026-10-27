@@ -143,6 +143,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -221,6 +222,14 @@ public class EsqlSession {
     private String parsedPlanString;
     private String optimizedLogicalPlanString;
     private final ProjectMetadata projectMetadata;
+
+    /**
+     * Hive-partition shadow-column warning bodies from the most recent {@link ExternalSourceResolver#resolve}.
+     * Written when pre-analysis completes (often on the external blob-store pool) and read in
+     * {@link #attachMetadataAndVersion} so they can be merged into {@link DriverCompletionInfo} for
+     * {@code toResponse} to emit. This session is one-shot per query.
+     */
+    private volatile List<String> externalSourceWarnings = List.of();
 
     /**
      * Snapshot of the planning stages this session has completed so far. Read once by the failure-
@@ -605,20 +614,18 @@ public class EsqlSession {
         );
     }
 
-    private static Versioned<Result> attachMetadataAndVersion(
+    private Versioned<Result> attachMetadataAndVersion(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
         TransportVersion minimumVersion
     ) {
+        DriverCompletionInfo completionInfo = result.completionInfo();
+        if (completionInfo == null) {
+            completionInfo = DriverCompletionInfo.EMPTY;
+        }
+        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarnings);
         return new Versioned<>(
-            new Result(
-                result.schema(),
-                result.pages(),
-                columnMetadata,
-                result.configuration(),
-                result.completionInfo(),
-                result.executionInfo()
-            ),
+            new Result(result.schema(), result.pages(), columnMetadata, result.configuration(), completionInfo, result.executionInfo()),
             minimumVersion
         );
     }
@@ -733,7 +740,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
@@ -1451,7 +1458,13 @@ public class EsqlSession {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
             })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen(
+                (l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l.map(preAnalysisResult -> {
+                    ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
+                    externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
+                    return preAnalysisResult;
+                }))
+            )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();

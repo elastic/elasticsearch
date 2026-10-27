@@ -161,7 +161,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.S3_TENACIOUS_RETRIES_ENABLED_SETTING,
-            S3ClientSettings.ALWAYS_SIGN_REQUESTS
+            S3ClientSettings.ALWAYS_SIGN_REQUESTS,
+            S3ClientSettings.LEGACY_CONTENT_MD5
         );
     }
 

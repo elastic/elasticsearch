@@ -22,6 +22,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -29,7 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -401,6 +405,42 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testFieldTypeTermsQueryPreChargesBreaker() throws IOException {
+        List<String> values = List.of("a", "b", "c");
+        for (String field : List.of(KEYWORD_FIELD_NAME, IdFieldMapper.NAME)) {
+            CircuitBreaker cb = createCircuitBreakerService();
+            SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+            long before = cb.getUsed();
+            try {
+                MappedFieldType fieldType = context.getFieldType(field);
+                Query query = fieldType.termsQuery(values, context);
+                long expected = new TermsQueryCostEstimator(((TermInSetQuery) query).ramBytesUsed()).estimate();
+                assertEquals(field, expected, cb.getUsed() - before);
+                assertEquals(field, expected, context.getQueryConstructionMemoryUsed());
+                assertTrue(field, context.isQueryMemoryPreCharged(query));
+
+                fieldType.termsQuery(values, null);
+                assertEquals("without a context nothing is charged for " + field, expected, cb.getUsed() - before);
+            } finally {
+                context.releaseQueryConstructionMemory();
+            }
+            assertEquals(field, before, cb.getUsed());
+        }
+    }
+
+    public void testTermsQueryNotChargedTwice() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long before = cb.getUsed();
+            Query query = new TermsQueryBuilder(KEYWORD_FIELD_NAME, "a", "b", "c").toQuery(context);
+            long expected = new TermsQueryCostEstimator(((TermInSetQuery) query).ramBytesUsed()).estimate();
+            assertEquals("the clause visitor must skip the pre-charged query", expected, cb.getUsed() - before);
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
     }
 
     @Override

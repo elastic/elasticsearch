@@ -354,6 +354,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * Emit a single, shorter warning for all partially unmapped fields from {@link #OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK},
+         * listing a bounded number of field names, instead of one warning per field.
+         * See https://github.com/elastic/elasticsearch/issues/161968.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK_COMBINED,
+
+        /**
          * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
          * instead of failing with "No matches found for pattern".
          * See https://github.com/elastic/elasticsearch/issues/143226
@@ -1464,6 +1471,15 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
 
         /**
+         * Fix for a conversion function above a {@code UnionAll} that resolves on a later analyzer pass than an equal one already
+         * pushed down into the branches, e.g. because an unmapped field under {@code unmapped_fields} delays its resolution.
+         * {@code ResolveUnionTypesInUnionAll} must reuse the existing synthetic {@code $$<field>$converted_to$<type>} union output
+         * instead of pushing another same-named alias on every pass, which made the Resolution batch loop until the rule
+         * execution limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_CONVERSION_RESOLVED_ON_LATER_PASS,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -2488,6 +2504,16 @@ public class EsqlCapabilities {
         ESQL_WITHOUT_GROUPING,
 
         /**
+         * The {@code WITHOUT(...)} grouping column is named {@code _timeseries} from resolution onward, so a
+         * {@code FROM idx, (TS ... BY WITHOUT(...))} union surfaces it as {@code _timeseries} — the same name a lone
+         * TS query shows — instead of the parser's sourceText name, which changed mid-plan when the grouping was
+         * lowered and failed the post-optimization merge consistency check. A user alias ({@code BY dims = WITHOUT(...)})
+         * is now kept as the output name, and {@code WITHOUT(unmapped)} works under {@code unmapped_fields="nullify"}.
+         * Gates the affected csv-spec tests so mixed-version clusters skip them on older nodes.
+         */
+        TS_WITHOUT_GROUPING_NAMED_AT_RESOLUTION,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -2866,10 +2892,14 @@ public class EsqlCapabilities {
         FEDERATION_ENABLED_SETTING,
 
         /**
-         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilt a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
          * verification failure that old coordinators in a mixed cluster still hit.
+         * <p>
+         * Derived external groupings are no longer pruned at all (see {@link #FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE}),
+         * so the rebuilt expression this describes no longer exists; the capability still gates the spec that used to
+         * fail with the verification error above, which older coordinators can still produce.
          */
         FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING,
 
@@ -3607,6 +3637,48 @@ public class EsqlCapabilities {
          * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
          */
         FIX_SCORE_SORT_ASC_PUSHDOWN,
+
+        /**
+         * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
+         * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
+         * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
+         * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
+         * value read as {@code null}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/161383">#161383</a>.
+         */
+        FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
+        /**
+         * A predicate pushed to Lucene on a sub-field of a {@code nested} object (e.g. {@code n.x}, mapped as a plain
+         * {@code keyword} in another index) matches nothing on shards where {@code n} is {@code nested}, consistent
+         * with field caps and field extraction treating it as missing. Previously, with {@code include_in_root} or
+         * {@code include_in_parent}, {@code ==} and {@code IS NOT NULL} matched rows whose value read as {@code null}
+         * and {@code IS NULL} missed them.
+         */
+        FIX_NESTED_SUBFIELD_PUSHDOWN,
+
+        /**
+         * A {@code STATS BY} key derived from other external integral keys with {@code +}, {@code -} or unary minus
+         * (e.g. {@code EVAL s = emp_no + salary_change.int | STATS ... BY emp_no, salary_change.int, s}) is kept as a
+         * grouping and evaluated on the row, so it is {@code null} where an input column holds a list. Older nodes
+         * pruned it from the aggregate and recomputed it per group, returning one number per list element. Used to
+         * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
+         */
+        FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
+
+        /**
+         * {@code TS} no longer drops rows that only have values for aggregated inputs that aren't mapped as metrics, such as
+         * converted metrics ({@code metric::double}) or values computed in an {@code EVAL}. Older nodes returned {@code null}
+         * for these aggregations when another metric was aggregated in the same {@code STATS}.
+         */
+        FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
+
+        /**
+         * {@code InferIsNotNull} now only infers {@code IS NOT NULL} on the root fields of an
+         * {@code IS NOT NULL} predicate through null-propagating expressions (an allow-list).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/155101">#155101</a>
+         */
+        FIX_INFER_IS_NOT_NULL_ALLOWLIST,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

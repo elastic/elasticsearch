@@ -57,6 +57,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.SSLException;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
@@ -264,6 +266,10 @@ public class GoogleCloudStorageService {
                 }
                 // Also retry on `SocketException`s
                 if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
+                    return true;
+                }
+                // TLS handshake failures are SSLExceptions, not SocketExceptions. S3 and Azure retry them too.
+                if (ExceptionsHelper.unwrap(prevThrowable, SSLException.class) != null) {
                     return true;
                 }
                 return delegate.shouldRetry(prevThrowable, prevResponse);

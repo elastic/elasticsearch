@@ -238,10 +238,11 @@ public class DriverContext {
      * Adds a fully-formatted warning string to this context's per-driver sink.
      * Called mostly single-threaded from the driver loop, but also called by async
      * operators from other threads.
+     * @return {@code true} if the warning was not already in the sink
      */
-    public void addWarning(String warning) {
+    public boolean addWarning(String warning) {
         assert warningsSnapshot == null;
-        warnings.add(warning);
+        return warnings.add(warning);
     }
 
     /**

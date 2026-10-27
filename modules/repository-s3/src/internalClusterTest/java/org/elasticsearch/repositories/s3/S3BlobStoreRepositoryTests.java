@@ -176,6 +176,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (randomBoolean()) {
             builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.put(S3ClientSettings.LEGACY_CONTENT_MD5.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
+        }
         if (region != null) {
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         }

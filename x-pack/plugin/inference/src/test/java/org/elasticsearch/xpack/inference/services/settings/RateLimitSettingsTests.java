@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -39,6 +41,8 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
     private static final String TEST_SCOPE = "some-scope";
     private static final int TEST_REQUESTS_PER_MINUTE = 100;
     private static final String TEST_UNKNOWN_FIELD_NAME = "some-unknown-field";
+    private static final String NULL_REQUESTS_PER_MINUTE_JSON = Strings.format("""
+        {"%s": null}""", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD);
 
     public static RateLimitSettings createRandom() {
         return new RateLimitSettings(randomLongBetween(1, 1000000));
@@ -127,6 +131,31 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
+    public void testOf_NullRateLimit_UsesDefaultValue() {
+        var validationException = new ValidationException();
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(RateLimitSettings.FIELD_NAME, null);
+        var defaultValue = createRandom();
+
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
+    public void testOf_NullRequestsPerMinute_UsesDefaultValue() {
+        var validationException = new ValidationException();
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        var settingsMap = new HashMap<String, Object>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap));
+        var defaultValue = createRandom();
+
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
     public void testCreateParser_RequestsPerMinutePresent_ReturnsParsedValue() throws IOException {
         var settings = parseRateLimit(
             Strings.format("{\"%s\": %d}", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE),
@@ -149,6 +178,36 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         var settings = parseRateLimit("{}", randomBoolean(), null);
 
         assertThat(settings, is(nullValue()));
+    }
+
+    public void testCreateParser_NullRequestsPerMinute_ReturnsDefaultValue() throws IOException {
+        var defaultValue = createRandom();
+
+        var settings = parseRateLimit(NULL_REQUESTS_PER_MINUTE_JSON, randomBoolean(), defaultValue);
+
+        assertThat(settings, sameInstance(defaultValue));
+    }
+
+    public void testCreateParser_NullRequestsPerMinute_NullDefault_ReturnsNull() throws IOException {
+        var settings = parseRateLimit(NULL_REQUESTS_PER_MINUTE_JSON, randomBoolean(), null);
+
+        assertNull(settings);
+    }
+
+    public void testCreateParser_BooleanRequestsPerMinute_Throws() {
+        var exception = expectThrows(XContentParseException.class, () -> parseRateLimit(Strings.format("""
+            {"%s": true}""", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD), randomBoolean(), createRandom()));
+
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                Strings.format(
+                    "[%s] %s doesn't support values of type: VALUE_BOOLEAN",
+                    RateLimitSettings.FIELD_NAME,
+                    RateLimitSettings.REQUESTS_PER_MINUTE_FIELD
+                )
+            )
+        );
     }
 
     private RateLimitSettings parseRateLimit(String json, boolean ignoreUnknownFields, @Nullable RateLimitSettings defaultValue)

@@ -9,7 +9,7 @@
 
 
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -120,7 +120,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-tasks.withType(RestIntegTestTask).configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
   buildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
@@ -130,7 +130,7 @@ tasks.named('javaRestTest').configure {
   classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture3
 }
 
-tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
+restTests.register("javaRestTestHdfs2") {
   description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2
@@ -143,7 +143,7 @@ tasks.named("test").configure {
 }
 
 tasks.named("check").configure {
-  dependsOn(tasks.withType(RestIntegTestTask))
+  dependsOn(restTests.tasks)
 }
 
 tasks.named("thirdPartyAudit").configure {

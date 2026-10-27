@@ -82,4 +82,9 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
         );
         return new MapExpression(Source.EMPTY, entries);
     }
+
+    public void testOutputIsCached() {
+        PhysicalPlan plan = createTestInstance();
+        assertSame(plan.output(), plan.output());
+    }
 }

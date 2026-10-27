@@ -12,6 +12,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.BundledJdkTrustStore;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
@@ -75,6 +76,11 @@ public class ArchiveTests extends PackagingTestCase {
         lines.add("keystore.pkcs12.macAlgorithm = HmacPBESHA1");
         lines.add("keystore.pkcs12.macIterationCount = 100000");
         Files.write(jdkSecurityProperties, lines, TRUNCATE_EXISTING);
+    }
+
+    public void test12BundledJdkDoesNotTrustRemovedRoots() {
+        assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
+        BundledJdkTrustStore.assertRemovedRootsAreNotTrusted(sh, installation.bundledJdk);
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {
@@ -223,14 +229,14 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
         Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.85.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.85.jar")
+            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar"),
+            tempDir.resolve("bcprov-jdk18on-1.86.jar")
         );
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
         assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
         Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.85.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.85.jar")
+            tempDir.resolve("bcprov-jdk18on-1.86.jar"),
+            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar")
         );
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
@@ -595,7 +601,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         String nodeTool = installation.executables().nodeTool.toString();
         if (Platforms.WINDOWS == false) {
-            nodeTool = "sudo -E -u " + ARCHIVE_OWNER + " " + nodeTool;
+            nodeTool = "sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u " + ARCHIVE_OWNER + " " + nodeTool;
         }
 
         Result result = sh.run("echo y | " + nodeTool + " unsafe-bootstrap");

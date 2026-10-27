@@ -37,6 +37,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+  testImplementation project(path: xpackModule('mapper-constant-keyword'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))

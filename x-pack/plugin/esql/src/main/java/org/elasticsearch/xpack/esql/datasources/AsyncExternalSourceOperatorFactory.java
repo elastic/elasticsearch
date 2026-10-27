@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -900,7 +899,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
 
-            return new AsyncExternalSourceOperator(buffer, externalSourceMetrics, path.scheme());
+            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, path.scheme());
         } catch (Exception e) {
             releaseOperator();
             throw e;
@@ -978,16 +977,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link Builder#build} time.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
-        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink());
+        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink(driverContext));
         return sourceExtractorsFor(driverContext).register(extractor);
     }
 
     /**
      * Budget-gated informational-warning sink for readers that run off the driver thread (the eager
      * scan on a background reader thread). A surviving warning is recorded on {@code buffer} and
-     * re-emitted on the driver thread when the source operator closes (see
-     * {@link AsyncExternalSourceBuffer#recordInformationalWarning}); emitting from the reader thread
-     * directly would land the header on a {@code ThreadContext} that is never merged into the response.
+     * deposited into the driver's {@link DriverContext} sink when the source operator closes (see
+     * {@link AsyncExternalSourceBuffer#recordInformationalWarning}). The reader must not write into that
+     * sink itself: a producer can outlive the driver (a satisfied LIMIT finishes the driver mid-read, and
+     * {@code DriverContext#finish} then snapshots the sink), and its own {@code ThreadContext} is never
+     * merged into the response.
      */
     private Consumer<String> bufferedInformationalWarningSink(AsyncExternalSourceBuffer buffer) {
         return warning -> {
@@ -999,17 +1000,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the
-     * driver thread and therefore emits directly to {@link HeaderWarning}. It must not route through
-     * the source buffer: {@code Driver} closes the source operator (draining the buffer's pending
-     * warnings) as soon as it finishes, which can happen before the paired extract operator runs, so
-     * a buffered extractor warning would never be drained.
+     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the driver thread and
+     * therefore deposits straight into that driver's {@link DriverContext} sink — the channel
+     * {@code DriverCompletionInfo} carries back from whatever node and thread ran the scan, so the warning reaches the
+     * client whether or not the query completes on the driver thread (see
+     * {@link AsyncExternalSourceOperator#close()}). It must not route through the source buffer: {@code Driver} closes
+     * the source operator (draining the buffer's pending warnings) as soon as it finishes, which can happen before the
+     * paired extract operator runs, so a buffered extractor warning would never be drained.
      */
-    private Consumer<String> driverThreadInformationalWarningSink() {
+    private Consumer<String> driverThreadInformationalWarningSink(DriverContext driverContext) {
         return warning -> {
             String toRecord = informationalWarningBudget.accept(warning);
             if (toRecord != null) {
-                HeaderWarning.addWarning(toRecord);
+                driverContext.addWarning(toRecord);
             }
         };
     }

@@ -252,7 +252,9 @@ class DownsampleShardIndexer {
     }
 
     private Query createQuery() {
-        if (this.state.started() && this.state.tsid() != null) {
+        // The executor creates the state with the INITIALIZED status and the last tsid found in the target index, so the
+        // presence of a tsid is what signals a resumed task, not the status.
+        if (this.state.tsid() != null) {
             return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
         return Queries.ALL_DOCS_INSTANCE;

@@ -1815,11 +1815,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
             // prevent a race between the above `ensureGreen` and the below PIT searches used for keeping accurate state (PIT IDs):
-            // the above `ensureGreen` guarantees `firstSearchNode` has applied the cluster state, but it marks its PIT contexts as
-            // relocating asynchronously after that. If a PIT search below runs before the async part, it still succeeds on
+            // the above `ensureGreen` guarantees `firstSearchNode` has applied the cluster state, but the source only stops serving its
+            // PIT contexts asynchronously after that: on a successful relocation it marks them as relocating, and on a source failure it
+            // frees them when it applies the shard-removed cluster state. If a PIT search below runs before that, it still succeeds on
             // `firstSearchNode` and the PIT ID state we keep is stale and keeps pointing to `firstSearchNode`,
             // so the later closePITs never reaches the copy on `newSearchNode` and the BCCs it pins are never deleted.
-            if (testScenario == PITRetentionTestScenarios.SUCCESSFUL_RELOCATION) {
+            // For FAIL_SOURCE the freed contexts leave the active set, so `allMatch(isRelocating)` holds once the set is empty.
+            if (testScenario == PITRetentionTestScenarios.SUCCESSFUL_RELOCATION || testScenario == PITRetentionTestScenarios.FAIL_SOURCE) {
                 var sourceSearchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
                 assertBusy(
                     () -> assertTrue(sourceSearchService.getActivePITContexts(shardId).stream().allMatch(PitReaderContext::isRelocating))
@@ -1861,10 +1863,22 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             }
         }
 
-        logger.info("Closing PITs");
-        closePITs(openPITs);
+        // Without PIT relocation the PIT ids keep pointing at the stopped source node, so there is nothing left to close: its contexts
+        // were freed when it stopped and the ids cannot be re-targeted to the new search node.
+        if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled() || testScenario != PITRetentionTestScenarios.STOP_SOURCE_NODE) {
+            logger.info("Closing PITs");
+            closePITs(openPITs);
+        }
 
-        assertBusy(() -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))));
+        // Final convergence: once the PITs are closed, every commit except the latest uploaded one should be deleted. The newest BCCs
+        // created while the target search shard was still recovering (e.g. the flush and force-merge above) are not pinned by any PIT, but
+        // the target pessimistically registered them for its recovery under its node id. Those registrations are only released once the
+        // target, now started, replies to a "new commit notification". Rather than waiting for the periodic shard inactivity monitor to
+        // emit that notification, we drive the monitor's poll directly on the indexing node on every assertBusy iteration.
+        assertBusy(() -> {
+            StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(commitService, () -> Long.MAX_VALUE);
+            assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private static void failSearchShard(String indexName, String searchNode) {

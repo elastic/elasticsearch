@@ -3047,6 +3047,51 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("x", ua.name());
     }
 
+    /**
+     * With {@code unmapped_fields="nullify"} the unmapped {@code does_not_exist} only resolves once {@code ResolveUnmapped} has run,
+     * so the {@code EVAL} above the {@code WHERE} resolves one Resolution pass later than the {@code WHERE}'s own conversion.
+     * {@code ResolveUnionTypesInUnionAll} has already pushed {@code TO_STRING(client_ip)} into the branches by then; the later,
+     * equal conversion must be replaced with that same union output attribute instead of pushing another same-named alias.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("nullify");
+    }
+
+    /**
+     * Same as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, with the unmapped field loaded instead.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoad() {
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("load");
+    }
+
+    private void assertSameConversionResolvedOnLaterPassOverSubqueryUnion(String unmappedFields) {
+        LogicalPlan plan = analyzer().addSampleData().statement(LoggerMessageFormat.format(null, """
+            SET unmapped_fields="{}";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
+            | EVAL ip = TO_STRING(client_ip)
+            | LIMIT 5
+            """, unmappedFields));
+
+        List<Attribute> converted = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if ((p instanceof Filter || p instanceof Eval) && p.anyMatch(UnionAll.class::isInstance)) {
+                p.forEachExpression(
+                    AbstractConvertFunction.class,
+                    convert -> fail("conversion left unreplaced above the subquery union: " + convert)
+                );
+                p.forEachExpression(Attribute.class, attribute -> {
+                    if (attribute.name().contains("converted_to")) {
+                        converted.add(attribute);
+                    }
+                });
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[!client_ip]]
@@ -4410,8 +4455,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
     /*
      * Limit[10000[INTEGER],false,false]
-     * \_UnionAll[[m{r}#45, WITHOUT(pod){r}#46, @timestamp{r}#47, client_ip{r}#48, event_duration{r}#49, message{r}#50]]
-     *   |_Project[[m{r}#7, WITHOUT(pod){r}#4, @timestamp{r}#39, client_ip{r}#40, event_duration{r}#41, message{r}#42]]
+     * \_UnionAll[[m{r}#45, _timeseries{r}#46, @timestamp{r}#47, client_ip{r}#48, event_duration{r}#49, message{r}#50]]
+     *   |_Project[[m{r}#7, _timeseries{r}#4, @timestamp{r}#39, client_ip{r}#40, event_duration{r}#41, message{r}#42]]
      *   | \_Eval[[null[DATETIME] AS @timestamp#39, null[IP] AS client_ip#40,
      *             null[LONG] AS event_duration#41, null[KEYWORD] AS message#42]]
      *   |   \_Subquery[]
@@ -4424,8 +4469,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *                                       @timestamp{f}#10) AS RATE_$1#52,VALUES(_timeseries{f}#4,true[BOOLEAN],PT0S[TIME_DURATION])
      *                                       AS _timeseries#53,_tsid{m}#51],null,null,@timestamp{f}#10,TS_COMMAND]
      *   |               \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#10, client.ip{f}#14, cluster{f}#11, e..]
-     *   \_Project[[m{r}#43, WITHOUT(pod){r}#44, @timestamp{f}#34, client_ip{f}#35, event_duration{f}#36, message{f}#37]]
-     *     \_Eval[[null[DOUBLE] AS m#43, null[KEYWORD] AS WITHOUT(pod)#44]]
+     *   \_Project[[m{r}#43, _timeseries{r}#44, @timestamp{f}#34, client_ip{f}#35, event_duration{f}#36, message{f}#37]]
+     *     \_Eval[[null[DOUBLE] AS m#43, null[KEYWORD] AS _timeseries#44]]
      *       \_Subquery[]
      *         \_EsRelation[sample_data][@timestamp{f}#34, client_ip{f}#35, event_duration{f..]
      */
@@ -4442,7 +4487,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        // The UnionAll output combines the TS aggregate columns (m, WITHOUT(pod)) with the
+        // The UnionAll output combines the TS aggregate columns (m, _timeseries) with the
         // sample_data fields (@timestamp, client_ip, event_duration, message).
         List<? extends NamedExpression> unionOutput = unionAll.output();
         assertEquals(6, unionOutput.size());
@@ -4450,7 +4495,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("m", mAttr.name());
         as(mAttr, ReferenceAttribute.class);
         Attribute withoutAttr = (Attribute) unionOutput.get(1);
-        assertEquals("WITHOUT(pod)", withoutAttr.name());
+        assertEquals("_timeseries", withoutAttr.name());
         as(withoutAttr, ReferenceAttribute.class);
 
         // Branch 0: TS subquery with BY WITHOUT(pod)
@@ -4479,14 +4524,14 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
 
-        // Branch 1: FROM sample_data — produces null Evals for m (DOUBLE) and WITHOUT(pod) (KEYWORD).
+        // Branch 1: FROM sample_data — produces null Evals for m (DOUBLE) and _timeseries (KEYWORD).
         Project sampleProject = as(unionAll.children().get(1), Project.class);
         Eval sampleNullEval = as(sampleProject.child(), Eval.class);
         assertEquals(2, sampleNullEval.fields().size());
         Alias sampleMNull = sampleNullEval.fields().get(0);
         assertEquals("m", sampleMNull.name());
         Alias sampleWithoutNull = sampleNullEval.fields().get(1);
-        assertEquals("WITHOUT(pod)", sampleWithoutNull.name());
+        assertEquals("_timeseries", sampleWithoutNull.name());
         Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
         EsRelation sampleRelation = as(sampleSubquery.child(), EsRelation.class);
         assertEquals("sample_data", sampleRelation.indexPattern());
@@ -4497,16 +4542,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * Limit[10000[INTEGER],false,false]
      * \_UnionAll[[_meta_field{r}#1376, emp_no{r}#1377, first_name{r}#1378, gender{r}#1379, hire_date{r}#1380, job{r}#1381,
      *             job.raw{r}#1382, languages{r}#1383, last_name{r}#1384, long_noidx{r}#1385, salary{r}#1386, m{r}#1387,
-     *             WITHOUT(pod){r}#1388, @timestamp{r}#1389, client_ip{r}#1390, event_duration{r}#1391, message{r}#1392]]
+     *             _timeseries{r}#1388, @timestamp{r}#1389, client_ip{r}#1390, event_duration{r}#1391, message{r}#1392]]
      *   |_Project[[_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#1303, gender{f}#1304, hire_date{f}#1309, job{f}#1310,
      *              job.raw{f}#1311, languages{f}#1305, last_name{f}#1306, long_noidx{f}#1312, salary{f}#1307, m{r}#1342,
-     *              WITHOUT(pod){r}#1343, @timestamp{r}#1344, client_ip{r}#1345, event_duration{r}#1346, message{r}#1347]]
-     *   | \_Eval[[null[DOUBLE] AS m#1342, null[KEYWORD] AS WITHOUT(pod)#1343, null[DATETIME] AS @timestamp#1344,
+     *              _timeseries{r}#1343, @timestamp{r}#1344, client_ip{r}#1345, event_duration{r}#1346, message{r}#1347]]
+     *   | \_Eval[[null[DOUBLE] AS m#1342, null[KEYWORD] AS _timeseries#1343, null[DATETIME] AS @timestamp#1344,
      *             null[IP] AS client_ip#1345, null[LONG] AS event_duration#1346, null[KEYWORD] AS message#1347]]
      *   |   \_EsRelation[test][_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#..]
      *   |_Project[[_meta_field{r}#1348, emp_no{r}#1349, first_name{r}#1350, gender{r}#1351, hire_date{r}#1352, job{r}#1353,
      *              job.raw{r}#1354, languages{r}#1355, last_name{r}#1356, long_noidx{r}#1357, salary{r}#1358, m{r}#1299,
-     *              WITHOUT(pod){r}#1296, @timestamp{r}#1359, client_ip{r}#1360, event_duration{r}#1361, message{r}#1362]]
+     *              _timeseries{r}#1296, @timestamp{r}#1359, client_ip{r}#1360, event_duration{r}#1361, message{r}#1362]]
      *   | \_Eval[[null[KEYWORD] AS _meta_field#1348, null[INTEGER] AS emp_no#1349, null[KEYWORD] AS first_name#1350,
      *             null[TEXT] AS gender#1351, null[DATETIME] AS hire_date#1352, null[TEXT] AS job#1353, null[KEYWORD] AS job.raw#1354,
      *             null [INTEGER] AS languages#1355, null[KEYWORD] AS last_name#1356, null[LONG] AS long_noidx#1357,
@@ -4524,11 +4569,11 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *   |               \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#21, client.ip{f}#25, cluster{f}#22, e..]
      *   \_Project[[_meta_field{r}#1363, emp_no{r}#1364, first_name{r}#1365, gender{r}#1366, hire_date{r}#1367, job{r}#1368,
      *              job.raw{r}#1369, languages{r}#1370, last_name{r}#1371, long_noidx{r}#1372, salary{r}#1373, m{r}#1374,
-     *              WITHOUT(pod){r}#1375, @timestamp{f}#1337, client_ip{f}#1338, event_duration{f}#1339, message{f}#1340]]
+     *              _timeseries{r}#1375, @timestamp{f}#1337, client_ip{f}#1338, event_duration{f}#1339, message{f}#1340]]
      *     \_Eval[[null[KEYWORD] AS _meta_field#1363, null[INTEGER] AS emp_no#1364, null[KEYWORD] AS first_name#1365,
      *             null[TEXT] AS gender#1366, null[DATETIME] AS hire_date#1367, null[TEXT] AS job#1368, null[KEYWORD] AS job.raw#1369,
      *             null[INTEGER] AS languages#1370, null[KEYWORD] AS last_name#1371, null[LONG] AS long_noidx#1372,
-     *             null[INTEGER] AS salary#1373, null[DOUBLE] AS m#1374, null[KEYWORD] AS WITHOUT(pod)#1375]]
+     *             null[INTEGER] AS salary#1373, null[DOUBLE] AS m#1374, null[KEYWORD] AS _timeseries#1375]]
      *       \_Subquery[]
      *         \_EsRelation[sample_data][@timestamp{f}#1337, client_ip{f}#1338, event_durati..]
      */
@@ -4546,14 +4591,14 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(3, unionAll.children().size());
 
-        // The UnionAll output spans all branches: 11 test fields + m + WITHOUT(pod) + 4 sample_data fields.
+        // The UnionAll output spans all branches: 11 test fields + m + _timeseries + 4 sample_data fields.
         List<? extends NamedExpression> unionOutput = unionAll.output();
         assertEquals(17, unionOutput.size());
-        // Locate the WITHOUT(pod) attribute in the union output.
+        // Locate the _timeseries attribute in the union output.
         Attribute unionWithout = (Attribute) unionOutput.stream()
-            .filter(a -> a.name().equals("WITHOUT(pod)"))
+            .filter(a -> a.name().equals("_timeseries"))
             .findFirst()
-            .orElseThrow(() -> new AssertionError("UnionAll output must contain WITHOUT(pod) attribute"));
+            .orElseThrow(() -> new AssertionError("UnionAll output must contain _timeseries attribute"));
         as(unionWithout, ReferenceAttribute.class);
         Attribute unionM = (Attribute) unionOutput.stream()
             .filter(a -> a.name().equals("m"))
@@ -4564,11 +4609,11 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         // Branch 0: main FROM test — null Evals for the missing aggregate + sample_data columns.
         Project testProject = as(unionAll.children().get(0), Project.class);
         Eval testNullEval = as(testProject.child(), Eval.class);
-        // 6 nulls: m, WITHOUT(pod), @timestamp, client_ip, event_duration, message
+        // 6 nulls: m, _timeseries, @timestamp, client_ip, event_duration, message
         assertEquals(6, testNullEval.fields().size());
         assertTrue(
-            "test branch must materialize WITHOUT(pod) as a null reference",
-            testNullEval.fields().stream().anyMatch(a -> a.name().equals("WITHOUT(pod)"))
+            "test branch must materialize _timeseries as a null reference",
+            testNullEval.fields().stream().anyMatch(a -> a.name().equals("_timeseries"))
         );
         EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
         assertEquals("test", testRelation.indexPattern());
@@ -4578,11 +4623,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullEval = as(tsProject.child(), Eval.class);
         // null evals for the 11 test fields + 4 sample_data fields = 15.
         assertEquals(15, tsNullEval.fields().size());
-        // Verify the TS branch itself does not emit a null for WITHOUT(pod) — it owns that column.
-        assertTrue(
-            "TS branch must not null-eval WITHOUT(pod)",
-            tsNullEval.fields().stream().noneMatch(a -> a.name().equals("WITHOUT(pod)"))
-        );
+        // Verify the TS branch itself does not emit a null for _timeseries — it owns that column.
+        assertTrue("TS branch must not null-eval _timeseries", tsNullEval.fields().stream().noneMatch(a -> a.name().equals("_timeseries")));
         Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
         // BY WITHOUT(pod) is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
@@ -4598,13 +4640,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
 
-        // Branch 2: FROM sample_data — null Evals for the 11 test fields + m + WITHOUT(pod) = 13.
+        // Branch 2: FROM sample_data — null Evals for the 11 test fields + m + _timeseries = 13.
         Project sampleProject = as(unionAll.children().get(2), Project.class);
         Eval sampleNullEval = as(sampleProject.child(), Eval.class);
         assertEquals(13, sampleNullEval.fields().size());
         assertTrue(
-            "sample_data branch must materialize WITHOUT(pod) as a null reference",
-            sampleNullEval.fields().stream().anyMatch(a -> a.name().equals("WITHOUT(pod)"))
+            "sample_data branch must materialize _timeseries as a null reference",
+            sampleNullEval.fields().stream().anyMatch(a -> a.name().equals("_timeseries"))
         );
         Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
         EsRelation sampleRelation = as(sampleSubquery.child(), EsRelation.class);

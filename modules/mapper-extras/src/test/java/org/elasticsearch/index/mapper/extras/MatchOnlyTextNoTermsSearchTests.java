@@ -21,7 +21,9 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -62,6 +64,24 @@ public class MatchOnlyTextNoTermsSearchTests extends MapperServiceTestCase {
         for (int q = 0; q < queries.size(); q++) {
             assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
         }
+    }
+
+    /** The field wraps its query in a constant score query, which minimum_should_match has to see through. */
+    public void testMinimumShouldMatchIsAsked() throws IOException {
+        final List<QueryBuilder> queries = List.of(
+            new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("3"),
+            new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("2"),
+            new MultiMatchQueryBuilder("quick brown nothing", "body").minimumShouldMatch("3"),
+            new MatchBoolPrefixQueryBuilder("body", "quick brown nothi").minimumShouldMatch("3"),
+            new QueryStringQueryBuilder("quick nothing").defaultField("body").minimumShouldMatch("2"),
+            new SimpleQueryStringBuilder("quick-nothing").field("body").minimumShouldMatch("2")
+        );
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertEquals("no document holds all three", List.of(), notIndexed.get(0));
     }
 
     private List<List<Integer>> matching(boolean indexed, List<QueryBuilder> queries) throws IOException {

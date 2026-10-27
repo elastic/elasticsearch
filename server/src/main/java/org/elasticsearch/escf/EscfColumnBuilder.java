@@ -456,27 +456,28 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     /**
-     * Appends {@code times} more copies of the last row, which is typically more efficient than just re-encoding the value multiple times.
+     * Appends {@code additionalCopies} more copies of the last row, which is typically more efficient than just
+     * re-encoding the value multiple times.
      * Write the value once (closing an array cell with {@link #endArray()} if one was opened), then
      * call this to materialise the remaining copies.
      *
-     * <p>An absent last row is repeated as {@code times} more absent rows. Because the copies are byte-level,
+     * <p>An absent last row is repeated as {@code additionalCopies} more absent rows. Because the copies are byte-level,
      * every value of a row must be written before it is repeated: a same-row write after a repeat (the
      * {@link CollisionPolicy#MERGE} multi-value path) extends the last copy only.
      */
-    public void repeatLastRow(int times) {
+    public void repeatLastRow(int additionalCopies) {
         assert arrayOpen == false : "repeatLastRow while an array is open";
         assert finished == false : "repeatLastRow after finish";
-        assert times >= 0 : "times must not be negative, got " + times;
+        assert additionalCopies >= 0 : "additionalCopies must not be negative, got " + additionalCopies;
         assert (current == null ? leadingAbsents : current.rowsConsumed()) > 0 : "repeatLastRow before any row was written";
-        if (times == 0) {
+        if (additionalCopies == 0) {
             return;
         }
         if (current != null && lastWrittenRow == current.rowsConsumed() - 1) {
-            current.repeatLastRow(times);
-            lastWrittenRow += times;
+            current.repeatLastRow(additionalCopies);
+            lastWrittenRow += additionalCopies;
         } else {
-            addAbsents(times);
+            addAbsents(additionalCopies);
         }
     }
 
@@ -859,10 +860,10 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         /**
-         * Appends {@code times} more copies of the last row by replicating its bytes and offsets rather than
+         * Appends {@code additionalCopies} more copies of the last row by replicating its bytes and offsets rather than
          * re-encoding its value. The last row must be present.
          */
-        void repeatLastRow(int times);
+        void repeatLastRow(int additionalCopies);
 
         /** Near-free promotion to a union (adopts the value buffer where the layout allows). */
         UnionBuilder promote(Recycler<BytesRef> recycler);
@@ -1012,9 +1013,9 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void repeatLastRow(int times) {
-            data.repeatLastBytes(Long.BYTES, times);
-            bulkAdvancePresent(times);
+        public void repeatLastRow(int additionalCopies) {
+            data.repeatLastBytes(Long.BYTES, additionalCopies);
+            bulkAdvancePresent(additionalCopies);
         }
 
         @Override
@@ -1112,14 +1113,14 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void repeatLastRow(int times) {
+        public void repeatLastRow(int additionalCopies) {
             // The bitset is only grown up to its last true, so a null or short one means the last value is false,
             // which needs no bits set at all.
             if (values != null && count - 1 < values.length() && values.get(count - 1)) {
-                values = FixedBitSet.ensureCapacity(values, count + times);
-                values.set(count, count + times);
+                values = FixedBitSet.ensureCapacity(values, count + additionalCopies);
+                values.set(count, count + additionalCopies);
             }
-            bulkAdvancePresent(times);
+            bulkAdvancePresent(additionalCopies);
         }
 
         @Override
@@ -1183,13 +1184,13 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void repeatLastRow(int times) {
+        public void repeatLastRow(int additionalCopies) {
             int blockBytes = dataLen - offsets[count - 1];
-            offsets = ensureIntCapacity(offsets, count + times);
-            repeatIntBlock(offsets, count - 1, times, blockBytes);
-            data.repeatLastBytes(blockBytes, times);
-            dataLen += blockBytes * times;
-            bulkAdvancePresent(times);
+            offsets = ensureIntCapacity(offsets, count + additionalCopies);
+            repeatIntBlock(offsets, count - 1, additionalCopies, blockBytes);
+            data.repeatLastBytes(blockBytes, additionalCopies);
+            dataLen += blockBytes * additionalCopies;
+            bulkAdvancePresent(additionalCopies);
         }
 
         private void recordOffset() {
@@ -1327,12 +1328,12 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void repeatLastRow(int times) {
+        public void repeatLastRow(int additionalCopies) {
             assert sealed == false : "repeatLastRow would invalidate the sealed row and child fences";
             final int firstElem = rowOffsets[count - 1];
             final int blockElems = elemCount - firstElem;
-            rowOffsets = ensureIntCapacity(rowOffsets, count + times);
-            repeatIntBlock(rowOffsets, count - 1, times, blockElems);
+            rowOffsets = ensureIntCapacity(rowOffsets, count + additionalCopies);
+            repeatIntBlock(rowOffsets, count - 1, additionalCopies, blockElems);
             if (blockElems > 0) {
                 final int blockBytes;
                 if (childKind == EscfColumnKind.LONG || childKind == EscfColumnKind.DOUBLE) {
@@ -1341,14 +1342,14 @@ public final class EscfColumnBuilder implements Releasable {
                     blockBytes = blockElems * Long.BYTES;
                 } else {
                     blockBytes = childDataLen - childOffsets[firstElem];
-                    childOffsets = ensureIntCapacity(childOffsets, elemCount + blockElems * times);
-                    repeatIntBlock(childOffsets, firstElem, blockElems, times, blockBytes);
+                    childOffsets = ensureIntCapacity(childOffsets, elemCount + blockElems * additionalCopies);
+                    repeatIntBlock(childOffsets, firstElem, blockElems, additionalCopies, blockBytes);
                 }
-                childData.repeatLastBytes(blockBytes, times);
-                childDataLen += blockBytes * times;
-                elemCount += blockElems * times;
+                childData.repeatLastBytes(blockBytes, additionalCopies);
+                childDataLen += blockBytes * additionalCopies;
+                elemCount += blockElems * additionalCopies;
             }
-            bulkAdvancePresent(times);
+            bulkAdvancePresent(additionalCopies);
         }
 
         /** Begins a new present row; the caller then appends zero or more elements. */
@@ -1589,15 +1590,15 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void repeatLastRow(int times) {
+        public void repeatLastRow(int additionalCopies) {
             int blockBytes = dataLen - offsets[count - 1];
-            offsets = ensureIntCapacity(offsets, count + times);
-            typeVec = ensureByteCapacity(typeVec, count + times);
-            repeatIntBlock(offsets, count - 1, times, blockBytes);
-            Arrays.fill(typeVec, count, count + times, typeVec[count - 1]);
-            data.repeatLastBytes(blockBytes, times);
-            dataLen += blockBytes * times;
-            bulkAdvancePresent(times);
+            offsets = ensureIntCapacity(offsets, count + additionalCopies);
+            typeVec = ensureByteCapacity(typeVec, count + additionalCopies);
+            repeatIntBlock(offsets, count - 1, additionalCopies, blockBytes);
+            Arrays.fill(typeVec, count, count + additionalCopies, typeVec[count - 1]);
+            data.repeatLastBytes(blockBytes, additionalCopies);
+            dataLen += blockBytes * additionalCopies;
+            bulkAdvancePresent(additionalCopies);
         }
 
         private void prep(byte type) {
@@ -1672,22 +1673,22 @@ public final class EscfColumnBuilder implements Releasable {
      *  Single-entry {@link #repeatIntBlock}, for the per-row vectors: one entry per repeated row.
      *  Microbenchmarking showed that this method is actually faster than the generic {@link #repeatIntBlock} one.
      */
-    private static void repeatIntBlock(int[] values, int blockStart, int times, int delta) {
+    private static void repeatIntBlock(int[] values, int blockStart, int additionalCopies, int delta) {
         final int value = values[blockStart];
-        for (int i = 1; i <= times; i++) {
+        for (int i = 1; i <= additionalCopies; i++) {
             values[blockStart + i] = value + i * delta;
         }
     }
 
     /**
-     * Appends {@code times} more copies of the {@code rows} entries at {@code blockStart} directly behind them,
+     * Appends {@code additionalCopies} more copies of the {@code rows} entries at {@code blockStart} directly behind them,
      * adding {@code delta} per copy so that a monotonically increasing offset vector stays consistent. Used for
      * the per-element child offsets, where one repeated row carries a whole block of entries.
      */
-    private static void repeatIntBlock(int[] values, int blockStart, int rows, int times, int delta) {
+    private static void repeatIntBlock(int[] values, int blockStart, int rows, int additionalCopies, int delta) {
         int dst = blockStart + rows;
         int shift = delta;
-        for (int j = 0; j < times; j++) {
+        for (int j = 0; j < additionalCopies; j++) {
             for (int i = 0; i < rows; i++) {
                 values[dst + i] = values[blockStart + i] + shift;
             }

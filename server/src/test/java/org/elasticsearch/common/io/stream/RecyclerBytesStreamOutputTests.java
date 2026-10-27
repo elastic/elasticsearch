@@ -288,6 +288,23 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testRepeatLastBytesRejectsBadArguments() throws Exception {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(randomizedByteArrayWithSize(32));
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.repeatLastBytes(-1, 1));
+            assertEquals("length must not be negative, got -1", e.getMessage());
+
+            e = expectThrows(IllegalArgumentException.class, () -> out.repeatLastBytes(1, -1));
+            assertEquals("additionalCopies must not be negative, got -1", e.getMessage());
+
+            e = expectThrows(IllegalArgumentException.class, () -> out.repeatLastBytes(33, 1));
+            assertEquals("cannot repeat the last 33 bytes, only 32 were written", e.getMessage());
+
+            assertEquals(32, out.size());
+        }
+    }
+
     public void testSeek() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 

@@ -193,23 +193,29 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     /**
-     * Appends {@code times} more copies of the last {@code length} bytes already written to this stream.
+     * Appends {@code additionalCopies} more copies of the last {@code length} bytes already written to this stream.
      *
      * <p>The copies are made with a doubling scheme: every round duplicates everything appended so far, so
-     * {@code times} copies take {@code O(log(times))} page-level {@code System.arraycopy} calls instead of
-     * {@code times} individual writes. Each round reads the region ending exactly where it writes, so the
-     * source and destination never overlap even when both live in the same recycler page.
+     * {@code additionalCopies} copies take {@code O(log(additionalCopies))} page-level {@code System.arraycopy}
+     * calls instead of {@code additionalCopies} individual writes. Each round reads the region ending exactly
+     * where it writes, so the source and destination never overlap even when both live in the same recycler page.
      */
-    public void repeatLastBytes(int length, int times) {
-        assert length >= 0 : "negative length " + length;
-        assert times >= 0 : "negative times " + times;
-        if (length == 0 || times == 0) {
+    public void repeatLastBytes(int length, int additionalCopies) {
+        if (length < 0) {
+            throw new IllegalArgumentException("length must not be negative, got " + length);
+        }
+        if (additionalCopies < 0) {
+            throw new IllegalArgumentException("additionalCopies must not be negative, got " + additionalCopies);
+        }
+        if (length == 0 || additionalCopies == 0) {
             return;
         }
         final long start = position() - length;
-        assert start >= 0 : "cannot repeat the last " + length + " bytes, only " + position() + " were written";
+        if (start < 0) {
+            throw new IllegalArgumentException("cannot repeat the last " + length + " bytes, only " + position() + " were written");
+        }
         // Allocate the pages for all copies up front; the copy loop below then never has to grow the stream.
-        ensureCapacityFromPosition(position() + (long) length * times);
+        ensureCapacityFromPosition(position() + (long) length * additionalCopies);
         // Every round reads from this same position, so resolve its page once rather than per round: locating a
         // page costs an integer division and a lookup, more than the copy itself for a short block. All pages are
         // allocated above, so neither the page list nor the resolved page can move while copying.
@@ -219,7 +225,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         final int sourceOffset = sourcePage.offset + startOffsetInPage;
         final int sourceAvailable = pageSize - startOffsetInPage;
         int present = 1;
-        int remaining = times;
+        int remaining = additionalCopies;
         while (remaining > 0) {
             final int blocks = Math.min(present, remaining);
             final int chunk = blocks * length;

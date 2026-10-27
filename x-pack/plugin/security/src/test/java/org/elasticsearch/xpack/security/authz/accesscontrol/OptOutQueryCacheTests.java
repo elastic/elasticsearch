@@ -405,7 +405,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
 
     /** Wraps the query in a randomly chosen compound query, adding only clauses that are always safe to cache. */
     private static Query wrapInCompoundQuery(Query query) {
-        return switch (randomIntBetween(0, 5)) {
+        return switch (randomIntBetween(0, 6)) {
             case 0 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST).build();
             case 1 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD).build();
             case 2 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER).build();
@@ -413,7 +413,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 .add(query, BooleanClause.Occur.MUST_NOT)
                 .build();
             case 4 -> new DisjunctionMaxQuery(List.of(query), randomFloat());
-            case 5 -> new ConstantScoreQuery(new BoostQuery(query, randomFloat()));
+            case 5 -> new ConstantScoreQuery(query);
+            case 6 -> new BoostQuery(query, randomFloat());
             default -> throw new AssertionError("unexpected wrapper");
         };
     }

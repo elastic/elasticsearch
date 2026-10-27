@@ -156,6 +156,11 @@ tests:
   - :x-pack:plugin:esql:qa:server:multi-clusters:v8.13.4#oldToNew
   method: test {stats.SumExpressionWithConstantFoldableCastInConstantPosition}
   issue: https://github.com/elastic/elasticsearch/issues/163481
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.14.3#javaRestTest
+  method: test {stats.SumExpressionWithConstantFoldableCastInConstantPosition SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/163483
 
 # Examples:
 #

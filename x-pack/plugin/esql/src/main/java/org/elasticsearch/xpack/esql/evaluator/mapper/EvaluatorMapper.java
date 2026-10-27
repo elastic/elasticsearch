@@ -89,8 +89,11 @@ public interface EvaluatorMapper {
     ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator);
 
     /**
-     * Fold using {@link #toEvaluator} so you don't need a "by hand"
-     * implementation of {@link Expression#fold}.
+     * Fold this expression with {@link #doFold}. {@link AnyNullIsNull} expressions fold to {@code null} first if any
+     * argument folds to {@code null}, so {@link #doFold} doesn't have to handle them.
+     * <p>
+     * To customize folding, override {@link #doFold} instead of this method or {@link Expression#fold}.
+     * </p>
      */
     default Object fold(Source source, FoldContext ctx) {
         if (this instanceof AnyNullIsNull && this instanceof Expression expression) {
@@ -98,10 +101,17 @@ public interface EvaluatorMapper {
             if (withFoldedArguments == null) {
                 return null;
             }
-            if (withFoldedArguments != expression) {
-                return withFoldedArguments.fold(ctx);
-            }
+            // replaceChildren keeps the class, so the copy is an EvaluatorMapper too
+            return ((EvaluatorMapper) withFoldedArguments).doFold(source, ctx);
         }
+        return doFold(source, ctx);
+    }
+
+    /**
+     * Fold using {@link #toEvaluator} so you don't need a "by hand"
+     * implementation of {@link Expression#fold}.
+     */
+    default Object doFold(Source source, FoldContext ctx) {
         /*
          * OK! So! We're going to build a bunch of *stuff* that so that we can
          * call toEvaluator and use it without standing up an entire compute

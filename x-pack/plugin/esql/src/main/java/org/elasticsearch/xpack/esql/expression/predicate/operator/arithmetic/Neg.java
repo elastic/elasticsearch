@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -91,14 +90,7 @@ public class Neg extends UnaryScalarFunction implements AnyNullIsNull {
     }
 
     @Override
-    public final Object fold(FoldContext ctx) {
-        Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, ctx);
-        if (withFoldedArguments == null) {
-            return null;
-        }
-        if (withFoldedArguments != this) {
-            return withFoldedArguments.fold(ctx);
-        }
+    public final Object doFold(Source source, FoldContext ctx) {
         DataType dataType = field().dataType();
         // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
@@ -122,7 +114,7 @@ public class Neg extends UnaryScalarFunction implements AnyNullIsNull {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        return super.fold(ctx);
+        return super.doFold(source, ctx);
     }
 
     @Override

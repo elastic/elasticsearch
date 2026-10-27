@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -206,14 +205,7 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
     }
 
     @Override
-    public Object fold(FoldContext foldCtx) {
-        Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, foldCtx);
-        if (withFoldedArguments == null) {
-            return null;
-        }
-        if (withFoldedArguments != this) {
-            return withFoldedArguments.fold(foldCtx);
-        }
+    public Object doFold(Source source, FoldContext foldCtx) {
         var toleranceExpression = tolerance.fold(foldCtx);
         double inputTolerance = StSimplify.getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);

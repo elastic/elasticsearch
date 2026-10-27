@@ -111,15 +111,17 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     /** This exposes class-level static information within objects and should only be used for folding optimizations */
     protected abstract SpatialRelations getSpatialRelations();
 
+    /**
+     * {@link BinarySpatialFunction#fold} doesn't go through {@link EvaluatorMapper#fold}, which handles {@code null} arguments
+     * before calling {@link #doFold}.
+     */
     @Override
     public Object fold(FoldContext ctx) {
-        Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, ctx);
-        if (withFoldedArguments == null) {
-            return null;
-        }
-        if (withFoldedArguments != this) {
-            return withFoldedArguments.fold(ctx);
-        }
+        return EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
+    public Object doFold(Source source, FoldContext ctx) {
         try {
             if (this.spatialTypeResolver.supportsGrid) {
                 if (DataType.isGeoGrid(left().dataType())) {

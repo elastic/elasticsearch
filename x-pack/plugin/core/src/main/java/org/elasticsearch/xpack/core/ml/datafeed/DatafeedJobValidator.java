@@ -49,6 +49,7 @@ public final class DatafeedJobValidator {
 
         if (datafeedConfig.getEsqlQuery() != null) {
             checkGroupingIntervalMatchesBucketSpan(datafeedConfig.getGroupingInterval(), bucketSpan);
+            checkFrequencyIsMultipleOfGroupingInterval(datafeedConfig);
         }
 
         checkTimeFieldIsNotASearchRuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
@@ -133,17 +134,39 @@ public final class DatafeedJobValidator {
     private static void checkFrequencyIsMultipleOfHistogramInterval(DatafeedConfig datafeedConfig, NamedXContentRegistry xContentRegistry) {
         TimeValue frequency = datafeedConfig.getFrequency();
         if (frequency != null) {
-            long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
-            long frequencyMillis = frequency.millis();
-            if (frequencyMillis % histogramIntervalMillis != 0) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(
-                        Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL,
-                        frequency,
-                        TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep()
-                    )
-                );
-            }
+            checkFrequencyIsMultipleOfInterval(
+                frequency,
+                datafeedConfig.getHistogramIntervalMillis(xContentRegistry),
+                Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL
+            );
+        }
+    }
+
+    private static void checkFrequencyIsMultipleOfGroupingInterval(DatafeedConfig datafeedConfig) {
+        TimeValue frequency = datafeedConfig.getFrequency();
+        if (frequency != null) {
+            TimeValue groupingInterval = datafeedConfig.getGroupingInterval();
+            checkFrequencyIsMultipleOfInterval(
+                frequency,
+                groupingInterval.millis(),
+                Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL,
+                groupingInterval.getStringRep()
+            );
+        }
+    }
+
+    private static void checkFrequencyIsMultipleOfInterval(TimeValue frequency, long intervalMillis, String messageKey) {
+        checkFrequencyIsMultipleOfInterval(frequency, intervalMillis, messageKey, TimeValue.timeValueMillis(intervalMillis).getStringRep());
+    }
+
+    private static void checkFrequencyIsMultipleOfInterval(
+        TimeValue frequency,
+        long intervalMillis,
+        String messageKey,
+        String intervalStringRep
+    ) {
+        if (frequency.millis() % intervalMillis != 0) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(messageKey, frequency, intervalStringRep));
         }
     }
 

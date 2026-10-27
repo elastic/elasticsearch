@@ -1990,8 +1990,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 randomLongBetween(100, 999)
             );
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
-            // Simulation should be called for the two new shards. Index heap is not applied here; node heap is recomputed from the
-            // routing table when simulated cluster info is read.
+            // Simulation should be called for the two new shards
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
             verifyNoMoreInteractions(clusterInfoSimulator);
@@ -2000,8 +1999,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     ///
     /// [DesiredBalanceComputer#maybeSimulateAlreadyStartedShards] accounts for shard movements that have occurred since the
-    /// [ClusterInfo] was generated. Disk, write load, and cache commitment are simulated as movements. Node heap is recomputed
-    /// from the routing table instead.
+    /// [ClusterInfo] was generated.
     /// Previously we used [ShardRouting#started()] to determine which shards to simulate, which omitted RELOCATING shards.
     /// Relocating shards are effectively started and should be treated as such for the purpose of this simulation.
     /// This test ensures that relocating shards are included in the simulation.

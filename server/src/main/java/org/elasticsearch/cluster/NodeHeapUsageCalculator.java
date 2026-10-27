@@ -60,8 +60,7 @@ public final class NodeHeapUsageCalculator {
      * simulate a recovery completing, such as desired-balance computation, start the shard on {@code routingNodes} before reading the
      * result.
      *
-     * @param routingNodes             routing table that says which shards sit on which nodes. This may be the mutable copy used while
-     *                                 simulating allocation, which is not the routing table stored on the cluster state
+     * @param routingNodes             routing table that says which shards sit on which nodes
      * @param nonShardHeapUsage        per-node overhead that does not move with shard placement, applicable to indexing nodes only
      * @param shardHeapUsageEstimates  shard and index heap for each shard, plus the default for a shard with no metrics yet
      * @return node estimates keyed by node id

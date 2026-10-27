@@ -134,12 +134,7 @@ public class ClusterInfoSimulator {
     }
 
     /**
-     * Node heap for the shards the current routing table places on each node.
-     * <p>
-     * The snapshot's total and hosted-shards figures are not a baseline. They can disagree with the routing table, because the pieces of
-     * {@link ClusterInfo} are collected asynchronously. Heap is derived again from the shard estimates and
-     * {@link RoutingAllocation#routingNodes()}, the same way {@link NodeHeapUsageCalculator} publishes it. Nodes with no entry in the
-     * snapshot are left out, because the snapshot is also where node heap capacity comes from.
+     * Node heap for the shards the current routing table places on each node
      */
     // Visible for testing
     public Map<String, NodeHeapMetrics> computeNodeHeapMetrics() {

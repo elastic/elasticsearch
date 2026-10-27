@@ -61,7 +61,7 @@ final class FieldCheckingVisitor extends QueryVisitor {
             return;
         }
 
-        if (FieldReportingProbe.reportsField(query) == false) {
+        if (new FieldReportingProbe().reportsCacheableField(query) == false) {
             cacheable.set(false);
         }
     }
@@ -89,21 +89,21 @@ final class FieldCheckingVisitor extends QueryVisitor {
     }
 
     /**
-     * Records whether a query reports a field to the visitor it is given.
+     * Records whether a query reports a field to the visitor it is given, and checks that field's permissions through the outer
+     * visitor.
      */
-    private static class FieldReportingProbe extends QueryVisitor {
+    private class FieldReportingProbe extends QueryVisitor {
         private boolean reported = false;
 
-        private static boolean reportsField(Query query) {
-            FieldReportingProbe probe = new FieldReportingProbe();
-            query.visit(probe);
-            return probe.reported;
+        private boolean reportsCacheableField(Query query) {
+            query.visit(this);
+            return reported && cacheable.get();
         }
 
         @Override
         public boolean acceptField(String field) {
             reported = true;
-            return true;
+            return FieldCheckingVisitor.this.acceptField(field);
         }
 
         @Override

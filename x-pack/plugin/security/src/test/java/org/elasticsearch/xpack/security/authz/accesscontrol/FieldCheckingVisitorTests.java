@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -99,12 +100,17 @@ public class FieldCheckingVisitorTests extends ESTestCase {
         visitor.visitLeaf(MatchNoDocsQuery.INSTANCE);
         assertTrue(cacheable.get());
 
-        // the field's permissions are checked by acceptField, visitLeaf only checks that the query reports a field
-        visitor.visitLeaf(new FieldQuery(randomFrom(CACHEABLE_FIELD, randomUncacheableField())));
+        // visitLeaf checks both that the query reports a field and that the field is cacheable
+        visitor.visitLeaf(new FieldQuery(CACHEABLE_FIELD));
         assertTrue(cacheable.get());
 
-        visitor.visitLeaf(new NoFieldQuery());
-        assertFalse(cacheable.get());
+        Consumer<Runnable> testUncacheable = r -> {
+            cacheable.set(true);
+            r.run();
+            assertFalse(cacheable.get());
+        };
+        testUncacheable.accept(() -> visitor.visitLeaf(new NoFieldQuery()));
+        testUncacheable.accept(() -> visitor.visitLeaf(new FieldQuery(randomUncacheableField())));
     }
 
     public void testGetSubVisitor() {

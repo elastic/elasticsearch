@@ -11,15 +11,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
+import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -99,5 +103,63 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
         assertNotNull("jtsGeometryToWkb should not return null for union result", resultWkb);
         String resultWkt = SpatialCoordinateTypes.UNSPECIFIED.wkbToWkt(resultWkb);
         logger.info("Round-trip WKT: {}", resultWkt);
+    }
+
+    /**
+     * Two-dimensional geometries are converted to and from JTS through binary WKB rather than WKT, which must give
+     * exactly the same JTS geometry as parsing the WKT, and must write back the original geometry.
+     */
+    public void testJtsConversionMatchesWkt() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            assertJtsRoundTrip(randomTwoDimensionalGeometry(randomIntBetween(0, 2)));
+        }
+    }
+
+    /** Geometries with Z are read with their Z, and written back with exactly the same x and y but no Z. */
+    public void testJtsConversionWithZ() throws Exception {
+        for (int i = 0; i < 20; i++) {
+            Geometry geometry = randomFrom(
+                GeometryTestUtils.randomPoint(true),
+                GeometryTestUtils.randomLine(true),
+                GeometryTestUtils.randomPolygon(true),
+                GeometryTestUtils.randomMultiPolygon(true)
+            );
+            BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+            org.locationtech.jts.geom.Geometry jts = SpatialCoordinateTypes.UNSPECIFIED.wkbToJtsGeometry(wkb);
+            assertFalse(Double.isNaN(jts.getCoordinate().getZ()));
+            BytesRef written = SpatialCoordinateTypes.UNSPECIFIED.jtsGeometryToWkb(jts);
+            assertFalse(SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(written).hasZ());
+            // equalsExact only compares x and y
+            assertTrue(SpatialCoordinateTypes.UNSPECIFIED.wkbToJtsGeometry(written).equalsExact(jts));
+        }
+    }
+
+    private static void assertJtsRoundTrip(Geometry geometry) throws Exception {
+        BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+        org.locationtech.jts.geom.Geometry jts = SpatialCoordinateTypes.UNSPECIFIED.wkbToJtsGeometry(wkb);
+        org.locationtech.jts.geom.Geometry viaWkt = new WKTReader().read(SpatialCoordinateTypes.UNSPECIFIED.wkbToWkt(wkb));
+        assertEquals(viaWkt.getGeometryType(), jts.getGeometryType());
+        assertTrue("expected " + viaWkt + " but was " + jts, jts.equalsExact(viaWkt));
+        BytesRef written = SpatialCoordinateTypes.UNSPECIFIED.jtsGeometryToWkb(jts);
+        assertEquals(geometry, SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(written));
+    }
+
+    private static Geometry randomTwoDimensionalGeometry(int depth) {
+        return switch (randomIntBetween(0, depth > 0 ? 6 : 5)) {
+            case 0 -> GeometryTestUtils.randomPoint(false);
+            case 1 -> GeometryTestUtils.randomMultiPoint(false);
+            case 2 -> GeometryTestUtils.randomLine(false);
+            case 3 -> GeometryTestUtils.randomMultiLine(false);
+            case 4 -> GeometryTestUtils.randomPolygon(false);
+            case 5 -> GeometryTestUtils.randomMultiPolygon(false);
+            case 6 -> {
+                List<Geometry> geometries = new ArrayList<>();
+                for (int i = randomIntBetween(1, 4); i > 0; i--) {
+                    geometries.add(randomTwoDimensionalGeometry(depth - 1));
+                }
+                yield new GeometryCollection<>(geometries);
+            }
+            default -> throw new AssertionError("unexpected geometry choice");
+        };
     }
 }

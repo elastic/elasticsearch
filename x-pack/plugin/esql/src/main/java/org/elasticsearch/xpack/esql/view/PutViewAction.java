@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -42,34 +41,22 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
-        private static final TransportVersion ESQL_PUT_VIEW_VALIDATE = TransportVersion.fromName("esql_put_view_validate");
-
         private final View view;
-        private final boolean validate;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, View view) {
-            this(masterNodeTimeout, ackTimeout, view, false);
-        }
-
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, View view, boolean validate) {
             super(masterNodeTimeout, ackTimeout);
             this.view = view;
-            this.validate = validate;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             view = new View(in);
-            validate = in.getTransportVersion().supports(ESQL_PUT_VIEW_VALIDATE) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             view.writeTo(out);
-            if (out.getTransportVersion().supports(ESQL_PUT_VIEW_VALIDATE)) {
-                out.writeBoolean(validate);
-            }
         }
 
         @Override
@@ -104,21 +91,17 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
             return view;
         }
 
-        public boolean validateQuery() {
-            return validate;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return view.equals(request.view) && validate == request.validate;
+            return view.equals(request.view);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(view, validate);
+            return Objects.hash(view);
         }
 
         @Override

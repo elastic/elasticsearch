@@ -135,49 +135,12 @@ public class ViewService {
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final View view = request.view();
-        final EsqlStatement statement;
         try {
-            statement = validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            validatePutView(clusterService.state().metadata().getProject(projectId), view);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
-        if (request.validateQuery()) {
-            analyzeQuery(view, statement, () -> submitPutView(projectId, request, listener));
-        } else {
-            submitPutView(projectId, request, listener);
-        }
-    }
-
-    /**
-     * Runs {@code next} once the analysis has a verdict. A failure caused by the query becomes a warning on the response.
-     * Any other failure, such as a rejection, a breaker trip, missing privileges or a timeout, says nothing about the query and is ignored.
-     */
-    private void analyzeQuery(View view, EsqlStatement statement, Runnable next) {
-        final var threadPool = clusterService.threadPool();
-        // The analysis completes on another thread. Go back to the request context, so that the warning ends up on the response
-        // and the warnings of the analysis itself do not.
-        final ActionListener<Void> analyzed = ListenerTimeouts.wrapWithTimeout(
-            threadPool,
-            new ContextPreservingActionListener<>(
-                threadPool.getThreadContext().newRestorableContext(false),
-                ActionListener.<Void>running(next).delegateResponse((l, e) -> {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
-                        HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), cause.getMessage());
-                    }
-                    l.onFailure(e);
-                })
-            ),
-            VIEW_VERIFICATION_TIMEOUT,
-            threadPool.generic(),
-            "view [" + view.name() + "] verification"
-        );
-        ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l));
-    }
-
-    private void submitPutView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        final View view = request.view();
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -197,6 +160,39 @@ public class ViewService {
             }
         };
         taskQueue.submitTask("update-esql-view-metadata-[" + view.name() + "]", task, task.timeout());
+    }
+
+    /**
+     * Reports what is wrong with a view definition without storing it, so that a caller can validate on the node it received the
+     * request on rather than on the master. A problem with the query becomes a warning on the response; only a definition that could
+     * never be stored, such as an unparsable query, fails the listener.
+     */
+    public void validateView(ProjectId projectId, View view, ActionListener<Void> listener) {
+        try {
+            var statement = validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            final var threadPool = clusterService.threadPool();
+            // The analysis completes on another thread. Go back to the request context, so that the warning ends up on the response
+            // and the warnings of the analysis itself do not.
+            final ActionListener<Void> analyzed = ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                new ContextPreservingActionListener<>(
+                    threadPool.getThreadContext().newRestorableContext(false),
+                    ActionListener.<Void>running(() -> listener.onResponse(null)).delegateResponse((l, e) -> {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
+                            HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), cause.getMessage());
+                        }
+                        l.onFailure(e);
+                    })
+                ),
+                VIEW_VERIFICATION_TIMEOUT,
+                threadPool.generic(),
+                "view [" + view.name() + "] verification"
+            );
+            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -441,8 +437,7 @@ public class ViewService {
                                     new PutViewAction.Request(
                                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                                        view,
-                                        false // no need to validate reserved view
+                                        view
                                     ),
                                     listener
                                 )

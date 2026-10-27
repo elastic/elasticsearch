@@ -171,6 +171,8 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.TransportValidateViewAction;
+import org.elasticsearch.xpack.esql.view.ValidateViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
@@ -778,6 +780,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
             new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(ValidateViewAction.INSTANCE, TransportValidateViewAction.class),
             new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),

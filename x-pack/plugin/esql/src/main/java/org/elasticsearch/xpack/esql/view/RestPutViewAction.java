@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -52,10 +54,19 @@ public class RestPutViewAction extends BaseRestHandler {
             PutViewAction.Request req = new PutViewAction.Request(
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                view,
-                request.paramAsBoolean("validate", true)
+                view
             );
-            return channel -> client.execute(PutViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
+            boolean validate = request.paramAsBoolean("validate", true);
+            return channel -> SubscribableListener.<Void>newForked(l -> {
+                if (validate) {
+                    // validation runs on current node, actual update below performed on elected master only
+                    client.execute(ValidateViewAction.INSTANCE, new ValidateViewAction.Request(view), l.map(ignored -> null));
+                } else {
+                    l.onResponse(null);
+                }
+            })
+                .<AcknowledgedResponse>andThen((l, ignored) -> client.execute(PutViewAction.INSTANCE, req, l))
+                .addListener(new RestToXContentListener<>(channel));
         }
     }
 

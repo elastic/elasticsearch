@@ -809,12 +809,7 @@ public class CsvIT extends ESTestCase {
                 cluster.client()
                     .execute(
                         PutViewAction.INSTANCE,
-                        new PutViewAction.Request(
-                            TEST_REQUEST_TIMEOUT,
-                            TEST_REQUEST_TIMEOUT,
-                            new View(view.name(), view.loadQuery()),
-                            false // indices are lazy loaded after view is created
-                        )
+                        new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
                     )
             );
         }

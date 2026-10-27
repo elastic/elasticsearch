@@ -296,19 +296,19 @@ public class ViewServiceTests extends ESTestCase {
         viewService.validatePutView(project, view);
     }
 
-    public void testPutViewWarnsWhenQueryIsNotValid() {
+    public void testValidateViewWarnsWhenQueryIsNotValid() {
         var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
 
-        putView(service, new View("v", "FROM missing", null, false), true);
+        validateView(service, new View("v", "FROM missing", null, false));
 
         assertWarnings("view [v] query is not valid: Found 1 problem\nline 1:6: Unknown index [missing]");
-        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+        assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
     }
 
     /**
      * These failures say nothing about the query, so they must not look like a problem with it.
      */
-    public void testPutViewDoesNotWarnWhenAnalysisFailsForOtherReasons() {
+    public void testValidateViewDoesNotWarnWhenAnalysisFailsForOtherReasons() {
         for (Exception failure : List.<Exception>of(
             new EsRejectedExecutionException("rejected"),
             new TaskCancelledException("Cancelled"),
@@ -316,23 +316,20 @@ public class ViewServiceTests extends ESTestCase {
             new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
             new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
         )) {
-            var service = viewServiceFailingAnalysisWith(failure);
-            putView(service, new View("v", "FROM missing", null, false), true);
+            validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false));
             ensureNoWarnings();
-            assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
         }
     }
 
-    public void testPutViewDoesNotWarnWhenQueryIsValid() {
-        putView(viewService, new View("v", "FROM some-index", null, false), true);
+    public void testValidateViewDoesNotWarnWhenQueryIsValid() {
+        validateView(viewService, new View("v", "FROM some-index", null, false));
         ensureNoWarnings();
-        assertThat(viewService.get(ProjectId.DEFAULT, "v"), notNullValue());
     }
 
-    public void testPutViewDoesNotAnalyzeWhenValidationIsOff() {
+    public void testPutViewDoesNotAnalyze() {
         var service = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> fail("must not analyze"));
 
-        putView(service, new View("v", "FROM missing", null, false), false);
+        putView(service, new View("v", "FROM missing", null, false));
 
         assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
     }
@@ -341,9 +338,9 @@ public class ViewServiceTests extends ESTestCase {
         return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
     }
 
-    private void putView(ViewService service, View view, boolean validate) {
-        var future = new PlainActionFuture<AcknowledgedResponse>();
-        service.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view, validate), future);
+    private void validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<Void>();
+        service.validateView(ProjectId.DEFAULT, view, future);
         future.actionGet(10, TimeUnit.SECONDS);
     }
 
@@ -354,8 +351,12 @@ public class ViewServiceTests extends ESTestCase {
     }
 
     private void putView(View view) {
+        putView(viewService, view);
+    }
+
+    private void putView(ViewService service, View view) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
-        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+        service.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
         future.actionGet(10, TimeUnit.SECONDS);
     }
 

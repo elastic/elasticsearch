@@ -131,6 +131,16 @@ public class VersionTests extends ESTestCase {
         );
         assertEquals(48, VersionAllocationEstimators.versionIteratorBytes((VersionScriptDocValues) empty.toScriptDocValues()));
         assertEquals(48, VersionAllocationEstimators.versionIteratorBytes(empty));
+        // iterator() and stream() are inherited, so the lookup passes the receiver as a list or collection.
+        assertEquals(
+            VersionAllocationEstimators.versionIteratorBytes(values),
+            VersionAllocationEstimators.versionIteratorBytes((java.util.AbstractList<?>) values)
+        );
+        assertEquals(
+            VersionAllocationEstimators.versionIteratorBytes(values),
+            VersionAllocationEstimators.versionIteratorBytes((java.util.Collection<?>) values)
+        );
+        assertEquals(48, VersionAllocationEstimators.versionIteratorBytes(new java.util.ArrayList<>(java.util.List.of("1.0"))));
     }
 
     /** A version field over one document holding {@code versions}, already on that document. */

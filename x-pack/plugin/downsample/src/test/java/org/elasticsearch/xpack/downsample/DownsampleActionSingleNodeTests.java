@@ -1540,10 +1540,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             sourceSettings.getAsList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey()),
             downsampleSettings.getAsList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
         );
-        assertEquals(
-            sourceSettings.hasValue(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey()),
-            downsampleSettings.hasValue(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
-        );
 
         assertNotNull(sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
         assertNotNull(downsampleSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));

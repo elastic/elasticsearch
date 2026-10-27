@@ -966,6 +966,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         metrics.recordBccUpload(
             virtualBcc.getTotalSizeInBytes(),
+            virtualBcc.headersSizeInBytes(),
+            virtualBcc.replicatedContentSizeInBytes(),
+            virtualBcc.copiedGenerationalFilesSizeInBytes(),
             virtualBcc.size(),
             threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
             Iterators.map(

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163146
+summary: Apply query-setting cluster defaults inside view bodies
+type: bug

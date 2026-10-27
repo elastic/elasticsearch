@@ -51,6 +51,7 @@ import org.apache.lucene.analysis.util.CSVUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
@@ -65,6 +66,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -183,6 +185,21 @@ public class Analysis {
      */
     public static StableCharArraySet stableStopWords(Settings settings, CharArraySet stopWords) {
         return new StableCharArraySet(stopWords, settings.getAsBoolean("stopwords_case", false));
+    }
+
+    /**
+     * A SHA-256 of {@code text}, as hex, to stand in for large text (user dictionaries, rule files) in a {@code sharingKey()}.
+     * Hash exactly the text the Lucene object is parsed from, so equal hashes mean equal objects. Hashes UTF-16 code units, not
+     * an encoding, so unpaired surrogates stay distinct.
+     */
+    public static String sha256Hex(CharSequence text) {
+        MessageDigest digest = MessageDigests.sha256();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            digest.update((byte) (c >>> 8));
+            digest.update((byte) c);
+        }
+        return MessageDigests.toHexString(digest.digest());
     }
 
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
@@ -466,7 +483,8 @@ public class Analysis {
 
     /**
      * Synonym rules read from the {@code .synonyms} index. {@code degraded} is set when {@code ignoreMissing}
-     * swallowed a failure to load them, so {@code reader} holds no rules rather than the sets' rules.
+     * skipped some of the sets or swallowed a failure to load them, so {@code reader} lacks some or all of the
+     * sets' rules.
      */
     public record IndexRules(Reader reader, boolean degraded) {}
 
@@ -475,13 +493,15 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        boolean degraded = false;
-        PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+        boolean degraded;
+        PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> future = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(synonymsSets, ignoreMissing, future);
 
         PagedResult<SynonymRule> result;
         try {
-            result = future.actionGet();
+            SynonymsManagementAPIService.SynonymSetRules setRules = future.actionGet();
+            result = setRules.rules();
+            degraded = setRules.missingSetIds().isEmpty() == false;
         } catch (Exception e) {
             if (ignoreMissing == false) {
                 throw e;

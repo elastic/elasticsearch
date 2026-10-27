@@ -420,7 +420,16 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // The deprecated camel-case ngram names are rejected on indices created on or after 8.0, and the
         // contract builds current-version indices; the ngram / edge_ngram declarations cover the same factories.
         // The two filters also never share; CommonAnalysisPluginTests covers that.
-        return Set.of(tokenFilter("nGram"), tokenFilter("edgeNGram"), tokenizer("nGram"), tokenizer("edgeNGram"));
+        // The synonym filters need the plugin's circuit breaker and synonyms services, which this harness's
+        // plugin does not have; SharingKeyTests covers their keys.
+        return Set.of(
+            tokenFilter("nGram"),
+            tokenFilter("edgeNGram"),
+            tokenizer("nGram"),
+            tokenizer("edgeNGram"),
+            tokenFilter("synonym"),
+            tokenFilter("synonym_graph")
+        );
     }
 
     @Override
@@ -443,8 +452,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             tokenFilter("multiplexer"),
             tokenFilter("predicate_token_filter"),
             tokenFilter("stemmer_override"),
-            tokenFilter("synonym"),
-            tokenFilter("synonym_graph"),
             tokenFilter("word_delimiter"),
             tokenFilter("word_delimiter_graph"),
             charFilter("mapping")

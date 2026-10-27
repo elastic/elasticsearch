@@ -98,8 +98,8 @@ public interface TokenFilterFactory {
 
     /**
      * Whether this filter was built from a fallback because a lenient load of its resource failed, e.g. a
-     * synonyms set that was missing or could not be read. {@link ReloadableCustomAnalyzer} retries the load
-     * on the next shard recovery instead of treating the fallback as loaded.
+     * synonyms set that was missing or could not be read. A shared {@link ReloadableCustomAnalyzer} then retries
+     * the load when another index joining it recovers a shard, instead of treating the fallback as loaded.
      */
     default boolean isDegraded() {
         return false;

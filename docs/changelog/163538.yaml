@@ -1,0 +1,6 @@
+area: "Mapping, Search"
+issues:
+ - 163537
+pr: 163538
+summary: Apply `minimum_should_match` through value wrappers
+type: bug

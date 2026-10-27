@@ -425,11 +425,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/163039
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown
-  issue: https://github.com/elastic/elasticsearch/issues/163048
 - class: org.elasticsearch.test.rest.yaml.CcsSearchYamlTestSuiteIT
   tasks:
   - :qa:ccs-common-rest:yamlRestTest

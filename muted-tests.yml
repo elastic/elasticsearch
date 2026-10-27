@@ -536,6 +536,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163479
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   tasks:
+  - :x-pack:qa:rolling-upgrade:v9.0.8#yamlBwcTest
   - :x-pack:qa:rolling-upgrade:v9.2.8#yamlBwcTest
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357

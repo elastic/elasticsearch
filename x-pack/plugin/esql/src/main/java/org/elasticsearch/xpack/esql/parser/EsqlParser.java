@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -58,6 +59,14 @@ public class EsqlParser {
      * that the world just isn't that big.
      */
     public static final int MAX_LENGTH = 1_000_000;
+
+    /**
+     * Maximum number of binary operators in a single pipe-delimited segment of an ESQL query. A flat chain such as
+     * {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit
+     * but makes ANTLR allocate a very large parse tree, so such queries are rejected from the token stream
+     * before parsing starts. The check is syntax-blind: unary {@code +}/{@code -} are conservatively counted too.
+     */
+    public static final int MAX_BINARY_OPERATORS = 1000;
 
     private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
         for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
@@ -241,33 +250,20 @@ public class EsqlParser {
         try {
             ParserPipeline pipeline = createParserPipeline(query, params);
 
-            // Pre-scan the token stream for expression depth BEFORE invoking ANTLR's
+            // Pre-scan the token stream for expression depth and complexity BEFORE invoking ANTLR's
             // recursive-descent parser.
+            boolean tokenized;
             try {
                 pipeline.tokenStream().fill();
-                int depth = 0;
-                int prefixChain = 0;
-                for (Token token : pipeline.tokenStream().getTokens()) {
-                    switch (token.getType()) {
-                        case EsqlBaseLexer.LP -> depth++;
-                        case EsqlBaseLexer.RP -> depth--;
-                        case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
-                        default -> prefixChain = 0;
-                    }
-                    if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
-                        throw new ParsingException(
-                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
-                            ExpressionBuilder.MAX_EXPRESSION_DEPTH
-                        );
-                    }
-                }
+                tokenized = true;
             } catch (ParsingException pe) {
-                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
-                    throw pe;
-                }
                 // Lexer error during fill() — rebuild the entire pipeline from scratch so the
-                // parser runs lazily and reports the same error as without this depth check.
+                // parser runs lazily and reports the same error as without this pre-scan.
                 pipeline = createParserPipeline(query, params);
+                tokenized = false;
+            }
+            if (tokenized) {
+                checkTokenLimits(pipeline.tokenStream().getTokens());
             }
 
             ParserRuleContext tree = parseFunction.apply(pipeline.parser());
@@ -286,6 +282,43 @@ public class EsqlParser {
         } catch (EmptyStackException ese) {
             throw new ParsingException("Invalid query [{}]", query);
         }
+    }
+
+    private static void checkTokenLimits(List<Token> tokens) {
+        int depth = 0;
+        int prefixChain = 0;
+        int binaryOperators = 0;
+        for (Token token : tokens) {
+            switch (token.getType()) {
+                case EsqlBaseLexer.LP -> depth++;
+                case EsqlBaseLexer.RP -> depth--;
+                case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
+                default -> prefixChain = 0;
+            }
+            if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum expression depth allowed ({})",
+                    ExpressionBuilder.MAX_EXPRESSION_DEPTH
+                );
+            }
+            if (token.getType() == EsqlBaseLexer.PIPE) {
+                binaryOperators = 0;
+            } else if (isBinaryOperator(token.getType()) && ++binaryOperators > MAX_BINARY_OPERATORS) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of binary operators allowed in a command ({})",
+                    MAX_BINARY_OPERATORS
+                );
+            }
+        }
+    }
+
+    private static boolean isBinaryOperator(int tokenType) {
+        return switch (tokenType) {
+            case EsqlBaseLexer.PLUS, EsqlBaseLexer.MINUS, EsqlBaseLexer.ASTERISK, EsqlBaseLexer.SLASH, EsqlBaseLexer.PERCENT,
+                EsqlBaseLexer.EQ, EsqlBaseLexer.CIEQ, EsqlBaseLexer.NEQ, EsqlBaseLexer.LT, EsqlBaseLexer.LTE, EsqlBaseLexer.GT,
+                EsqlBaseLexer.GTE, EsqlBaseLexer.AND, EsqlBaseLexer.OR, EsqlBaseLexer.CAST_OP -> true;
+            default -> false;
+        };
     }
 
     private class PostProcessor extends EsqlBaseParserBaseListener {

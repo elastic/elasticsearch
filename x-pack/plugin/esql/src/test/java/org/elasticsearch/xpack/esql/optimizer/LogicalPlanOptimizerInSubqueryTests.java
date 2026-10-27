@@ -67,7 +67,8 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
         assertThat(
             e.getMessage(),
             containsString(
-                "[KNN] function must specify a k option or be used with a LIMIT clause after it to set the number of nearest neighbors to find"
+                "[KNN] function must specify a k option or be used with a LIMIT clause after it to set"
+                    + " the number of nearest neighbors to find"
             )
         );
     }

@@ -2542,7 +2542,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
-        multiply(a, k, b, result, m, k, n, executor);
+        multiply(a, k, b, result, m, k, n, false, executor);
+    }
+
+    @Override
+    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        multiply(a, k, b, result, n, k, n, true, executor);
     }
 
     /*
@@ -2567,8 +2572,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * Once B no longer fits in L2, re-reading all the data in B requires lots of cache movement.
      * Instead, B is copied one column panel at a time into a contiguous buffer,
      * and all row blocks of A are multiplied against that panel while it is in cache.
+     * <p>
+     * With {@code upperOnly}, C is square and symmetric: the row blocks of a panel that lie wholly below the diagonal are
+     * skipped, and the panel's columns are then copied into the matching rows below the diagonal. The panels reach
+     * further down the further right they are, so they are submitted from the right, the most expensive first.
      */
-    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n, TaskExecutor executor) {
+    private static void multiply(
+        float[] a,
+        int aRowStride,
+        float[] b,
+        float[] c,
+        int cRows,
+        int inner,
+        int n,
+        boolean upperOnly,
+        TaskExecutor executor
+    ) {
+        assert upperOnly == false || cRows == n;
         final int rowLimit = limit(cRows, MATRIX_TILE_ROWS);
         final int panelLimit = limit(n, MATRIX_TILE_COLS);
 
@@ -2581,12 +2601,17 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                     // get all the b column data for this panel packed into a single array for cacheability in the row loop
                     packPanel(b, n, inner, p, panel);
 
-                    for (int i = 0; i < rowLimit; i += MATRIX_TILE_ROWS) {
+                    // the rows of an upper triangle that has columns [p, p + MATRIX_TILE_COLS) end at the last of those columns
+                    int panelRowLimit = upperOnly ? Math.min(rowLimit, p + MATRIX_TILE_COLS) : rowLimit;
+                    for (int i = 0; i < panelRowLimit; i += MATRIX_TILE_ROWS) {
                         switch (VECTOR_BITSIZE) {
                             case 128 -> multiplyPanel4x4(a, aRowStride, panel, c, i, p, inner, n);
                             case 512 -> multiplyPanel8x2(a, aRowStride, panel, c, i, p, inner, n);
                             default -> multiplyPanel4x2(a, aRowStride, panel, c, i, p, inner, n);
                         }
+                    }
+                    if (upperOnly) {
+                        mirrorColumns(c, n, p, p + MATRIX_TILE_COLS, rowLimit);
                     }
                 }
             } else {
@@ -2602,20 +2627,24 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                  */
                 Queue<float[]> buffers = new ConcurrentLinkedQueue<>();
 
-                for (int p = 0; p < panelLimit; p += MATRIX_TILE_COLS) {
-                    final int panelStart = p;
+                for (int t = 0; t < numRequiredTasks; t++) {
+                    final int panelStart = (upperOnly ? numRequiredTasks - 1 - t : t) * MATRIX_TILE_COLS;
+                    final int panelRowLimit = upperOnly ? Math.min(rowLimit, panelStart + MATRIX_TILE_COLS) : rowLimit;
                     tasks.add(() -> {
                         float[] panel = buffers.poll(); // acquire panel buffer if available
                         if (panel == null) panel = new float[inner * MATRIX_TILE_COLS];
 
                         packPanel(b, n, inner, panelStart, panel);
 
-                        for (int i = 0; i < rowLimit; i += MATRIX_TILE_ROWS) {
+                        for (int i = 0; i < panelRowLimit; i += MATRIX_TILE_ROWS) {
                             switch (VECTOR_BITSIZE) {
                                 case 128 -> multiplyPanel4x4(a, aRowStride, panel, c, i, panelStart, inner, n);
                                 case 512 -> multiplyPanel8x2(a, aRowStride, panel, c, i, panelStart, inner, n);
                                 default -> multiplyPanel4x2(a, aRowStride, panel, c, i, panelStart, inner, n);
                             }
+                        }
+                        if (upperOnly) {
+                            mirrorColumns(c, n, panelStart, panelStart + MATRIX_TILE_COLS, rowLimit);
                         }
                         buffers.add(panel); // release panel buffer
                         return null;
@@ -2671,9 +2700,29 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             }
         }
 
+        if (upperOnly) {
+            // the columns left over by the panels. The rows of the row tail below are computed in full, so need no copy
+            mirrorColumns(c, n, panelLimit, n, rowLimit);
+        }
+
         // row tail, max MATRIX_TILE_ROWS - 1 rows
         for (int i = rowLimit; i < cRows; i++) {
             multiplyTile1(a, aRowStride, b, c, i, inner, n);
+        }
+    }
+
+    /**
+     * Copies each of the columns {@code [colStart, colEnd)} of the square matrix {@code c}, above the diagonal, into the
+     * row of the same number, below it, for the rows before {@code rowLimit}. The rows from {@code rowLimit} are
+     * computed in full by the caller.
+     */
+    private static void mirrorColumns(float[] c, int n, int colStart, int colEnd, int rowLimit) {
+        for (int j = colStart; j < colEnd; j++) {
+            int end = Math.min(j, rowLimit);
+            int rowBase = j * n;
+            for (int i = 0; i < end; i++) {
+                c[rowBase + i] = c[i * n + j];
+            }
         }
     }
 
@@ -3047,16 +3096,22 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        // panama doesn't give us anything over scalar, as panama integer is rubbish
+        new DefaultESVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    @Override
     public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
         int i = 0;
         // split aligned so that most of the time it doesn't need to worry about masks at all
         if (FLOAT_SPECIES.loopBound(cols) == cols) {
-            for (; i + 4 <= rows; i += 4) {
-                matrixVectorMultiply4Aligned(a, i * cols, cols, v, result, i);
+            for (; i + 8 <= rows; i += 8) {
+                matrixVectorMultiply8Aligned(a, i * cols, cols, v, result, i);
             }
         } else {
-            for (; i + 4 <= rows; i += 4) {
-                matrixVectorMultiply4Unaligned(a, i * cols, cols, v, result, i);
+            for (; i + 8 <= rows; i += 8) {
+                matrixVectorMultiply8Unaligned(a, i * cols, cols, v, result, i);
             }
         }
         // rows tail
@@ -3065,41 +3120,65 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
-    private static void matrixVectorMultiply4Aligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
+    private static void matrixVectorMultiply8Aligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
         final int a0 = aOffset;
         final int a1 = a0 + cols;
         final int a2 = a0 + cols * 2;
         final int a3 = a0 + cols * 3;
+        final int a4 = a0 + cols * 4;
+        final int a5 = a0 + cols * 5;
+        final int a6 = a0 + cols * 6;
+        final int a7 = a0 + cols * 7;
 
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv4 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv5 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv6 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv7 = FloatVector.zero(FLOAT_SPECIES);
         for (int j = 0; j < cols; j += FLOAT_SPECIES.length()) {
             FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, j);
             sv0 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a0 + j), vv, sv0);
             sv1 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a1 + j), vv, sv1);
             sv2 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a2 + j), vv, sv2);
             sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j), vv, sv3);
+            sv4 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a4 + j), vv, sv4);
+            sv5 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a5 + j), vv, sv5);
+            sv6 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a6 + j), vv, sv6);
+            sv7 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a7 + j), vv, sv7);
         }
 
         result[resultOffset] = sv0.reduceLanes(ADD);
         result[resultOffset + 1] = sv1.reduceLanes(ADD);
         result[resultOffset + 2] = sv2.reduceLanes(ADD);
         result[resultOffset + 3] = sv3.reduceLanes(ADD);
+        result[resultOffset + 4] = sv4.reduceLanes(ADD);
+        result[resultOffset + 5] = sv5.reduceLanes(ADD);
+        result[resultOffset + 6] = sv6.reduceLanes(ADD);
+        result[resultOffset + 7] = sv7.reduceLanes(ADD);
     }
 
-    private static void matrixVectorMultiply4Unaligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
+    private static void matrixVectorMultiply8Unaligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
         final int a0 = aOffset;
         final int a1 = a0 + cols;
         final int a2 = a0 + cols * 2;
         final int a3 = a0 + cols * 3;
+        final int a4 = a0 + cols * 4;
+        final int a5 = a0 + cols * 5;
+        final int a6 = a0 + cols * 6;
+        final int a7 = a0 + cols * 7;
 
         final int vectorEnd = FLOAT_SPECIES.loopBound(cols);
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv4 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv5 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv6 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv7 = FloatVector.zero(FLOAT_SPECIES);
         int j = 0;
         for (; j < vectorEnd; j += FLOAT_SPECIES.length()) {
             FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, j);
@@ -3107,12 +3186,20 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sv1 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a1 + j), vv, sv1);
             sv2 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a2 + j), vv, sv2);
             sv3 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a3 + j), vv, sv3);
+            sv4 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a4 + j), vv, sv4);
+            sv5 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a5 + j), vv, sv5);
+            sv6 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a6 + j), vv, sv6);
+            sv7 = fma(FloatVector.fromArray(FLOAT_SPECIES, a, a7 + j), vv, sv7);
         }
 
         float s0 = sv0.reduceLanes(ADD);
         float s1 = sv1.reduceLanes(ADD);
         float s2 = sv2.reduceLanes(ADD);
         float s3 = sv3.reduceLanes(ADD);
+        float s4 = sv4.reduceLanes(ADD);
+        float s5 = sv5.reduceLanes(ADD);
+        float s6 = sv6.reduceLanes(ADD);
+        float s7 = sv7.reduceLanes(ADD);
 
         // column tail, 4 rows at a time
         for (; j < cols; j++) {
@@ -3121,11 +3208,19 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             s1 = fma(a[a1 + j], vj, s1);
             s2 = fma(a[a2 + j], vj, s2);
             s3 = fma(a[a3 + j], vj, s3);
+            s4 = fma(a[a4 + j], vj, s4);
+            s5 = fma(a[a5 + j], vj, s5);
+            s6 = fma(a[a6 + j], vj, s6);
+            s7 = fma(a[a7 + j], vj, s7);
         }
 
         result[resultOffset] = s0;
         result[resultOffset + 1] = s1;
         result[resultOffset + 2] = s2;
         result[resultOffset + 3] = s3;
+        result[resultOffset + 4] = s4;
+        result[resultOffset + 5] = s5;
+        result[resultOffset + 6] = s6;
+        result[resultOffset + 7] = s7;
     }
 }

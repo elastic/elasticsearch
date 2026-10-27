@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * {@link Vector} where each entry references a lucene document.
@@ -132,7 +131,16 @@ public final class DocVector extends AbstractVector implements Vector {
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
 
         if (config.incrementShardRefCounts) {
-            forEachShardRefCounter(RefCounted::mustIncRef);
+            boolean success = false;
+            try {
+                incrementShardRefCounts();
+                success = true;
+            } finally {
+                if (success == false) {
+                    // Nothing will close a vector that failed to construct, so return its breaker charge here
+                    blockFactory().adjustBreaker(-BASE_RAM_BYTES_USED);
+                }
+            }
         }
     }
 
@@ -491,22 +499,53 @@ public final class DocVector extends AbstractVector implements Vector {
             segments,
             docs
         );
-        forEachShardRefCounter(RefCounted::decRef);
+        decrementShardRefCounts();
     }
 
     public RefCounted shardRefCounted(int position) {
         return refCounteds.get(shards.getInt(position));
     }
 
-    private void forEachShardRefCounter(Consumer<RefCounted> consumer) {
+    /**
+     * Increments the shard ref counts that {@link #decrementShardRefCounts} decrements. If a shard
+     * is already closed this decrements the ref counts it already incremented before rethrowing,
+     * so a failed constructor leaves every shard ref count as it was.
+     */
+    private void incrementShardRefCounts() {
         switch (shards) {
-            case ConstantIntVector constantIntVector -> consumer.accept(refCounteds.get(constantIntVector.getInt(0)));
+            case ConstantIntVector constantIntVector -> refCounteds.get(constantIntVector.getInt(0)).mustIncRef();
+            case ConstantNullVector ignored -> {
+                // Noop
+            }
+            default -> {
+                int incremented = 0;
+                boolean success = false;
+                try {
+                    while (incremented < shards.getPositionCount()) {
+                        refCounteds.get(shards.getInt(incremented)).mustIncRef();
+                        incremented++;
+                    }
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        for (int p = 0; p < incremented; p++) {
+                            refCounteds.get(shards.getInt(p)).decRef();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void decrementShardRefCounts() {
+        switch (shards) {
+            case ConstantIntVector constantIntVector -> refCounteds.get(constantIntVector.getInt(0)).decRef();
             case ConstantNullVector ignored -> {
                 // Noop
             }
             default -> {
                 for (int i = 0; i < shards.getPositionCount(); i++) {
-                    consumer.accept(refCounteds.get(shards.getInt(i)));
+                    refCounteds.get(shards.getInt(i)).decRef();
                 }
             }
         }
@@ -605,6 +644,14 @@ public final class DocVector extends AbstractVector implements Vector {
             return this;
         }
 
+        /**
+         * Make the vector adopt shard refs that the caller already took rather than take its own.
+         * The vector releases them when its own ref count drops to zero, so the caller must take
+         * exactly one ref per position, or a single ref if {@code shards} is a
+         * {@link ConstantIntVector}. The vector owns the refs only once it is built. If the
+         * constructor, {@link DocBlock.Builder#build(Config)} or {@link FixedBuilder#build(Config)}
+         * throws then the caller still owns the refs and must release them.
+         */
         public Config dontIncrementShardRefCounts() {
             this.incrementShardRefCounts = false;
             return this;

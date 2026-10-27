@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
@@ -744,8 +747,41 @@ public record TranslationContext(
         return new Case(count.source(), empty, List.of(Literal.NULL, count));
     }
 
-    /** {@link #zeroCountAsNull} for every {@code count_over_time} of a per-series value. */
-    public static Expression emptySampleCountAsNull(Expression value) {
-        return value.transformUp(CountOverTime.class, TranslationContext::zeroCountAsNull);
+    /**
+     * A range function over a series without a sample in the window has no element in Prometheus. A series can still
+     * reach the aggregate without one: its rows carry only other fields, or an operand's matchers reject them inside an
+     * aggregate shared with another operand. There {@code count_over_time} reads 0 and {@code present_over_time} false;
+     * both map to null so the element drops like any other without a value.
+     * <p>
+     * {@code absent_over_time} is the mirror: it has an element only for a series without a sample, so only true stays.
+     * A series the operand never selects reads true too - its matchers reject every row, or only another operand's metric
+     * has values - so true stays only for a series the operand selects.
+     */
+    public static Expression emptyRangeAsNull(Expression function, Expression time) {
+        if (function instanceof CountOverTime) {
+            return zeroCountAsNull(function);
+        }
+        if (function instanceof PresentOverTime present) {
+            return new Case(present.source(), present, List.of(Literal.TRUE, Literal.NULL));
+        }
+        if (function instanceof AbsentOverTime absent) {
+            Expression absentFromSelected = new And(absent.source(), selectedBy(absent, time), absent);
+            return new Case(absent.source(), absentFromSelected, List.of(Literal.TRUE, Literal.NULL));
+        }
+        return function;
+    }
+
+    /**
+     * Whether the operand of {@code absent} reads a row of the series in the window; the operand's matchers apply once its
+     * filter attaches to its time-series functions. A metric selector selects a series only where the metric has a value:
+     * rows are read for every metric the aggregate references
+     * ({@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics}), so a row without a value of
+     * this one can come from another operand's metric. For a metric field {@code absent} therefore never stays true.
+     */
+    private static Expression selectedBy(AbsentOverTime absent, Expression time) {
+        if (absent.field() instanceof Attribute field && field.resolved() && field.isMetric()) {
+            return new Not(absent.source(), absent);
+        }
+        return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());
     }
 }

@@ -72,6 +72,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
@@ -390,7 +392,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName(),
             EMBEDDING_FUNCTION.capabilityName(),
-            DENSE_VECTOR_COMMAND.capabilityName()
+            DENSE_VECTOR_COMMAND.capabilityName(),
+            DENSE_VECTOR_COMMAND_V2.capabilityName(),
+            DENSE_VECTOR_COMMAND_V3.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 

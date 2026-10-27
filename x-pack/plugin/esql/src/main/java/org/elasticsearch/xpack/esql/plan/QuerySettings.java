@@ -213,14 +213,14 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: preview\nstack: experimental 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"preview\"}`"
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)
@@ -564,8 +564,13 @@ public final class QuerySettings {
         }
     }
 
-    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
-    static ResolvedSettings resolve(
+    /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)} over {@code defs} only; every other
+     * setting reads as its registry default. A view definition resolves the settings it may {@code SET} with this, so that
+     * its body sees them folded exactly as a query would. Parameterized over the registry also so the fold is testable
+     * against a purpose-built setting, as byName(List) is.
+     */
+    public static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
         Settings clusterState,
         Settings nodeSettings,

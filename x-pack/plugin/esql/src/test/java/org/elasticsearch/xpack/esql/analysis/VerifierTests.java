@@ -4574,6 +4574,21 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
     }
 
+    public void testTextEmbeddingFunctionNonFoldableArguments() {
+        defaultAnalyzer().addInferenceResolution(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .error(
+                "from test | EVAL embedding = TEXT_EMBEDDING(first_name, ?)",
+                equalTo("1:30: first argument of [TEXT_EMBEDDING(first_name, ?)] must be a constant, received [first_name]"),
+                TEXT_EMBEDDING_INFERENCE_ID
+            );
+
+        defaultAnalyzer().error(
+            "from test | EVAL embedding = TEXT_EMBEDDING(?, first_name)",
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, first_name)] must be a constant, received [first_name]"),
+            "query text"
+        );
+    }
+
     public void testEmbeddingFunctionInvalidQuery() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 

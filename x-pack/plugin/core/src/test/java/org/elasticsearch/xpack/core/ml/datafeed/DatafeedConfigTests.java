@@ -824,6 +824,26 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
     }
 
+    public void testDefaultFrequencyGivenEsqlQueryShouldSnapToGroupingInterval() {
+        DatafeedConfig oneHourGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueHours(1)).build();
+        assertEquals(TimeValue.timeValueHours(1), oneHourGrouping.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), oneHourGrouping.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
+
+        DatafeedConfig fiveMinuteGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(5)).build();
+        assertEquals(TimeValue.timeValueMinutes(5), fiveMinuteGrouping.defaultFrequency(TimeValue.timeValueMinutes(5), xContentRegistry()));
+        assertEquals(
+            TimeValue.timeValueMinutes(10),
+            fiveMinuteGrouping.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry())
+        );
+
+        DatafeedConfig oneMinuteGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(1)).build();
+        assertEquals(TimeValue.timeValueMinutes(1), oneMinuteGrouping.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
+        assertEquals(
+            TimeValue.timeValueMinutes(2),
+            oneMinuteGrouping.defaultFrequency(TimeValue.timeValueSeconds(240), xContentRegistry())
+        );
+    }
+
     public void testSerializationOfComplexAggs() throws IOException {
         MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
         AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");

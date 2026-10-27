@@ -2646,6 +2646,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean shouldSort
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
+        concreteIndices = ignoreIndicesWithoutSlices(projectState, searchRequest, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
             projectState.metadata(),
             searchRequest.routing(),
@@ -2683,6 +2684,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
+    }
+
+    /**
+     * Indices without slices hold no document of any slice, so a request that names slices does not search them.
+     */
+    static String[] ignoreIndicesWithoutSlices(ProjectState projectState, SearchRequest searchRequest, String[] concreteIndices) {
+        if (searchRequest.isRoutingFromSlice() == false || searchRequest.routing() == null) {
+            return concreteIndices;
+        }
+        final ProjectMetadata project = projectState.metadata();
+        return Arrays.stream(concreteIndices)
+            .filter(index -> IndexSettings.SLICE_ENABLED.get(project.index(index).getSettings()))
+            .toArray(String[]::new);
     }
 
     static String[] ignoreBlockedIndices(ProjectState projectState, String[] concreteIndices) {

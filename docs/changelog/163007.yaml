@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 162980
+pr: 163007
+summary: Fall back to ignored source for oversized array offsets
+type: bug

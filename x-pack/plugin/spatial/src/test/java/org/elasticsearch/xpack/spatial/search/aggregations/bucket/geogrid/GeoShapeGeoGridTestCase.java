@@ -20,6 +20,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -260,6 +261,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             null,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
         testCase(

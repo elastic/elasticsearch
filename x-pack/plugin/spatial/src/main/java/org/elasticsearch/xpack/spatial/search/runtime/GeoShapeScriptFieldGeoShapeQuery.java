@@ -25,6 +25,7 @@ import org.elasticsearch.script.Script;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFieldQuery {
@@ -67,7 +68,12 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
     private BytesRef encodeGeometry(Geometry geometry) throws IOException {
         final CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
-        return GeometryDocValueWriter.write(indexer.getIndexableFields(geometry), CoordinateEncoder.GEO, centroidCalculator);
+        return GeometryDocValueWriter.write(
+            indexer.getIndexableFields(geometry),
+            CoordinateEncoder.GEO,
+            centroidCalculator,
+            List.of(geometry)
+        );
     }
 
     @Override

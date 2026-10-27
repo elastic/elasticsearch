@@ -9,11 +9,12 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.HashMap;
@@ -34,22 +35,23 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
 
     @Override
     protected LocalRecoveryRetriesHealthInfo determineCurrentHealth() {
-        Map<ShardId, Integer> localRetriesByShard = new HashMap<>();
+        Map<RecoveryKey, Integer> localRetriesByRecovery = new HashMap<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard shard : indexService) {
                 // The retry count is retained after the recovery completes, but the health indicator only reads the retry count for shards
                 // which are not active in the routing table, so only those need to be reported:
-                if (shard.routingEntry().active() == false) {
+                ShardRouting routing = shard.routingEntry();
+                if (routing.active() == false) {
                     int localRetries = shard.recoveryState().getLocalRetries();
                     if (localRetries > 0) {
-                        localRetriesByShard.put(shard.shardId(), localRetries);
+                        localRetriesByRecovery.put(RecoveryKey.of(routing), localRetries);
                     }
                 }
             }
         }
         // TODO: Once either #160891 or whatever ends up doing that job merges, we should check IndicesClusterStateService.retryingShards
         // or shardCreationStates or whatever it ends up being, either as well as or instead of IndexShard.recoveryState.localRetries.
-        return new LocalRecoveryRetriesHealthInfo(localRetriesByShard);
+        return new LocalRecoveryRetriesHealthInfo(localRetriesByRecovery);
     }
 
     @Override

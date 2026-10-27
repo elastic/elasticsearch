@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,9 +20,31 @@ import java.util.Map;
 
 /// Encapsulates information about the shard recoveries which have failed and are being retried locally on a data node.
 ///
-/// Note that, since the map is keyed by [ShardId], the cached instance of this object could briefly refer to an earlier allocation, which
-/// the master has since cancelled. This will be corrected on the next push from the [LocalRecoveryRetriesHealthTracker].
-public record LocalRecoveryRetriesHealthInfo(Map<ShardId, Integer> localRetries) implements Writeable {
+/// The map is keyed by [RecoveryKey], which includes the allocation ID as well as the shard ID, so that a count recorded for one allocation
+/// of a shard to a node is not applied to a later allocation of the same shard to the same node (e.g. if the master has since cancelled the
+/// earlier one) while the cached instance of this object is out of date.
+public record LocalRecoveryRetriesHealthInfo(Map<RecoveryKey, Integer> localRetries) implements Writeable {
+
+    /// Identifies a particular recovery of a shard copy on a node, by the shard and the ID of its allocation (see
+    /// [ShardRouting#allocationId()]).
+    public record RecoveryKey(ShardId shardId, String allocationId) implements Writeable {
+
+        public RecoveryKey(StreamInput in) throws IOException {
+            this(new ShardId(in), in.readString());
+        }
+
+        /// Returns the key for the recovery of the shard copy represented by the given routing entry, which must be assigned to a node.
+        public static RecoveryKey of(ShardRouting routing) {
+            assert routing.allocationId() != null : "no allocation ID for unassigned shard: " + routing;
+            return new RecoveryKey(routing.shardId(), routing.allocationId().getId());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            shardId.writeTo(out);
+            out.writeString(allocationId);
+        }
+    }
 
     public static final LocalRecoveryRetriesHealthInfo EMPTY = new LocalRecoveryRetriesHealthInfo(Map.of());
 
@@ -30,7 +53,7 @@ public record LocalRecoveryRetriesHealthInfo(Map<ShardId, Integer> localRetries)
     }
 
     public LocalRecoveryRetriesHealthInfo(StreamInput in) throws IOException {
-        this(in.readMap(ShardId::new, StreamInput::readVInt));
+        this(in.readMap(RecoveryKey::new, StreamInput::readVInt));
     }
 
     @Override

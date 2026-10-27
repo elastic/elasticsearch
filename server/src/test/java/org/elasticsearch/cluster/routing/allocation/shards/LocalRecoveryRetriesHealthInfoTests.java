@@ -9,10 +9,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.node.HealthInfoTests;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,17 +33,23 @@ public class LocalRecoveryRetriesHealthInfoTests extends AbstractWireSerializing
 
     @Override
     protected LocalRecoveryRetriesHealthInfo mutateInstance(LocalRecoveryRetriesHealthInfo instance) throws IOException {
-        Map<ShardId, Integer> mutated = new HashMap<>(instance.localRetries());
-        if (mutated.isEmpty() || randomBoolean()) {
-            // Add a shard (the random shard ID will not collide with an existing one in practice, and we check below in case it does).
-            ShardId newShardId = new ShardId(randomAlphaOfLength(8), randomAlphaOfLength(22), randomIntBetween(0, 5));
-            if (mutated.putIfAbsent(newShardId, randomIntBetween(1, 10)) != null) {
-                return mutateInstance(instance);
+        Map<RecoveryKey, Integer> mutated = new HashMap<>(instance.localRetries());
+        switch (mutated.isEmpty() ? 0 : randomIntBetween(0, 2)) {
+            case 0 -> mutated.put(HealthInfoTests.randomRecoveryKey(), randomIntBetween(1, 10));
+            case 1 -> {
+                // Change the retry count for an existing recovery.
+                RecoveryKey key = randomFrom(mutated.keySet());
+                mutated.put(key, randomValueOtherThan(mutated.get(key), () -> randomIntBetween(1, 10)));
             }
-        } else {
-            // Change the retry count for an existing shard.
-            ShardId shardId = randomFrom(mutated.keySet());
-            mutated.put(shardId, randomValueOtherThan(mutated.get(shardId), () -> randomIntBetween(1, 10)));
+            case 2 -> {
+                // Change only the allocation ID of an existing recovery, keeping the shard ID and the count.
+                RecoveryKey key = randomFrom(mutated.keySet());
+                mutated.put(
+                    new RecoveryKey(key.shardId(), randomValueOtherThan(key.allocationId(), ESTestCase::randomUUID)),
+                    mutated.remove(key)
+                );
+            }
+            default -> throw new AssertionError("unexpected case");
         }
         return new LocalRecoveryRetriesHealthInfo(mutated);
     }

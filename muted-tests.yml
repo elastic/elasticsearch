@@ -416,16 +416,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/163039
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown
-  issue: https://github.com/elastic/elasticsearch/issues/163048
-- class: org.elasticsearch.test.rest.yaml.CcsSearchYamlTestSuiteIT
-  tasks:
-  - :qa:ccs-common-rest:yamlRestTest
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/163082
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

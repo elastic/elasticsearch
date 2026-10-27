@@ -293,12 +293,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRemoveAsyncIndex
-  issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
-  method: testPeerRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/161463
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyDissectFromRow
   issue: https://github.com/elastic/elasticsearch/issues/161465
@@ -538,6 +532,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163562
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecAbsentIT
@@ -549,3 +544,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
   issue: https://github.com/elastic/elasticsearch/issues/163583
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/163608

@@ -86,6 +86,8 @@ public final class Messages {
     public static final String DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD = "Missing max aggregation for time_field [{0}]";
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
         "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
+    public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL =
+        "Datafeed frequency [{0}] must be a multiple of the grouping_interval [{1}]";
     public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE =
         "Composite aggregation [{0}] must have exactly one date_histogram source";
     public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET =

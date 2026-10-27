@@ -59,7 +59,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -464,6 +466,48 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             long lookupBytesRead = lookupOperatorStatuses.stream().mapToLong(OperatorStatus::bytesRead).sum();
             assertThat("lookup operator(s) should attribute bytes read from the lookup index", lookupBytesRead, greaterThan(0L));
             assertThat(resp.bytesRead(), greaterThanOrEqualTo(lookupBytesRead));
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql:INFO,org.elasticsearch.compute:INFO",
+        reason = "TRACE logs a plan diff per optimizer rule change, which is huge for a 110-join plan"
+    )
+    public void testLookupChainLongerThanTheRuleExecutionLimit() throws IOException {
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        int blocks = 110;
+        StringBuilder chain = new StringBuilder("FROM ").append(EMPLOYEES_INDEX);
+        for (int i = 0; i < blocks; i++) {
+            chain.append(String.format(Locale.ROOT, """
+
+                | EVAL language_code = languages
+                | LOOKUP JOIN %s ON language_code
+                | RENAME language_name AS lang%d
+                | DROP language_code""", LANGUAGES_LOOKUP_INDEX, i));
+        }
+        String singleBlock = String.format(Locale.ROOT, """
+            FROM %s
+            | EVAL language_code = languages
+            | LOOKUP JOIN %s ON language_code
+            | RENAME language_name AS lang
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+        String last = "lang" + (blocks - 1);
+
+        String stats = "\n| STATS c = COUNT(*) BY %s\n| SORT %s";
+        try (
+            EsqlQueryResponse expected = runQuery(singleBlock + String.format(Locale.ROOT, stats, "lang", "lang"));
+            EsqlQueryResponse actual = runQuery(chain + String.format(Locale.ROOT, stats, last, last))
+        ) {
+            assertThat(getValuesList(actual), equalTo(getValuesList(expected)));
+        }
+
+        String limit = "\n| KEEP emp_no, %s\n| SORT emp_no\n| LIMIT 20";
+        try (
+            EsqlQueryResponse expected = runQuery(singleBlock + String.format(Locale.ROOT, limit, "lang"));
+            EsqlQueryResponse actual = runQuery(chain + String.format(Locale.ROOT, limit, last))
+        ) {
+            assertThat(getValuesList(actual), equalTo(getValuesList(expected)));
         }
     }
 

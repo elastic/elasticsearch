@@ -259,6 +259,11 @@ tasks.named("internalClusterTest").configure {
   def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql")
   if (buildParams.ci) {
     systemProperty 'generateDocs', 'assert'
+    // In assert mode the tests compare their rendered docs with the committed snippets copied below (e.g. LookupJoinTypesIT
+    // checks commands/types/lookup-join.md). Track the snippets, so a docs change cannot reuse a cached result from another checkout.
+    inputs.files(fileTree(snippetsDocFolder) { include '**/*.md' })
+      .withPropertyName('esqlGeneratedDocSnippets')
+      .withPathSensitivity(PathSensitivity.RELATIVE)
     doFirst {
       injected.fs.sync {
         from snippetsDocFolder

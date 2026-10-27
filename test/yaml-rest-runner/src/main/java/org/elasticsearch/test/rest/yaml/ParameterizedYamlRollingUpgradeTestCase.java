@@ -18,12 +18,16 @@ import org.elasticsearch.test.RollingUpgradePerformer.ClusterAndClients;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Base class for rolling upgrade YAML suites. YAML suites are run in phases: first the suites from the {@code old_cluster} directory are
@@ -78,21 +82,45 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
      *   <li>upgradedNodes=2 -> {@code mixed_cluster}</li>
      *   <li>upgradedNodes=3 -> {@code upgraded_cluster}</li>
      * </ul>
+     * The per-task scoped {@code tests.rest.suite.<task path>} filter selects suites by file name in every phase, because a
+     * phase depends on the same-named suites of the phases before it.
      */
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        return phaseParameters(scoped, "old_cluster", "mixed_cluster", "mixed_cluster", "upgraded_cluster");
+    }
+
+    // pkg private for tests
+    static List<Object[]> phaseParameters(String scoped, String... testPaths) throws Exception {
+        Predicate<String> suiteFilter = suiteNameFilter(scoped);
+        String global = System.getProperty(REST_TESTS_SUITE);
         List<Object[]> result = new ArrayList<>();
-        for (int i = 0; i <= NODE_NUM; i++) {
-            String testPath = switch (i) {
-                case 0 -> "old_cluster";
-                case NODE_NUM -> "upgraded_cluster";
-                default -> "mixed_cluster";
-            };
-            for (Object[] candidate : createParameters(testPath)) {
-                result.add(new Object[] { i, candidate[0] });
+        for (int i = 0; i < testPaths.length; i++) {
+            for (Object[] candidate : explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), null, global, testPaths[i])) {
+                if (suiteFilter.test(((ClientYamlTestCandidate) candidate[0]).getName())) {
+                    result.add(new Object[] { i, candidate[0] });
+                }
             }
         }
         return result;
+    }
+
+    /** Matches suites by file name, or every suite when the filter is unset or names a whole directory. */
+    private static Predicate<String> suiteNameFilter(String scoped) {
+        if (scoped == null) {
+            return name -> true;
+        }
+        Set<String> names = new HashSet<>();
+        for (String path : scoped.split(",")) {
+            int slash = path.lastIndexOf('/');
+            if (slash < 0) {
+                return name -> true;
+            }
+            names.add(path.substring(slash + 1));
+        }
+        return names::contains;
     }
 
     @Before

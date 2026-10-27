@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
@@ -46,7 +47,7 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
         }
         // Transliterator has identity equality, so key on the settings it is built from. The filter name a
         // ruleset transliterator is created with only labels it, so it is left out.
-        this.sharingKey = new Key(id, ruleset, dir);
+        this.sharingKey = new Key(id, ruleset == null ? null : Analysis.sha256Hex(ruleset), dir);
     }
 
     @Override
@@ -59,5 +60,5 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
         return sharingKey;
     }
 
-    private record Key(String id, String ruleset, int dir) {}
+    private record Key(String id, String rulesetSha256, int dir) {}
 }

@@ -43,7 +43,8 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
                 }
             }
         }
-        // TODO: Once #160891 merges, we should check IndicesClusterStateService.retryingShards (or whatever it ends up being) as well.
+        // TODO: Once either #160891 or whatever ends up doing that job merges, we should check IndicesClusterStateService.retryingShards
+        // or shardCreationStates or whatever it ends up being, either as well as or instead of IndexShard.recoveryState.localRetries.
         return new LocalRecoveryRetriesHealthInfo(localRetriesByShard);
     }
 

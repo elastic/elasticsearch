@@ -34,7 +34,7 @@
       "validate": {
         "type": "boolean",
         "description": "Whether to analyze the view query and return a warning if validation failed, for example because it uses an unknown index or column. The view is saved either way.",
-        "default": true
+        "default": false
       }
     },
     "body": {

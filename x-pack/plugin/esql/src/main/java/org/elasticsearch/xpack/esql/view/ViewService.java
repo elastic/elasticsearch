@@ -100,10 +100,6 @@ public class ViewService {
     private volatile int maxViewLength;
     private volatile int maxCommandCount;
 
-    public ViewService(ClusterService clusterService, EsqlParser parser) {
-        this(clusterService, parser, (statement, viewName, listener) -> listener.onResponse(null));
-    }
-
     public ViewService(ClusterService clusterService, EsqlParser parser, QueryAnalyzer queryAnalyzer) {
         this.clusterService = clusterService;
         this.parser = parser;

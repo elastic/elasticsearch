@@ -77,7 +77,7 @@ public class ViewServiceTests extends ESTestCase {
                 event.getNewState().nodes().forEach(node -> ackListener.onNodeAck(node, null));
             }), ackListener);
         });
-        viewService = new ViewService(clusterService, TEST_PARSER);
+        viewService = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onResponse(null));
     }
 
     @After

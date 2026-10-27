@@ -56,7 +56,7 @@ public class RestPutViewAction extends BaseRestHandler {
                 RestUtils.getAckTimeout(request),
                 view
             );
-            boolean validate = request.paramAsBoolean("validate", true);
+            boolean validate = request.paramAsBoolean("validate", false);
             return channel -> SubscribableListener.<Void>newForked(l -> {
                 if (validate) {
                     // validation runs on current node, actual update below performed on elected master only

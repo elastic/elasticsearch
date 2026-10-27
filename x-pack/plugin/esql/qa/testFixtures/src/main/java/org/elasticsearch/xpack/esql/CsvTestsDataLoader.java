@@ -946,13 +946,12 @@ public class CsvTestsDataLoader {
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterSupportsViews(client)) {
             logger.info("Loading views");
-            boolean supportsValidateParam = checkCapability(client, "PUT", "/_query/view/test", RestPutViewAction.VIEWS_PUT_VALIDATE);
             for (var view : VIEW_CONFIGS.values()) {
                 if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
                     logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
                     continue;
                 }
-                loadView(client, view, supportsValidateParam);
+                loadView(client, view);
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
@@ -1095,9 +1094,9 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void loadView(RestClient client, ViewConfig view, boolean supportsValidateParam) throws IOException {
+    private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
-        Request request = new Request("PUT", "/_query/view/" + view.name + (supportsValidateParam ? "?validate=false" : ""));
+        Request request = new Request("PUT", "/_query/view/" + view.name);
         request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }

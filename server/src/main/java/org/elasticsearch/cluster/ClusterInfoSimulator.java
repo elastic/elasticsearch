@@ -17,12 +17,12 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -39,27 +39,22 @@ public class ClusterInfoSimulator {
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
+    private final Map<String, NodeHeapMetrics> initialNodeHeapMetrics;
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
     private final ShardMoveNodeCacheCommitmentSimulator shardMoveNodeCacheCommitmentSimulator;
-    private final NodeHeapMemoryShardMovementSimulator nodeHeapMemoryShardMovementSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
         this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
+        this.initialNodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics();
         this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
         this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
         this.shardMoveNodeCacheCommitmentSimulator = new ShardMoveNodeCacheCommitmentSimulator(allocation.clusterInfo());
-        this.nodeHeapMemoryShardMovementSimulator = new NodeHeapMemoryShardMovementSimulator(
-            allocation.clusterInfo().getNodeHeapMetrics(),
-            this.estimatedShardHeapUsages,
-            this.defaultShardHeapUsageForShardsWithoutMetrics,
-            allocation.routingNodes()
-        );
     }
 
     /**
@@ -97,10 +92,6 @@ public class ClusterInfoSimulator {
         return diskUsageCopy;
     }
 
-    public void simulateShardStarted(ShardRouting shard) {
-        simulateShardStarted(shard, true);
-    }
-
     /**
      * This method updates disk usage to reflect shard relocations and new replica initialization.
      * In case of a single data path both mostAvailableSpaceUsage and leastAvailableSpaceUsage are update to reflect the change.
@@ -112,7 +103,7 @@ public class ClusterInfoSimulator {
      * A relocating shard will have the current node ID set for the new node, and the relocating ID set for the previous node.
      * A new shard will have the current ID set for the new node, and relocating ID will be null.
      */
-    public void simulateShardStarted(ShardRouting shard, boolean includeIndexUsage) {
+    public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing() : "expected an initializing shard, but got: " + shard;
 
         var project = allocation.metadata().projectFor(shard.index());
@@ -138,22 +129,40 @@ public class ClusterInfoSimulator {
             }
         }
 
-        nodeHeapMemoryShardMovementSimulator.simulateShardStarted(shard, includeIndexUsage);
         shardMoveNodeCacheCommitmentSimulator.simulateShardStarted(shard);
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
-    public void simulateAddIndexToNode(String nodeId, Index index) {
-        nodeHeapMemoryShardMovementSimulator.simulateAddIndexToNode(nodeId, index);
-    }
-
-    public void simulateRemoveIndexFromNode(String nodeId, Index index) {
-        nodeHeapMemoryShardMovementSimulator.simulateRemoveIndexFromNode(nodeId, index);
-    }
-
+    /**
+     * Node heap for the shards the current routing table places on each node.
+     * <p>
+     * The snapshot's total and hosted-shards figures are not a baseline. They can disagree with the routing table, because the pieces of
+     * {@link ClusterInfo} are collected asynchronously. Heap is derived again from the shard estimates and
+     * {@link RoutingAllocation#routingNodes()}, the same way {@link NodeHeapUsageCalculator} publishes it. Nodes with no entry in the
+     * snapshot are left out, because the snapshot is also where node heap capacity comes from.
+     */
     // Visible for testing
     public Map<String, NodeHeapMetrics> computeNodeHeapMetrics() {
-        return nodeHeapMemoryShardMovementSimulator.getSimulatedHeapMetrics();
+        if (initialNodeHeapMetrics.isEmpty()) {
+            return initialNodeHeapMetrics;
+        }
+        long nonShardHeapUsage = 0L;
+        for (NodeHeapMetrics metrics : initialNodeHeapMetrics.values()) {
+            nonShardHeapUsage = Math.max(nonShardHeapUsage, metrics.nodeHeapEstimates().nonShardHeapUsage());
+        }
+        final Map<String, NodeHeapEstimates> calculated = NodeHeapUsageCalculator.calculateForRoutingNodes(
+            allocation.routingNodes(),
+            nonShardHeapUsage,
+            new ShardHeapUsageEstimates(estimatedShardHeapUsages, defaultShardHeapUsageForShardsWithoutMetrics)
+        ).nodeHeapEstimates();
+        return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
+            final NodeHeapEstimates recalculated = calculated.get(entry.getKey());
+            if (recalculated == null) {
+                return entry.getValue();
+            }
+            final NodeHeapMetrics initial = entry.getValue();
+            return new NodeHeapMetrics(initial.nodeId(), initial.totalBytes(), recalculated);
+        }));
     }
 
     /**
@@ -181,11 +190,11 @@ public class ClusterInfoSimulator {
                 .moveToStarted(expectedShardSize)
                 .relocate(startedShard.currentNodeId(), expectedShardSize, recoveryPriority)
                 .getTargetRelocatingShard();
-            simulateShardStarted(relocatingShard, false);
+            simulateShardStarted(relocatingShard);
         } else {
             final var initializingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"), recoveryPriority)
                 .initialize(startedShard.currentNodeId(), null, expectedShardSize);
-            simulateShardStarted(initializingShard, false);
+            simulateShardStarted(initializingShard);
         }
     }
 
@@ -229,7 +238,7 @@ public class ClusterInfoSimulator {
                 mostAvailableSpaceUsage,
                 shardSizes.toImmutableMap(),
                 Map.of(),
-                nodeHeapMemoryShardMovementSimulator.getSimulatedHeapMetrics(),
+                computeNodeHeapMetrics(),
                 estimatedShardHeapUsages,
                 shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
                 shardMoveNodeCacheCommitmentSimulator.getShardCacheRequirements(),

@@ -2838,8 +2838,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         awaitClusterState(state -> indexMetadata(state, index).getReshardingMetadata() == null);
         assertBusy(() -> assertEquals(1, lostResponses.get()));
         ensureGreen(indexName);
-        // Give the source shard that lost the response the time to retry its workflow, which is 100ms after the failure
-        safeSleep(TimeValue.timeValueSeconds(2));
 
         // Split the two shards again. The shard that lost its response is a source again.
         client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();

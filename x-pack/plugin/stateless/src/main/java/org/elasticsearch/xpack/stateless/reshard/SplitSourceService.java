@@ -889,8 +889,10 @@ public class SplitSourceService {
         // So we keep it inside the state machine since unlike the entries in `activeTargetRequests` there is only one per
         // source shard.
         public Split split() {
-            // This should only be used during handoff.
-            assert currentState instanceof State.MonitoringTargetShards;
+            // This should only be used during handoff. The state machine can also be between two attempts of its workflow (Failed), when
+            // a failure to hear back about the last step of a previous split of the shard has it start over, and the next split of the
+            // shard reaches it before it has.
+            assert currentState instanceof State.MonitoringTargetShards || currentState instanceof State.Failed;
 
             return split;
         }

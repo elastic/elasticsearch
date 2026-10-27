@@ -122,6 +122,7 @@ required_capability: knn_runtime_field
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
 | WHERE knn(dv, [64, 0, 0], {"k": 1, "similarity": 0.6})
+| LIMIT 10
 | STATS count = COUNT(*)
 ;
 

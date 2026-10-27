@@ -587,7 +587,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
      * Whether k is known, either from the explicit {@code k} option or from a LIMIT pushed down as {@link #implicitK()}.
      */
     private boolean hasK() {
-        return implicitK() != null || queryOptions().containsKey(K_FIELD.getPreferredName());
+        return implicitK() != null || queryOptions().get(K_FIELD.getPreferredName()) != null;
     }
 
     @Override

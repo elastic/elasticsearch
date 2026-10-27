@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -104,9 +105,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_COPIED_GENERATIONAL_FILES_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_HEADERS_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_MISSING_TIMESTAMP_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_REPLICATED_CONTENT_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
@@ -1409,7 +1413,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         final int numberCommits = between(5, 8);
         for (int i = 0; i < numberCommits; i++) {
-            indexDocsAndRefresh(indexName);
+            indexDocumentsForMetricsTest(indexName);
+            refresh(indexName);
             if (randomBoolean() || i == numberCommits - 1) {
                 final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
                 final long minAge = threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis();
@@ -1419,6 +1424,32 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
                 assertThat(sizeMeasurements, hasSize(1));
                 assertMeasurement(sizeMeasurements.get(0), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
+
+                final List<Measurement> headersSizeMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_HEADERS_SIZE_HISTOGRAM_METRIC
+                );
+                assertThat(headersSizeMeasurements, hasSize(1));
+                assertMeasurement(headersSizeMeasurements.get(0), virtualBcc.headersSizeInBytes());
+
+                final List<Measurement> replicatedContentSizeMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_REPLICATED_CONTENT_SIZE_HISTOGRAM_METRIC
+                );
+                // Doesn't exist if commit is small and fits in one region.
+                if (replicatedContentSizeMeasurements.isEmpty() == false) {
+                    assertMeasurement(replicatedContentSizeMeasurements.get(0), virtualBcc.replicatedContentSizeInBytes());
+                }
+
+                final List<Measurement> copiedGenerationalFilesSizeMeasurements = metricsPlugin.getDoubleHistogramMeasurement(
+                    BCC_COPIED_GENERATIONAL_FILES_SIZE_HISTOGRAM_METRIC
+                );
+                // Doesn't exist if there are no generational files in previously uploaded BCC.
+                if (copiedGenerationalFilesSizeMeasurements.isEmpty() == false) {
+                    assertEquals(
+                        ByteSizeValue.ofBytes(virtualBcc.copiedGenerationalFilesSizeInBytes()).getMbFrac(),
+                        copiedGenerationalFilesSizeMeasurements.get(0).getDouble(),
+                        0.1
+                    );
+                }
 
                 final List<Measurement> nCommitsMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_NUMBER_COMMITS_HISTOGRAM_METRIC
@@ -1437,6 +1468,32 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 metricsPlugin.resetMeter();
             }
         }
+    }
+
+    private void indexDocumentsForMetricsTest(String indexName) {
+        int documents = randomIntBetween(50, 100);
+        var idsInBulk = new ArrayList<String>(documents);
+
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < documents; i++) {
+            // We need some updates mixed in to produce copied generational files.
+            if (idsInBulk.isEmpty() == false && randomBoolean()) {
+                bulkRequest.add(
+                    new UpdateRequest(indexName, idsInBulk.get(randomIntBetween(0, idsInBulk.size() - 1))).doc(
+                        "field",
+                        randomUnicodeOfCodepointLengthBetween(50, 100)
+                    )
+                );
+            } else {
+                String id;
+                do {
+                    id = randomAlphaOfLength(10);
+                } while (idsInBulk.contains(id));
+                bulkRequest.add(new IndexRequest(indexName).id(id).source("field", randomUnicodeOfCodepointLengthBetween(50, 100)));
+                idsInBulk.add(id);
+            }
+        }
+        assertNoFailures(bulkRequest.get());
     }
 
     public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {

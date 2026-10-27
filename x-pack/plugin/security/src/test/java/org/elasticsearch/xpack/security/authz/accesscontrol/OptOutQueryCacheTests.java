@@ -409,7 +409,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
             case 0 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST).build();
             case 1 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD).build();
             case 2 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER).build();
-            case 3 -> new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+            case 3 -> new BooleanQuery.Builder().add(MatchAllDocsQuery.INSTANCE, BooleanClause.Occur.MUST)
                 .add(query, BooleanClause.Occur.MUST_NOT)
                 .build();
             case 4 -> new DisjunctionMaxQuery(List.of(query), randomFloat());

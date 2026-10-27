@@ -574,3 +574,7 @@ tests:
   - :x-pack:plugin:inference:internalClusterTest
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/160826
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.0.8#yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163053

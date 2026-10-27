@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -139,6 +140,54 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
+    /**
+     * Transforms a geometry reconstructed from {@code geo_shape} or {@code shape} doc values into the WKB of the
+     * result, or {@code null} if the result is null. Like {@link GeoGridEncoder} the implementation is supplied by the
+     * caller (ES|QL), which owns the geometry libraries, such as JTS, that the server module does not depend on.
+     */
+    @FunctionalInterface
+    interface GeometryTransformer {
+        @Nullable
+        BytesRef transform(Geometry geometry);
+    }
+
+    /**
+     * Creates a {@link GeometryTransformer} for one reader. The warnings, when not null, receive a warning if the
+     * transformation of a geometry fails, in which case the result is null. Transformers may keep scratch state,
+     * so one is created per reader.
+     */
+    @FunctionalInterface
+    interface GeometryTransformerFactory {
+        GeometryTransformer create(@Nullable Warnings warnings);
+    }
+
+    /**
+     * Configuration for loading {@code geo_shape} or {@code shape} doc values as a geometry transformed by a function
+     * such as {@code ST_SIMPLIFY}, so the geometry is never read from {@code _source} nor materialised as WKB before
+     * being transformed. Only supported by fields whose doc values can reconstruct the original geometry. Equality
+     * deliberately ignores the transformers: they are fully determined by the function and parameter.
+     */
+    record GeometryTransform(Function function, double parameter, GeometryTransformerFactory transformers)
+        implements
+            BlockLoaderFunctionConfig {
+        public GeometryTransform {
+            if (function != Function.ST_SIMPLIFY) {
+                throw new IllegalArgumentException("not a geometry transform function [" + function + "]");
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            // Enum hashCode is identity based; use the name so the hash is stable across JVMs (it ends up in attribute names).
+            return Objects.hash(function.name(), parameter);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof GeometryTransform other && function == other.function && Double.compare(parameter, other.parameter) == 0;
+        }
+    }
+
     enum Function {
         AMD_COUNT,
         AMD_DEFAULT,
@@ -153,6 +202,7 @@ public interface BlockLoaderFunctionConfig {
         ST_GEOHASH,
         ST_GEOTILE,
         ST_GEOHEX,
+        ST_SIMPLIFY,
         V_COSINE,
         V_DOT_PRODUCT,
         V_HAMMING,

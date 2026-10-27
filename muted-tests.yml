@@ -543,3 +543,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
   issue: https://github.com/elastic/elasticsearch/issues/163583
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/163608

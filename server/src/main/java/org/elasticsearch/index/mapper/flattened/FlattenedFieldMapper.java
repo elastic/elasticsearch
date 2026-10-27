@@ -13,7 +13,6 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -23,6 +22,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -30,20 +30,27 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -99,14 +106,19 @@ import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.AutomatonKey;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullAutomatonQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -116,7 +128,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -134,6 +145,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -176,7 +188,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final FeatureFlag UNMAPPED_FIELDS_FEATURE_FLAG = new FeatureFlag("flattened_unmapped_fields");
 
     /**
-     * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
+     * Name of the implicit flattened sink that absorbs unmapped fields as full dotted keys. See {@link UnmappedSinkFieldMapper}.
      */
     public static final String UNMAPPED_SINK_NAME = "_unmapped";
 
@@ -472,7 +484,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Map<String, FieldMapper.Builder> currentProperties = new TreeMap<>(properties.getValue());
             super.mergeFromBuilder(incoming, conflicts, mergeContext);
-            MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+            MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
             for (Map.Entry<String, FieldMapper.Builder> entry : ((Builder) incoming).properties.getValue().entrySet()) {
                 currentProperties.merge(
                     entry.getKey(),
@@ -853,7 +865,44 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new IllegalArgumentException("[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotSearchable();
+            // The edits apply to the value only: the key and the separator are a prefix that must match exactly
+            String keyPrefix = FlattenedFieldParser.createKeyedValue(key, "");
+            int keyedPrefixLength = keyPrefix.codePointCount(0, keyPrefix.length()) + prefixLength;
+            BytesRef term = indexedValueForSearch(value);
+            int maxEdits = fuzziness.asDistance(BytesRefs.toString(value));
+            if (indexType.hasTerms() == false && usesBinaryDocValues) {
+                if (usesArrayOrderBinaryDocValues) {
+                    // The automaton matches the key and the separator exactly, as the prefix it does not edit
+                    Automaton fuzzy = FuzzyQueries.create(
+                        new Term(name(), term),
+                        maxEdits,
+                        keyedPrefixLength,
+                        1,
+                        transpositions,
+                        null,
+                        null,
+                        name()
+                    ).getAutomata().automaton;
+                    return new KeyedArrayOrderInlineNullAutomatonQuery(name(), fuzzy, "fuzzy=" + term.utf8ToString());
+                }
+                return binaryQueries().fuzzy(name(), term.utf8ToString(), maxEdits, keyedPrefixLength, transpositions);
+            }
+            return FuzzyQueries.create(
+                new Term(name(), term),
+                maxEdits,
+                keyedPrefixLength,
+                maxExpansions,
+                transpositions,
+                indexType.hasTerms() ? rewriteMethod : MultiTermQuery.DOC_VALUES_REWRITE,
+                context,
+                name()
+            );
         }
 
         @Override
@@ -865,24 +914,184 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new IllegalArgumentException("[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotSearchable();
+            String pattern = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+            CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+            if (circuitBreaker != null) {
+                return keyedQuery(
+                    pattern,
+                    new AutomatonKey.Regexp(pattern, syntaxFlags, matchFlags, maxDeterminizedStates),
+                    () -> AutomatonQueries.toRegexpAutomaton(
+                        new Term(name(), pattern),
+                        syntaxFlags,
+                        matchFlags,
+                        maxDeterminizedStates,
+                        circuitBreaker
+                    ),
+                    maxDeterminizedStates,
+                    method,
+                    context
+                );
+            }
+            Automaton automaton = new RegExp(pattern, syntaxFlags, matchFlags).toAutomaton();
+            return keyedQuery(pattern, automaton, maxDeterminizedStates, method);
         }
 
         @Override
-        public Query wildcardQuery(
+        protected Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            boolean shouldNormalize,
+            SearchExecutionContext context
+        ) {
+            failIfNotSearchable();
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            Term pattern = new Term(name(), value);
+            CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+            if (circuitBreaker != null) {
+                return keyedQuery(
+                    value,
+                    new AutomatonKey.Wildcard(value, caseInsensitive),
+                    () -> caseInsensitive
+                        ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(pattern, circuitBreaker)
+                        : AutomatonQueries.toWildcardAutomaton(pattern, circuitBreaker),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    method,
+                    context
+                );
+            }
+            Automaton automaton = caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(pattern)
+                : WildcardQuery.toAutomaton(pattern, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return keyedQuery(value, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+        }
+
+        @Override
+        public Query prefixQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new IllegalArgumentException(
-                "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            if (caseInsensitive == false && indexType.hasOnlyDocValues() == false) {
+                return super.prefixQuery(value, method, false, context);
+            }
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[prefix] queries cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false. For optimised prefix queries on text "
+                        + "fields please enable [index_prefixes]."
+                );
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            Automaton prefix = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(value)
+                : Operations.concatenate(List.of(Automata.makeString(value), Automata.makeAnyString()));
+            return keyedQuery(value + "*", prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            failIfNotSearchable();
+            String text = BytesRefs.toString(value);
+            Automaton automaton = Operations.concatenate(text.codePoints().mapToObj(Automata::makeCaseInsensitiveChar).toList());
+            return keyedQuery(text, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null);
+        }
+
+        @Override
+        public Query automatonQuery(
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            failIfNotSearchable();
+            return keyedQuery(description, automatonSupplier.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+        }
+
+        /**
+         * The terms of this key whose value {@code value} accepts, the way {@code pattern} reads, from the terms of the field or,
+         * without them, from its doc values.
+         */
+        private Query keyedQuery(String pattern, Automaton value, int determinizeWorkLimit, @Nullable MultiTermQuery.RewriteMethod method) {
+            Automaton automaton = Operations.determinize(Operations.concatenate(List.of(keyAutomaton(), value)), determinizeWorkLimit);
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
+            if (indexType.hasTerms()) {
+                return method == null ? new AutomatonQuery(term, automaton) : new AutomatonQuery(term, automaton, false, method);
+            }
+            if (usesArrayOrderBinaryDocValues) {
+                return new KeyedArrayOrderInlineNullAutomatonQuery(name(), automaton, term.text());
+            }
+            if (usesBinaryDocValues) {
+                return binaryQueries().automaton(name(), automaton, term.text());
+            }
+            return new AutomatonQuery(term, automaton, false, MultiTermQuery.DOC_VALUES_REWRITE);
+        }
+
+        /**
+         * {@link #keyedQuery(String, Automaton, int, MultiTermQuery.RewriteMethod)} with a circuit breaker: the automaton is built
+         * while the breaker guards its construction, charged once, and shared by every clause of the request that builds the same
+         * one, as for a {@code keyword} field.
+         */
+        private Query keyedQuery(
+            String pattern,
+            AutomatonKey valueKey,
+            Supplier<Automaton> value,
+            int determinizeWorkLimit,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
+            Supplier<Automaton> keyed = () -> CircuitBreakingOperations.determinize(
+                Operations.concatenate(List.of(keyAutomaton(), value.get())),
+                determinizeWorkLimit,
+                circuitBreaker,
+                valueKey.category() + ":" + name()
+            );
+            if (usesArrayOrderBinaryDocValues && indexType.hasTerms() == false) {
+                return new KeyedArrayOrderInlineNullAutomatonQuery(name(), keyed.get(), term.text());
+            }
+            if (usesBinaryDocValues && indexType.hasTerms() == false) {
+                return binaryQueries().automaton(name(), keyed.get(), term.text());
+            }
+            return sharedAutomatonQuery(
+                term,
+                new AutomatonKey.Keyed(key, valueKey),
+                keyed,
+                SharedAutomatonQuery.fieldPrefixed(term, ""),
+                indexType.hasTerms() ? method : MultiTermQuery.DOC_VALUES_REWRITE,
+                context
+            );
+        }
+
+        /** The key and the separator every term of this key starts with, matched exactly. */
+        private Automaton keyAutomaton() {
+            return Automata.makeString(FlattenedFieldParser.createKeyedValue(key, ""));
+        }
+
+        /** The queries this key answers from binary doc values that hold one {@code key\0value} entry each. */
+        private static BinaryDocValuesQueries binaryQueries() {
+            return BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.SEPARATE_COUNT);
+        }
+
+        /** Fails unless this key has terms or doc values to search. */
+        private void failIfNotSearchable() {
+            if (indexType.hasTerms() == false && hasDocValues() == false) {
+                failIfNotIndexed();
+            }
         }
 
         @Override
@@ -1683,6 +1892,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
+    private final int maxKeyedValueLength;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1700,6 +1910,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
+        boolean useLuceneMaxTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
+        this.maxKeyedValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1715,7 +1927,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
-            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
+            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
+            maxKeyedValueLength
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1938,7 +2151,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        try (EscfColumnBuilder keyed = mergeStringColumn(); EscfColumnBuilder counts = mergeLongColumn()) {
+        try (EscfColumnBuilder keyed = mergeStringColumn(ctx.recycler()); EscfColumnBuilder counts = mergeLongColumn(ctx.recycler())) {
             final BytesRefBuilder docBlob = new BytesRefBuilder();
             int seedEstimate = 0;
             for (int k = 0; k < columnCount; k++) {
@@ -1979,8 +2192,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                         + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                                 );
                             }
-                            if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
-                                throw immenseKeyedValueException(relativeKeys[k], value.length);
+                            if (keyPrefix.length + value.length > maxKeyedValueLength) {
+                                throw FlattenedFieldParser.overLimitSizeKeyedValueException(
+                                    fieldType().name(),
+                                    relativeKeys[k],
+                                    value.length,
+                                    maxKeyedValueLength
+                                );
                             }
                         }
 
@@ -2012,15 +2230,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -2034,34 +2251,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         }
         return count;
-    }
-
-    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
-    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
-        return new IllegalArgumentException(
-            "Flattened field ["
-                + fieldType().name()
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + valueLength
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]"
-        );
-    }
-
-    /**
-     * Whether this mapper is the implicit {@code _unmapped} sink; other flattened fields (including user-declared ones) return false.
-     * Computed on demand rather than stored: sink-ness is a pure function of the index setting and the field name, both fixed for the
-     * life of the mapper. The setting gate is load-bearing, since a user may declare a flattened field named {@code _unmapped} on a
-     * non-feature index and it must stay a normal field.
-     */
-    public boolean isUnmappedSink() {
-        return builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
     }
 
     /**
@@ -2127,5 +2316,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    /**
+     * The synthetic source loader of the {@code _unmapped} sink that wraps this mapper. It reads the doc values with exactly the
+     * configuration this mapper wrote them with.
+     */
+    UnmappedSinkSyntheticFieldLoader unmappedSinkSyntheticFieldLoader() {
+        return new UnmappedSinkSyntheticFieldLoader(
+            fullPath(),
+            fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            builder.usesBinaryDocValues,
+            builder.storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays,
+            fieldType().usesArrayOrderBinaryDocValues()
+        );
     }
 }

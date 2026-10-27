@@ -275,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(14, answer.size());
+        assertEquals(15, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -290,6 +290,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))
@@ -494,12 +495,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             for (String falsePredicate : alwaysFalsePredicates) {
                 String comparison = fieldWithType + falsePredicate;
                 var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), comparison));
-                var result = runEsql(query);
+                AssertWarnings warnings = falsePredicate.contains("to_double(null)")
+                    ? new AssertWarnings.ExactStrings(List.of(nullComparisonWarning(comparison)))
+                    : new AssertWarnings.NoWarnings();
+                var result = runEsql(query, warnings, profileLogger, mode);
 
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
             }
         }
+    }
+
+    /**
+     * {@code to_double(null)} is a typed null, so the warning is on the comparison that uses it.
+     * A leading minus folds first, so {@code -to_double(null)} warns on the negation.
+     * The comparison starts at column 29 of {@code from rest-esql-test | where …}.
+     */
+    private static String nullComparisonWarning(String comparison) {
+        int minus = comparison.indexOf("-to_double(null)");
+        if (minus >= 0) {
+            return "Line 1:" + (29 + minus) + ": Expression [-to_double(null)] always evaluates to NULL.";
+        }
+        String message = "Line 1:29: Expression [" + comparison + "] always evaluates to NULL";
+        String field = comparison.substring(0, comparison.indexOf(' '));
+        if (comparison.contains(" != ")) {
+            return message + ", did you mean [" + field + " IS NOT NULL]?";
+        }
+        if (comparison.contains(" == ")) {
+            return message + ", did you mean [" + field + " IS NULL]?";
+        }
+        return message + ".";
     }
 
     // Test the Range created in PushFiltersToSource for qualified pushable filters on the same field

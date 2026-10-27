@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Collection;
@@ -104,6 +105,10 @@ public final class ExceptionRootCauseFinder {
             // stabilises, so retry (bounded by num_failure_retries) rather than failing permanently; a genuinely
             // persistent auth failure still surfaces once the retry limit is exhausted.
             if (elasticsearchException instanceof ElasticsearchSecurityException) {
+                return false;
+            }
+            // A shard that is being restored from a snapshot is temporarily unavailable, so retry instead of failing the transform.
+            if (elasticsearchException instanceof ShardRestoringException) {
                 return false;
             }
             return true;

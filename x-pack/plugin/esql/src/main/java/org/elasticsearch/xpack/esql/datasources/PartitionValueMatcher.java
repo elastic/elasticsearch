@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The one comparison of a storage value against a filter literal, shared by the layers that prune by it:
@@ -170,6 +172,23 @@ public final class PartitionValueMatcher {
     @Nullable
     public static String folderValue(String folderName) {
         return HivePartitionDetector.segmentValue(folderName);
+    }
+
+    /**
+     * First-wins {@code key=value} bindings of directory segments. Same skip-if-already-bound fill as
+     * {@link HivePartitionDetector#fillPartitions}; keys use {@link #folderKey}, including reserved-name
+     * surfacing. Never binds a deeper repeated key.
+     */
+    public static Map<String, String> pathBindings(String path) {
+        LinkedHashMap<String, String> into = new LinkedHashMap<>();
+        for (String segment : HivePartitionDetector.directorySegments(path)) {
+            String key = folderKey(segment);
+            if (key == null || into.containsKey(key)) {
+                continue;
+            }
+            into.put(key, folderValue(segment));
+        }
+        return into;
     }
 
     /** The hints naming {@code column}. */

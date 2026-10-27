@@ -153,7 +153,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             return listener;
         }
         if (untrackedFail != null) {
-            throw untrackedFail;
+            listener.onFailure(untrackedFail);
+            return listener;
         }
         runCompletions(completions);
         return listener;

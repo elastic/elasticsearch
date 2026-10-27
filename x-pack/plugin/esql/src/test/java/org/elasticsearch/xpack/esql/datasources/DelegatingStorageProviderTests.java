@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -85,6 +87,7 @@ public class DelegatingStorageProviderTests extends ESTestCase {
         forwarding.newObject(path, 1L);
         forwarding.newObject(path, 1L, Instant.EPOCH);
         forwarding.listObjects(path, false);
+        forwarding.listObjects(path, "part-", false);
         forwarding.listChildren(path, 1);
         forwarding.exists(path);
         forwarding.objectMetadata(path);
@@ -99,6 +102,7 @@ public class DelegatingStorageProviderTests extends ESTestCase {
                 "newObject/2",
                 "newObject/3",
                 "listObjects",
+                "listObjects/3[part-]",
                 "listChildren",
                 "exists",
                 "objectMetadata",
@@ -165,6 +169,17 @@ public class DelegatingStorageProviderTests extends ESTestCase {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             seen.add("listObjects");
+            return null;
+        }
+
+        /**
+         * Records the name prefix, not just the call. The base could satisfy the declaration gate and still forward
+         * to the two-argument form, which drops the prefix and lists the whole directory — a cost, not a wrong
+         * answer, so nothing else at this level would notice.
+         */
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) {
+            seen.add("listObjects/3[" + namePrefix + "]");
             return null;
         }
 
@@ -236,6 +251,45 @@ public class DelegatingStorageProviderTests extends ESTestCase {
             assertEquals(name + " did not forward objectMetadata", 7L, decorated.objectMetadata(path).length());
             assertEquals(name + " forwarded a different number of times", 1, calls.get());
         }
+    }
+
+    /**
+     * A versioned open is limited like every other open. Were the limiter to inherit the versioned overload from its
+     * base, the object would reach the delegate unwrapped and bypass the per-scheme permits.
+     */
+    public void testVersionedOpenIsWrappedByTheLimiter() {
+        StorageProvider plain = new StubProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                return TestStorageObjects.metricsOnly(StorageObjectMetrics.ZERO);
+            }
+        };
+        StorageProvider limited = new ConcurrencyLimitedStorageProvider(
+            plain,
+            new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false))
+        );
+        StorageObject opened = limited.newObject(StoragePath.of("s3://bucket/file.parquet"), 1L, Instant.EPOCH, "v1");
+        assertThat("the versioned open must be the limiter's object", opened, instanceOf(ConcurrencyLimitedStorageObject.class));
+    }
+
+    /**
+     * The limiter's object reports the probed version of the object it wraps. Were it to keep the default, a file found by a
+     * probe through a limited provider would be listed unversioned, and its footer would never be cached.
+     */
+    public void testProbedVersionIsForwardedThroughTheLimiter() {
+        StorageObject probed = mock(StorageObject.class);
+        when(probed.probedVersion()).thenReturn("etag-p");
+        StorageProvider plain = new StubProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path) {
+                return probed;
+            }
+        };
+        StorageProvider limited = new ConcurrencyLimitedStorageProvider(
+            plain,
+            new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false))
+        );
+        assertEquals("etag-p", limited.newObject(StoragePath.of("s3://bucket/file.parquet")).probedVersion());
     }
 
     private static StorageProvider countingProvider(AtomicInteger calls) {

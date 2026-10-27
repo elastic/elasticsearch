@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 154778
+ - 154777
+pr: 161865
+summary: Fix empty `BigArray` fill on a page boundary
+type: bug

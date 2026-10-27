@@ -1033,9 +1033,9 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- EVAL IN subquery: name-collision flush --
+    // -- EVAL IN subquery: name-collision --
 
-    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+    public void testInSubqueryInEvalNameCollisionInterveningAlias() {
         assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
         runGoldenTest("""
             FROM employees

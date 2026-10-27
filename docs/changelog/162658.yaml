@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 162658
+summary: Skip the index sort range query optimization on indices with nested fields
+type: bug

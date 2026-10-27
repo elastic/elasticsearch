@@ -318,8 +318,14 @@ public final class ExternalSourceSettings {
 
     /**
      * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
-     * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
-     * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
+     * prefix of the dataset. Default: 1,000 - far more files than a small LIMIT needs.
+     * <p>
+     * It counts matching files, not keys the store returns, so the request cost of an attempt is not bounded by it,
+     * and how far apart the two run depends on the provider. Where the pattern offers a literal name prefix and the
+     * provider narrows on it, the store returns only the keys under that prefix; S3 and the local filesystem do
+     * that, and the providers that take the interface default instead return every key under the prefix the glob
+     * sits beneath, one page per thousand keys, and select afterwards. What caps keys is
+     * {@code max_listed_objects}.
      * <p>
      * Not a cap and not a correctness setting: how many rows a file holds is only known from its footer, after the
      * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower

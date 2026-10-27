@@ -34,7 +34,9 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/_mtermvectors"),
             new Route(POST, "/_mtermvectors"),
             new Route(GET, "/{index}/_mtermvectors"),
-            new Route(POST, "/{index}/_mtermvectors")
+            new Route(POST, "/{index}/_mtermvectors"),
+            new Route(GET, "/{index}/{_slice}/_mtermvectors"),
+            new Route(POST, "/{index}/{_slice}/_mtermvectors")
         );
     }
 

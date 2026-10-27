@@ -12,6 +12,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Booleans;
@@ -370,7 +371,13 @@ class FieldCapabilitiesFetcher {
     ) {
         assert alwaysMatches(indexFilter) == false : "should not be called for always matching [" + indexFilter + "]";
         assert nowInMillis != 0L;
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(
+            shardId,
+            nowInMillis,
+            AliasFilter.EMPTY,
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
         searchRequest.source(new SearchSourceBuilder().query(indexFilter));
         try {
             return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);

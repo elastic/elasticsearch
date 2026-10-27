@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -49,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -733,7 +733,6 @@ public enum IndexMode {
     /**
      * Strict columnar index mode optimized for indexing and searching {@code dense_vector} fields.
      */
-    // TODO: report usage in _xpack/usage, like vectordb_document
     VECTORDB_COLUMNAR("vectordb_columnar") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
@@ -955,16 +954,12 @@ public enum IndexMode {
         return version.supports(getMinimalSupportedVersion());
     }
 
-    public static final FeatureFlag VECTORDB_COLUMNAR_FEATURE_FLAG = new FeatureFlag("vectordb_columnar_index_mode");
-
     /**
-     * Returns only the index modes that are available in the current build.
-     * The vectordb_columnar mode is excluded in non-snapshot builds where its feature flag is disabled.
+     * Returns the index modes that are available in the current build. Every mode is available today, but callers use this
+     * rather than {@link #values()} so that a future mode gated behind a feature flag can be filtered out in one place.
      */
     public static IndexMode[] availableModes() {
-        return Arrays.stream(values())
-            .filter(m -> VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() || m != VECTORDB_COLUMNAR)
-            .toArray(IndexMode[]::new);
+        return values();
     }
 
     private final String name;
@@ -1139,10 +1134,6 @@ public enum IndexMode {
                     + "]"
             );
         };
-
-        if (mode == IndexMode.VECTORDB_COLUMNAR && VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
-        }
         return mode;
     }
 
@@ -1205,6 +1196,20 @@ public enum IndexMode {
      * Lookup, strict columnar data-stream, and vector database modes provide additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+            IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(),
+            IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(),
+            IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(),
+            MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()
+        );
+
+        @Override
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
+        }
+
         @Override
         public void provideAdditionalSettings(
             String indexName,

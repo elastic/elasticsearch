@@ -61,6 +61,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.NAMED_SUBQUERY_LET;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
@@ -134,19 +136,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         CsvTestCase testCase,
         String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, maybeOptionalWarnings(convertToRemoteIndices(testCase)), instructions);
-    }
-
-    /**
-     * Released 9.0 to 9.3 coordinators keep warnings in a thread-local and can drop them from the response.
-     * 8.19.23, 9.4.8 and 9.5.5 onwards carry them on the driver instead.
-     */
-    private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
-        Version local = Clusters.localClusterVersion();
-        if (local.onOrAfter(Version.V_9_0_0) && local.before(Version.V_9_4_0)) {
-            testCase.makeWarningsOptional();
-        }
-        return testCase;
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions);
     }
 
     // TODO: think how to handle this better
@@ -295,6 +285,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(ML_ANOMALIES.capabilityName()));
 
         assumeFalse(
             "Dense vector equality is not supported in CCS unless all nodes support it",
@@ -469,7 +460,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
-            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+            || testCase.requiredCapabilities.contains(NAMED_SUBQUERY_LET.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);
         }
         String query = testCase.query;
@@ -538,6 +530,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    /**
+     * The local cluster coordinates and the remote cluster runs the part of the query that reads its indices,
+     * so an older cluster on either side can drop warnings.
+     */
+    @Override
+    protected boolean mayDropWarnings() {
+        return versionMayDropWarnings(Clusters.bwcVersion());
     }
 
     @Override

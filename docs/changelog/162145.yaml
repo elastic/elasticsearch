@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162145
+summary: Add a `bytes_decoded` field to ES|QL query profiles
+type: enhancement

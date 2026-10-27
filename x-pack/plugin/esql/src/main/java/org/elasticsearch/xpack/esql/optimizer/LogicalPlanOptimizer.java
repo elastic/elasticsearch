@@ -88,12 +88,14 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMapp
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFillNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -156,7 +158,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, verified.output(), context().configuration().pragmas(), context().flags());
+        Failures failures = verifier.verify(
+            optimized,
+            verified.output(),
+            context().configuration().pragmas(),
+            context().flags(),
+            context().minimumVersion()
+        );
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
@@ -173,6 +181,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new WarnUnfillableFillNull(),
+            new SubstituteFillNull(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.

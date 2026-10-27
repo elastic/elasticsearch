@@ -294,3 +294,43 @@ setup:
             exists:
               field: foo.bar
   - length: { hits.hits: 1 }
+---
+"Metrics and exemplars data streams hash the scrape target labels into the tsid":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create: { _index: metrics-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:00"
+            labels:
+              __name__: "node_cpu_seconds_total"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            metrics:
+              node_cpu_seconds_total: 42.0
+          - create: { _index: exemplars-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:00"
+            labels:
+              __name__: "node_cpu_seconds_total"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            exemplar_labels:
+              trace_id: "0af7651916cd43dd8448eb211c80319c"
+            value: 42.0
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: metrics_index }
+  - do:
+      indices.get_settings:
+        index: $metrics_index
+  - match: { .$metrics_index.settings.index.time_series.tsid_prefixed_dimensions: ["labels.job", "labels.instance"] }
+  - do:
+      indices.get_data_stream:
+        name: exemplars-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: exemplars_index }
+  - do:
+      indices.get_settings:
+        index: $exemplars_index
+  - match: { .$exemplars_index.settings.index.time_series.tsid_prefixed_dimensions: ["labels.job", "labels.instance"] }

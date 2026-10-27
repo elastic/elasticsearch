@@ -335,6 +335,9 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         queryParser.setMaxExpansions(maxExpansions);
         queryParser.setTranspositions(fuzzyTranspositions);
         queryParser.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null, LoggingDeprecationHandler.INSTANCE));
+        // How many clauses a document has to answer is asked of them in the parser: a field answering from its
+        // values returns one query holding them all, which a boolean minimum cannot be applied to afterwards.
+        queryParser.setMinimumShouldMatch(minimumShouldMatch);
 
         final Query query = queryParser.parse(MatchQueryParser.Type.BOOLEAN_PREFIX, fieldName, value);
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);

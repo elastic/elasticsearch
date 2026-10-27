@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -57,6 +59,15 @@ public class IncrementalBulkServiceTests extends ESTestCase {
      * scheduling and never issue a bulk request.
      */
     private static IncrementalBulkService newService(ThreadPool threadPool, TimeValue requestTimeout, TaskManager taskManager) {
+        return newService(threadPool, requestTimeout, taskManager, new IndexingPressure(Settings.EMPTY));
+    }
+
+    private static IncrementalBulkService newService(
+        ThreadPool threadPool,
+        TimeValue requestTimeout,
+        TaskManager taskManager,
+        IndexingPressure indexingPressure
+    ) {
         CancellableTask task = new CancellableTask(
             1L,
             IncrementalBulkService.BULK_SESSION_TASK_TYPE,
@@ -76,7 +87,7 @@ public class IncrementalBulkServiceTests extends ESTestCase {
 
         return new IncrementalBulkService(
             mock(Client.class),
-            new IndexingPressure(Settings.EMPTY),
+            indexingPressure,
             MeterRegistry.NOOP,
             taskManager,
             threadPool,
@@ -184,5 +195,55 @@ public class IncrementalBulkServiceTests extends ESTestCase {
 
         assertThat(taskManager.getTasks().values(), empty());
         assertFalse("no timeout task should be scheduled for a rejected request", taskQueue.hasDeferredTasks());
+    }
+
+    /**
+     * The REST request's context (headers and, with security, the authentication) is retained until the handler closes, which is
+     * longer than any single coordinating operation split off for a sub-request. It is therefore reserved once per handler and
+     * released with it.
+     */
+    public void testRequestContextBytesReservedForHandlerLifetime() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ThreadPool threadPool = taskQueue.getThreadPool();
+        ThreadContext threadContext = threadPool.getThreadContext();
+        IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
+        // the TaskManager is mocked for the reason given on newService: closing the handler unregisters its task
+        IncrementalBulkService service = newService(threadPool, null, mock(TaskManager.class), indexingPressure);
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", randomAlphaOfLengthBetween(1024, 8192));
+            final long requestContextBytes = threadContext.estimatedRequestContextBytes();
+            assertThat(requestContextBytes, greaterThan(0L));
+            try (IncrementalBulkService.Handler ignored2 = service.newBulkRequest()) {
+                assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(requestContextBytes));
+            }
+        }
+        assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    public void testRequestContextBytesCanRejectHandlerCreation() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ThreadPool threadPool = taskQueue.getThreadPool();
+        ThreadContext threadContext = threadPool.getThreadContext();
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        IndexingPressure indexingPressure = new IndexingPressure(
+            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), ByteSizeValue.ofKb(1)).build()
+        );
+        IncrementalBulkService service = new IncrementalBulkService(
+            mock(Client.class),
+            indexingPressure,
+            MeterRegistry.NOOP,
+            taskManager,
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(Settings.EMPTY)
+        );
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", randomAlphaOfLength(Math.toIntExact(ByteSizeValue.ofKb(2).getBytes())));
+            expectThrows(EsRejectedExecutionException.class, service::newBulkRequest);
+        }
+        assertThat(indexingPressure.stats().getCoordinatingRejections(), equalTo(1L));
+        assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        assertThat(taskManager.getTasks().values(), empty());
     }
 }

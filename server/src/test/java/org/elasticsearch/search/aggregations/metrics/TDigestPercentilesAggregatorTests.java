@@ -205,7 +205,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             ) {
                 Aggregator aggregator = createAggregator(aggBuilder, context);
                 aggregator.preCollection();
-                context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+                context.searcher().search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(aggregator.asCollector()));
                 aggregator.postCollection();
                 aggregator.buildTopLevel();
             }
@@ -241,7 +241,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                 ) {
                     Aggregator aggregator = createAggregator(termsBuilder, context);
                     aggregator.preCollection();
-                    context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+                    context.searcher().search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(aggregator.asCollector()));
                     aggregator.postCollection();
                     aggregator.buildTopLevel();
                 }
@@ -322,7 +322,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         ) {
             Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+            context.searcher().search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(aggregator.asCollector()));
             aggregator.postCollection();
             return aggregator.buildTopLevel();
         }
@@ -388,7 +388,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         ) {
             Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+            context.searcher().search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(aggregator.asCollector()));
             aggregator.postCollection();
             aggregator.buildTopLevel();
         }

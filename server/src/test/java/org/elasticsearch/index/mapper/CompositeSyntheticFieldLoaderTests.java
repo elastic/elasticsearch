@@ -293,7 +293,7 @@ public class CompositeSyntheticFieldLoaderTests extends MapperServiceTestCase {
                 b.field("ignore_malformed", true);
             }
             if (onFailureEnabled) {
-                b.startObject("doc_values").field("on_failure", "ignore").endObject();
+                b.field("on_failure", "ignore");
             }
         }));
         var mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");

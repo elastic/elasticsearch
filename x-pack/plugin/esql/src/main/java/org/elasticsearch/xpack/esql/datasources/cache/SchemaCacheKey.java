@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
+
 /**
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
  * <p>
@@ -40,7 +42,12 @@ package org.elasticsearch.xpack.esql.datasources.cache;
  * {@code FileSourceFactory#COORDINATOR_KEYS} and deliberately not inert, so an explicit format separates
  * the addresses there, and an implied one is separated by the path's own extension.
  */
-public record SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, int answer) {
+public record SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, int answer, @Nullable String version) {
+
+    /** The key of a record with no object version known: the modification time alone addresses it. */
+    public SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, int answer) {
+        this(dataset, location, lastModifiedEpochMillis, answer, null);
+    }
 
     /** {@link #answer()} of the strict-declared warm rail's record. */
     public static final int DECLARED_STRICT = -1;
@@ -62,7 +69,21 @@ public record SchemaCacheKey(DatasetIdentity dataset, String location, long last
      *                       same file than the inferred one and must not share its address
      */
     public static SchemaCacheKey build(String location, long mtime, DatasetIdentity dataset, boolean declaredStrict) {
-        return new SchemaCacheKey(dataset, location, mtime, declaredStrict ? DECLARED_STRICT : INFERRED);
+        return build(location, mtime, null, dataset, declaredStrict);
+    }
+
+    /**
+     * Key for a per-file record of the object at {@code version}. A rewrite that keeps the modification time (S3 reports
+     * it to the second) moves the version, so the record of the old contents is not reused.
+     */
+    public static SchemaCacheKey build(
+        String location,
+        long mtime,
+        @Nullable String version,
+        DatasetIdentity dataset,
+        boolean declaredStrict
+    ) {
+        return new SchemaCacheKey(dataset, location, mtime, declaredStrict ? DECLARED_STRICT : INFERRED, version);
     }
 
     /**
@@ -70,10 +91,21 @@ public record SchemaCacheKey(DatasetIdentity dataset, String location, long last
      * of this file. Only inference samples, so there is no strict-declared variant.
      */
     public static SchemaCacheKey buildShared(String location, long mtime, DatasetIdentity dataset, int sharedSchemaSampleSize) {
+        return buildShared(location, mtime, null, dataset, sharedSchemaSampleSize);
+    }
+
+    /** As {@link #buildShared(String, long, DatasetIdentity, int)}, for the object at {@code version}. */
+    public static SchemaCacheKey buildShared(
+        String location,
+        long mtime,
+        @Nullable String version,
+        DatasetIdentity dataset,
+        int sharedSchemaSampleSize
+    ) {
         if (sharedSchemaSampleSize < 1) {
             throw new IllegalArgumentException("a shared schema sample takes at least one row, got [" + sharedSchemaSampleSize + "]");
         }
-        return new SchemaCacheKey(dataset, location, mtime, sharedSchemaSampleSize);
+        return new SchemaCacheKey(dataset, location, mtime, sharedSchemaSampleSize, version);
     }
 
     /** Whether this addresses the strict-declared warm rail's record. */
@@ -88,6 +120,6 @@ public record SchemaCacheKey(DatasetIdentity dataset, String location, long last
      * {@link StatisticsKey}).
      */
     public SchemaCacheKey withoutSampleDepth() {
-        return answer > INFERRED ? new SchemaCacheKey(dataset, location, lastModifiedEpochMillis, INFERRED) : this;
+        return answer > INFERRED ? new SchemaCacheKey(dataset, location, lastModifiedEpochMillis, INFERRED, version) : this;
     }
 }

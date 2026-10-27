@@ -39,11 +39,13 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.LeafExecutionScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +88,11 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<String> processedQueries = new TreeSet<>();
+    /**
+     * The queries already rendered into {@link #processedQueries}, by identity. One weight, so one query, serves every leaf of
+     * a shard, and rendering a large query can cost more than scoring a small leaf, so each query is rendered once.
+     */
+    private final Set<Query> renderedQueries = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<String> processedShards = new TreeSet<>();
 
     protected LuceneSlice currentSlice;
@@ -269,11 +276,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
+        releaseCurrentScorer();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
     }
 
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
+
+    private void releaseCurrentScorer() {
+        if (currentScorer != null) {
+            currentScorer.releaseExecutionMemory();
+        }
+    }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         if (doneCollecting) {
@@ -286,6 +300,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     sliceIndex = 0;
                     currentSlice = sliceQueue.nextSlice(currentSlice);
                     if (currentSlice == null) {
+                        releaseCurrentScorer();
                         doneCollecting = true;
                         return null;
                     }
@@ -300,7 +315,10 @@ public abstract class LuceneOperator extends SourceOperator {
                     || currentScorer.weight != currentSlice.weight() // Moved to a new query
                 ) {
                     final Weight weight = currentSlice.weight();
-                    processedQueries.add(Status.queryString(weight.getQuery()));
+                    if (renderedQueries.add(weight.getQuery())) {
+                        processedQueries.add(Status.queryString(weight.getQuery()));
+                    }
+                    releaseCurrentScorer();
                     currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                     if (sliceBlocked == null || sliceBlocked.isDone()) {
@@ -419,6 +437,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final Weight weight;
         private final LeafReaderContext leafReaderContext;
         private final List<Object> tags;
+        private final LeafExecutionScope executionScope = new LeafExecutionScope();
 
         private BulkScorer bulkScorer;
         private int position;
@@ -435,11 +454,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
         private void reinitialize() {
             this.executingThread = Thread.currentThread();
+            // the previous bulk scorer, if any, is dropped here
+            releaseExecutionMemory();
             try {
-                this.bulkScorer = weight.bulkScorer(leafReaderContext);
+                this.bulkScorer = executionScope.capture(() -> weight.bulkScorer(leafReaderContext));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        /** Releases the execution memory that building the bulk scorer charged to the request circuit breaker. */
+        void releaseExecutionMemory() {
+            executionScope.release();
         }
 
         void scoreNextRange(LeafCollector collector, Bits acceptDocs, int numDocs) throws IOException {
@@ -573,7 +599,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     + queryString.hashCode()
                     + "])";
             }
-            return query.toString();
+            return queryString;
         }
 
         protected Status(LuceneOperator operator) {

@@ -19,24 +19,36 @@ FROM index METADATA _index, _id
 
 ## Available metadata fields
 
-The following metadata fields are available in {{esql}}:
+### Source metadata fields
+```{applies_to}
+stack: ga 9.6+
+```
+
+The following fields identify the source that produced each row:
 
 | Metadata field | Type | Description |
 |---------------|------|-------------|
-| `_class` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index`, `view`, `subquery`, or `dataset`. |
+| `_class` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index`, `view`, `subquery`, or `dataset`. |
+| `_name` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, `null` on a subquery, and the dataset name on a dataset. |
+
+### Index metadata fields
+
+The following fields describe index and document metadata:
+
+| Metadata field | Type | Description |
+|---------------|------|-------------|
 | [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Unique document ID. |
 | [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Names every field in a document that was ignored when the document was indexed. |
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
-| `_name` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, `null` on a subquery, and the dataset name on a dataset. |
 | `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
- | `_size`| [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabled.
+| `_size` | [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabled. |
 | [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |
 | `_version` | [`long`](/reference/elasticsearch/mapping-reference/number.md) | Document version number |
 
 ## Usage and limitations
 
-- Most metadata fields are only available when the data source is an index. {applies_to}`stack: ga 9.6` When a field is not available for a given source, `null` is returned. `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns)
+- Most index metadata fields are available only for index sources. When a field is unavailable for a given source, its value is `null`. For source-specific behavior, refer to [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns).
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields
@@ -87,6 +99,15 @@ FROM products METADATA _score
 :::{tip}
 Refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring) for more information on relevance scoring and how to use `_score` in your queries.
 :::
+
+### Scores across mixed sources
+
+A [subquery](esql-from-subquery.md#subqueries-with-metadata) or [view](esql-views.md#views-with-metadata) returns `null` for `_score` when its output does not contain that field. This example combines rows from a subquery over `languages` with rows read directly from the same index:
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/metadata-views-and-subqueries.csv-spec/scoresAcrossMixedSources.md
+:::
+
+The `WHERE` filter applies to both sources. The index rows return a score from `MATCH`. The subquery rows return `null`, because the subquery does not produce `_score`.
 
 ### Retrieving _source
 

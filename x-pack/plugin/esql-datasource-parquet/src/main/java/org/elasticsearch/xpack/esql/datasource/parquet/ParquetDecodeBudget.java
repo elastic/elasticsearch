@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tracks decode charges against a footer estimate already sitting in an {@link ParquetIoWatermark}
@@ -27,6 +30,8 @@ final class ParquetDecodeBudget implements Releasable {
     private final AtomicLong remainingEstimate;
     private final AtomicLong extra = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
+    /** Lease captured at {@link #consume} so {@link #close} can refund without {@code StorageIoAffinity}. */
+    private final AtomicReference<RowGroupIo> extraLease = new AtomicReference<>();
 
     private ParquetDecodeBudget(@Nullable ParquetIoWatermark watermark, long estimate) {
         this.watermark = watermark;
@@ -48,7 +53,7 @@ final class ParquetDecodeBudget implements Releasable {
         while (uncovered > 0L) {
             long remaining = remainingEstimate.get();
             if (remaining <= 0L) {
-                watermark.forceAdd(uncovered);
+                watermark.forceAdd(uncovered, extraLease());
                 extra.addAndGet(uncovered);
                 return;
             }
@@ -70,7 +75,21 @@ final class ParquetDecodeBudget implements Releasable {
         }
         long toRelease = extra.getAndSet(0L);
         if (toRelease > 0L) {
-            watermark.release(toRelease);
+            watermark.release(toRelease, extraLease.get());
         }
+    }
+
+    private RowGroupIo extraLease() {
+        RowGroupIo current = extraLease.get();
+        if (current != null) {
+            return current;
+        }
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        RowGroupIo captured = scope == null ? null : scope.lease();
+        if (captured != null) {
+            extraLease.compareAndSet(null, captured);
+            return extraLease.get();
+        }
+        return null;
     }
 }

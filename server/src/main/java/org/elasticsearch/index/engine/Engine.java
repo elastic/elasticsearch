@@ -997,7 +997,8 @@ public abstract class Engine implements Closeable {
      *
      * This is used in stateless so that the {@link org.elasticsearch.action.termvectors.EnsureDocsSearchableAction} can
      * judge whether a requested document needs to be refreshed to the search shards before executing the term vector
-     * information API on the search shards.
+     * information API on the search shards. It may return {@code true} when it cannot tell, for example while some writes
+     * may not have been recorded in the live version map.
      */
     public boolean isDocumentInLiveVersionMap(BytesRef uid) {
         return false;

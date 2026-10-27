@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,12 +35,16 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.LiveVersionMap;
+import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardFieldStats;
@@ -80,11 +87,16 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -1078,5 +1090,262 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             assertThat(secondUuid, not(equalTo(firstUuid)));
             assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(secondUuid));
         }
+    }
+
+    /**
+     * A local refresh moves a doc into the version map archive without committing it. If the map then flips unsafe between the
+     * {@code isUnsafeForGets()} pre-check and the archive lookup of a realtime get, the get falls back to the search tier. The generation
+     * it reports for the search tier to wait for must be a commit that contains the doc.
+     */
+    public void testRealtimeGetAfterConcurrentUnsafeFlipPointsAtCommitContainingDoc() throws Exception {
+        final AtomicReference<Runnable> onArchiveIsUnsafe = new AtomicReference<>();
+        final EngineConfig config = indexConfig(
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+            Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build(),
+            () -> 1L,
+            NoMergePolicy.INSTANCE
+        );
+        try (var engine = newIndexEngineWithArchiveHook(config, onArchiveIsUnsafe)) {
+            final LiveVersionMap map = engine.getLiveVersionMap();
+            final String docId = "doc-under-test";
+
+            // Index the doc with an explicit id. This puts its version in the version map and enforces safe access.
+            engine.index(randomDoc(docId));
+            assertTrue(isSafeAccessRequired(map));
+
+            // Local refreshes only, no commit. The first moves the doc into the archive. An append-only op followed by another
+            // refresh lets safe access lapse, so that a later append-only op is skipped and marks the map unsafe.
+            engine.refresh("test");
+            engine.index(appendOnlyDoc());
+            engine.refresh("test");
+            assertFalse(isSafeAccessRequired(map));
+            assertFalse(isUnsafeForGets(map));
+            assertNotNull("doc should be in the archive", get(map, docId));
+
+            final long lastCommitGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat("a local refresh must not commit the doc", countDocsInCommit(config, lastCommitGeneration, docId), equalTo(0));
+
+            // While the realtime get runs its isUnsafeForGets() pre-check, a concurrent append-only op flips the map unsafe. The pre-check
+            // still sees a safe map, and the archive lookup that follows sees an unsafe one.
+            onArchiveIsUnsafe.set(() -> indexAppendOnlyOnAnotherThread(engine));
+            final Engine.GetResult result = engine.getFromTranslog(
+                new Engine.Get(true, true, docId),
+                MappingLookup.EMPTY,
+                null,
+                searcher -> searcher
+            );
+            assertNull("onArchiveIsUnsafe hook did not run", onArchiveIsUnsafe.get());
+            assertTrue("the concurrent append-only op should have flipped the map unsafe", isUnsafeForGets(map));
+            assertNull("an unsafe archive must not be trusted, so the get falls back to the search tier", result);
+
+            final long generationForGets = engine.getLastUnsafeSegmentGenerationForGets();
+            assertThat(
+                "search tier must wait for a commit made after the doc was indexed",
+                generationForGets,
+                greaterThan(lastCommitGeneration)
+            );
+            assertThat(
+                "search tier is told to wait for generation [" + generationForGets + "], which must contain the doc",
+                countDocsInCommit(config, generationForGets, docId),
+                equalTo(1)
+            );
+        }
+    }
+
+    /**
+     * A write that the version map skipped is recorded nowhere, so the engine cannot tell whether the doc is on the search shards
+     * yet. {@link IndexEngine#isDocumentInLiveVersionMap} must then report the doc as present, so that ensure-docs-searchable
+     * refreshes the search shards before term vectors run on them.
+     */
+    public void testDocSkippedByVersionMapIsReportedInLiveVersionMap() throws Exception {
+        final EngineConfig config = indexConfig(
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+            Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build(),
+            () -> 1L,
+            NoMergePolicy.INSTANCE
+        );
+        try (var engine = newIndexEngine(config)) {
+            final LiveVersionMap map = engine.getLiveVersionMap();
+            assertFalse(isUnsafeForGets(map));
+            assertFalse("a doc that was never indexed is not in the map", engine.isDocumentInLiveVersionMap(Uid.encodeId("missing")));
+
+            // The map is not in safe access mode, so the append-only write is not recorded and marks the map unsafe.
+            final Engine.Index doc = appendOnlyDoc();
+            engine.index(doc);
+            assertNull("the append-only write should not be recorded", get(map, doc.id()));
+            if (randomBoolean()) {
+                // A local refresh archives the unsafe map, so the map is then unsafe for gets only because of the archive.
+                engine.refresh("test");
+            }
+            assertTrue(isUnsafeForGets(map));
+
+            assertTrue("a doc that may not be on the search shards yet must be reported", engine.isDocumentInLiveVersionMap(doc.uid()));
+            assertTrue("later writes should be recorded again", isSafeAccessRequired(map));
+        }
+    }
+
+    /**
+     * Like {@link #testRealtimeGetAfterConcurrentUnsafeFlipPointsAtCommitContainingDoc}, but the get's pre-check does see the map
+     * as unsafe for gets. By the time it re-checks under the lock, the search shards have acked the generation that makes the
+     * archive safe again, so the pre-check does not flush. Then the map flips unsafe before the archive lookup. The get must
+     * still flush rather than rely on its pre-check.
+     */
+    public void testRealtimeGetAfterAckAndConcurrentUnsafeFlipPointsAtCommitContainingDoc() throws Exception {
+        final AtomicReference<Runnable> onArchiveIsUnsafe = new AtomicReference<>();
+        final EngineConfig config = indexConfig(
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+            Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build(),
+            () -> 1L,
+            NoMergePolicy.INSTANCE
+        );
+        try (var engine = newIndexEngineWithArchiveHook(config, onArchiveIsUnsafe)) {
+            final LiveVersionMap map = engine.getLiveVersionMap();
+            final var archive = (StatelessLiveVersionMapArchive) getArchive(map);
+            final String docId = "doc-under-test";
+
+            // Make the archive unsafe: a skipped append-only op marks the map unsafe, and a refresh archives it.
+            engine.flush(true, true);
+            engine.index(appendOnlyDoc());
+            engine.refresh("test");
+            assertTrue(archive.isUnsafe());
+            final long minSafeGeneration = archive.getMinSafeGeneration();
+
+            // Commit, then index the doc and move it into the archive with local refreshes only, under a generation newer than
+            // minSafeGeneration. An append-only op followed by another refresh lets safe access lapse.
+            engine.flush(true, true);
+            engine.index(randomDoc(docId));
+            engine.refresh("test");
+            engine.index(appendOnlyDoc());
+            engine.refresh("test");
+            assertFalse(isSafeAccessRequired(map));
+            assertTrue(isUnsafeForGets(map));
+            assertNotNull("doc should be in the archive", get(map, docId));
+
+            final long lastCommitGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat("a local refresh must not commit the doc", countDocsInCommit(config, lastCommitGeneration, docId), equalTo(0));
+
+            // First archive isUnsafe() call (the pre-check, which still returns true): the search shards ack minSafeGeneration,
+            // so the archive turns safe while keeping the doc's newer entry. Second call (the re-check under the lock, which
+            // now returns false, so no flush): a concurrent append-only op flips the map unsafe before the archive lookup.
+            onArchiveIsUnsafe.set(() -> {
+                engine.commitSuccess(minSafeGeneration);
+                onArchiveIsUnsafe.set(() -> indexAppendOnlyOnAnotherThread(engine));
+            });
+            final Engine.GetResult result = engine.getFromTranslog(
+                new Engine.Get(true, true, docId),
+                MappingLookup.EMPTY,
+                null,
+                searcher -> searcher
+            );
+            assertNull("onArchiveIsUnsafe hooks did not both run", onArchiveIsUnsafe.get());
+            assertTrue("the concurrent append-only op should have flipped the map unsafe", isUnsafeForGets(map));
+            assertNull("an unsafe archive must not be trusted, so the get falls back to the search tier", result);
+
+            final long generationForGets = engine.getLastUnsafeSegmentGenerationForGets();
+            assertThat(
+                "search tier must wait for a commit made after the doc was indexed",
+                generationForGets,
+                greaterThan(lastCommitGeneration)
+            );
+            assertThat(
+                "search tier is told to wait for generation [" + generationForGets + "], which must contain the doc",
+                countDocsInCommit(config, generationForGets, docId),
+                equalTo(1)
+            );
+        }
+    }
+
+    private static void indexAppendOnlyOnAnotherThread(IndexEngine engine) {
+        final Thread indexer = new Thread(() -> {
+            try {
+                engine.index(appendOnlyDoc());
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }, "concurrent-append-only-indexer");
+        indexer.start();
+        try {
+            indexer.join();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static Engine.Index appendOnlyDoc() throws IOException {
+        final Engine.Index doc = randomDoc(UUIDs.base64UUID());
+        return new Engine.Index(
+            doc.uid(),
+            doc.parsedDoc(),
+            UNASSIGNED_SEQ_NO,
+            1L,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            PRIMARY,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    private static int countDocsInCommit(EngineConfig config, long generation, String docId) throws IOException {
+        for (IndexCommit commit : DirectoryReader.listCommits(config.getStore().directory())) {
+            if (commit.getGeneration() == generation) {
+                try (DirectoryReader reader = DirectoryReader.open(commit)) {
+                    return reader.docFreq(new Term(IdFieldMapper.NAME, Uid.encodeId(docId)));
+                }
+            }
+        }
+        throw new AssertionError("no commit with generation [" + generation + "]");
+    }
+
+    /**
+     * Like {@link #newIndexEngine(EngineConfig)}, but the next call to the archive's {@code isUnsafe()} after {@code hook} is set
+     * runs the hook once and then returns the value read before it ran.
+     */
+    private IndexEngine newIndexEngineWithArchiveHook(EngineConfig config, AtomicReference<Runnable> hook) {
+        final StatelessCommitService commitService = mockCommitService(config.getIndexSettings().getNodeSettings());
+        final IndexEngine engine = new IndexEngine(
+            config,
+            mock(TranslogReplicator.class),
+            mock(ObjectStoreService.class)::getTranslogBlobContainer,
+            commitService,
+            mock(HollowShardsService.class),
+            mock(SharedBlobCacheWarmingService.class),
+            new RefreshManagerService.Noop(),
+            mockReshardIndexService(),
+            commitService.getCommitBCCResolverForShard(config.getShardId()),
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+            newIndexEngineDynamicSettings(config.getIndexSettings().getNodeSettings()),
+            commitService.getShardLocalCommitsTracker(config.getShardId()).shardLocalReadersTracker()
+        ) {
+            @Override
+            public LiveVersionMapArchive createLiveVersionMapArchive() {
+                return new StatelessLiveVersionMapArchive(this::getPreCommitSegmentGeneration) {
+                    @Override
+                    public boolean isUnsafe() {
+                        final boolean unsafe = super.isUnsafe();
+                        final Runnable runnable = hook.getAndSet(null);
+                        if (runnable != null) {
+                            runnable.run();
+                        }
+                        return unsafe;
+                    }
+                };
+            }
+
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    config.getStore().decRef();
+                }
+            }
+        };
+        engine.skipTranslogRecovery();
+        return engine;
     }
 }

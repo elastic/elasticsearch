@@ -248,14 +248,6 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, breakerBudget / 64L * 3 / 2);
         int rowsPerKey = compression == Compression.ZSTD ? 1 : 4;
         int baseRowCount = baseDistinctKeys * rowsPerKey;
-        // Same key across attempts so the fixture's blob map holds at most one payload per test
-        // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
-        String key = scenarioKey("statsblowup", format, compression);
-        // The dataset's resource (the s3:// URI) is stable across attempts — only the payload at that
-        // key grows — so a single registration per scenario suffices. The format is inferred from the
-        // key's extension, so the dataset carries no WITH settings.
-        String dataset = datasetName("statsblowup", format, compression);
-        DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + key, null);
         TryCircuitBreaking blowup = attempt -> {
             int distinctKeys = (int) Math.min(MAX_ROWS / 4, (long) baseDistinctKeys * attempt);
             int rowCount = (int) Math.min(MAX_ROWS, (long) baseRowCount * attempt);
@@ -264,6 +256,18 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
                 format,
                 compression
             );
+            // Each attempt writes its own object and registers its own dataset. The file-metadata and footer caches
+            // are keyed on path and length and expire only after the listing TTL, so rewriting the object under the
+            // same key lets the next attempt read with the previous attempt's length and footer (see #160906). The
+            // previous attempt's object is dropped first, so the fixture still holds at most one payload per test
+            // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
+            String scenario = "statsblowup" + attempt;
+            String key = scenarioKey(scenario, format, compression);
+            String dataset = datasetName(scenario, format, compression);
+            if (attempt > 1) {
+                handler().blobs().remove("/" + BUCKET + "/" + scenarioKey("statsblowup" + (attempt - 1), format, compression));
+            }
+            DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + key, null);
             S3FixtureUtils.addBlobToFixture(handler(), key, payload);
             String esql = "FROM " + dataset + " | STATS c = COUNT(*) BY id";
             return runQueryAsMap(esql, compression == Compression.ZSTD);

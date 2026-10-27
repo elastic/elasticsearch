@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -184,6 +185,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.time.ZoneId;
@@ -208,7 +210,6 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -227,7 +228,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -878,7 +878,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertNull(query.limit());
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -927,7 +927,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -976,7 +976,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertNull(query.limit());
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -1240,7 +1240,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
+        assertThat(query.query(), is(esqlExistsQuery("emp_no")));
     }
 
     /**
@@ -1275,7 +1275,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
+        assertThat(query.query(), is(esqlExistsQuery("emp_no")));
     }
 
     public void testQueryForStatWithMultiAgg() {
@@ -1296,7 +1296,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
-        assertThat(query.query(), is(boolQuery().should(unscore(existsQuery("emp_no"))).should(unscore(existsQuery("salary")))));
+        assertThat(query.query(), is(boolQuery().should(esqlExistsQuery("emp_no")).should(esqlExistsQuery("salary"))));
+    }
+
+    private static QueryBuilder esqlExistsQuery(String field) {
+        return new ExistsQuery(Source.EMPTY, field).toQueryBuilder();
     }
 
     /**
@@ -2172,6 +2176,126 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var tqb = as(sv(source.query(), "emp_no"), TermsQueryBuilder.class);
         assertThat(tqb.fieldName(), is("emp_no"));
         assertThat(tqb.values(), is(List.of(10020, 10040)));
+    }
+
+    /**
+     * {@code IN} on ip, version, unsigned_long, datetime and date_nanos fields must collapse into a single
+     * {@code terms} query under a single {@code sv} wrapper, not into a disjunction of per-value {@code sv}-wrapped
+     * term/range clauses. See https://github.com/elastic/elasticsearch/pull/120192 for the regression history.
+     */
+    public void testPushDownInIp() {
+        var plan = physicalPlan("""
+            from test_all
+            | where ip in (to_ip("1.1.1.1"), to_ip("2.2.2.2"))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "ip"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("ip"));
+        assertThat(tqb.values(), is(List.of("1.1.1.1", "2.2.2.2")));
+    }
+
+    public void testPushDownInVersion() {
+        var plan = physicalPlan("""
+            from test_all
+            | where version in (to_version("1.2.3"), to_version("4.5.6"))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "version"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("version"));
+        assertThat(tqb.values(), is(List.of("1.2.3", "4.5.6")));
+    }
+
+    public void testPushDownInUnsignedLong() {
+        var plan = physicalPlan("""
+            from test_all
+            | where unsigned_long in (to_ul(10), to_ul(20))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "unsigned_long"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("unsigned_long"));
+        assertThat(tqb.values(), is(List.of(10L, 20L)));
+    }
+
+    public void testPushDownInDate() {
+        String first = "2023-10-23T13:55:01.543Z";
+        String second = "2023-10-24T00:00:00.000Z";
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            from test_all
+            | where date in (to_datetime("%s"), to_datetime("%s"))
+            """, first, second), testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "date"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("date"));
+        assertThat(
+            tqb.values(),
+            is(
+                List.of(
+                    EsqlDataTypeConverter.dateTimeToString(EsqlDataTypeConverter.dateTimeToLong(first)),
+                    EsqlDataTypeConverter.dateTimeToString(EsqlDataTypeConverter.dateTimeToLong(second))
+                )
+            )
+        );
+    }
+
+    /**
+     * date_nanos formatting/conversion is handled separately from datetime ({@link EsqlDataTypeConverter#nanoTimeToString}
+     * vs. {@link EsqlDataTypeConverter#dateTimeToString}), so it's pinned here with its own test; date_nanos pushdown has
+     * regressed independently of datetime before.
+     */
+    public void testPushDownInDateNanos() {
+        String first = "2023-10-23T13:55:01.543123456Z";
+        String second = "2017-10-23T13:53:55.832987654Z";
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            from test_all
+            | where date_nanos in (to_date_nanos("%s"), to_date_nanos("%s"))
+            """, first, second), testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "date_nanos"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("date_nanos"));
+        assertThat(
+            tqb.values(),
+            is(
+                List.of(
+                    EsqlDataTypeConverter.nanoTimeToString(EsqlDataTypeConverter.dateNanosToLong(first)),
+                    EsqlDataTypeConverter.nanoTimeToString(EsqlDataTypeConverter.dateNanosToLong(second))
+                )
+            )
+        );
     }
 
     public void testPushDownInAndConjunction() {
@@ -3928,17 +4052,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * The subquery branch is a bare relation once the analyzer strips its wrapper, so the union is a direct-leaf shape
+     * and {@code PushAggregateThroughUnionAll} splits the count into per-branch partials that compile to Lucene-level
+     * {@code EsStatsQueryExec} counts, summed by the combiner aggregate above the merge.
      * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
-     * seen{r}#5],8]
-     *   \_MergeExec[[],UNION]
-     *     |_ExchangeExec[[],false]
-     *     | \_ProjectExec[[]]
-     *     |   \_EsQueryExec[no_fields_index], ...]
-     *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[]]
-     *         \_EsQueryExec[no_fields_index], ...]
+     * \_AggregateExec[[],[SUM($$partial$$count(){r$}#4,...) AS count()#3],SINGLE,[$$count()$sum{r}#9, $$count()$seen{r}#10],8]
+     *   \_MergeExec[[$$partial$$count(){r$}#4],UNION]
+     *     |_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *     | \_ExchangeExec[[$$partial$$count()$count{r}#5, $$partial$$count()$seen{r}#6],true]
+     *     |   \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
+     *     \_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *       \_ExchangeExec[[$$partial$$count()$count{r}#7, $$partial$$count()$seen{r}#8],true]
+     *         \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
      * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
@@ -3952,16 +4078,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(0, merge.output().size());
+            // The single merged column is the per-branch partial count, summed by the combiner aggregate above.
+            assertEquals(1, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
-                ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(0, exchange.output().size());
-                ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(0, project.projections().size());
-                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
-                assertEquals("no_fields_index", esQuery.indexPattern());
+                AggregateExec partial = as(child, AggregateExec.class);
+                ExchangeExec exchange = as(partial.child(), ExchangeExec.class);
+                EsStatsQueryExec statsQuery = as(exchange.child(), EsStatsQueryExec.class);
+                var stat = as(statsQuery.stat(), EsStatsQueryExec.BasicStat.class);
+                assertThat(stat.type(), is(EsStatsQueryExec.StatsType.COUNT));
             }
         }
     }
@@ -10161,10 +10287,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
-            null,  // RemoteFetchService - not needed for these tests
+            true,  // snapshotBuild - bare external sources are planned without a registered dataset
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
-            MatcherWatchdog.noop()
+            MatcherWatchdog.noop(),
+            TransportVersion.current()
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
@@ -10346,13 +10473,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             query.query(),
             equalTo(
-                new BoolQueryBuilder().filter(
-                    new SingleValueQuery(
-                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
-                        "job",
-                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
-                    ).toQueryBuilder()
-                )
+                new SingleValueQuery(
+                    new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                    "job",
+                    SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                ).toQueryBuilder()
             )
         );
     }

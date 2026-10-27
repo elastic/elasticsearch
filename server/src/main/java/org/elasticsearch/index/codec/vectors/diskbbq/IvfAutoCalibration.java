@@ -19,7 +19,6 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ErrorModel;
@@ -185,14 +184,6 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size using the
-     * {@link IvfAutoCalibrationProfile#QUALITY} profile.
-     */
-    public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
-        return mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY);
-    }
-
-    /**
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
 
@@ -254,7 +245,7 @@ public class IvfAutoCalibration {
         }
 
         try {
-            KMeansFloatVectorValues sampledVectors = CalibrationUtils.buildSampled(fieldInfo, mergeState, numVectors);
+            FloatVectorValues sampledVectors = CalibrationUtils.buildSampled(fieldInfo, mergeState, numVectors);
             return calibrate(sampledVectors, similarityFunction, numVectors, CalibrationMode.FAST);
         } catch (IOException e) {
             logger.warn("calibration failed on merge, falling back to codec default encoding", e);

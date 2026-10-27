@@ -27,6 +27,11 @@ $$$data-streams-lifecycle-poll-interval$$$
 `data_streams.lifecycle.poll_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks what the next action is for all data streams with a built-in lifecycle. Defaults to `5m`.
 
+$$$data-streams-lifecycle-minimum-enabled$$$
+
+`data_streams.lifecycle.minimum.enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `true`, a minimum data stream lifecycle manages time series data streams that don't have their own data stream lifecycle. The minimum lifecycle runs only the operations a data stream needs to stay healthy, such as rollover and tail merging. It doesn't downsample or delete data, even if cluster-wide retention is configured. Backing indices that have an {{ilm-init}} policy stay managed by {{ilm-init}} unless [`index.lifecycle.prefer_ilm`](#index-lifecycle-prefer-ilm) is `false`. Defaults to `true`.
+
 $$$cluster-lifecycle-default-rollover$$$
 
 `cluster.lifecycle.default.rollover`
@@ -70,6 +75,11 @@ $$$data-streams-lifecycle-downsampling-max-indices-in-progress$$$
 
 `data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The maximum number of indices per data stream that can be submitted for downsampling by data stream lifecycle. Defaults to `10`.
+
+$$$data-streams-lifecycle-prefer-by-default-metrics-enabled$$$
+
+`data_streams.lifecycle.prefer_by_default.metrics_enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Whether new backing indices of time series data streams that use the pre-installed `metrics` {{ilm-init}} policy default [`index.lifecycle.prefer_ilm`](#index-lifecycle-prefer-ilm) to `false`, so that the data stream lifecycle manages them instead of {{ilm-init}}. If the data stream has no data stream lifecycle of its own, the [minimum data stream lifecycle](#data-streams-lifecycle-minimum-enabled) manages them. This default applies only while the `metrics` policy is unmodified: it's still on its first version and contains only a hot phase with a `rollover` action. An explicit `index.lifecycle.prefer_ilm` value in the index template, the data stream settings, or the create index request always takes precedence. Changing this setting doesn't affect existing indices. Defaults to `true`.
 
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
 ```{applies_to}

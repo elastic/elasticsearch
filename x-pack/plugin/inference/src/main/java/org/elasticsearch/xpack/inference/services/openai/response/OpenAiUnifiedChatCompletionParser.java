@@ -100,7 +100,7 @@ public final class OpenAiUnifiedChatCompletionParser {
             true,
             args -> new ChatCompletionToolCallResponse.Function((String) args[0], (String) args[1])
         );
-        FUNCTION_PARSER.declareString(optionalConstructorArg(), new ParseField(FUNCTION_ARGUMENTS_FIELD));
+        FUNCTION_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(FUNCTION_ARGUMENTS_FIELD));
         FUNCTION_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(FUNCTION_NAME_FIELD));
 
         COMPLETION_TOKENS_DETAILS_PARSER = new ConstructingObjectParser<>(
@@ -191,8 +191,8 @@ public final class OpenAiUnifiedChatCompletionParser {
         );
         parser.declareString(constructorArg(), new ParseField(ID_FIELD));
         parser.declareObjectArray(constructorArg(), choiceParser, new ParseField(CHOICES_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(MODEL_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(OBJECT_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(MODEL_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(OBJECT_FIELD));
         parser.declareObjectOrNull(optionalConstructorArg(), USAGE_PARSER, null, new ParseField(USAGE_FIELD));
         return parser;
     }
@@ -231,7 +231,7 @@ public final class OpenAiUnifiedChatCompletionParser {
         );
         parser.declareStringOrNull(optionalConstructorArg(), new ParseField(CONTENT_FIELD));
         parser.declareStringOrNull(optionalConstructorArg(), new ParseField(REFUSAL_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(ROLE_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(ROLE_FIELD));
 
         if (indexRequired) {
             parser.declareObjectArrayOrNull(optionalConstructorArg(), toolCallParser::apply, new ParseField(TOOL_CALLS_FIELD));
@@ -245,7 +245,7 @@ public final class OpenAiUnifiedChatCompletionParser {
             );
         }
 
-        parser.declareString(optionalConstructorArg(), new ParseField(REASONING_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(REASONING_FIELD));
         parser.declareObjectArrayOrNull(
             optionalConstructorArg(),
             ReasoningDetail.RESPONSE_PARSER::apply,
@@ -268,11 +268,16 @@ public final class OpenAiUnifiedChatCompletionParser {
         if (indexRequired) {
             parser.declareInt(constructorArg(), new ParseField(INDEX_FIELD));
         } else {
-            parser.declareInt(optionalConstructorArg(), new ParseField(INDEX_FIELD));
+            parser.declareField(
+                optionalConstructorArg(),
+                p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+                new ParseField(INDEX_FIELD),
+                ObjectParser.ValueType.INT_OR_NULL
+            );
         }
-        parser.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
-        parser.declareObject(optionalConstructorArg(), FUNCTION_PARSER, new ParseField(FUNCTION_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(TYPE_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(ID_FIELD));
+        parser.declareObjectOrNull(optionalConstructorArg(), FUNCTION_PARSER, null, new ParseField(FUNCTION_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(TYPE_FIELD));
         return parser;
     }
 

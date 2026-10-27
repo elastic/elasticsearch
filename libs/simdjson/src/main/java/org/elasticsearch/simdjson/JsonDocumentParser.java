@@ -58,15 +58,19 @@ public final class JsonDocumentParser {
     /**
      * Indexes and walks one JSON document, emitting events to {@code handler}.
      *
+     * <p>{@code [offset, offset + len)} must hold exactly one JSON object, optionally followed by
+     * whitespace. Anything else after the object is rejected, so a source such as
+     * {@code {"a":1}{"b":2}} cannot be ingested as just its first object.
+     *
      * <p>On {@link JsonParsingException} the handler may already have received events for a prefix
-     * of the document. Callers must be able to discard whatever the handler accumulated; there is
-     * no rollback.
+     * of the document, or for the whole object when it was followed by other content. Callers must
+     * be able to discard whatever the handler accumulated; there is no rollback.
      *
      * @param buffer  document bytes (need not start at index 0, needs no trailing padding)
      * @param offset  start of the document within {@code buffer}
      * @param len     document length in bytes, at most {@link #maxDocumentBytes()}
      * @param handler receives the parsed JSON events
-     * @throws JsonParsingException     if the document is malformed
+     * @throws JsonParsingException     if the document is malformed or content follows the object
      * @throws IllegalArgumentException if {@code len} exceeds {@link #maxDocumentBytes()}
      */
     public void parseDocument(byte[] buffer, int offset, int len, JsonDocumentHandler handler) {

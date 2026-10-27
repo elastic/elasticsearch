@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -66,7 +67,8 @@ public record SourceOperatorContext(
     int maxRecordBytes,
     int parallelism,
     boolean deferredExtraction,
-    DeclaredReadSpec declaredReadSpec
+    DeclaredReadSpec declaredReadSpec,
+    TransportVersion minTransportVersion
 ) {
     /**
      * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
@@ -88,6 +90,7 @@ public record SourceOperatorContext(
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        minTransportVersion = minTransportVersion != null ? minTransportVersion : TransportVersion.current();
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -145,7 +148,8 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -187,7 +191,8 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -228,7 +233,8 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -267,7 +273,8 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -305,6 +312,7 @@ public record SourceOperatorContext(
         private int parallelism = 1;
         private boolean deferredExtraction;
         private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
+        private TransportVersion minTransportVersion = TransportVersion.current();
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -458,6 +466,15 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * The oldest transport version in the cluster of the node that reads, which decides how the reader binds a file
+         * when part of the query may be read by an older node. Defaults to this build's version.
+         */
+        public Builder minTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -484,7 +501,8 @@ public record SourceOperatorContext(
                 maxRecordBytes,
                 parallelism,
                 deferredExtraction,
-                declaredReadSpec
+                declaredReadSpec,
+                minTransportVersion
             );
         }
     }

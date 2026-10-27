@@ -72,7 +72,9 @@ public class UnionAll extends MergePlan {
 
     @Override
     public int hashCode() {
-        return hasUnmappedFieldsAttribute() ? Objects.hash(UnionAll.class, output(), children()) : Objects.hash(UnionAll.class, children());
+        return hasUnmappedFieldsAttribute()
+            ? Objects.hash(UnionAll.class, output(), children())
+            : Objects.hash(UnionAll.class, children(), output().size());
     }
 
     @Override
@@ -85,6 +87,13 @@ public class UnionAll extends MergePlan {
         }
         UnionAll other = (UnionAll) o;
         if (Objects.equals(children(), other.children()) == false) {
+            return false;
+        }
+        // Output arity is resolution state: view compaction builds unions with an empty output that resolveMergePlan fills
+        // in later, possibly without rewriting any branch (every branch may already end in a user projection of exactly the
+        // merge columns). If the filled-in node compared equal to the stale one, transformUp would discard the rewrite and
+        // the union could never resolve. Same-arity attribute churn (ids/types) keeps the children-only identity below.
+        if (output().size() != other.output().size()) {
             return false;
         }
         // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.
@@ -101,7 +110,6 @@ public class UnionAll extends MergePlan {
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
-        checkNonEmpty(plan, failures);
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
@@ -172,15 +180,13 @@ public class UnionAll extends MergePlan {
      * Rejects a query whose leaf branches exceed {@code maxBranches}, taken from the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma
      * when that pragma is set, otherwise from {@code esql.query.max_branch_count}.
      * <p>
-     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
-     * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
-     * the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one {@code FROM} but
-     * subqueries nest, so without a query-wide limit the leaf total grows as a power of the nesting depth.
+     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are bounded
+     * separately by the maximum nesting-level check.
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
-     * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
+     * compute service. It counts leaves under {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs
      * exactly the same at execution time as one the user wrote.
      */
     private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
@@ -211,7 +217,7 @@ public class UnionAll extends MergePlan {
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
-     * service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
+     * service. It counts {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
      * execution time as one the user wrote.
      */
     private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {

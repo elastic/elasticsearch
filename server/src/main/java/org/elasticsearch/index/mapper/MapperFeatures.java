@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 
 import java.util.Set;
 
@@ -42,6 +43,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
     public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
+    public static final NodeFeature RANGE_DOCVALUE_FIELDS_FIX = new NodeFeature("mapper.range.docvalue_fields_fix");
     public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
     public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
     public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
@@ -115,6 +117,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     public static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG = new NodeFeature(
+        "mapper.text.doc_values_without_feature_flag"
+    );
     public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
         "mapper.text.doc_values_prefix_wildcard_regexp"
     );
@@ -131,6 +136,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
     public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
+    public static final NodeFeature DOC_VALUES_TOP_LEVEL_ATTRIBUTES = new NodeFeature("mapper.doc_values.top_level_attributes");
     public static final NodeFeature COLUMNAR_BARE_NULL_IS_ABSENCE = new NodeFeature("mapper.columnar.bare_null_is_absence");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
@@ -169,7 +175,10 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
+    public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
+    public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
+    public static final NodeFeature COMBINE_DYNAMIC_MAPPING_UPDATES = new NodeFeature("mapper.combine_dynamic_updates");
     public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
         "mapper.dynamic_template.warn_on_duplicate_names"
     );
@@ -179,15 +188,34 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
         "mapper.fix_sorted_numeric_with_offsets_empty_array"
     );
+    public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
+        "mapper.multi_valued_binary_index_sort_sparse_fix"
+    );
+    public static final NodeFeature BBQ_DISK_UPDATABLE_AUTO_CALIBRATE = new NodeFeature(
+        "mapper.dense_vector.bbq_disk.updatable_auto_calibrate"
+    );
+    /**
+     * Arrays whose encoded offsets exceed the sorted doc values limit are stored in {@code _ignored_source} instead of failing
+     * the document.
+     */
+    public static final NodeFeature OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK = new NodeFeature(
+        "mapper.oversized_array_offsets_ignored_source_fallback"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+        return Set.of(
+            TSDB_METRIC_TEMPORALITY_SUPPORT,
+            DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES,
+            COMBINE_DYNAMIC_MAPPING_UPDATES,
+            BBQ_DISK_UPDATABLE_AUTO_CALIBRATE
+        );
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
+            TEXT_SEARCH_WITHOUT_TERMS,
             DATE_RANGE_INDEXING_FIX,
             DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -273,6 +301,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             COLUMNAR_SUPPORTS_SHAPE_FIELDS,
             COLUMNAR_IGNORE_ABOVE_NO_OP,
+            COLUMNAR_STORED_SOURCE_FILTER_FIX,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
@@ -281,12 +310,17 @@ public class MapperFeatures implements FeatureSpecification {
             BBQ_DISK_BYTE_SUPPORT,
             ASH_QUANTIZATION_TYPE_SUPPORT,
             DOC_VALUES_ON_FAILURE,
+            DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
             COLUMNAR_BARE_NULL_IS_ABSENCE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,
             MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
             DENSE_VECTOR_UNIFIED_VALUE_FORMATS,
-            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY
+            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY,
+            MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
+            RANGE_DOCVALUE_FIELDS_FIX,
+            TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
         );
     }
 }

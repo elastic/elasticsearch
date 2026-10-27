@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 161459
+summary: Fix infinite loop in `FallbackSyntheticSourceBlockLoader`
+type: bug

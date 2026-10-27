@@ -2,7 +2,7 @@
 navigation_title: "Security"
 description: "Secure ES|QL Data Federation by controlling access to data sources and datasets, encrypting credentials, and configuring privileges."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -41,6 +41,8 @@ A data source's credentials are masked when its definition is read back, and at 
 ## Privileges
 
 Dataset operations are authorized by the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), so a role that already administers or reads the matching index names covers datasets with no additional grant.
+
+These privileges control what users can do in {{es}}. What a data source can read in external storage is controlled by your cloud provider. Refer to [grant read access to your data](esql-data-federation-sources.md#grant-read-access).
 
 | Operation | Privilege | Type |
 |---|---|---|
@@ -81,5 +83,5 @@ A role configures these privileges as follows. The example grants querying `sale
 Continue with the following security and configuration tasks:
 
 - To set up credentials for a data source, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
-- For the operator-level settings that gate managed identity and federated identity, refer to the [authentication cluster settings](esql-data-federation-cluster-settings.md#authentication).
+- For the operator-level setting that gates managed identity, refer to the [authentication cluster settings](esql-data-federation-cluster-settings.md#authentication).
 - For the full {{es}} privilege reference, refer to [security privileges](../../elasticsearch/security-privileges.md).

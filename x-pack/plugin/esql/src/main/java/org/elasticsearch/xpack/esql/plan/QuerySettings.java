@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.time.ZoneId;
@@ -99,21 +99,27 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
-    // LOAD_ALL is deliberately absent from this description: it is snapshot-only, and there is no mechanism to hold
-    // docs back for a snapshot-only value of an already-released setting. Document it once it ships.
+    // LOAD_ALL is not documented here yet; its docs follow separately.
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
         For a conceptual overview and use cases, including performance considerations, refer to
         [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
+        An unmapped field is present in documents but not defined in the index mapping. Across the queried indices, a field is:
+
+        - *fully unmapped* if none of the queried indices map it.
+        - *partially mapped* (also called *partially unmapped*) if some of the queried indices map it and others don't.
+          In the indices that don't map it, its values are `null` unless they are loaded with `LOAD`.
+
         Possible values are:
 
-        - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
+        - `DEFAULT` : Standard ESQL queries fail when referencing fully unmapped fields.
         - `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
           appear in the output.
         - `LOAD` : Loads referenced fully unmapped fields from the stored
           [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
-          absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
+          absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
+          even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
@@ -154,13 +160,12 @@ public final class QuerySettings {
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
     )
-        .withValidator(
-            (value, ctx) -> value == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false
-                ? "unmapped_fields value [LOAD_ALL] requires a snapshot build"
-                : null
-        )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
+        .withTelemetryLabels(
+            Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
+            UnmappedResolution::settingValue
+        )
         .build();
 
     @Param(
@@ -208,14 +213,14 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: preview\nstack: experimental 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"preview\"}`"
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)
@@ -264,6 +269,12 @@ public final class QuerySettings {
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
         .withClusterDefault("false")
+        .withTelemetryLabels(List.of("false", "true", "map"), value -> {
+            if (ApproximationSettings.isOn(value) == false) {
+                return "false";
+            }
+            return ApproximationSettings.DEFAULT.equals(value) ? "true" : "map";
+        })
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 
@@ -367,19 +378,10 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
+            throw new IllegalArgumentException(
+                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+            );
         }
-    }
-
-    /**
-     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
-     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
-     */
-    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
-        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
-            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
-            .toList();
-        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**
@@ -467,6 +469,60 @@ public final class QuerySettings {
     }
 
     /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)}, then the overrides that the state of
+     * the node resolving the settings forces on its result. This is what a query resolves its settings with; the overload
+     * above is only the fold, without those overrides.
+     *
+     * @param licenseState the license of the cluster, which decides what an operator's default for approximation means
+     */
+    public static ResolvedSettings resolve(
+        Settings clusterState,
+        Settings nodeSettings,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx,
+        @Nullable XPackLicenseState licenseState
+    ) {
+        ResolvedSettings resolved = resolve(clusterState, nodeSettings, requestParams, statement, ctx);
+        return applyApproximationLicense(resolved, requestParams, statement, licenseState);
+    }
+
+    /**
+     * Decide what an unlicensed cluster does about approximation, which depends on who asked for it.
+     * <p>
+     * A user who asked - in the request body or with {@code SET} - gets today's licensing error, unchanged: they
+     * requested a paid feature this cluster does not have. An operator's cluster-wide default is different. The
+     * operator is not in the request path, so failing would break every query on the cluster for people who never
+     * asked and cannot turn it off. Instead the default simply does not apply and the query runs exactly.
+     * <p>
+     * The operator learns of it from {@link #watchApproximationLicense}, which logs once when the license transitions.
+     * It cannot be logged here: this runs on every query.
+     * <p>
+     * Licenses change under a running cluster, so this cannot be settled when the setting is written: the value is
+     * valid, and it is the entitlement that comes and goes.
+     */
+    private static ResolvedSettings applyApproximationLicense(
+        ResolvedSettings resolved,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        @Nullable XPackLicenseState licenseState
+    ) {
+        if (ApproximationSettings.isOn(APPROXIMATION.get(resolved)) == false) {
+            return resolved;
+        }
+        boolean userSupplied = requestParams.containsKey(APPROXIMATION)
+            || (statement != null && statement.setting(APPROXIMATION.name()) != null);
+        if (userSupplied) {
+            EsqlLicenseChecker.checkQueryApproximation(licenseState);
+            return resolved;
+        }
+        if (EsqlLicenseChecker.isQueryApproximationAllowed(licenseState)) {
+            return resolved;
+        }
+        return resolved.withOverride(APPROXIMATION, null);
+    }
+
+    /**
      * Log any operator default this node cannot use. Resolution falls back to the built-in default for such a value
      * rather than failing queries, so without this the operator would have no signal at all.
      *
@@ -508,8 +564,13 @@ public final class QuerySettings {
         }
     }
 
-    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
-    static ResolvedSettings resolve(
+    /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)} over {@code defs} only; every other
+     * setting reads as its registry default. A view definition resolves the settings it may {@code SET} with this, so that
+     * its body sees them folded exactly as a query would. Parameterized over the registry also so the fold is testable
+     * against a purpose-built setting, as byName(List) is.
+     */
+    public static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
         Settings clusterState,
         Settings nodeSettings,

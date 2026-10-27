@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -184,6 +185,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         StorageObject storage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -272,6 +281,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         byte[] fileData = new byte[10000];
         StorageObject storage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -351,6 +368,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     public void testPrefetchFailureCompletesExceptionally() {
         StorageObject failingStorage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -406,6 +431,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         CountDownLatch started = new CountDownLatch(1);
         CompletableFuture<Void> backendGet = new CompletableFuture<>();
         StorageObject storage = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -726,6 +759,34 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(0L));
     }
 
+    public void testDecodeWorkingSetIncludesUncompressedAndValueWidth() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
+        long dest = HeapFootprint.byteArrayBytes(500);
+        long values = 100L * 8L;
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, null), equalTo(dest + values));
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, Set.of("nonexistent")), equalTo(0L));
+        long io = ColumnChunkPrefetcher.computePrefetchBytes(block, null);
+        assertThat(ParquetDecodeWorkingSet.admitBytes(block, null), equalTo(io + dest + values));
+        assertTrue("ticket must exceed I/O-only footprint", ParquetDecodeWorkingSet.admitBytes(block, null) > io);
+    }
+
+    public void testDecodeWorkingSetFloorsDestFromCompressedWhenUncompressedMissing() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 0L, 500, 0L, Set.of(Encoding.PLAIN)));
+        assertEquals(0L, block.getColumns().getFirst().getTotalUncompressedSize());
+        assertEquals(500L, block.getColumns().getFirst().getTotalSize());
+        long dest = HeapFootprint.byteArrayBytes(500);
+        long values = 100L * 8L;
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, null), equalTo(dest + values));
+    }
+
+    public void testDecodeWorkingSetIncludesDictionaryCopy() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col", 100, 50, 200, Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN)));
+        long dest = HeapFootprint.byteArrayBytes(200);
+        long dict = HeapFootprint.byteArrayBytes(50);
+        long values = 100L * 8L;
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, null), equalTo(dest + dict + values));
+    }
+
     public void testDictionaryPageRangeUnsetOffsetUsesStartingPos() {
         BlockMetaData block = createBlockWithColumns(new ColMeta("min_fl", 4, 0, 200, Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN)));
         ColumnChunkMetaData column = block.getColumns().getFirst();
@@ -820,9 +881,20 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     // --- helpers ---
 
-    private record ColMeta(String name, long firstDataPageOffset, long dictionaryPageOffset, long totalSize, Set<Encoding> encodings) {
+    private record ColMeta(
+        String name,
+        long firstDataPageOffset,
+        long dictionaryPageOffset,
+        long totalSize,
+        long totalUncompressedSize,
+        Set<Encoding> encodings
+    ) {
         ColMeta(String name, long startPos, long totalSize) {
-            this(name, startPos, 0L, totalSize, Set.of(Encoding.PLAIN));
+            this(name, startPos, 0L, totalSize, totalSize, Set.of(Encoding.PLAIN));
+        }
+
+        ColMeta(String name, long firstDataPageOffset, long dictionaryPageOffset, long totalSize, Set<Encoding> encodings) {
+            this(name, firstDataPageOffset, dictionaryPageOffset, totalSize, totalSize, encodings);
         }
     }
 
@@ -885,7 +957,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
                 col.dictionaryPageOffset,
                 100,
                 col.totalSize,
-                col.totalSize
+                col.totalUncompressedSize
             );
             block.addColumn(chunk);
         }
@@ -894,6 +966,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

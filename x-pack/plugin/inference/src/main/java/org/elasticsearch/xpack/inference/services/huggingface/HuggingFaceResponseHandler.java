@@ -32,7 +32,7 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
      */
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 503 || statusCode == 502 || statusCode == 429) {
             return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode >= 500) {

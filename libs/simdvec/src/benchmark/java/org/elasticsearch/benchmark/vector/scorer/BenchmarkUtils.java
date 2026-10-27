@@ -31,6 +31,7 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
@@ -212,5 +213,22 @@ class BenchmarkUtils {
 
     static int[] generateSequentialOrdinals(int numVectorsToScore) {
         return IntStream.range(0, numVectorsToScore).toArray();
+    }
+
+    /**
+     * One mask per block of 32 consecutive vectors (the last block may be shorter), with {@code selected} bits set at random
+     * positions within the block.
+     */
+    static int[] generateBlockMasks(int numVectorsToScore, int selected, Random random) {
+        int[] masks = new int[(numVectorsToScore + Integer.SIZE - 1) / Integer.SIZE];
+        for (int b = 0; b < masks.length; b++) {
+            int count = Math.min(Integer.SIZE, numVectorsToScore - b * Integer.SIZE);
+            List<Integer> positions = IntStream.range(0, count).boxed().collect(Collectors.toList());
+            Collections.shuffle(positions, random);
+            for (int p : positions.subList(0, Math.min(selected, count))) {
+                masks[b] = BulkMask.select(masks[b], p);
+            }
+        }
+        return masks;
     }
 }

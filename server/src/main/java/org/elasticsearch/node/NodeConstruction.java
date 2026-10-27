@@ -217,6 +217,7 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
@@ -501,6 +502,16 @@ class NodeConstruction {
                 "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
             );
         }
+        if (Runtime.version().feature() < 25) {
+            deprecationLogger.critical(
+                DeprecationCategory.OTHER,
+                "java-version-below-25",
+                "Running Elasticsearch with Java 21-24 is deprecated. This node is running Java [{}] "
+                    + "from [{}]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                Runtime.version(),
+                System.getProperty("java.home")
+            );
+        }
 
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -692,7 +703,10 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         IndexSettingProviders indexSettingProviders
     ) {
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterService.getClusterSettings());
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings()
+        );
         modules.bindToInstance(DataStreamLifecycleSettings.class, dataStreamLifecycleSettings);
         modules.bindToInstance(
             DataStreamFailureStoreSettings.class,
@@ -1298,7 +1312,8 @@ class NodeConstruction {
             threadPool,
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
-            featureService
+            featureService,
+            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
@@ -1413,7 +1428,10 @@ class NodeConstruction {
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
                 throttlingRecoveryService,
-                threadPool.relativeTimeInMillisSupplier()
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(

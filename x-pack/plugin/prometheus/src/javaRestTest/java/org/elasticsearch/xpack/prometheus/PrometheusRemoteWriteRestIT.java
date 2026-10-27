@@ -214,8 +214,25 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(new ObjectPath(hits2.getFirst()).evaluate("metrics." + metric2), equalTo(100.0));
     }
 
+    /**
+     * Simulates a client retrying a request that was already indexed, e.g. after a timeout.
+     * The retry results in version conflicts which should not be reported as failures.
+     */
+    public void testRemoteWriteRetryOfIndexedSamplesSucceeds() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "retried_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("job", "test"), sample(1.0, timestamp - 1000), sample(2.0, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+        sendAndAssertSuccess(writeRequest);
+
+        assertThat(searchDocs(metricName), hasSize(2));
+    }
+
     public void testRemoteWriteIndexesExemplar() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         long timestamp = System.currentTimeMillis();
         String metricName = "metric_with_exemplar";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -254,7 +271,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
      * index as a version conflict, which must not fail the request.
      */
     public void testRemoteWriteTreatsDuplicateExemplarsAsSuccess() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         String metricName = "metric_with_duplicate_exemplars";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -289,7 +305,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
      * exemplar documents fail with 403, but the samples are indexed and the request succeeds.
      */
     public void testRemoteWriteSucceedsWhenApiKeyLacksExemplarPrivileges() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         String metricsOnlyApiKey = createApiKey("prometheus-metrics-only-write-key", "metrics-*", "create_doc", "auto_configure");
         long timestamp = System.currentTimeMillis();
         String metricName = "metric_with_unauthorized_exemplar";

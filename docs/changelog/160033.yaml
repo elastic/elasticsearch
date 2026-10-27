@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 160033
+summary: "[DNM] Optimize ES|QL stored field loading"
+type: enhancement

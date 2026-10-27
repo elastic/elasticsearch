@@ -57,6 +57,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.AssertingLeafReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -834,6 +835,37 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     }
                     assertNull(unfiltered.getDocValuesSkipper("missing"));
                     assertNull(filtered.getDocValuesSkipper("missing"));
+                }
+            }
+        }
+    }
+
+    public void testDocValuesSkippersAgreeWithFieldInfos() throws Exception {
+        final List<String> fields = List.of("num", "ord", "no_skipper");
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                for (int i = 0, numDocs = randomIntBetween(1, 50); i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(SortedNumericDocValuesField.indexedField("num", randomLong()));
+                    doc.add(SortedSetDocValuesField.indexedField("ord", new BytesRef(randomAlphaOfLength(3))));
+                    doc.add(new SortedNumericDocValuesField("no_skipper", randomLong()));
+                    iw.addDocument(doc);
+                }
+            }
+            final List<String> granted = randomSubsetOf(fields);
+            final List<String> denied = fields.stream().filter(field -> granted.contains(field) == false).toList();
+            for (List<String> grant : List.of(granted, denied)) {
+                try (DirectoryReader reader = wrapWithGrantedFields(dir, grant)) {
+                    for (LeafReaderContext context : reader.leaves()) {
+                        final LeafReader leaf = new AssertingLeafReader(context.reader());
+                        for (String field : fields) {
+                            assertThat(
+                                field,
+                                leaf.getDocValuesSkipper(field) != null,
+                                equalTo(grant.contains(field) && field.equals("no_skipper") == false)
+                            );
+                        }
+                    }
                 }
             }
         }

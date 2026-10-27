@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -603,7 +602,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
     static void failIfCancelled(Task task, Result result) {
         if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-            Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
+            Releasables.closeExpectNoException(result.pages());
             throw new TaskCancelledException(cancellableTask.getReasonCancelled());
         }
     }

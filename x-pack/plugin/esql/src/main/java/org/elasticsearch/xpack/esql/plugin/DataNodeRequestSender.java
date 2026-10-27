@@ -107,7 +107,6 @@ abstract class DataNodeRequestSender {
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
-    private boolean reportedCancellation = false; // guarded by sendingLock
     private final AtomicInteger remainingUnavailableShardResolutionAttempts;
 
     DataNodeRequestSender(
@@ -233,7 +232,6 @@ abstract class DataNodeRequestSender {
                             }
                         }
                         if (reportedFailure
-                            || rootTask.isCancelled()
                             || (allowPartialResults == false
                                 && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
                             reportedFailure = true;
@@ -260,11 +258,6 @@ abstract class DataNodeRequestSender {
     private void reportFailures(ComputeListener computeListener) {
         assert sendingLock.isHeldByCurrentThread();
         assert reportedFailure;
-        if (rootTask.isCancelled() && reportedCancellation == false) {
-            // cancellation is not a shard failure, so allow_partial_results does not apply
-            reportedCancellation = true;
-            computeListener.acquireAvoid().onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
-        }
         Iterator<ShardFailure> it = shardFailures.values().iterator();
         Set<Exception> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         while (it.hasNext()) {

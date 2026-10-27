@@ -32,8 +32,6 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskCancelHelper;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -250,26 +248,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         // one round: {node-1, node-2}
         assertThat(sent.size(), equalTo(2));
         assertThat(sent, containsInAnyOrder(nodeRequest(node1, shard1, shard3), nodeRequest(node2, shard2)));
-    }
-
-    private volatile CancellableTask lastRootTask;
-
-    /** Cancellation must fail the phase even with partial results allowed (#162919). */
-    public void testCancelledRootTaskWithPartialResults() {
-        var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2));
-        var future = sendRequests(true, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
-            if (node1.equals(node)) {
-                runWithDelay(() -> {
-                    TaskCancelHelper.cancel(lastRootTask, "by user request");
-                    listener.onFailure(new TaskCancelledException("task cancelled [by user request]"), true);
-                });
-            } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
-            }
-        });
-        var e = expectThrows(TaskCancelledException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
-        assertThat(e.getMessage(), equalTo("by user request"));
-        assertTrue(lastRootTask.isCancelled());
     }
 
     public void testAllowPartialResults() {
@@ -728,7 +706,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        lastRootTask = task;
         return new DataNodeRequestSender(
             null,
             null,

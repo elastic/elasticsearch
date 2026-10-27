@@ -254,9 +254,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testPreferredNodeIdsAreUsedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/159502
-- class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
-  method: testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves
-  issue: https://github.com/elastic/elasticsearch/issues/159932
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/159947
@@ -266,15 +263,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testStopNestedSubquery
-  issue: https://github.com/elastic/elasticsearch/issues/160115
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testDeleteAndRecreateIndexDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/160169
-- class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
-  method: testStopSkipsQueuedNestedLeaves
-  issue: https://github.com/elastic/elasticsearch/issues/160201
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/159774
@@ -323,9 +314,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
-- class: org.elasticsearch.xpack.esql.action.SubqueryIT
-  method: testNestedSubqueryOuterLimitWithQueuedLeaves
-  issue: https://github.com/elastic/elasticsearch/issues/161662
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
@@ -437,11 +425,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/163039
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown
-  issue: https://github.com/elastic/elasticsearch/issues/163048
 - class: org.elasticsearch.test.rest.yaml.CcsSearchYamlTestSuiteIT
   tasks:
   - :qa:ccs-common-rest:yamlRestTest
@@ -546,3 +529,19 @@ tests:
   - :server:test
   method: testAMultiValuedFieldCountsTheSame
   issue: https://github.com/elastic/elasticsearch/issues/163464
+- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
+  tasks:
+  - :server:test
+  method: testASubAggregationStillAddsUp
+  issue: https://github.com/elastic/elasticsearch/issues/163479
+- class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:rolling-upgrade:v9.0.8#yamlBwcTest
+  - :x-pack:qa:rolling-upgrade:v9.2.8#yamlBwcTest
+  method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/158357
+- class: org.elasticsearch.xpack.esql.datasources.ExternalSourceResolverTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testConcurrentUnionByNameResolvesIssueOneListing
+  issue: https://github.com/elastic/elasticsearch/issues/163496

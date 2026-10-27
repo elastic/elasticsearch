@@ -21,8 +21,11 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -35,6 +38,9 @@ import static org.hamcrest.Matchers.greaterThan;
  * <p>Each search covers the remote index and a one-document local index whose pausable field {@code p} is fetched. With the field blocked,
  * the local part of every search parks, and the local node holds each remote response until its search completes. Together they hold
  * more than the local node's heap. Charged to the breaker, the excess searches are rejected; uncharged, the node runs out of memory.
+ *
+ * <p>A remote response is charged when the merge takes it, not when it is read, so the searches are sent one at a time: each waits until
+ * the previous response has been charged or rejected. Sent all at once, many responses could wait uncharged between the two.
  */
 public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -44,6 +50,7 @@ public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase
     // together are more than its heap.
     private static final int HITS_PER_SEARCH = 30;
     private static final int SEARCHES = 40;
+    private static final long RESPONSE_BYTES = (long) HITS_PER_SEARCH * DOC_BYTES;
 
     private static final ElasticsearchCluster REMOTE = ElasticsearchCluster.local()
         .name("remote")
@@ -100,13 +107,28 @@ public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase
      * least one is rejected, which shows that they overlapped, and at least one completes. The local node survives them.
      */
     public void testHeldRemoteResponsesTripBreaker() throws Exception {
-        List<Future<Map<String, Object>>> futures;
+        List<Future<Map<String, Object>>> futures = new ArrayList<>(SEARCHES);
+        ExecutorService pool = Executors.newFixedThreadPool(SEARCHES);
         // The default client allows 10 connections per node, too few to hold all the searches in flight.
         try (RestClient searchClient = restClient(LOCAL, SEARCHES)) {
             blockPauseField();
             try {
-                futures = submit(SEARCHES, () -> errorBodyOrNull(searchClient, search()));
-                assertBusy(() -> assertThat(trippedCount(), greaterThan(0L)), 60, TimeUnit.SECONDS);
+                for (int i = 0; i < SEARCHES; i++) {
+                    long charged = requestBreakerUsedBytes();
+                    long tripped = trippedCount();
+                    Future<Map<String, Object>> future = pool.submit(() -> errorBodyOrNull(searchClient, search()));
+                    futures.add(future);
+                    // Charged or rejected. A search that ends before the field is unblocked failed some other way, which is checked below.
+                    // Half a response: more than any unrelated charge, less than the response's own.
+                    assertBusy(
+                        () -> assertTrue(
+                            "the remote response was neither charged nor rejected",
+                            requestBreakerUsedBytes() >= charged + RESPONSE_BYTES / 2 || trippedCount() > tripped || future.isDone()
+                        ),
+                        60,
+                        TimeUnit.SECONDS
+                    );
+                }
             } finally {
                 unblockPauseField();
             }
@@ -128,6 +150,8 @@ public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase
             // Some fit, so the breaker isn't rejecting every search, as a leaked or inflated charge would.
             assertThat(completed, greaterThan(0));
             assertThat(rejected, greaterThan(0));
+        } finally {
+            pool.shutdown();
         }
         assertNodeAlive();
     }

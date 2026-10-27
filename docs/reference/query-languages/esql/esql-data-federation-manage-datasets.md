@@ -188,6 +188,12 @@ curl -X DELETE "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 
 ::::
 
+## Audit logging
+
+With [audit logging enabled](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md),
+creating, updating, and deleting datasets generates `security_config_change` events. Refer to
+[put_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-put-dataset) and
+[delete_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-delete-dataset).
 
 ## Next steps
 

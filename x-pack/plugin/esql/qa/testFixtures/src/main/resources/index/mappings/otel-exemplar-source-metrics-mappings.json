@@ -33,6 +33,20 @@
           "time_series_metric": "histogram"
         }
       }
+    },
+    "system": {
+      "properties": {
+        "metrics": {
+          "type": "passthrough",
+          "priority": 5,
+          "properties": {
+            "disk_io": {
+              "type": "double",
+              "time_series_metric": "gauge"
+            }
+          }
+        }
+      }
     }
   }
 }

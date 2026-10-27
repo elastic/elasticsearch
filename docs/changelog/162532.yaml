@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 162043
+pr: 162532
+summary: Fix knn nested pre-filter handling when querying inference fields
+type: bug

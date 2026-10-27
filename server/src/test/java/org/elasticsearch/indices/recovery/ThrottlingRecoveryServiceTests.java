@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.AbstractProjectResolver;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
@@ -78,6 +79,7 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -636,6 +638,54 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat("heap-based limit: ceil(2GB * 1.5) should only allow 3 slots", started.get(), equalTo(3));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(6));
+        service.close();
+    }
+
+    public void testHeapBasedLimitIgnoredOnSearchNodes() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 2 GB heap, ratio 1.5 -> ceil(2 * 1.5) = 3 on other nodes, but search nodes just apply the static limit of 5
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE))
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    1.5
+                )
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 8; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("only the static limit should apply", started.get(), equalTo(5));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(8));
         service.close();
     }
 
@@ -2410,6 +2460,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.localNode()).thenReturn(localNode);
         return clusterService;
     }

@@ -34,6 +34,13 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -73,6 +80,7 @@ public class ViewService {
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
+    private volatile int maxCommandCount;
 
     public ViewService(ClusterService clusterService, EsqlParser parser) {
         this.clusterService = clusterService;
@@ -84,6 +92,7 @@ public class ViewService {
         );
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
+        clusterService.getClusterSettings().initializeAndWatch(EsqlFlags.ESQL_MAX_COMMAND_COUNT, v -> this.maxCommandCount = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -220,8 +229,38 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
-        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+
+        // Parse the query to ensure it's syntactically valid. A definition may SET only the settings scoped at view
+        // boundaries; anything else, including unmapped_fields=LOAD_ALL, is rejected here. TS must be followed by STATS.
+        // A PUT request carries no pragmas, so the command limit comes from the cluster setting only.
+        var statement = parser.parseView(
+            view.query(),
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            view.name(),
+            maxCommandCount
+        );
+        validateTsView(view.name(), statement.plan());
+    }
+
+    /**
+     * Rejects views that use TS without a following STATS.
+     * The parser turns the first STATS after TS into a TimeSeriesAggregate, so its absence means TS is not aggregated.
+     * PROMQL is also a time series source, but it is always aggregated: it is transpiled to TS followed by STATS.
+     * Subqueries are not checked yet.
+     */
+    private static void validateTsView(String viewName, LogicalPlan plan) {
+        if (hasOuterMatch(plan, p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb())
+            && hasOuterMatch(plan, p -> p instanceof TimeSeriesAggregate || p instanceof PromqlCommand) == false) {
+            throw new IllegalArgumentException("view [" + viewName + "] uses TS, which must be followed by a STATS command");
+        }
+    }
+
+    private static boolean hasOuterMatch(LogicalPlan plan, Predicate<LogicalPlan> predicate) {
+        if (plan instanceof Subquery || plan instanceof UnionAll) {
+            return false;
+        }
+        return predicate.test(plan) || plan.children().stream().anyMatch(child -> hasOuterMatch(child, predicate));
     }
 
     /**

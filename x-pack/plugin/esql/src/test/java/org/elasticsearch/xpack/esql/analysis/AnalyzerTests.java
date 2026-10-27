@@ -6928,6 +6928,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertAnalyzedReferenceField(plan, Match.class, "t");
     }
 
+    public void testMatchAfterLookupJoinOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = basic().addLanguagesLookup().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchAfterEnrichOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = basic().addEnrichPolicy(
+            Enrich.Mode.COORDINATOR,
+            EnrichPolicy.MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        ).query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | eval x = to_string(languages)
+            | enrich _coordinator:languages on x
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
     public void testMatchPhraseOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
         LogicalPlan plan = defaultMapping().query("""
             from test

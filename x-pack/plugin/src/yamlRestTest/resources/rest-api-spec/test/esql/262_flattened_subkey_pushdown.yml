@@ -1,0 +1,171 @@
+---
+# [category.raw] is a keyword multi-field in [kw] and only a dynamic sub-key of the flattened [category] in [flat].
+# Field caps and field extraction treat it as unmapped in [flat], so pushed-down predicates must not match there.
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype, fix_flattened_subkey_pushdown ]
+      reason: "Predicates on a dotted field must treat a flattened sub-key with the same name as missing"
+  - do:
+      indices.create:
+        index: kw
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              category:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+  - do:
+      indices.create:
+        index: flat
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              category:
+                type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "kw" } }
+          - { "category": "alpha" }
+          - { "index": { "_index": "flat" } }
+          - { "category": { "raw": "alpha" } }
+          - { "index": { "_index": "flat" } }
+          - { "category": { "other": "x" } }
+
+---
+'no filter':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | KEEP _index, category.raw | SORT _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "flat", null ], [ "flat", null ], [ "kw", "alpha" ] ] }
+
+---
+'like':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw LIKE "*lph*" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'not like':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE NOT category.raw LIKE "*test*" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'rlike':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw RLIKE "a.*" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'starts_with':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE STARTS_WITH(category.raw, "al") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'equals':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw == "alpha" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'not equals':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw != "beta" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'in':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw IN ("alpha", "x") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'range':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw >= "a" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'ends_with':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE ENDS_WITH(category.raw, "ha") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'contains':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE CONTAINS(category.raw, "lph") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'is not null':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw IS NOT NULL | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'is null':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw IS NULL | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "flat", null ], [ "flat", null ] ] }
+
+---
+'count':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat | STATS c = COUNT(category.raw) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }

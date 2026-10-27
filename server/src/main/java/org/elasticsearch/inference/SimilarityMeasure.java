@@ -18,6 +18,12 @@ public enum SimilarityMeasure {
     DOT_PRODUCT(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT),
     L2_NORM(DenseVectorFieldMapper.VectorSimilarity.L2_NORM),;
 
+    /**
+     * The similarity used when none is configured. Cosine is used since we cannot guarantee that
+     * third-party providers return unit-length vectors.
+     */
+    public static final SimilarityMeasure DEFAULT = COSINE;
+
     private final DenseVectorFieldMapper.VectorSimilarity vectorSimilarity;
 
     SimilarityMeasure(DenseVectorFieldMapper.VectorSimilarity vectorSimilarity) {
@@ -35,5 +41,15 @@ public enum SimilarityMeasure {
 
     public static SimilarityMeasure fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Returns the given similarity if it is set, otherwise {@link #DEFAULT}.
+     *
+     * @param similarityFromModel the similarity configured on the model, may be null
+     * @return the similarity to use
+     */
+    public static SimilarityMeasure similarityOrDefault(SimilarityMeasure similarityFromModel) {
+        return similarityFromModel == null ? DEFAULT : similarityFromModel;
     }
 }

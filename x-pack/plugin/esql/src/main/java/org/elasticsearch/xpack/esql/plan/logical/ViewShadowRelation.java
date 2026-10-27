@@ -24,7 +24,7 @@ import java.util.Objects;
  * potential <em>remote index</em> with the same name as a local view. It is emitted by
  * {@link org.elasticsearch.xpack.esql.view.ViewResolver} (only when CPS is enabled) as a sibling
  * of each resolved view's recursive substitution, inside the per-resolution-level
- * {@link ViewUnionAll}.
+ * {@link BranchPlan}.
  * <p>
  * Lifecycle, with the parts each PR is responsible for:
  * <ol>
@@ -32,7 +32,7 @@ import java.util.Objects;
  *       and its strict sibling form the strict/lenient pair for that level.
  *       <em>(landed in the {@code ViewResolver} refactor)</em></li>
  *   <li>{@code ViewCompaction.preIndexResolution} reshapes user-written {@code Subquery}/
- *       {@code UnionAll} structures into {@link ViewUnionAll} but leaves shadows in place so
+ *       {@code UnionAll} structures into {@link BranchPlan} but leaves shadows in place so
  *       PreAnalyzer can still pair each shadow with its sibling at index-resolution time.
  *       <em>(landed)</em></li>
  *   <li>{@code PreAnalyzer} collects {@code ViewShadowRelation} patterns into a separate set,
@@ -50,9 +50,9 @@ import java.util.Objects;
  *       Backed by a mocked {@code optionalLinkedResolution} map until lenient field-caps
  *       provides real data.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
- *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
+ *       still-unresolved shadow is stripped, then nested {@link BranchPlan}s are flattened
  *       and remaining {@code NamedSubquery} wrappers unwrapped.
- *       Sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
+ *       Sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link BranchPlan}
  *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.</li>
  * </ol>
  */

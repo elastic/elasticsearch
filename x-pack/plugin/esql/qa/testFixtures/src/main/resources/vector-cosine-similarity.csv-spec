@@ -80,11 +80,13 @@ avg:double | min:double | max:double
 
 similarityWithNull
 required_capability: vector_similarity_functions_pushdown
+required_capability: warn_null_misuse
 
 from colors
 | eval similarity = v_cosine(rgb_vector, null) 
 | stats total_null = count(*) where similarity is null
 ;
+warning:Line 2:21: Expression [v_cosine(rgb_vector, null)] always evaluates to NULL.
 
 total_null:long
 59

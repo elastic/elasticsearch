@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 153438
+pr: 162376
+summary: Fix use-after-close in `BlockArrowFormatter`
+type: bug

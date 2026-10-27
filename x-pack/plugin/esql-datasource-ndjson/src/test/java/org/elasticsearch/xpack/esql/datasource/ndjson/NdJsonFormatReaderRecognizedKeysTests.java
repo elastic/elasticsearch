@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -281,5 +282,25 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             return "500";
         }
         return "dd-MM-yyyy";
+    }
+
+    public void testDatasetAuditSettings() {
+        for (var field : NdJsonDataSourcePlugin.FORMAT_CONFIG_KEYS) {
+            var request = new PutDatasetAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "dataset",
+                "datasource",
+                "resource",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

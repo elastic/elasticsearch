@@ -222,7 +222,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             final float best = searcher.search(query, 1).scoreDocs[0].score;
             // ScoreMode in this file is the join one, so the search one is named in full.
             final Weight weight = searcher.createWeight(query, org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
-            for (LeafReaderContext leaf : reader.leaves()) {
+            for (LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
                 final ScorerSupplier supplier = weight.scorerSupplier(leaf);
                 if (supplier != null) {
                     final Scorer scorer = supplier.get(Long.MAX_VALUE);

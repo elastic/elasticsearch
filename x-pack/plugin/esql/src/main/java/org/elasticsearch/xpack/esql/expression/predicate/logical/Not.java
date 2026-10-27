@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -22,6 +23,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -30,7 +34,13 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
-public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware, AnyNullIsNull {
+public class Not extends UnaryScalarFunction
+    implements
+        EvaluatorMapper,
+        Negatable<Expression>,
+        TranslationAware,
+        AnyNullIsNull,
+        NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
 
     public Not(Source source, Expression child) {
@@ -99,6 +109,20 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
 
     static Expression negate(Expression exp) {
         return exp instanceof Negatable ? ((Negatable) exp).negate() : new Not(exp.source(), exp);
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        if (field() instanceof Equals equals) {
+            return NullMisuseSuggestion.equalsNullToIsNull(equals.left(), equals.right(), true);
+        }
+        if (field() instanceof InsensitiveEquals insensitiveEquals) {
+            return NullMisuseSuggestion.equalsNullToIsNull(insensitiveEquals.left(), insensitiveEquals.right(), true);
+        }
+        if (field() instanceof In in && in.list().stream().allMatch(NullMisuseSuggestion::isNullOperand)) {
+            return NullMisuseSuggestion.isNullCheckText(in.value(), true);
+        }
+        return null;
     }
 
     @Override

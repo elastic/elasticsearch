@@ -297,23 +297,32 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
     /**
      * A document that arrives as a row of a pre-built batch has no source bytes on its request, so {@code _recovery_source_size} has to
      * come from the batch row; recovery uses it to bound the memory of a batch of operations, and a size of {@code 0} would never
-     * stop it. A document whose request does carry source keeps using the length of those bytes.
+     * stop it. A document whose request does carry source keeps using the length of those bytes. The batch mixes both, with
+     * row-backed documents before, between and after documents with source, since the batch sizes its rows in one sweep and must
+     * hand each document the size of its own row.
      */
     public void testRecoverySourceSizeOfRowBackedBatch() throws IOException {
         final MapperService mapperService = createMapperService(
             columnarStoredSettings(),
             mapping(b -> b.startObject("kwd").field("type", "keyword").endObject())
         );
-        final BytesReference rowBacked = new BytesArray("{\"kwd\":\"row backed value\"}");
-        final BytesReference withSource = new BytesArray("{\"kwd\":\"x\"}");
-        final IndexRequest[] requests = new IndexRequest[] {
-            new IndexRequest("test-index").id("row-backed").source(new BytesArray(new byte[0]), XContentType.JSON),
-            new IndexRequest("test-index").id("with-source").source(withSource, XContentType.JSON) };
-        final BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, requests[0]), new BulkItemRequest(1, requests[1]) };
+        final BytesReference[] sources = new BytesReference[] {
+            new BytesArray("{\"kwd\":\"row backed value\"}"),
+            new BytesArray("{\"kwd\":\"x\"}"),
+            new BytesArray("{\"kwd\":\"another row backed value\"}"),
+            new BytesArray("{\"kwd\":[\"row\",\"backed\",\"array\"]}"),
+            new BytesArray("{\"kwd\":\"with a longer source\"}") };
+        final boolean[] withRequestSource = new boolean[] { false, true, false, false, true };
+        final BulkItemRequest[] items = new BulkItemRequest[sources.length];
+        for (int d = 0; d < sources.length; d++) {
+            final BytesReference requestSource = withRequestSource[d] ? sources[d] : new BytesArray(new byte[0]);
+            items[d] = new BulkItemRequest(d, new IndexRequest("test-index").id("doc-" + d).source(requestSource, XContentType.JSON));
+        }
 
         try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
-            encoder.addDocument(rowBacked, XContentType.JSON, 0);
-            encoder.addDocument(withSource, XContentType.JSON, 0);
+            for (BytesReference source : sources) {
+                encoder.addDocument(source, XContentType.JSON, 0);
+            }
             try (
                 EscfBatch escfBatch = encoder.buildPartition(0);
                 BatchMappingContext ctx = new BatchMappingContext(
@@ -337,9 +346,12 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
                         .numericValue()
                         .longValue();
                 }
-                assertThat(sizes[0], equalTo((long) escfBatch.row(0).sizeInBytes()));
-                assertThat(sizes[0], greaterThan(0L));
-                assertThat(sizes[1], equalTo((long) withSource.length()));
+                for (int d = 0; d < items.length; d++) {
+                    final String description = "doc " + d + " " + sources[d].utf8ToString();
+                    final long expected = withRequestSource[d] ? sources[d].length() : escfBatch.row(d).sizeInBytes();
+                    assertThat(description, sizes[d], equalTo(expected));
+                    assertThat(description, sizes[d], greaterThan(0L));
+                }
             }
         }
     }

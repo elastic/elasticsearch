@@ -79,7 +79,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     }
 
     @Override
-    public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
+    public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<SourceChange> listener) {
         final long timestamp = clock.millis();
         // Mirror createNextCheckpoint's delay so this change-detection gate also widens its window while catching up;
         // otherwise just-landed backfill would never pass the gate.
@@ -112,7 +112,14 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             clientSupplier.get(),
             TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure)
+            listener.delegateFailureAndWrap(
+                (l, r) -> l.onResponse(
+                    new SourceChange(
+                        r.getHits().getTotalHits().value() > 0L,
+                        r.getClusters() != null && r.getClusters().hasRemoteClusters()
+                    )
+                )
+            )
         );
     }
 

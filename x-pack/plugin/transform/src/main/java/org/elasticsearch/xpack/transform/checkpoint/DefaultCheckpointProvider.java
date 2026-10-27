@@ -73,8 +73,8 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     @Override
-    public void sourceHasChanged(final TransformCheckpoint lastCheckpoint, final ActionListener<Boolean> listener) {
-        listener.onResponse(false);
+    public void sourceHasChanged(final TransformCheckpoint lastCheckpoint, final ActionListener<SourceChange> listener) {
+        listener.onResponse(new SourceChange(false, false));
     }
 
     @Override

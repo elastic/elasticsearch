@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +38,8 @@ import java.util.Map;
  * snapshot, so the APM poll callback is constant-time and both gauges emit one coherent view.
  * The registry is bounded by the tasks running on this node: the persistent-task executor
  * registers a task alongside its scheduler registration, and the task deregisters itself on
- * teardown.
+ * teardown. A deregistered task is still counted by the next poll, so a run that ends between
+ * polls (a batch transform) shows up in exactly one snapshot.
  *
  * <p>Two gauges, each emitting one {@link LongWithAttributes} per attribute value:
  * <ul>
@@ -61,6 +64,11 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
     /** APM metric name for running transforms broken down by whether their last search went cross-project. */
     public static final String TRANSFORM_CPS_ACTIVE_CURRENT = "es.transform.cps.active.current";
 
+    private static final Map<String, Object> UIAM_ATTRIBUTES = Map.of("auth_type", "uiam");
+    private static final Map<String, Object> LEGACY_ATTRIBUTES = Map.of("auth_type", "legacy");
+    private static final Map<String, Object> CROSS_PROJECT_ATTRIBUTES = Map.of("scope", "cross_project");
+    private static final Map<String, Object> ORIGIN_ATTRIBUTES = Map.of("scope", "origin");
+
     /** How often the background poll refreshes the cached counts. The 10s floor exists so integration tests can poll fast. */
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.transform.cps.metrics.poll_interval",
@@ -83,6 +91,15 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
     private final TransformNode transformNode;
     private final List<AutoCloseable> registeredMetrics = new ArrayList<>();
 
+    /** Per-search facts of a task, captured so they outlive its registration in {@link TransformNode}. */
+    record TaskFacts(Boolean uiamAuth, Boolean lastSearchCrossProject) {
+        static TaskFacts of(TransformTask task) {
+            return new TaskFacts(task.getContext().getUiamAuth(), task.getContext().getLastSearchCrossProject());
+        }
+    }
+
+    // tasks that deregistered since the last poll, by transform id, so a run that ends between polls (e.g. batch) is counted once
+    private final Map<String, TaskFacts> departedSinceLastPoll = ConcurrentCollections.newConcurrentMap();
     private volatile CpsCounts cachedCounts = CpsCounts.EMPTY;
     private Scheduler.Cancellable scheduledPoll;
 
@@ -101,6 +118,7 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
         this.threadPool = threadPool;
         this.pollInterval = pollInterval;
         this.transformNode = transformNode;
+        transformNode.addDeregistrationListener(task -> departedSinceLastPoll.put(task.getTransformId(), TaskFacts.of(task)));
         registeredMetrics.add(
             meterRegistry.registerLongAsyncGauge(
                 TRANSFORM_CPS_UIAM_AUTH_CURRENT,
@@ -122,16 +140,16 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
     private void recordUiamAuth(LongAsyncMeasurement measurement) {
         CpsCounts counts = cachedCounts;
         if (counts.isEmpty() == false) {
-            measurement.record(counts.uiam(), Map.of("auth_type", "uiam"));
-            measurement.record(counts.legacy(), Map.of("auth_type", "legacy"));
+            measurement.record(counts.uiam(), UIAM_ATTRIBUTES);
+            measurement.record(counts.legacy(), LEGACY_ATTRIBUTES);
         }
     }
 
     private void recordCrossProjectActive(LongAsyncMeasurement measurement) {
         CpsCounts counts = cachedCounts;
         if (counts.isEmpty() == false) {
-            measurement.record(counts.crossProject(), Map.of("scope", "cross_project"));
-            measurement.record(counts.origin(), Map.of("scope", "origin"));
+            measurement.record(counts.crossProject(), CROSS_PROJECT_ATTRIBUTES);
+            measurement.record(counts.origin(), ORIGIN_ATTRIBUTES);
         }
     }
 
@@ -146,15 +164,27 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
         }
     }
 
-    /** Iterates the running tasks and refreshes the cached counts. */
+    /** Counts the running tasks plus those that deregistered since the last poll, and refreshes the cached counts. */
     void poll() {
         try {
+            Map<String, TaskFacts> factsById = new HashMap<>();
+            for (String transformId : departedSinceLastPoll.keySet()) {
+                TaskFacts departed = departedSinceLastPoll.remove(transformId);
+                if (departed != null) {
+                    factsById.put(transformId, departed);
+                }
+            }
+            // a task that departed and registered again since the last poll is counted once, with its current facts
+            for (TransformTask task : transformNode.getTransformTasks()) {
+                factsById.put(task.getTransformId(), TaskFacts.of(task));
+            }
+
             long uiam = 0;
             long legacy = 0;
             long crossProject = 0;
             long origin = 0;
-            for (TransformTask task : transformNode.getTransformTasks()) {
-                var uiamAuth = task.getContext().getUiamAuth();
+            for (TaskFacts facts : factsById.values()) {
+                var uiamAuth = facts.uiamAuth();
                 if (uiamAuth != null) {
                     if (uiamAuth) {
                         uiam++;
@@ -162,7 +192,7 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
                         legacy++;
                     }
                 }
-                var lastSearchCrossProject = task.getContext().getLastSearchCrossProject();
+                var lastSearchCrossProject = facts.lastSearchCrossProject();
                 if (lastSearchCrossProject != null) {
                     if (lastSearchCrossProject) {
                         crossProject++;

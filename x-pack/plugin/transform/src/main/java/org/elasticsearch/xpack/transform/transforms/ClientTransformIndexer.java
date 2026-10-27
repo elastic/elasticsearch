@@ -704,6 +704,21 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
+    @Override
+    protected void onSourceChangeChecked(boolean crossProject) {
+        if (crossProjectEnabled) {
+            recordSearchMetrics(crossProject);
+        }
+    }
+
+    private void recordSearchMetrics(boolean crossProject) {
+        context.recordSearchMetrics(isUiamAuth(), crossProject);
+    }
+
+    private boolean isUiamAuth() {
+        return getConfig().getCredentialId() != null;
+    }
+
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
         String name = namedSearchRequest.v1();
         SearchRequest originalRequest = namedSearchRequest.v2();
@@ -727,10 +742,7 @@ class ClientTransformIndexer extends TransformIndexer {
         // record per-search metrics on every success path, including the pit-fallback retries below
         ActionListener<SearchResponse> recordingListener = crossProjectEnabled ? listener.delegateFailureAndWrap((l, response) -> {
             if (response != null) {
-                context.recordSearchMetrics(
-                    getConfig().getCredentialId() != null,
-                    response.getClusters() != null && response.getClusters().hasRemoteClusters()
-                );
+                recordSearchMetrics(response.getClusters() != null && response.getClusters().hasRemoteClusters());
             }
             l.onResponse(response);
         }) : listener;

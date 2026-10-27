@@ -55,9 +55,9 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
     }
 
     @Override
-    public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
+    public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<SourceChange> listener) {
         // lets pretend there are always changes
-        listener.onResponse(true);
+        listener.onResponse(new SourceChange(true, false));
     }
 
     @Override

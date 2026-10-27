@@ -21,9 +21,6 @@ import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.transform.FilteringJarTransform
 
-import java.nio.file.Files
-import java.nio.file.Path
-
 import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild
 
 plugins {
@@ -584,20 +581,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
       }
-    }
-  }
-}
-
-subprojects {
-  ext.assertLinesInFile = { Path path, List<String> expectedLines ->
-    final List<String> actualLines = Files.readAllLines(path)
-    int line = 0
-    for (final String expectedLine : expectedLines) {
-      final String actualLine = actualLines.get(line)
-      if (expectedLine != actualLine) {
-        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
-      }
-      line++
     }
   }
 }

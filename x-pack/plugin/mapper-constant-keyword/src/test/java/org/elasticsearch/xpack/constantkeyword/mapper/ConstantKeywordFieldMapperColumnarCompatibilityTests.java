@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
@@ -170,15 +171,40 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/4685")
-    public void testNoColumnUnderStoredSource() throws IOException {
-        // Under stored source, isSourceSynthetic() is false: mapColumnBatch validates values but emits no
-        // presence-marker column. Currently blocked because SourceFieldMapper does not yet enable the
-        // columnar batch path for stored source; remove @AwaitsFix when that support lands.
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject()),
-            Settings.EMPTY,
-            batch("stored source", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"hello\"}"))
+    /**
+     * Stored source is not supported by the columnar batch path yet: {@code SourceFieldMapper} refuses it, so every batch for such an
+     * index falls back to the row path even though the {@code constant_keyword} mapper itself would accept it. The index is a TSDB one
+     * because a data field only takes part in the batch path in a strict-columnar or TSDB index mode, and strict-columnar modes do not
+     * allow stored source.
+     *
+     * <p>When stored source support lands, this test starts failing. Replace it with an {@link #assertColumnarMatchesXContent} parity
+     * check: under stored source {@code isSourceSynthetic()} is false, so {@code mapColumnBatch} validates values but emits no
+     * presence-marker column.
+     */
+    public void testGate_storedSourceFallsBackToRowPath() throws IOException {
+        final MapperService ms = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject();
+            })
+        );
+        final IndexSettings indexSettings = ms.getIndexSettings();
+        final FieldMapper fieldMapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
+        assertTrue("the field itself must not be what blocks the batch path", fieldMapper.supportsColumnarParse(indexSettings));
+        final SourceFieldMapper sourceMapper = ms.mappingLookup().getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+        assertFalse(
+            "SourceFieldMapper must refuse the columnar batch path under stored source",
+            sourceMapper.supportsColumnarMetadataParse(indexSettings)
         );
     }
 

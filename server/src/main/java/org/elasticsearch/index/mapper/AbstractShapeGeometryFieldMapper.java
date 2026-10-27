@@ -15,11 +15,14 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.Extent;
@@ -370,15 +373,36 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         /**
          * Block loader that reconstructs geometry from binary doc-values and returns WKB-encoded bytes.
          * Used when the optimizer determines that reading from doc-values is sufficient (e.g. when the
-         * field is consumed by ST_SIMPLIFY rather than returned directly).
+         * field is consumed by ST_SIMPLIFY rather than returned directly). When created with a
+         * {@link BlockLoaderFunctionConfig.GeometryTransform}, the reconstructed geometry is instead handed to the
+         * transformer of that config, fusing the function into the load.
          */
         protected static class GeometryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private static final BlockLoaderFunctionConfig.GeometryTransformer TO_WKB = geometry -> new BytesRef(
+                WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN)
+            );
+
             private final String fieldName;
             private final CoordinateEncoder encoder;
+            @Nullable
+            private final BlockLoaderFunctionConfig.GeometryTransform transform;
+            @Nullable
+            private final Warnings warnings;
 
             protected GeometryBlockLoader(String fieldName, CoordinateEncoder encoder) {
+                this(fieldName, encoder, null, null);
+            }
+
+            protected GeometryBlockLoader(
+                String fieldName,
+                CoordinateEncoder encoder,
+                @Nullable BlockLoaderFunctionConfig.GeometryTransform transform,
+                @Nullable Warnings warnings
+            ) {
                 this.fieldName = fieldName;
                 this.encoder = encoder;
+                this.transform = transform;
+                this.warnings = warnings;
             }
 
             @Override
@@ -389,12 +413,21 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
                     return ConstantNull.COLUMN_READER;
                 }
-                return new GeometryReader(breaker, binaryDocValues, encoder);
+                // Transformers may carry scratch state, so every reader gets its own
+                var transformer = transform == null ? TO_WKB : transform.transformers().create(warnings);
+                return new GeometryReader(breaker, binaryDocValues, encoder, transformer);
             }
 
             @Override
             public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
                 return factory.bytesRefs(expectedCount);
+            }
+
+            @Override
+            public String toString() {
+                return transform == null
+                    ? "GeometryFromShapeDocValues[" + fieldName + "]"
+                    : "GeometryTransformFromShapeDocValues[" + fieldName + ", " + transform.function() + "]";
             }
         }
 
@@ -403,11 +436,18 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
+            private final BlockLoaderFunctionConfig.GeometryTransformer transformer;
 
-            private GeometryReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
+            private GeometryReader(
+                CircuitBreaker breaker,
+                BinaryDocValues binaryDocValues,
+                CoordinateEncoder encoder,
+                BlockLoaderFunctionConfig.GeometryTransformer transformer
+            ) {
                 this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;
+                this.transformer = transformer;
             }
 
             @Override
@@ -432,8 +472,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     builder.appendNull();
                     return;
                 }
-                byte[] wkb = WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN);
-                builder.appendBytesRef(new BytesRef(wkb));
+                BytesRef result = transformer.transform(geometry);
+                if (result == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(result);
+                }
             }
 
             @Override
@@ -444,6 +488,11 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             @Override
             public void close() {
                 breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+            }
+
+            @Override
+            public String toString() {
+                return "GeometryFromShapeDocValues";
             }
         }
     }

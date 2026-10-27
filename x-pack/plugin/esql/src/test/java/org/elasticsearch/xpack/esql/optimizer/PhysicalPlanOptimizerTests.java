@@ -5461,8 +5461,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Test that ST_SIMPLIFY on a geo_shape field uses doc-values when available and the original field is not in the output.
-     * When the field IS in the output, doc-values cannot be used because the coordinator needs the original precision.
+     * Test that ST_SIMPLIFY on a geo_shape field uses doc-values when available and the original field is not in the output,
+     * in which case it is fused into loading the doc values. When the field IS in the output, doc-values cannot be used because
+     * the coordinator needs the original precision.
      */
     public void testSpatialSimplifyGeoShapeUsesDocValues() {
         for (boolean keepShape : new boolean[] { false, true }) {
@@ -5499,8 +5500,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 var evalExec = as(fieldExtract.child(), EvalExec.class);
                 var alias = as(evalExec.fields().getLast(), Alias.class);
                 assertThat(alias.name(), equalTo("simplified"));
+                if (withDocValues) {
+                    assertChildIsFusedSimplifyExtract(evalExec, GEO_SHAPE, 0.05);
+                    continue;
+                }
                 var stSimplifyFunction = as(alias.child(), StSimplify.class);
-                assertThat(stSimplifyFunction.spatialDocValues(), equalTo(withDocValues));
+                assertThat(stSimplifyFunction.spatialDocValues(), equalTo(false));
                 var spatialField = as(stSimplifyFunction.spatialField(), FieldAttribute.class);
                 assertThat(spatialField.name(), equalTo("city_boundary"));
                 assertThat(spatialField.dataType(), equalTo(GEO_SHAPE));
@@ -5545,8 +5550,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 var evalExec = as(fieldExtract.child(), EvalExec.class);
                 var alias = as(evalExec.fields().getLast(), Alias.class);
                 assertThat(alias.name(), equalTo("simplified"));
+                if (withDocValues) {
+                    assertChildIsFusedSimplifyExtract(evalExec, CARTESIAN_SHAPE, 0.05);
+                    continue;
+                }
                 var stSimplifyFunction = as(alias.child(), StSimplify.class);
-                assertThat(stSimplifyFunction.spatialDocValues(), equalTo(withDocValues));
+                assertThat(stSimplifyFunction.spatialDocValues(), equalTo(false));
                 var spatialField = as(stSimplifyFunction.spatialField(), FieldAttribute.class);
                 assertThat(spatialField.name(), equalTo("shape"));
                 assertThat(spatialField.dataType(), equalTo(CARTESIAN_SHAPE));
@@ -10699,6 +10708,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(config.function().name(), equalTo("ST_" + grid.toUpperCase(Locale.ROOT)));
         assertThat(config.precision(), equalTo(precision));
         return fused;
+    }
+
+    /**
+     * Asserts that the last field of the EVAL is ST_SIMPLIFY fused into loading the shape doc values, and that the
+     * {@link FieldExtractExec} directly below loads only that fused attribute, without the shape itself.
+     */
+    private static void assertChildIsFusedSimplifyExtract(EvalExec evalExec, DataType shapeType, double tolerance) {
+        var alias = as(evalExec.fields().getLast(), Alias.class);
+        var fused = as(alias.child(), FieldAttribute.class);
+        assertThat(fused.dataType(), equalTo(shapeType));
+        var functionField = as(fused.field(), FunctionEsField.class);
+        var config = as(functionField.functionConfig(), BlockLoaderFunctionConfig.GeometryTransform.class);
+        assertThat(config.function(), equalTo(BlockLoaderFunctionConfig.Function.ST_SIMPLIFY));
+        assertThat(config.parameter(), equalTo(tolerance));
+        var extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), is(List.of(fused.name())));
+        assertThat(extract.docValuesAttributes(), is(empty()));
     }
 
     /**

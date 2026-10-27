@@ -416,3 +416,8 @@ tests:
   - :server:internalClusterTest
   method: testIndexMode
   issue: https://github.com/elastic/elasticsearch/issues/163329
+- class: org.elasticsearch.xpack.ccr.CcrAliasesIT
+  tasks:
+  - :x-pack:plugin:ccr:internalClusterTest
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/163486

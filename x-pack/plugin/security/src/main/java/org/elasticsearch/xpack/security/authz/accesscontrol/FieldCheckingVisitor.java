@@ -56,6 +56,10 @@ final class FieldCheckingVisitor extends QueryVisitor {
 
     @Override
     public void visitLeaf(Query query) {
+        if (cacheable.get() == false) {
+            return;
+        }
+
         // these match the same docs regardless of field permissions, so they are safe to cache without reporting a field
         if (query instanceof MatchAllDocsQuery || query instanceof MatchNoDocsQuery) {
             return;
@@ -81,6 +85,10 @@ final class FieldCheckingVisitor extends QueryVisitor {
     }
 
     private boolean checkField(String field) {
+        if (cacheable.get() == false) {
+            return false;
+        }
+
         // don't cache any internal fields (e.g. _field_names), these are complicated.
         if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
             cacheable.set(false);

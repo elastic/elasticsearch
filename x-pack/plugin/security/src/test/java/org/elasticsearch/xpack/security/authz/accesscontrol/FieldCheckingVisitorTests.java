@@ -143,7 +143,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
             () -> assertFalse(visitor.acceptField(CACHEABLE_FIELD)),
             () -> visitor.consumeTerms(UNUSED_QUERY, new Term(CACHEABLE_FIELD, "x")),
             () -> visitor.consumeTermsMatching(UNUSED_QUERY, CACHEABLE_FIELD, UNUSED_AUTOMATON),
-            () -> visitor.visitLeaf(new FieldQuery(CACHEABLE_FIELD))
+            () -> visitor.visitLeaf(UNUSED_QUERY)  // visitLeaf should not visit the query once cacheable is false
         );
         for (Runnable call : cacheableCalls) {
             call.run();

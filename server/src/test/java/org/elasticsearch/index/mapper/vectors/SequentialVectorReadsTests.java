@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -130,7 +131,7 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
                 .getFieldInfos()
                 .fieldInfo("field")
                 .getVectorSimilarityFunction();
-            DenseVectorQuery query = DenseVectorQuery.Floats.rawScored(randomVector(), "field", similarity, false);
+            DenseVectorQuery query = DenseVectorQuery.Floats.rawScored(randomFloatVector(DIMS), "field", similarity, false);
             Query tagged = new TermQuery(new Term("tag", "a"));
 
             opens.clear();
@@ -221,7 +222,7 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
 
     private void indexSegment(IndexWriter writer, int docs) throws IOException {
         for (int doc = 0; doc < docs; doc++) {
-            float[] vector = randomVector();
+            float[] vector = randomFloatVector(DIMS);
             vectors.add(vector);
             writer.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", vector).field("tag", "a"))).rootDoc());
         }
@@ -287,14 +288,6 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
     /** bfloat16 keeps 8 bits of mantissa. */
     private float tolerance() {
         return fieldType.getElementType() == DenseVectorFieldMapper.ElementType.BFLOAT16 ? 1e-2f : 1e-5f;
-    }
-
-    private static float[] randomVector() {
-        float[] vector = new float[DIMS];
-        for (int i = 0; i < DIMS; i++) {
-            vector[i] = randomFloat() * 2 - 1;
-        }
-        return vector;
     }
 
     /** One {@link Directory#openInput} call. */

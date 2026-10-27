@@ -222,25 +222,20 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            FloatVectorValues vectorValues = super.getFloatVectorValues(field);
-            if (vectorValues != null) {
-                notifier.onKnnVectorsUsed(field);
-            }
-            return vectorValues;
+            return knnVectorsUsed(field, super.getFloatVectorValues(field));
         }
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
-            FloatVectorValues vectorValues = in.getFloatVectorValues(field, access);
-            if (vectorValues != null) {
-                notifier.onKnnVectorsUsed(field);
-            }
-            return vectorValues;
+            return knnVectorsUsed(field, in.getFloatVectorValues(field, access));
         }
 
         @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
-            ByteVectorValues vectorValues = super.getByteVectorValues(field);
+            return knnVectorsUsed(field, super.getByteVectorValues(field));
+        }
+
+        private <V> V knnVectorsUsed(String field, V vectorValues) {
             if (vectorValues != null) {
                 notifier.onKnnVectorsUsed(field);
             }

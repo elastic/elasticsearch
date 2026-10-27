@@ -1310,19 +1310,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                     @Override
                     public FloatVectorValues getFloatVectorValues(String fieldName) throws IOException {
-                        FloatVectorValues values = in.getFloatVectorValues(fieldName);
-                        if (values == null) {
-                            return null;
-                        }
-                        return new DenormalizedCosineFloatVectorValues(
-                            values,
-                            in.getNumericDocValues(fieldName + COSINE_MAGNITUDE_FIELD_SUFFIX)
-                        );
+                        return denormalized(fieldName, in.getFloatVectorValues(fieldName));
                     }
 
                     @Override
                     public FloatVectorValues getFloatVectorValues(String fieldName, DataAccessHint access) throws IOException {
-                        FloatVectorValues values = in.getFloatVectorValues(fieldName, access);
+                        return denormalized(fieldName, in.getFloatVectorValues(fieldName, access));
+                    }
+
+                    private FloatVectorValues denormalized(String fieldName, FloatVectorValues values) throws IOException {
                         if (values == null) {
                             return null;
                         }

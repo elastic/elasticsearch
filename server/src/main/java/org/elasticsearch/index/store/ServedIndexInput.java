@@ -19,7 +19,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-/** An input that is efficient only for the reads its directory serves the way it served this one. */
+/** An input that is not efficient for a context its directory would open differently, such as with direct I/O instead of mmap. */
 class ServedIndexInput extends FilterIndexInput {
 
     private final Predicate<IOContext> servedTheSame;

@@ -135,11 +135,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
-            ByteVectorValues vectorValues = in.getByteVectorValues(field);
-            if (vectorValues == null) {
-                return null;
-            }
-            return wrapIfNeeded(vectorValues, queryCancellation);
+            return wrapIfNeeded(in.getByteVectorValues(field), queryCancellation);
         }
 
         @Override
@@ -153,20 +149,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            FloatVectorValues vectorValues = in.getFloatVectorValues(field);
-            if (vectorValues == null) {
-                return null;
-            }
-            return wrapIfNeeded(vectorValues, queryCancellation);
+            return wrapIfNeeded(in.getFloatVectorValues(field), queryCancellation);
         }
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
-            FloatVectorValues vectorValues = in.getFloatVectorValues(field, access);
-            if (vectorValues == null) {
-                return null;
-            }
-            return wrapIfNeeded(vectorValues, queryCancellation);
+            return wrapIfNeeded(in.getFloatVectorValues(field, access), queryCancellation);
         }
 
         @Override
@@ -579,7 +567,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     private static ByteVectorValues wrapIfNeeded(ByteVectorValues vectorValues, QueryCancellation queryCancellation) {
-        if (queryCancellation.isEnabled()) {
+        if (vectorValues != null && queryCancellation.isEnabled()) {
             return new ExitableByteVectorValues(vectorValues, queryCancellation);
         } else {
             return vectorValues;
@@ -587,7 +575,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     private static FloatVectorValues wrapIfNeeded(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
-        if (queryCancellation.isEnabled()) {
+        if (vectorValues != null && queryCancellation.isEnabled()) {
             return new ExitableFloatVectorValues(vectorValues, queryCancellation);
         } else {
             return vectorValues;

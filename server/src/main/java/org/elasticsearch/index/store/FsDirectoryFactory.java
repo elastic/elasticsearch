@@ -481,12 +481,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         /** The direct I/O delegate this directory reads {@code name} with, or null if neither. */
         private DirectIODirectory directIOFor(String name, IOContext context) {
-            // the buffer follows the access: a merge streams, a rescore reads at random
-            DirectIODirectory dio = context.hints().contains(DataAccessHint.SEQUENTIAL) ? mergeDirectIODelegate : directIODelegate;
+            // a merge streams and a rescore reads at random, each with a buffer of its own
+            DirectIODirectory dio = context.context() == IOContext.Context.MERGE ? mergeDirectIODelegate : directIODelegate;
             return dio != null && useDirectIO(name, context) ? dio : null;
         }
 
-        /** Wraps {@code in} so that it is efficient only for the contexts this directory serves the same way. */
+        /** Wraps {@code in} in a {@link ServedIndexInput} when the field can use direct I/O. */
         private IndexInput servedAs(String name, IOContext context, IndexInput in) {
             if ((directIODelegate == null && mergeDirectIODelegate == null) || isRawVectorFile(name) == false) {
                 return in;

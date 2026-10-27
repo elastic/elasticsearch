@@ -25,6 +25,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -39,10 +41,10 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -79,10 +81,16 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                 assertThat(dir.opens, hasSize(1));
                 IOContext context = dir.opens.get(0);
                 assertThat(context.context(), equalTo(mergeFirst ? IOContext.Context.MERGE : IOContext.Context.DEFAULT));
-                assertThat(context.hints(), hasItem(DataAccessHint.SEQUENTIAL));
-                assertThat(context.hints(), not(hasItem(DataAccessHint.RANDOM)));
-                assertThat(context.hints(), hasItem(NoReuseHint.INSTANCE));
-                assertThat(context.hints(), hasItem(CallerHint.INSTANCE));
+                assertEquals(
+                    Set.of(
+                        FileTypeHint.DATA,
+                        FileDataHint.KNN_VECTORS,
+                        DataAccessHint.SEQUENTIAL,
+                        NoReuseHint.INSTANCE,
+                        CallerHint.INSTANCE
+                    ),
+                    context.hints()
+                );
             }
             assertThat("closed with the reader", dir.closes.get(), equalTo(1));
         }

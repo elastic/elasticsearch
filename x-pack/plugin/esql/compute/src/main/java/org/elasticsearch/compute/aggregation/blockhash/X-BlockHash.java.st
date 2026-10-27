@@ -36,10 +36,14 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
 $if(BytesRef)$
+import org.elasticsearch.swisshash.BytesRefDirectHash;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 $endif$
 $if(long || int)$
 import org.elasticsearch.swisshash.LongSwissHash;
+$endif$
+$if(long)$
+import org.elasticsearch.swisshash.LongDirectHash;
 $endif$
 $if(partitioned)$
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -93,6 +97,30 @@ $endif$
         this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
 
+$if(long)$
+    /**
+     * Builds a hash backed by a {@link LongDirectHash} with {@code directSlots} slots. Only for partial aggregations,
+     * where a key may get several group ids. See {@link LongDirectHash}.
+     */
+    $Type$BlockHash(int channel, BlockFactory blockFactory, int directSlots) {
+        super(blockFactory);
+        this.channel = channel;
+        this.hash = new LongDirectHash(blockFactory.breaker(), directSlots);
+    }
+
+$endif$
+$if(BytesRef)$
+    /**
+     * Builds a hash backed by a {@link BytesRefDirectHash} with {@code directSlots} slots. Only for partial aggregations,
+     * where a key may get several group ids. See {@link BytesRefDirectHash}.
+     */
+    $Type$BlockHash(int channel, BlockFactory blockFactory, int directSlots) {
+        super(blockFactory);
+        this.channel = channel;
+        this.hash = new BytesRefDirectHash(blockFactory.breaker(), blockFactory.bigArrays(), directSlots);
+    }
+
+$endif$
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         // TODO track raw counts and which implementation we pick for the profiler - #114008
@@ -439,11 +467,11 @@ $if(partitioned)$
         CircuitBreaker breaker,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
-        if (hash instanceof $swissHash$ swiss) {
-            // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
+        if (hash instanceof PartitionedHashTable partitionable) {
+            // Hash ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
             // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
             var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
-            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
+            PartitionedHashTable.PartitionedHashKeys keys = partitionable.splitPartition(breaker, groupIdSplitter);
             boolean success = false;
             try {
                 if (seenNull) {

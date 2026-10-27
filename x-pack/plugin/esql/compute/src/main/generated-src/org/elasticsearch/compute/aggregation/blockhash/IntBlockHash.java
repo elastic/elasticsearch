@@ -220,11 +220,11 @@ final class IntBlockHash extends PartitionedBlockHash {
         CircuitBreaker breaker,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
-        if (hash instanceof LongSwissHash swiss) {
-            // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
+        if (hash instanceof PartitionedHashTable partitionable) {
+            // Hash ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
             // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
             var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
-            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
+            PartitionedHashTable.PartitionedHashKeys keys = partitionable.splitPartition(breaker, groupIdSplitter);
             boolean success = false;
             try {
                 if (seenNull) {

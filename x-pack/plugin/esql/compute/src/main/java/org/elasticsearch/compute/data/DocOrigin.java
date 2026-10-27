@@ -111,6 +111,6 @@ public final class DocOrigin implements Writeable, Accountable {
 
     @Override
     public String toString() {
-        return "DocOrigin[" + clusterAlias + ":" + nodeId + shardId + contextId + "]";
+        return "DocOrigin[" + clusterAlias + ":" + nodeId + " " + shardId + " " + contextId + "]";
     }
 }

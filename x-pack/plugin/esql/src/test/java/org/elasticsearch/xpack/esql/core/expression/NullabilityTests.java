@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.FALSE;
@@ -75,49 +75,55 @@ public class NullabilityTests extends ESTestCase {
         assertEquals(TRUE, Expressions.nullable(asList(YES, NO)));
     }
 
-    public void testWriteRead() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN);
-        for (TransportVersion version : List.of(oldVersion, TransportVersion.current())) {
-            for (Nullability nullability : Nullability.values()) {
-                try (BytesStreamOutput out = new BytesStreamOutput()) {
-                    out.setTransportVersion(version);
-                    nullability.writeTo(out);
-                    try (StreamInput in = out.bytes().streamInput()) {
-                        in.setTransportVersion(version);
-                        assertEquals(nullability, Nullability.readFrom(in));
-                        assertEquals(0, in.available());
-                    }
-                }
-            }
+    public void testSerialization_legacyFormat() throws IOException {
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN);
+
+        assertArrayEquals(new byte[] { 0 }, write(TRUE, version));
+        assertEquals(TRUE, read(new byte[] { 0 }, version));
+
+        assertArrayEquals(new byte[] { 1 }, write(FALSE, version));
+        assertEquals(FALSE, read(new byte[] { 1 }, version));
+
+        assertEquals(TRUE, read(new byte[] { 2 }, version));
+
+        IOException e = expectThrows(IOException.class, () -> read(new byte[] { 3 }, version));
+        assertEquals("Unknown ordinal [3] for Nullability", e.getMessage());
+    }
+
+    public void testSerialization_modernFormat() throws IOException {
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN);
+
+        assertArrayEquals(new byte[] { 1 }, write(TRUE, version));
+        assertEquals(TRUE, read(new byte[] { 1 }, version));
+
+        assertArrayEquals(new byte[] { 0 }, write(FALSE, version));
+        assertEquals(FALSE, read(new byte[] { 0 }, version));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> read(new byte[] { 2 }, version));
+        assertEquals("unexpected byte [0x02]", e.getMessage());
+    }
+
+    public void testSerialization_formatSwitchesAtPatchVersions() throws IOException {
+        for (TransportVersion id = Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN; id != null; id = id.nextPatchVersion()) {
+            logger.info("Testing serialization for version [{}]", id);
+            TransportVersion before = TransportVersionUtils.getPreviousVersion(id);
+            assertArrayEquals(id.toString(), new byte[] { 1 }, write(TRUE, id));
+            assertArrayEquals(before.toString(), new byte[] { 0 }, write(TRUE, before));
         }
     }
 
-    public void testReadOldWireFormatLegacyUnknown() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(oldVersion);
-            // The old wire format for Nullability.UNKNOWN is 2, which now translates to TRUE.
-            out.writeVInt(2);
-            try (StreamInput in = out.bytes().streamInput()) {
-                in.setTransportVersion(oldVersion);
-                assertEquals(TRUE, Nullability.readFrom(in));
-                assertEquals(0, in.available());
-            }
+    private static Nullability read(byte[] bytes, TransportVersion version) throws IOException {
+        try (ByteArrayStreamInput in = new ByteArrayStreamInput(bytes)) {
+            in.setTransportVersion(version);
+            return Nullability.readFrom(in);
         }
     }
 
-    public void testReadOldWireFormatInvalidOrdinal() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN);
+    private static byte[] write(Nullability nullability, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(oldVersion);
-            // The old wire format for Nullability only has ordinals 0, 1, and 2. 3 is invalid.
-            out.writeVInt(3);
-            try (StreamInput in = out.bytes().streamInput()) {
-                in.setTransportVersion(oldVersion);
-                IOException e = expectThrows(IOException.class, () -> Nullability.readFrom(in));
-                assertEquals("Unknown ordinal [3] for Nullability", e.getMessage());
-                assertEquals(0, in.available());
-            }
+            out.setTransportVersion(version);
+            nullability.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
         }
     }
 }

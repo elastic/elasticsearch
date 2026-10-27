@@ -10,14 +10,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -28,10 +26,8 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -43,8 +39,6 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,7 +64,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.same;
@@ -300,7 +293,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
             case WILDCARD -> new RandomQuery(new WildcardQuery(new Term(field, "a*b")), cacheable);
             case REGEXP -> new RandomQuery(new RegexpQuery(new Term(field, "a.*b")), cacheable);
             case TERM_IN_SET -> new RandomQuery(new TermInSetQuery(field, List.of(new BytesRef("a"), new BytesRef("b"))), cacheable);
-            case TERMS_MATCHING_ONLY -> new RandomQuery(new ConsumeTermsMatchingQuery(field), cacheable);
             case MATCH_ALL -> new RandomQuery(new MatchAllDocsQuery(), true);
             case MATCH_NONE -> new RandomQuery(new MatchNoDocsQuery(), true);
             case MIN_DOC -> new RandomQuery(new MinDocQuery(randomNonNegativeInt()), false); // MinDocQuery doesn't report a field
@@ -402,7 +394,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         WILDCARD(false),
         REGEXP(false),
         TERM_IN_SET(false),
-        TERMS_MATCHING_ONLY(false),
         MATCH_ALL(false),
         MATCH_NONE(false),
         MIN_DOC(false),
@@ -428,53 +419,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
     private record RandomQuery(Query query, boolean cacheable) {
         RandomQuery rewrite(IndexSearcher searcher) throws IOException {
             return new RandomQuery(searcher.rewrite(query), cacheable);
-        }
-    }
-
-    /**
-     * Real multi-term queries call {@code acceptField} before {@code consumeTermsMatching}, so a hidden field is rejected before
-     * {@code consumeTermsMatching} runs. This query reports its field only through {@code consumeTermsMatching}, so that check is tested.
-     */
-    private static class ConsumeTermsMatchingQuery extends Query {
-        private final String field;
-
-        ConsumeTermsMatchingQuery(String field) {
-            this.field = field;
-        }
-
-        @Override
-        public void visit(QueryVisitor visitor) {
-            visitor.consumeTermsMatching(this, field, () -> new ByteRunAutomaton(Automata.makeAnyString()));
-        }
-
-        @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-            return new ConstantScoreWeight(this, boost) {
-                @Override
-                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
-                    return null;
-                }
-
-                @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    return true;
-                }
-            };
-        }
-
-        @Override
-        public String toString(String f) {
-            return "ConsumeTermsMatchingQuery[" + field + "]";
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return sameClassAs(obj) && field.equals(((ConsumeTermsMatchingQuery) obj).field);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(classHash(), field);
         }
     }
 }

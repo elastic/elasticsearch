@@ -5260,6 +5260,42 @@ public class VerifierTests extends AnalyzerTestCase {
         k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
     }
 
+    public void testDedupRejectsUngroupableFieldTypes() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .error(
+                "FROM exp_histo_sample | KEEP responseTime | DEDUP",
+                containsString("cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("tdigest_standard_index", "mapping-tdigest_standard_index.json")
+            .error(
+                "FROM tdigest_standard_index | KEEP responseTime | DEDUP",
+                containsString("cannot group by on [tdigest] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .error(
+                "FROM decades | KEEP date_range | DEDUP",
+                containsString("cannot group by on [date_range] type for grouping [date_range]")
+            );
+        tsdb().error(
+            "FROM test | KEEP network.bytes_in | DEDUP",
+            containsString("cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testDedupRejectsPeriodAndDuration() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 " + unit + " | DEDUP",
+                containsString("cannot group by on [time_duration] type for grouping")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error("ROW x = 1 " + unit + " | DEDUP", containsString("cannot group by on [date_period] type for grouping"));
+        }
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         fullText().query("from test | eval similarity = " + functionInvocation);
     }

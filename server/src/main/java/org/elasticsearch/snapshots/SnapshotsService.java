@@ -2668,7 +2668,27 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                final SnapshotEncryptedData encryptedData = SnapshotsInProgressEncryptedData.get(clusterService.state()).get(snapshot);
+                SnapshotEncryptedData recordedEncryptedData = null;
+                if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() && entry.includeGlobalState()) {
+                    if (entry.isClone()) {
+                        // a clone copies the source snapshot's global metadata, which is already in its snapshot form
+                        recordedEncryptedData = encryptedData;
+                    } else {
+                        final Metadata transformed = snapshotGlobalStateTransformer.transformForSnapshot(
+                            projectId,
+                            metaForSnapshot,
+                            encryptedData
+                        );
+                        if (transformed != metaForSnapshot) {
+                            recordedEncryptedData = encryptedData != null
+                                ? encryptedData
+                                : new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_NONE, null, null);
+                        }
+                        metaForSnapshot = transformed;
+                    }
+                }
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -2717,7 +2737,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.includeGlobalState(),
                     entry.userMetadata(),
                     entry.startTime(),
-                    indexSnapshotDetails
+                    indexSnapshotDetails,
+                    recordedEncryptedData == null ? null : recordedEncryptedData.type(),
+                    recordedEncryptedData == null ? null : recordedEncryptedData.passwordId()
                 );
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);

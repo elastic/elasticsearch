@@ -44,25 +44,6 @@ public class ViewValidationRestIT extends ESRestTestCase {
         assertThat(putView("view-validation-valid", "FROM view-validation-index | KEEP k", true).getWarnings(), empty());
     }
 
-    public void testUnknownIndexIsAWarning() throws IOException {
-        Response response = putView("view-validation-unknown-index", "FROM no-such-index-for-view", true);
-        assertThat(response.getWarnings(), hasSize(1));
-        assertThat(response.getWarnings().getFirst(), containsString("view [view-validation-unknown-index] query is not valid"));
-        assertThat(response.getWarnings().getFirst(), containsString("Unknown index [no-such-index-for-view]"));
-        // The view is saved regardless.
-        assertThat(
-            client().performRequest(new Request("GET", "/_query/view/view-validation-unknown-index")).getStatusLine().getStatusCode(),
-            equalTo(200)
-        );
-    }
-
-    public void testUnknownColumnIsAWarning() throws IOException {
-        createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
-        Response response = putView("view-validation-unknown-column", "FROM view-validation-index | KEEP no_such_column", true);
-        assertThat(response.getWarnings(), hasSize(1));
-        assertThat(response.getWarnings().getFirst(), containsString("Unknown column [no_such_column]"));
-    }
-
     public void testValidationCanBeSkipped() throws IOException {
         assertThat(putView("view-validation-skipped", "FROM no-such-index-for-view", false).getWarnings(), empty());
     }
@@ -76,11 +57,44 @@ public class ViewValidationRestIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
+    public void testUnknownIndexEmitsWarning() throws IOException {
+        Response response = putView("view-validation-unknown-index", "FROM no-such-index-for-view", true);
+        assertThat(response.getWarnings(), hasSize(1));
+        assertThat(response.getWarnings().getFirst(), containsString("view [view-validation-unknown-index] query is not valid"));
+        assertThat(response.getWarnings().getFirst(), containsString("Unknown index [no-such-index-for-view]"));
+
+        // The view is saved regardless.
+        ensureViewExists("view-validation-unknown-index");
+    }
+
+    public void testUnknownColumnEmitsWarning() throws IOException {
+        createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
+        Response response = putView("view-validation-unknown-column", "FROM view-validation-index | KEEP no_such_column", true);
+        assertThat(response.getWarnings(), hasSize(1));
+        assertThat(response.getWarnings().getFirst(), containsString("Unknown column [no_such_column]"));
+
+        // The view is saved regardless.
+        ensureViewExists("view-validation-unknown-column");
+    }
+
+    public void testUnknownRemoteEmitsWarning() throws IOException {
+        Response response = putView("view-validation-unknown-remote", "FROM remote:view-validation-index", true);
+        assertThat(response.getWarnings(), hasSize(1));
+        assertThat(response.getWarnings().getFirst(), containsString("no such remote cluster: [remote]"));
+
+        // The view is saved regardless.
+        ensureViewExists("view-validation-unknown-remote");
+    }
+
     private Response putView(String name, String query, boolean validate) throws IOException {
         Request request = new Request("PUT", "/_query/view/" + name);
         request.addParameter("validate", Boolean.toString(validate));
         request.setJsonEntity("{\"query\": \"" + query + "\"}");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
+    }
+
+    private void ensureViewExists(String name) throws IOException {
+        assertThat(client().performRequest(new Request("GET", "/_query/view/" + name)).getStatusLine().getStatusCode(), equalTo(200));
     }
 }

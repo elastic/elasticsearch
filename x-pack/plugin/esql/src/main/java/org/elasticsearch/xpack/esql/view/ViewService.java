@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -163,7 +163,7 @@ public class ViewService {
                 threadPool.getThreadContext().newRestorableContext(false),
                 ActionListener.<Void>running(next).delegateResponse((l, e) -> {
                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (ExceptionsHelper.status(cause) == RestStatus.BAD_REQUEST) {
+                    if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
                         HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), cause.getMessage());
                     }
                     l.onFailure(e);

@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -307,17 +309,18 @@ public class ViewServiceTests extends ESTestCase {
      * These failures say nothing about the query, so they must not look like a problem with it.
      */
     public void testPutViewDoesNotWarnWhenAnalysisFailsForOtherReasons() {
-        Exception failure = randomFrom(
+        for (Exception failure : List.<Exception>of(
             new EsRejectedExecutionException("rejected"),
+            new TaskCancelledException("Cancelled"),
             new CircuitBreakingException("too big", CircuitBreaker.Durability.TRANSIENT),
             new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
             new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
-        );
-        var service = viewServiceFailingAnalysisWith(failure);
-
-        putView(service, new View("v", "FROM missing", null, false), true);
-        ensureNoWarnings();
-        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+        )) {
+            var service = viewServiceFailingAnalysisWith(failure);
+            putView(service, new View("v", "FROM missing", null, false), true);
+            ensureNoWarnings();
+            assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+        }
     }
 
     public void testPutViewDoesNotWarnWhenQueryIsValid() {

@@ -29,7 +29,7 @@ Each node keeps a copy of the key in memory. To survive a restart, a node also p
 
 ## Protect the cluster state encryption key with a password [cluster-state-encryption-key-password]
 
-To let a node persist the key to disk, it needs a password configured in the {{es}} keystore:
+To let a node persist the key to disk, configure a password as a [secure setting](docs-content://deploy-manage/security/secure-settings.md) in the Elasticsearch keystore:
 
 `cluster.state.encryption.password.<id>`
 :   A secure setting holding an encryption password, identified by `<id>`.
@@ -48,7 +48,7 @@ Configure one yourself with [`elasticsearch-keystore`](/reference/elasticsearch/
 `cluster.state.encryption.required`
 :   Whether a password is required before {{es}} will store secrets using the cluster state encryption key. Defaults to `true`. Setting this to `false` is **not recommended**: {{es}} falls back to storing secrets in plain text instead, and logs a warning.
 
-## Upgrade existing deployments [cluster-state-encryption-upgrades]
+### Upgrade existing deployments [cluster-state-encryption-upgrades]
 
 You don't need to configure an encryption password to upgrade an existing deployment. If no password is configured after the upgrade, the cluster remains healthy and reports that cluster state encryption is not configured. Because encryption is required by default, {{es}} rejects attempts to store feature-managed secrets with an HTTP `503` response until a password is configured.
 
@@ -56,7 +56,7 @@ You don't need to configure an encryption password to upgrade an existing deploy
 * **{{eck}} deployments:** ECK doesn't provision the password automatically during an upgrade. Before a feature first stores a managed secret, configure `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` through [ECK secure settings](docs-content://deploy-manage/security/k8s-secure-settings.md), then call `POST /_nodes/reload_secure_settings`. A restart isn't required.
 * **{{ech}} and {{ece}} deployments:** When an existing deployment is upgraded to 9.5 or later, the control plane provisions the password and reloads the secure settings automatically.
 
-## Rotate the encryption password [cluster-state-encryption-password-rotation]
+### Rotate the encryption password [cluster-state-encryption-password-rotation]
 
 You can rotate each node's password independently without restarting {{es}}. The following procedure rotates the password on one node. Repeat it for any other nodes whose passwords you want to rotate. Keep a node's old password available until that node has loaded the new password and rewrapped its on-disk copy of the cluster state encryption key.
 

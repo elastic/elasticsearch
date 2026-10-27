@@ -1256,7 +1256,15 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major signed bytes.
      * Result C is (m x n), accumulated in exact int32 arithmetic.
      */
-    public static void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
+    public static void matrixMultiplyI8(
+        MemorySegment a,
+        MemorySegment b,
+        int m,
+        int k,
+        int n,
+        MemorySegment result,
+        TaskExecutor executor
+    ) {
         if (!a.isNative()) throw new IllegalArgumentException("a must be a native memory segment");
         if (!b.isNative()) throw new IllegalArgumentException("b must be a native memory segment");
         if (!result.isNative()) throw new IllegalArgumentException("result must be a native memory segment");

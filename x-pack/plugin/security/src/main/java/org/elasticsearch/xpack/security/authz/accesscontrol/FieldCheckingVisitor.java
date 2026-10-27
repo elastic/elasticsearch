@@ -17,31 +17,40 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
- * Clears {@code cacheable} if a query touches a field not granted by FLS, has a leaf that does not report a field,
- * or wraps a value source it does not report.
+ * Marks the visited query as not cacheable if it touches a field not granted by FLS, has a leaf that does not report a field,
+ * or wraps a value source it does not report. The result is available from {@link #isCacheable()}.
  */
 final class FieldCheckingVisitor extends QueryVisitor {
     private final IndicesAccessControl.IndexAccessControl permissions;
-    private final AtomicBoolean cacheable;
+    private boolean cacheable = true;
 
-    FieldCheckingVisitor(IndicesAccessControl.IndexAccessControl permissions, AtomicBoolean cacheable) {
+    FieldCheckingVisitor(IndicesAccessControl.IndexAccessControl permissions) {
         this.permissions = permissions;
-        this.cacheable = cacheable;
+    }
+
+    boolean isCacheable() {
+        return cacheable;
+    }
+
+    /**
+     * Marks the visitor as cacheable again, so it can be reused for another query.
+     */
+    void reset() {
+        cacheable = true;
     }
 
     @Override
     public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-        if (cacheable.get() == false) {
+        if (cacheable == false) {
             return EMPTY_VISITOR;
         }
 
         // CoveringQuery doesn't report the field its minimum match count comes from (e.g. terms_set minimum_should_match_field)
         if (parent instanceof CoveringQuery) {
-            cacheable.set(false);
+            cacheable = false;
             return EMPTY_VISITOR;
         }
 
@@ -56,7 +65,7 @@ final class FieldCheckingVisitor extends QueryVisitor {
 
     @Override
     public void visitLeaf(Query query) {
-        if (cacheable.get() == false) {
+        if (cacheable == false) {
             return;
         }
 
@@ -66,7 +75,7 @@ final class FieldCheckingVisitor extends QueryVisitor {
         }
 
         if (new FieldReportingProbe().reportsCacheableField(query) == false) {
-            cacheable.set(false);
+            cacheable = false;
         }
     }
 
@@ -85,15 +94,15 @@ final class FieldCheckingVisitor extends QueryVisitor {
     }
 
     private boolean checkField(String field) {
-        if (cacheable.get() == false) {
+        if (cacheable == false) {
             return false;
         }
 
         // don't cache any internal fields (e.g. _field_names), these are complicated.
         if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
-            cacheable.set(false);
+            cacheable = false;
         }
-        return cacheable.get();
+        return cacheable;
     }
 
     /**
@@ -105,7 +114,7 @@ final class FieldCheckingVisitor extends QueryVisitor {
 
         private boolean reportsCacheableField(Query query) {
             query.visit(this);
-            return reported && cacheable.get();
+            return reported && cacheable;
         }
 
         @Override

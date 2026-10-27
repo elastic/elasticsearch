@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
@@ -62,8 +61,8 @@ public final class OptOutQueryCache extends IndexQueryCache {
      */
     static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
         // support caching for common queries, by inspecting the field
-        AtomicBoolean cacheable = new AtomicBoolean(true);
-        weight.getQuery().visit(new FieldCheckingVisitor(permissions, cacheable));
-        return cacheable.get();
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(permissions);
+        weight.getQuery().visit(visitor);
+        return visitor.isCacheable();
     }
 }

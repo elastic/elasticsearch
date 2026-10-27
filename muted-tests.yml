@@ -578,3 +578,7 @@ tests:
   tasks:
   - :qa:mixed-cluster:v9.0.8#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/160421

@@ -94,6 +94,13 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER = new NodeFeature(
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
+    /**
+     * Arrays whose encoded offsets exceed the sorted doc values limit are stored in {@code _ignored_source} instead of failing
+     * the document.
+     */
+    public static final NodeFeature OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK = new NodeFeature(
+        "mapper.oversized_array_offsets_ignored_source_fallback"
+    );
 
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
 
@@ -160,7 +167,8 @@ public class MapperFeatures implements FeatureSpecification {
             KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
-            PUT_MAPPING_NO_TYPES_CHECK
+            PUT_MAPPING_NO_TYPES_CHECK,
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
         );
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             features.add(TEXT_FIELD_DOC_VALUES);

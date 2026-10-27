@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -256,6 +257,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
+
+    // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value(
+        DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) v)
+    );
 
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
@@ -768,7 +774,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        IgnoreMalformedStoredValues.captureMalformed(context, fullPath(), offsetsFieldName);
                     }
                     return;
                 } else {
@@ -815,9 +821,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (numericValue != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

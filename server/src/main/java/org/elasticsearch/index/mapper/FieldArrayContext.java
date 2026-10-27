@@ -10,12 +10,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,28 +34,196 @@ public class FieldArrayContext {
 
     public void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+        arrayOffsets.slotsRecorded = true;
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
         offsets.add(nextOffset);
     }
 
+    /**
+     * Like {@link #recordOffset(String, Comparable)}, but also registers a writer that converts a recorded array-slot value
+     * back to a form suitable for {@code _source}, so that, when the encoded offsets turn out too large for a sorted doc
+     * value, the array can be rebuilt and stored in {@code _ignored_source} instead of failing the document. Since mappers
+     * record their doc-values representation (e.g. sortable longs for numbers), the writer must produce the same
+     * representation that the field's offsets-aware synthetic source loader produces, so that the {@code _ignored_source}
+     * fallback is indistinguishable from the native array reconstruction.
+     */
+    public void recordOffset(
+        String field,
+        Comparable<?> value,
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter
+    ) {
+        registerFallbackWriter(field, fallbackWriter);
+        recordOffset(field, value);
+    }
+
     public void recordNull(String field) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+        arrayOffsets.slotsRecorded = true;
         int nextOffset = arrayOffsets.currentOffset++;
         arrayOffsets.nullValueOffsets.add(nextOffset);
     }
 
+    /**
+     * Like {@link #recordNull(String)}, but also registers a fallback writer; see
+     * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}.
+     */
+    public void recordNull(String field, CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter) {
+        registerFallbackWriter(field, fallbackWriter);
+        recordNull(field);
+    }
+
+    /**
+     * Records a value of {@code field} that was not indexed, because of {@code ignore_above} or {@code ignore_malformed}, and so
+     * occupies no offsets slot. Such values live in field-specific fallback storage that the field's synthetic source loader
+     * reads back, but an {@code _ignored_source} entry for the field suppresses that loader at load time. So when the encoded
+     * offsets turn out too large for a sorted doc value and the array is moved to {@code _ignored_source} (see
+     * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}), the recorded ignored values are written into that entry at
+     * their original position in the array. They are not part of the encoded offsets.
+     *
+     * @param encodedValue the ignored value, encoded like {@link XContentDataHelper#encodeToken} does
+     */
+    public void recordIgnored(String field, BytesRef encodedValue) {
+        Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+        arrayOffsets.ignoredValues.add(new Offsets.IgnoredValue(arrayOffsets.currentOffset, encodedValue));
+    }
+
+    private void registerFallbackWriter(String field, CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter) {
+        Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+        assert arrayOffsets.fallbackWriter == null || arrayOffsets.fallbackWriter == fallbackWriter
+            : "a field must always record offsets with the same fallback writer";
+        arrayOffsets.fallbackWriter = fallbackWriter;
+    }
+
     void maybeRecordEmptyArray(String field) {
-        offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).slotsRecorded = true;
     }
 
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
         for (var entry : offsetsPerField.entrySet()) {
             var fieldName = entry.getKey();
-            var offset = entry.getValue();
+            var offsets = entry.getValue();
 
-            context.doc().add(new SortedDocValuesField(fieldName, encodeOffsetArray(offset)));
+            // An array whose values were all ignored (ignore_above, ignore_malformed) recorded ignored values but no slot.
+            // Writing offsets for it would read back as an empty-array marker; the ignored values are synthesized from the
+            // field's own storage of ignored values instead, like before ignored values were recorded here.
+            if (offsets.slotsRecorded == false) {
+                continue;
+            }
+            BytesRef encoded = encodeOffsetArray(offsets);
+            if (encoded.length <= IndexWriter.MAX_TERM_LENGTH) {
+                context.doc().add(new SortedDocValuesField(fieldName, encoded));
+            } else {
+                // Lucene rejects sorted doc values larger than MAX_TERM_LENGTH, and the encoding takes 1-5 bytes per array
+                // slot, so a very large leaf array can exceed the limit. Rather than failing the whole document, keep the
+                // array in _ignored_source when possible; otherwise reject the document with a clearer and earlier error
+                // than the one Lucene would produce at indexing time.
+                storeArrayInIgnoredSource(context, fieldName, offsets, encoded.length);
+            }
         }
+    }
+
+    /**
+     * Fallback for a leaf array whose encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH}: rebuilds the array from the
+     * recorded offsets, in original element order, and stores it in {@code _ignored_source}. The {@code _ignored_source} entry
+     * takes precedence over the field's own synthetic source loader at load time (see {@code ObjectMapper}'s synthetic source
+     * field loader), so the values are not synthesized twice. Since that also suppresses the field-specific storage of values
+     * that were ignored (e.g. {@code ignore_above} or {@code ignore_malformed}), the ignored values recorded via
+     * {@link #recordIgnored(String, BytesRef)} are written into the entry too, at their original position. When the array cannot
+     * be preserved in {@code _ignored_source} the document is rejected, like it was before this fallback existed, but with an
+     * earlier and clearer error than the one Lucene produces for an oversized sorted doc value.
+     */
+    private static void storeArrayInIgnoredSource(DocumentParserContext context, String offsetsFieldName, Offsets offsets, int encodedSize)
+        throws IOException {
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter = offsets.fallbackWriter;
+        if (fallbackWriter == null || context.canAddIgnoredField() == false) {
+            // Either the recording mapper registered no way to rebuild the recorded values, or _ignored_source is unavailable
+            // (ignored source writes disabled).
+            throw new IllegalArgumentException(
+                oversizedOffsetsMessage(offsetsFieldName, encodedSize) + " and the array cannot be preserved in [_ignored_source]"
+            );
+        }
+        assert offsetsFieldName.endsWith(OFFSETS_FIELD_NAME_SUFFIX) : offsetsFieldName;
+        String fieldName = offsetsFieldName.substring(0, offsetsFieldName.length() - OFFSETS_FIELD_NAME_SUFFIX.length());
+        List<Offsets.IgnoredValue> ignoredValues = offsets.ignoredValues;
+        if (ignoredValues.isEmpty() && context.isFieldIgnored(fieldName)) {
+            // Some values of this field were not indexed (e.g. ignore_above or ignore_malformed), but the mapper did not record
+            // them here. They live in field-specific fallback storage that the _ignored_source entry would suppress at load
+            // time, so the array cannot be preserved in _ignored_source without losing those values.
+            throw new IllegalArgumentException(
+                oversizedOffsetsMessage(offsetsFieldName, encodedSize)
+                    + " and the array cannot be preserved in [_ignored_source] because some values of ["
+                    + fieldName
+                    + "] were ignored"
+            );
+        }
+        Comparable<?>[] slotValues = new Comparable<?>[offsets.currentOffset];
+        for (var valueEntry : offsets.valueToOffsets.entrySet()) {
+            for (int slot : valueEntry.getValue()) {
+                slotValues[slot] = valueEntry.getKey();
+            }
+        }
+        String leafName = leafName(context, fieldName);
+        // Slots recorded via recordNull keep their null and are written as explicit null values below. Ignored values have no
+        // slot; each one is written before the slot it was recorded ahead of, which restores its original position.
+        try (XContentBuilder builder = XContentBuilder.builder(context.parser().contentType().xContent())) {
+            builder.startArray();
+            int nextIgnored = 0;
+            for (int slot = 0; slot < slotValues.length; slot++) {
+                while (nextIgnored < ignoredValues.size() && ignoredValues.get(nextIgnored).slot() == slot) {
+                    XContentDataHelper.decodeAndWrite(builder, ignoredValues.get(nextIgnored++).encodedValue());
+                }
+                Comparable<?> slotValue = slotValues[slot];
+                if (slotValue == null) {
+                    builder.nullValue();
+                } else {
+                    fallbackWriter.accept(builder, slotValue);
+                }
+            }
+            // Ignored values that came after the last slot.
+            for (; nextIgnored < ignoredValues.size(); nextIgnored++) {
+                XContentDataHelper.decodeAndWrite(builder, ignoredValues.get(nextIgnored).encodedValue());
+            }
+            builder.endArray();
+            int parentOffset = fieldName.lastIndexOf(leafName);
+            context.addIgnoredField(
+                new IgnoredSourceFieldMapper.NameValue(
+                    fieldName,
+                    parentOffset,
+                    XContentDataHelper.encodeXContentBuilder(builder),
+                    context.doc()
+                )
+            );
+        }
+    }
+
+    /**
+     * Resolves the leaf name of the field that recorded offsets, needed to compute the parent offset of the
+     * {@link IgnoredSourceFieldMapper.NameValue} entry. The leaf name cannot be parsed out of the full path, since under
+     * {@code subobjects: false} the leaf name itself can contain dots. The mapping lookup does not contain fields that were
+     * mapped dynamically while parsing the current document, so those are resolved through the context's dynamic mappers.
+     */
+    private static String leafName(DocumentParserContext context, String fieldName) {
+        var fieldMapper = context.mappingLookup().getMapper(fieldName);
+        if (fieldMapper != null) {
+            return fieldMapper.leafName();
+        }
+        var dynamicMappers = context.getDynamicMappers(fieldName);
+        assert dynamicMappers != null && dynamicMappers.isEmpty() == false : "no mapper for field [" + fieldName + "]";
+        return dynamicMappers.getFirst().leafName();
+    }
+
+    /**
+     * The error for a leaf array whose encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH}.
+     */
+    public static String oversizedOffsetsMessage(String offsetsFieldName, int encodedSize) {
+        return "encoded offsets of field ["
+            + offsetsFieldName
+            + "] are too large to store (["
+            + encodedSize
+            + "] bytes, limit ["
+            + IndexWriter.MAX_TERM_LENGTH
+            + "])";
     }
 
     /**
@@ -144,6 +315,23 @@ public class FieldArrayContext {
         // order in what the values get stored in SortedSetDocValues.
         final Map<Comparable<?>, List<Integer>> valueToOffsets = new TreeMap<>();
         final List<Integer> nullValueOffsets = new ArrayList<>(2);
+
+        // False when only ignored values were recorded via recordIgnored, in which case there is nothing to encode.
+        boolean slotsRecorded;
+
+        // Registered via the fallback-aware record overloads. Used to rebuild the array for _ignored_source when the
+        // encoded offsets are too large for a sorted doc value.
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter;
+
+        // Values that were not indexed (ignore_above, ignore_malformed) and so occupy no slot. Only used to rebuild the array
+        // for _ignored_source when the encoded offsets are too large for a sorted doc value; not part of the encoded offsets.
+        final List<IgnoredValue> ignoredValues = new ArrayList<>(2);
+
+        /**
+         * An ignored value and the slot it was recorded ahead of, i.e. the number of slots recorded before it. Equals the total
+         * slot count when the ignored value came after the last slot.
+         */
+        record IgnoredValue(int slot, BytesRef encodedValue) {}
 
         public int currentOffset() {
             return currentOffset;

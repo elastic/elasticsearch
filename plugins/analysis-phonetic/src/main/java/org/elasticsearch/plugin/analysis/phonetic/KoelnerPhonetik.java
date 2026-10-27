@@ -191,7 +191,7 @@ public class KoelnerPhonetik implements StringEncoder {
                         parts.add(part.toString());
                     }
                 }
-                tmpParts.removeFirst();
+                tmpParts.remove(0);
             }
         }
         return parts;

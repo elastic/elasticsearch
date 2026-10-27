@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -33,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
@@ -1552,6 +1554,101 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertWarnings(response, assertWarnings, json);
 
         return json;
+    }
+
+    public static Map<String, Object> runEsqlStreaming(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        boolean dropNullColumns,
+        int batchSize
+    ) throws Exception {
+        requestObject.build();
+        HttpEntity entity;
+        try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
+            String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
+            // getByMimeType returns null for the non-JSON XContent types, which would drop the Content-Type header and get a 406
+            entity = new NByteArrayEntity(bos.toByteArray(), ContentType.create(mediaType));
+        }
+        List<String> params = new ArrayList<>();
+        params.add("batch_size=" + batchSize);
+        params.add("drop_null_columns=" + dropNullColumns);
+        params.add("error_trace=true");
+        if (requestObject.allowPartialResults != null) {
+            params.add("allow_partial_results=" + requestObject.allowPartialResults);
+        }
+
+        EsqlStreamTestUtils.StreamOutcome outcome = EsqlStreamTestUtils.stream(client(), entity, null, params.toArray(String[]::new));
+        boolean allowPartial = Boolean.TRUE.equals(requestObject.allowPartialResults);
+        EsqlStreamTestUtils.assertStreamInvariants(outcome, allowPartial, Long.MAX_VALUE);
+        if (outcome.httpStatus() == null
+            || outcome.httpStatus() != 200
+            || outcome.terminal() != EsqlStreamTestUtils.Terminal.FOOTER
+            || outcome.transportFailure() != null) {
+            throw new AssertionError(
+                "streaming query did not complete successfully: httpStatus="
+                    + outcome.httpStatus()
+                    + ", terminal="
+                    + outcome.terminal()
+                    + ", terminalLine="
+                    + outcome.terminalLine()
+                    + ", transportFailure="
+                    + outcome.transportFailure(),
+                outcome.transportFailure()
+            );
+        }
+
+        Map<String, Object> header = outcome.lines().get(0);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) header.get("columns");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> allColumns = (List<Map<String, Object>>) header.get("all_columns");
+        assertFalse("[all_columns] is only expected with drop_null_columns=true", allColumns != null && dropNullColumns == false);
+
+        List<List<Object>> rows = outcome.rows();
+        List<Map<String, Object>> resultColumns = columns;
+        List<List<Object>> resultRows = rows;
+        if (allColumns != null) {
+            int[] positions = new int[columns.size()];
+            int next = 0;
+            for (int i = 0; i < columns.size(); i++) {
+                while (next < allColumns.size() && allColumns.get(next).get("name").equals(columns.get(i).get("name")) == false) {
+                    next++;
+                }
+                assertTrue("[columns] is not a subsequence of [all_columns]: " + columns + " vs " + allColumns, next < allColumns.size());
+                positions[i] = next++;
+            }
+            resultRows = new ArrayList<>(rows.size());
+            for (List<Object> row : rows) {
+                assertEquals("row width must match the trimmed column count", columns.size(), row.size());
+                List<Object> expanded = new ArrayList<>(allColumns.size());
+                for (int i = 0; i < allColumns.size(); i++) {
+                    expanded.add(null);
+                }
+                for (int i = 0; i < positions.length; i++) {
+                    expanded.set(positions[i], row.get(i));
+                }
+                resultRows.add(expanded);
+            }
+            resultColumns = allColumns;
+        }
+
+        Map<String, Object> footer = outcome.terminalLine();
+        Map<String, Object> result = new HashMap<>(footer);
+        result.remove("status");
+        result.remove("warnings");
+        result.put("columns", resultColumns);
+        result.put("values", resultRows);
+
+        @SuppressWarnings("unchecked")
+        List<String> footerWarnings = (List<String>) footer.get("warnings");
+        // The footer carries plain-text warnings, but the specs are written against the escaped/encoded form of the Warning header
+        List<String> warnings = new ArrayList<>(footerWarnings.stream().map(HeaderWarning::escapeAndEncode).toList());
+        warnings.removeAll(mutedWarnings());
+        if (shouldLog()) {
+            LOGGER.info("RESPONSE footer warnings (after muted)={}", warnings);
+        }
+        assertWarnings.assertWarnings(warnings, result);
+        return Collections.unmodifiableMap(result);
     }
 
     public static Map<String, Object> runEsqlAsync(

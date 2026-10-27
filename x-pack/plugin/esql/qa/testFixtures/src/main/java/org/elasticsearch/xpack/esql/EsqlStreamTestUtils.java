@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
@@ -126,12 +129,20 @@ public final class EsqlStreamTestUtils {
     }
 
     public static StreamOutcome stream(RestClient client, String queryJsonBody, StreamGate gate, String... queryParams) throws Exception {
+        return stream(client, new StringEntity(queryJsonBody, ContentType.APPLICATION_JSON), gate, queryParams);
+    }
+
+    /**
+     * Like {@link #stream(RestClient, String, StreamGate, String...)} but takes a prebuilt request entity, so callers can send a
+     * body in any XContent type (the streaming endpoint parses the body exactly like {@code /_query}).
+     */
+    public static StreamOutcome stream(RestClient client, HttpEntity body, StreamGate gate, String... queryParams) throws Exception {
         String path = "/_query?streaming=true&format=ndjson";
         if (queryParams.length > 0) {
             path += "&" + String.join("&", queryParams);
         }
         Request request = new Request("POST", path);
-        request.setJsonEntity(queryJsonBody);
+        request.setEntity(body);
 
         AtomicReference<StreamingNdjsonConsumer> consumerRef = new AtomicReference<>();
         request.setOptions(
@@ -380,7 +391,8 @@ public final class EsqlStreamTestUtils {
                     lineBuffer.setLength(0);
                     start = nl + 1;
                     if (raw.isEmpty() == false) {
-                        Map<String, Object> line = XContentHelper.convertToMap(XContentType.JSON.xContent(), raw, false);
+                        // ordered, so nested objects (e.g. FLATTENED/_source values) keep the server's key order like the sync path
+                        Map<String, Object> line = XContentHelper.convertToMap(XContentType.JSON.xContent(), raw, true);
                         int lineIndex = lines.size();
                         lines.add(line);
 

@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -100,7 +101,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final String instructions;
-    protected final Mode mode;
+
+    protected enum QueryMode {
+        SYNC,
+        ASYNC,
+        STREAMING
+    }
+
+    protected final QueryMode queryMode;
     protected static Boolean supportsTook;
     protected static Boolean supportsViews;
 
@@ -143,7 +151,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.instructions = instructions;
-        this.mode = randomFrom(Mode.values());
+        this.queryMode = randomFrom(QueryMode.values());
     }
 
     private static class Protected {
@@ -494,12 +502,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         addPragmas(builder);
 
-        Map<String, Object> answer = RestEsqlTestCase.runEsql(
-            builder.query(query),
-            testCase.assertWarnings(deduplicateExactWarnings()),
-            profileLogger,
-            mode
-        );
+        Map<String, Object> answer = executeQuery(builder, query);
 
         assertNotPartial(answer);
 
@@ -534,6 +537,43 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
             assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
         }
+    }
+
+    protected Map<String, Object> executeQuery(RequestObjectBuilder builder, String query) throws Exception {
+        if (queryMode == QueryMode.STREAMING && streamingIncompatibility(query) == null) {
+            return executeQueryStreaming(builder, query);
+        }
+        Mode mode = switch (queryMode) {
+            case SYNC -> Mode.SYNC;
+            case ASYNC -> Mode.ASYNC;
+            case STREAMING -> randomFrom(Mode.values()); // fallback for specs that cannot stream
+        };
+        return RestEsqlTestCase.runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()), profileLogger, mode);
+    }
+
+    private Map<String, Object> executeQueryStreaming(RequestObjectBuilder builder, String query) throws Exception {
+        boolean dropNullColumns = randomBoolean();
+        int batchSize = randomBoolean() ? between(1, 5) : between(1, 1000);
+        LOGGER.info("running query through streaming: batch_size={}, drop_null_columns={}", batchSize, dropNullColumns);
+        return RestEsqlTestCase.runEsqlStreaming(builder.query(query), testCase.assertWarnings(true), dropNullColumns, batchSize);
+    }
+
+    private static final Pattern UNMAPPED_FIELDS_LOAD_ALL = Pattern.compile(
+        "unmapped_fields\\s*=\\s*\"load_all\"",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    protected String streamingIncompatibility(String query) {
+        if (clusterHasCapability(EsqlCapabilities.Cap.STREAMING) == false) {
+            return "streaming is not supported by the cluster under test";
+        }
+        if (UNMAPPED_FIELDS_LOAD_ALL.matcher(query).find()) {
+            return "streaming rejects unmapped_fields=LOAD_ALL";
+        }
+        if (testCase.expectedApproximationApplied != null) {
+            return "the streaming footer does not report approximation_applied";
+        }
+        return null;
     }
 
     private void addPragmas(RequestObjectBuilder builder) throws IOException {

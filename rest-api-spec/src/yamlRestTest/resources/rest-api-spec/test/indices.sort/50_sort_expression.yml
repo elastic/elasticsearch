@@ -5,7 +5,7 @@ setup:
         - method: PUT
           path: /{index}
           capabilities: [index_sort_expression]
-      reason: index.sort.expression setting is behind a feature flag
+      reason: index.sort setting is behind a feature flag
 
 ---
 "Sort expression configures the index sort":
@@ -15,7 +15,7 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            index.sort.expression: "rank DESC MISSING_FIRST"
+            index.sort: "rank DESC MISSING_FIRST"
           mappings:
             properties:
               rank:
@@ -26,14 +26,20 @@ setup:
         index: sorted_index
         flat_settings: true
 
-  - match: { sorted_index.settings.index\.sort\.expression: "rank DESC MISSING_FIRST" }
+  # The expression is expanded into the index.sort.* settings and is not stored itself.
+  - match: { sorted_index.settings.index\.sort\.field: [ "rank" ] }
+  - match: { sorted_index.settings.index\.sort\.order: [ "desc" ] }
+  - match: { sorted_index.settings.index\.sort\.mode: [ "max" ] }
+  - match: { sorted_index.settings.index\.sort\.missing: [ "_first" ] }
+  - is_false: sorted_index.settings.index\.sort
 
-  # The empty default of the expression setting must not change how the other index.sort.* defaults are rendered.
+  # The expression has no default to report, which must not change how the index.sort.* settings are rendered.
   - do:
       indices.get_settings:
         index: sorted_index
         include_defaults: true
-  - match: { sorted_index.defaults.index.sort.mode: [ "max" ] }
+  - match: { sorted_index.settings.index.sort.field: [ "rank" ] }
+  - is_false: sorted_index.defaults.index\.sort
 
   # Index a document without a rank first, then ranks in ascending order, and flush each into its own segment.
   - do:
@@ -69,7 +75,7 @@ setup:
         index: sorted_index
         body:
           settings:
-            index.sort.expression: "rank"
+            index.sort: "rank"
             index.sort.field: "rank"
           mappings:
             properties:
@@ -85,7 +91,7 @@ setup:
         index: sorted_index
         body:
           settings:
-            index.sort.expression: "nested_field.foo"
+            index.sort: "nested_field.foo"
           mappings:
             properties:
               name:
@@ -95,3 +101,38 @@ setup:
                 properties:
                   foo:
                     type: keyword
+
+---
+"Sort expression in an index template":
+  - do:
+      indices.put_index_template:
+        name: sorted_template
+        body:
+          index_patterns: [ "sorted_template_*" ]
+          template:
+            settings:
+              number_of_shards: 1
+              index.sort: "rank DESC, other"
+
+  - do:
+      indices.create:
+        index: sorted_template_index
+        body:
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: sorted_template_index
+        flat_settings: true
+  - match: { sorted_template_index.settings.index\.sort\.field: [ "rank", "other" ] }
+  - match: { sorted_template_index.settings.index\.sort\.order: [ "desc", "asc" ] }
+  - is_false: sorted_template_index.settings.index\.sort
+
+  - do:
+      indices.delete_index_template:
+        name: sorted_template

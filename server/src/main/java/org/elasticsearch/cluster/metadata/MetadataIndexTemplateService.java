@@ -41,6 +41,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -800,6 +801,8 @@ public class MetadataIndexTemplateService {
         final var componentTemplates = projectMetadata.componentTemplates();
         final var combinedMappings = collectMappings(indexTemplate, componentTemplates, "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, componentTemplates);
+        // index.sort is expanded into the index.sort.* settings when an index is created, so providers see the expansion
+        final var expandedCombinedSettings = IndexSortConfig.expandSortSetting(combinedSettings);
         var additionalSettingsBuilder = Settings.builder();
         for (var provider : indexSettingProviders) {
             Settings.Builder builder = Settings.builder();
@@ -810,7 +813,7 @@ public class MetadataIndexTemplateService {
                 indexTemplate.isRegistryInstalled(),
                 projectMetadata,
                 now,
-                combinedSettings,
+                expandedCombinedSettings,
                 combinedMappings,
                 IndexVersion.current(),
                 builder
@@ -830,7 +833,9 @@ public class MetadataIndexTemplateService {
             finalSettings.put(finalTemplate.settings());
         }
 
-        var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
+        var templateToValidate = indexTemplate.toBuilder()
+            .template(Template.builder(finalTemplate).settings(IndexSortConfig.expandSortSetting(finalSettings.build())))
+            .build();
 
         validate(name, templateToValidate, additionalSettings);
         maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);

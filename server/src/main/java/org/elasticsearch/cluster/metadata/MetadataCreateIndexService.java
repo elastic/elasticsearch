@@ -842,6 +842,8 @@ public class MetadataCreateIndexService {
         final Settings indexSettings = Settings.builder()
             .put(aggregatedIndexSettings)
             .remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey())
+            // index.sort is expanded into the index.sort.* settings and must never be persisted
+            .remove(IndexSortConfig.INDEX_SORT_SETTING.getKey())
             .build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
@@ -1353,7 +1355,15 @@ public class MetadataCreateIndexService {
         if (request.isFailureIndex()) {
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);
         }
-        final Settings templateAndRequestSettings = templateAndRequestSettingsBuilder.build();
+        Settings combinedSettings = templateAndRequestSettingsBuilder.build();
+        if (sourceMetadata == null) {
+            // index.sort is syntactic sugar for the index.sort.* settings. Expanding the merged settings here lets the index setting
+            // providers see the expanded settings and rejects an expression combined with index.sort.* settings from any level. The
+            // expression is also dropped from the request settings, which are applied again after the providers have run.
+            combinedSettings = IndexSortConfig.expandSortSetting(combinedSettings);
+            requestSettings.remove(IndexSortConfig.INDEX_SORT_SETTING.getKey());
+        }
+        final Settings templateAndRequestSettings = combinedSettings;
         final IndexVersion createdVersion;
         if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.exists(templateAndRequestSettings)) {
             createdVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(templateAndRequestSettings);

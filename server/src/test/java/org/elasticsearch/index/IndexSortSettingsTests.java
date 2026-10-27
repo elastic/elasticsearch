@@ -227,117 +227,51 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
     }
 
-    public void testSortExpression() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder()
-            .put("index.sort.expression", "agent.name,  @timestamp desc mv_first_min MISSING_FIRST")
-            .build();
+    public void testSortExpressionIsExpanded() {
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        Settings settings = IndexSortConfig.expandSortSetting(
+            Settings.builder().put("index.sort", "agent.name,  @timestamp desc mv_first_min MISSING_FIRST").build()
+        );
+        assertThat(settings.hasValue("index.sort"), equalTo(false));
+        assertThat(settings.getAsList("index.sort.field"), equalTo(List.of("agent.name", "@timestamp")));
+        assertThat(settings.getAsList("index.sort.order"), equalTo(List.of("asc", "desc")));
+        assertThat(settings.getAsList("index.sort.mode"), equalTo(List.of("min", "min")));
+        assertThat(settings.getAsList("index.sort.missing"), equalTo(List.of("_last", "_first")));
+
         IndexSortConfig config = indexSettings(settings).getIndexSortConfig();
         assertThat(config.sortSpecs.length, equalTo(2));
-
-        assertThat(config.sortSpecs[0].field, equalTo("agent.name"));
-        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
-        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
-        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
-
         assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
         assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
-        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MIN));
         assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
     }
 
-    public void testEmptySortExpressionIsTreatedAsUnset() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        // Defaults can be merged into explicit settings, which makes the expression show up as an empty value.
-        Settings settings = Settings.builder().put("index.sort.expression", "").put("index.sort.field", "field1").build();
-        IndexSortConfig config = indexSettings(settings).getIndexSortConfig();
-        assertThat(config.hasIndexSort(), equalTo(true));
-        assertThat(config.sortSpecs[0].field, equalTo("field1"));
-        assertThat(IndexSortConfig.explicitSortFields(settings), equalTo(List.of("field1")));
-    }
-
     public void testSortExpressionDefaultsModeFromOrder() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        IndexSortConfig config = indexSettings(Settings.builder().put("index.sort.expression", "@timestamp DESC").build())
-            .getIndexSortConfig();
-        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.DESC));
-        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MAX));
-        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
-    }
-
-    public void testSortExpressionMatchesExplicitSettings() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        IndexSortConfig fromExpression = indexSettings(
-            Settings.builder().put("index.sort.expression", "field1, field2 DESC MV_FIRST_MIN MISSING_FIRST").build()
-        ).getIndexSortConfig();
-        IndexSortConfig fromSettings = indexSettings(
-            Settings.builder()
-                .putList("index.sort.field", "field1", "field2")
-                .putList("index.sort.order", "asc", "desc")
-                .putList("index.sort.mode", "min", "min")
-                .putList("index.sort.missing", "_last", "_first")
-                .build()
-        ).getIndexSortConfig();
-        assertThat(fromExpression.sortSpecs.length, equalTo(fromSettings.sortSpecs.length));
-        for (int i = 0; i < fromSettings.sortSpecs.length; i++) {
-            assertThat(fromExpression.sortSpecs[i].field, equalTo(fromSettings.sortSpecs[i].field));
-            assertThat(fromExpression.sortSpecs[i].order, equalTo(fromSettings.sortSpecs[i].order));
-            assertThat(fromExpression.sortSpecs[i].mode, equalTo(fromSettings.sortSpecs[i].mode));
-            assertThat(fromExpression.sortSpecs[i].missingValue, equalTo(fromSettings.sortSpecs[i].missingValue));
-        }
-    }
-
-    public void testSortExpressionCannotBeCombinedWithSortSettings() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        for (String other : List.of("index.sort.field", "index.sort.order", "index.sort.mode", "index.sort.missing")) {
-            String value = switch (other) {
-                case "index.sort.field" -> "field1";
-                case "index.sort.order" -> "asc";
-                case "index.sort.mode" -> "min";
-                case "index.sort.missing" -> "_last";
-                default -> throw new AssertionError(other);
-            };
-            Settings settings = Settings.builder().put("index.sort.expression", "field1").put(other, value).build();
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-            assertThat(e.getMessage(), containsString("setting [index.sort.expression] cannot be combined with [" + other + "]"));
-        }
-    }
-
-    public void testInvalidSortExpressions() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        assertInvalidSortExpression("  ", "must not be blank");
-        assertInvalidSortExpression("field1,", "empty sort entry");
-        assertInvalidSortExpression("field1, , field2", "empty sort entry");
-        assertInvalidSortExpression("field1 SIDEWAYS", "unknown keyword [SIDEWAYS]");
-        assertInvalidSortExpression("field1 ASC DESC", "sort order more than once");
-        assertInvalidSortExpression("field1 MV_FIRST_MIN MV_FIRST_MAX", "multi-value mode more than once");
-        assertInvalidSortExpression("field1 MISSING_FIRST MISSING_LAST", "missing value handling more than once");
-        assertInvalidSortExpression("field1, field1 DESC", "field [field1] more than once");
-    }
-
-    private static void assertInvalidSortExpression(String expression, String expectedMessage) {
-        Settings settings = Settings.builder().put("index.sort.expression", expression).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(e.getMessage(), containsString(expectedMessage));
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        Settings settings = IndexSortConfig.expandSortSetting(Settings.builder().put("index.sort", "@timestamp DESC").build());
+        assertThat(settings.getAsList("index.sort.order"), equalTo(List.of("desc")));
+        assertThat(settings.getAsList("index.sort.mode"), equalTo(List.of("max")));
+        assertThat(settings.getAsList("index.sort.missing"), equalTo(List.of("_last")));
     }
 
     public void testSortExpressionModeOverridesOrderDefault() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        IndexSortConfig config = indexSettings(
-            Settings.builder().put("index.sort.expression", "field1 ASC MV_FIRST_MAX, field2 DESC MV_FIRST_MIN").build()
-        ).getIndexSortConfig();
-        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
-        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MAX));
-        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
-        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MIN));
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        Settings settings = IndexSortConfig.expandSortSetting(
+            Settings.builder().put("index.sort", "field1 ASC MV_FIRST_MAX, field2 DESC MV_FIRST_MIN").build()
+        );
+        assertThat(settings.getAsList("index.sort.order"), equalTo(List.of("asc", "desc")));
+        assertThat(settings.getAsList("index.sort.mode"), equalTo(List.of("max", "min")));
     }
 
     public void testSortExpressionBuildsSameLuceneSort() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
         MappedFieldType field1 = new DateFieldMapper.DateFieldType("field1");
         MappedFieldType field2 = new DateFieldMapper.DateFieldType("field2");
         Sort fromExpression = buildIndexSort(
-            indexSettings(Settings.builder().put("index.sort.expression", "field1 DESC MISSING_FIRST, field2 MV_FIRST_MAX").build()),
+            indexSettings(
+                IndexSortConfig.expandSortSetting(
+                    Settings.builder().put("index.sort", "field1 DESC MISSING_FIRST, field2 MV_FIRST_MAX").build()
+                )
+            ),
             field1,
             field2
         );
@@ -356,34 +290,60 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(fromExpression, equalTo(fromSettings));
     }
 
-    public void testExplicitSortFields() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        assertThat(IndexSortConfig.explicitSortFields(Settings.EMPTY), equalTo(List.of()));
-        assertThat(
-            IndexSortConfig.explicitSortFields(Settings.builder().putList("index.sort.field", "a", "b").build()),
-            equalTo(List.of("a", "b"))
-        );
-        assertThat(
-            IndexSortConfig.explicitSortFields(Settings.builder().put("index.sort.expression", "a DESC, b").build()),
-            equalTo(List.of("a", "b"))
-        );
-        assertThat(IndexSortConfig.explicitSortFields(Settings.builder().put("index.mode", "logsdb").build()), equalTo(List.of()));
+    public void testEmptyOrAbsentSortExpressionLeavesSettingsUnchanged() {
+        Settings settings = Settings.builder().putList("index.sort.field", "field1").build();
+        assertThat(IndexSortConfig.expandSortSetting(settings), equalTo(settings));
+        assertThat(IndexSortConfig.expandSortSetting(Settings.EMPTY), equalTo(Settings.EMPTY));
+        Settings withEmpty = Settings.builder().put(settings).put("index.sort", "").build();
+        assertThat(IndexSortConfig.expandSortSetting(withEmpty), equalTo(settings));
     }
 
-    public void testSortExpressionOverridesLogsdbDefault() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put("index.mode", "logsdb").put("index.sort.expression", "field1").build();
-        IndexSortConfig config = indexSettings(settings).getIndexSortConfig();
-        assertThat(config.sortSpecs.length, equalTo(1));
-        assertThat(config.sortSpecs[0].field, equalTo("field1"));
+    public void testSortExpressionCannotBeCombinedWithSortSettings() {
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        for (String other : List.of("index.sort.field", "index.sort.order", "index.sort.mode", "index.sort.missing")) {
+            String value = switch (other) {
+                case "index.sort.field" -> "field1";
+                case "index.sort.order" -> "asc";
+                case "index.sort.mode" -> "min";
+                case "index.sort.missing" -> "_last";
+                default -> throw new AssertionError(other);
+            };
+            Settings settings = Settings.builder().put("index.sort", "field1").put(other, value).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSortConfig.expandSortSetting(settings));
+            assertThat(e.getMessage(), containsString("setting [index.sort] cannot be combined with [" + other + "]"));
+        }
     }
 
-    public void testSliceEnabledRejectsRoutingInSortExpression() {
-        assumeTrue("index.sort.expression requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        assumeTrue("slice indexing requires its feature flag", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put("index.slice.enabled", true).put("index.sort.expression", "_routing").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(e.getMessage(), containsString("must not contain"));
+    public void testInvalidSortExpressions() {
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        assertInvalidSortExpression("  ", "must not be blank");
+        assertInvalidSortExpression("field1,", "empty sort entry");
+        assertInvalidSortExpression("field1, , field2", "empty sort entry");
+        assertInvalidSortExpression("field1 SIDEWAYS", "unknown keyword [SIDEWAYS]");
+        assertInvalidSortExpression("field1 ASC DESC", "sort order more than once");
+        assertInvalidSortExpression("field1 MV_FIRST_MIN MV_FIRST_MAX", "multi-value mode more than once");
+        assertInvalidSortExpression("field1 MISSING_FIRST MISSING_LAST", "missing value handling more than once");
+        assertInvalidSortExpression("field1, field1 DESC", "field [field1] more than once");
+    }
+
+    private static void assertInvalidSortExpression(String expression, String expectedMessage) {
+        Settings settings = Settings.builder().put("index.sort", expression).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSortConfig.expandSortSetting(settings));
+        assertThat(e.getMessage(), containsString(expectedMessage));
+    }
+
+    public void testSortExpressionIsNotReportedAsDefault() {
+        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+        Settings.Builder diff = Settings.builder();
+        IndexSortConfig.INDEX_SORT_SETTING.diff(diff, Settings.EMPTY, Settings.EMPTY);
+        assertThat(diff.build().isEmpty(), equalTo(true));
+    }
+
+    public void testSortExpressionRequiresFeatureFlag() {
+        assumeTrue("only relevant without the feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled() == false);
+        Settings settings = Settings.builder().put("index.sort", "field1").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSortConfig.INDEX_SORT_SETTING.get(settings));
+        assertThat(e.getMessage(), containsString("unknown setting [index.sort]"));
     }
 
     public void testInvalidIndexSort() {

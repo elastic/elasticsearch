@@ -61,9 +61,9 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
- * Alternatively the sort can be configured with the single `index.sort.expression` setting, for example
- * `@timestamp DESC MV_FIRST_MAX MISSING_LAST, host.name`. It supplies the default values of the four settings above and
- * can't be combined with them.
+ * Alternatively the sort can be configured with the single `index.sort` expression setting, for example
+ * `@timestamp DESC MV_FIRST_MAX MISSING_LAST, host.name`. It is expanded into the four settings above when the index is
+ * created and can't be combined with them.
  *
 **/
 public final class IndexSortConfig {
@@ -75,9 +75,11 @@ public final class IndexSortConfig {
     /**
      * Expression that configures all index sort fields at once:
      * {@code [field-name [ASC|DESC] [MV_FIRST_MIN|MV_FIRST_MAX] [MISSING_FIRST|MISSING_LAST]],...}.
-     * It is syntactic sugar for the {@code index.sort.*} settings, which take their defaults from it.
+     * It is syntactic sugar for the {@code index.sort.*} settings: {@link #expandSortSetting} expands it into those settings when
+     * the index is created, and it is never persisted in the index metadata. It therefore has no default to report, which keeps
+     * {@code include_defaults} from emitting an {@code index.sort} value next to the nested {@code index.sort.*} settings.
      */
-    public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort.expression", "", s -> s, new Setting.Validator<>() {
+    public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort", "", s -> s, new Setting.Validator<String>() {
         @Override
         public void validate(String value) {
             if (value.isEmpty()) {
@@ -85,13 +87,18 @@ public final class IndexSortConfig {
             }
             if (INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled() == false) {
                 throw new IllegalArgumentException(
-                    "unknown setting [index.sort.expression] please check that any required plugins are installed, "
+                    "unknown setting [index.sort] please check that any required plugins are installed, "
                         + "or check the breaking changes documentation for removed settings"
                 );
             }
             parseSortExpression(value);
         }
-    }, Setting.Property.IndexScope, Setting.Property.Final, Setting.Property.ServerlessPublic);
+    }, Setting.Property.IndexScope, Setting.Property.Final, Setting.Property.ServerlessPublic) {
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            // Input only: never report the empty default, see the Javadoc above.
+        }
+    };
 
     /**
      * The list of field names
@@ -203,10 +210,6 @@ public final class IndexSortConfig {
         static SortDefault getSortDefault(Settings settings) {
             if (settings.isEmpty()) {
                 return NO_SORT;
-            }
-
-            if (hasSortExpression(settings)) {
-                return parseSortExpression(settings.get(INDEX_SORT_SETTING.getKey()));
             }
 
             // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
@@ -358,10 +361,6 @@ public final class IndexSortConfig {
         return new IndexSortConfigDefaults.SortDefault(fields, orders, modes, missings);
     }
 
-    public static boolean hasSortExpression(Settings settings) {
-        return settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false;
-    }
-
     private static String setOnce(String key, String entry, String what, String current, String value) {
         if (current != null) {
             throw new IllegalArgumentException("setting [" + key + "] specifies the " + what + " more than once in [" + entry.trim() + "]");
@@ -370,17 +369,41 @@ public final class IndexSortConfig {
     }
 
     /**
-     * Returns the sort fields the user configured explicitly, either through {@code index.sort.field} or through
-     * {@code index.sort.expression}. Defaults derived from the index mode are not included.
+     * Expands the {@link #INDEX_SORT_SETTING} expression, if any, into the {@code index.sort.field}, {@code index.sort.order},
+     * {@code index.sort.mode} and {@code index.sort.missing} settings and removes the expression itself. Settings without an
+     * expression, or with an empty one, are returned unchanged.
+     *
+     * @throws IllegalArgumentException if the expression is invalid or is combined with any of the {@code index.sort.*} settings
      */
-    public static List<String> explicitSortFields(Settings settings) {
-        if (INDEX_SORT_FIELD_SETTING.exists(settings)) {
-            return settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+    public static Settings expandSortSetting(Settings settings) {
+        String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
+        if (expression.isEmpty()) {
+            return settings.hasValue(INDEX_SORT_SETTING.getKey())
+                ? Settings.builder().put(settings).remove(INDEX_SORT_SETTING.getKey()).build()
+                : settings;
         }
-        if (hasSortExpression(settings)) {
-            return parseSortExpression(settings.get(INDEX_SORT_SETTING.getKey())).fields();
+        // runs the validator, which includes the feature flag check
+        INDEX_SORT_SETTING.get(settings);
+        for (Setting<?> setting : new Setting<?>[] {
+            INDEX_SORT_FIELD_SETTING,
+            INDEX_SORT_ORDER_SETTING,
+            INDEX_SORT_MODE_SETTING,
+            INDEX_SORT_MISSING_SETTING }) {
+            if (setting.exists(settings)) {
+                throw new IllegalArgumentException(
+                    "setting [" + INDEX_SORT_SETTING.getKey() + "] cannot be combined with [" + setting.getKey() + "]"
+                );
+            }
         }
-        return List.of();
+        IndexSortConfigDefaults.SortDefault sort = parseSortExpression(expression);
+        return Settings.builder()
+            .put(settings)
+            .remove(INDEX_SORT_SETTING.getKey())
+            .putList(INDEX_SORT_FIELD_SETTING.getKey(), sort.fields())
+            .putList(INDEX_SORT_ORDER_SETTING.getKey(), sort.order())
+            .putList(INDEX_SORT_MODE_SETTING.getKey(), sort.mode())
+            .putList(INDEX_SORT_MISSING_SETTING.getKey(), sort.missing())
+            .build();
     }
 
     private static String validateMissingValue(String missing) {
@@ -415,20 +438,6 @@ public final class IndexSortConfig {
     }
 
     private static void validateSortSettings(Settings settings) {
-        if (hasSortExpression(settings)) {
-            for (Setting<?> setting : new Setting<?>[] {
-                INDEX_SORT_FIELD_SETTING,
-                INDEX_SORT_ORDER_SETTING,
-                INDEX_SORT_MODE_SETTING,
-                INDEX_SORT_MISSING_SETTING }) {
-                if (setting.exists(settings)) {
-                    throw new IllegalArgumentException(
-                        "setting [" + INDEX_SORT_SETTING.getKey() + "] cannot be combined with [" + setting.getKey() + "]"
-                    );
-                }
-            }
-        }
-
         if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
             for (Setting<?> setting : new Setting<?>[] { INDEX_SORT_ORDER_SETTING, INDEX_SORT_MODE_SETTING, INDEX_SORT_MISSING_SETTING }) {
                 if (setting.exists(settings)) {
@@ -439,8 +448,9 @@ public final class IndexSortConfig {
             }
         }
 
-        if (IndexSettings.SLICE_ENABLED.get(settings)) {
-            for (String field : explicitSortFields(settings)) {
+        if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
+            List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            for (String field : fields) {
                 if (field.equals(RoutingFieldMapper.NAME)
                     || field.equals(SliceIndexing.FIELD_NAME)
                     || field.equals(SliceIndexing.SLICE_KEY_FIELD_NAME)

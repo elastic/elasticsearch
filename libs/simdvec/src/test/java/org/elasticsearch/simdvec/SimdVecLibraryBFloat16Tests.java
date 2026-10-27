@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -55,11 +54,6 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {

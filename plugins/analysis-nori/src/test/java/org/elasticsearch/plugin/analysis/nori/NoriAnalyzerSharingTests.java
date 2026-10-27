@@ -32,57 +32,60 @@ public class NoriAnalyzerSharingTests extends SharedAnalyzerTestCase {
         return new AnalysisNoriPlugin();
     }
 
-    private static Settings tokenizer(String dictionarySetting, Object dictionary) {
+    private static Settings tokenizer(Settings dictionary) {
         return indexSettings(
-            dictionary(
-                Settings.builder()
-                    .put("index.analysis.tokenizer.tok.type", "nori_tokenizer")
-                    .put("index.analysis.tokenizer.tok.decompound_mode", "mixed")
-                    .put("index.analysis.filter.pos.type", "nori_part_of_speech")
-                    .putList("index.analysis.filter.pos.stoptags", "NR", "SP")
-                    .put("index.analysis.analyzer.a.tokenizer", "tok")
-                    .putList("index.analysis.analyzer.a.filter", "pos"),
-                "index.analysis.tokenizer.tok." + dictionarySetting,
-                dictionary
-            ).build()
+            Settings.builder()
+                .put("index.analysis.tokenizer.tok.type", "nori_tokenizer")
+                .put("index.analysis.tokenizer.tok.decompound_mode", "mixed")
+                .put(prefixed("index.analysis.tokenizer.tok.", dictionary))
+                .put("index.analysis.filter.pos.type", "nori_part_of_speech")
+                .putList("index.analysis.filter.pos.stoptags", "NR", "SP")
+                .put("index.analysis.analyzer.a.tokenizer", "tok")
+                .putList("index.analysis.analyzer.a.filter", "pos")
+                .build()
         ).build();
     }
 
-    private static Settings analyzer(String dictionarySetting, Object dictionary) {
+    private static Settings analyzer(Settings dictionary) {
         return indexSettings(
-            dictionary(
-                Settings.builder()
-                    .put("index.analysis.analyzer.a.type", "nori")
-                    .put("index.analysis.analyzer.a.decompound_mode", "mixed")
-                    .putList("index.analysis.analyzer.a.stoptags", "NR", "SP"),
-                "index.analysis.analyzer.a." + dictionarySetting,
-                dictionary
-            ).build()
+            Settings.builder()
+                .put("index.analysis.analyzer.a.type", "nori")
+                .put("index.analysis.analyzer.a.decompound_mode", "mixed")
+                .putList("index.analysis.analyzer.a.stoptags", "NR", "SP")
+                .put(prefixed("index.analysis.analyzer.a.", dictionary))
+                .build()
         ).build();
     }
 
-    @SuppressWarnings("unchecked")
-    private static Settings.Builder dictionary(Settings.Builder builder, String key, Object dictionary) {
-        return dictionary instanceof List<?> rules ? builder.putList(key, (List<String>) rules) : builder.put(key, (String) dictionary);
+    private static Settings prefixed(String prefix, Settings settings) {
+        return Settings.builder().put(settings).normalizePrefix(prefix).build();
+    }
+
+    private static Settings fromFile(String file) {
+        return Settings.builder().put("user_dictionary", file).build();
+    }
+
+    private static Settings inline(List<String> rules) {
+        return Settings.builder().putList("user_dictionary_rules", rules).build();
     }
 
     public void testTokenizerSharesDictionaryFromFileOrInline() throws IOException {
         Files.write(configDir().resolve("dict.txt"), RULES);
-        assertSharesWithSameOutput(tokenizer("user_dictionary", "dict.txt"), tokenizer("user_dictionary_rules", RULES), TEXT);
+        assertSharesWithSameOutput(tokenizer(fromFile("dict.txt")), tokenizer(inline(RULES)), TEXT);
     }
 
     public void testAnalyzerSharesDictionaryFromFileOrInline() throws IOException {
         Files.write(configDir().resolve("dict.txt"), RULES);
-        assertSharesWithSameOutput(analyzer("user_dictionary", "dict.txt"), analyzer("user_dictionary_rules", RULES), TEXT);
+        assertSharesWithSameOutput(analyzer(fromFile("dict.txt")), analyzer(inline(RULES)), TEXT);
     }
 
     public void testChangedDictionaryFileDoesNotShare() throws IOException {
         Files.write(configDir().resolve("dict.txt"), RULES);
-        Settings fromFile = tokenizer("user_dictionary", "dict.txt");
+        Settings fromFile = tokenizer(fromFile("dict.txt"));
         assertSharesWithSameOutput(fromFile, fromFile, TEXT);
         Files.write(configDir().resolve("other.txt"), RULES.subList(0, 2));
-        assertDoesNotShare(fromFile, tokenizer("user_dictionary", "other.txt"));
-        assertDoesNotShare(analyzer("user_dictionary", "dict.txt"), analyzer("user_dictionary", "other.txt"));
+        assertDoesNotShare(fromFile, tokenizer(fromFile("other.txt")));
+        assertDoesNotShare(analyzer(fromFile("dict.txt")), analyzer(fromFile("other.txt")));
     }
 
     /** Only indices created on or after NORI_DUPLICATES reject duplicate rules; rules without duplicates load the same either way. */
@@ -92,10 +95,7 @@ public class NoriAnalyzerSharingTests extends SharedAnalyzerTestCase {
             "no read-compatible version predates the duplicate check",
             old.onOrAfter(IndexVersionUtils.getLowestReadCompatibleVersion())
         );
-        Settings oldIndex = Settings.builder()
-            .put(tokenizer("user_dictionary_rules", RULES))
-            .put(IndexMetadata.SETTING_VERSION_CREATED, old)
-            .build();
-        assertSharesWithSameOutput(oldIndex, tokenizer("user_dictionary_rules", RULES), TEXT);
+        Settings oldIndex = Settings.builder().put(tokenizer(inline(RULES))).put(IndexMetadata.SETTING_VERSION_CREATED, old).build();
+        assertSharesWithSameOutput(oldIndex, tokenizer(inline(RULES)), TEXT);
     }
 }

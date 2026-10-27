@@ -58,6 +58,30 @@
         ">non-issue",
         "auto-backport"
       ]
+    },
+    {
+      "description": "pnpm version pinned via packageManager in .buildkite/package.json (Buildkite pipeline scripts, also pre-warmed in the elasticsearch-* CI agent images). Checked on main only and backported to all active branches. minimumReleaseAge matches .buildkite/pnpm-workspace.yaml (7200 minutes).",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        ".buildkite/package.json"
+      ],
+      "matchDepTypes": [
+        "packageManager"
+      ],
+      "matchPackageNames": [
+        "pnpm"
+      ],
+      "matchBaseBranches": [
+        "main"
+      ],
+      "enabled": true,
+      "minimumReleaseAge": "5 days",
+      "addLabels": [
+        "branches:all-active",
+        "auto-merge-without-approval"
+      ]
     }
   ]
 }

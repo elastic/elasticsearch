@@ -426,3 +426,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/163491
+- class: org.elasticsearch.xpack.spatial.index.fielddata.LatLonGeometryRelationVisitorTests
+  tasks:
+  - :x-pack:plugin:spatial:test
+  method: testPoint
+  issue: https://github.com/elastic/elasticsearch/issues/163502

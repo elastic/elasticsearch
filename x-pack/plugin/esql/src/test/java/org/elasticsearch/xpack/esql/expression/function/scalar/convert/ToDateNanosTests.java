@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 
@@ -135,7 +136,9 @@ public class ToDateNanosTests extends AbstractConfigurationFunctionTestCase {
                 "Line 1:1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
                         ? "cannot parse empty datetime"
-                        : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time_nanos]"))
+                        : ("failed to parse date field ["
+                            + truncateForError(bytesRef.utf8ToString())
+                            + "] with format [strict_date_optional_time_nanos]"))
             )
         );
         suppliers = TestCaseSupplier.mapTestCases(

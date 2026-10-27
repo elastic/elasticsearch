@@ -519,8 +519,11 @@ public final class EscfColumnBuilder implements Releasable {
         }
     }
 
-    /** The next fresh row index for the append surface. */
-    private int nextAppendRow() {
+    /**
+     * Returns the next fresh row index for the append surface, i.e. the number of rows (present + absent)
+     * recorded so far — the row index the next {@code addX}/{@code addAbsent} call would land on.
+     */
+    public int nextAppendRow() {
         return current == null ? leadingAbsents : current.rowsConsumed();
     }
 

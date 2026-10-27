@@ -9,17 +9,26 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -29,14 +38,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class NetworkDisruptionIT extends ESIntegTestCase {
@@ -142,6 +155,74 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
         latch.await(30, TimeUnit.SECONDS);
         assertEquals("All requests must respond, requests: " + requests, 0, latch.getCount());
+    }
+
+    public void testDelayedRequestWithNamedWriteablesIsDelivered() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        List<String> nodes = internalCluster().startNodes(2);
+        TransportService source = internalCluster().getInstance(TransportService.class, nodes.get(0));
+        TransportService target = internalCluster().getInstance(TransportService.class, nodes.get(1));
+
+        AtomicReference<QueryBuilder> received = new AtomicReference<>();
+        for (TransportService transportService : List.of(source, target)) {
+            transportService.registerRequestHandler(
+                QueryRequest.ACTION,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                QueryRequest::new,
+                (request, channel, task) -> {
+                    received.set(request.query);
+                    channel.sendResponse(ActionResponse.Empty.INSTANCE);
+                }
+            );
+        }
+
+        // The delay is far longer than the test so the request is still queued when stopDisrupting releases it.
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new TwoPartitions(Set.of(nodes.get(0)), Set.of(nodes.get(1))),
+            new NetworkDisruption.NetworkDelay(TimeValue.timeValueMinutes(5))
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+        networkDisruption.startDisrupting();
+
+        QueryBuilder query = new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        SubscribableListener<TransportResponse> response = SubscribableListener.newForked(
+            l -> source.sendRequest(
+                target.getLocalNode(),
+                QueryRequest.ACTION,
+                new QueryRequest(query),
+                new ActionListenerResponseHandler<>(l, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            )
+        );
+        assertThat(received.get(), nullValue());
+        networkDisruption.stopDisrupting();
+
+        safeAwait(response);
+        assertThat(received.get(), equalTo(query));
+    }
+
+    /**
+     * A request whose reader needs the node's {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry}, like the
+     * search and ES|QL data node requests that carry a query or a plan.
+     */
+    private static class QueryRequest extends AbstractTransportRequest {
+        static final String ACTION = "internal:test/network_disruption/query";
+
+        private final QueryBuilder query;
+
+        QueryRequest(QueryBuilder query) {
+            this.query = query;
+        }
+
+        QueryRequest(StreamInput in) throws IOException {
+            super(in);
+            this.query = in.readNamedWriteable(QueryBuilder.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeNamedWriteable(query);
+        }
     }
 
     private static Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {

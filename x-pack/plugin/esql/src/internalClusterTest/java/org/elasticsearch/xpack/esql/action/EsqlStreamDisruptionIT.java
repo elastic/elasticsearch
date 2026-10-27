@@ -161,12 +161,16 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     private ServiceDisruptionScheme installDisruption(NetworkDisruption.NetworkLinkDisruptionType type) throws Exception {
+        return installDisruption(NetworkDisruption.TwoPartitions.random(random(), internalCluster().getNodeNames()), type);
+    }
+
+    private ServiceDisruptionScheme installDisruption(
+        NetworkDisruption.DisruptedLinks links,
+        NetworkDisruption.NetworkLinkDisruptionType type
+    ) throws Exception {
         ensureClusterStateConsistency();
         ensureClusterSizeConsistency();
-        ServiceDisruptionScheme scheme = new NetworkDisruption(
-            NetworkDisruption.TwoPartitions.random(random(), internalCluster().getNodeNames()),
-            type
-        );
+        ServiceDisruptionScheme scheme = new NetworkDisruption(links, type);
         setDisruptionScheme(scheme);
         return scheme;
     }
@@ -653,6 +657,36 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
         assertThat("delayed (not partitioned) stream must still produce a footer", outcome.terminal(), equalTo(Terminal.FOOTER));
+    }
+
+    public void testDataNodeRequestsUnderNetworkDelayYieldFooter() throws Exception {
+        Set<String> dataNodes = new HashSet<>(List.of(internalCluster().getNodeNames()));
+        dataNodes.remove(coordinatingNode);
+        ServiceDisruptionScheme delay = installDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(coordinatingNode), dataNodes),
+            NetworkDisruption.NetworkDelay.random(random(), TimeValue.timeValueMillis(2000), TimeValue.timeValueMillis(5000))
+        );
+        // The coordinator sends each data node request from the open-exchange response callback. Arming the delay while a data
+        // node handles its open-exchange guarantees the data node requests are sent inside the delay window. Arming it before the
+        // query would not: the first delayed hop waits out the whole window, and the data node requests go out undelayed.
+        AtomicBoolean armed = new AtomicBoolean();
+        for (String dataNode : dataNodes) {
+            MockTransportService.getInstance(dataNode)
+                .addRequestHandlingBehavior(ExchangeService.OPEN_EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+                    if (armed.compareAndSet(false, true)) {
+                        delay.startDisrupting();
+                    }
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), null, "batch_size=2");
+
+        assertTrue("the delay must have been armed", armed.get());
+        assertServerFullyCleanedUp();
+        assertStreamInvariants(outcome, false, 1000);
+        assertThat(describe(outcome), outcome.terminal(), equalTo(Terminal.FOOTER));
+        assertStreamDeliveredCompleteRows(outcome, 1000);
     }
 
     public void testRandomDisruptionDuringStream() throws Exception {

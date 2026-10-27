@@ -11,6 +11,7 @@ package org.elasticsearch.test.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
@@ -22,7 +23,9 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -119,6 +122,8 @@ public class MockTransportService extends TransportService {
     private final AtomicReference<Consumer<Transport.Connection>> onConnectionClosedCallback = new AtomicReference<>();
 
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
+
+    private final SetOnce<NamedWriteableRegistry> namedWriteableRegistry = new SetOnce<>();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -330,6 +335,15 @@ public class MockTransportService extends TransportService {
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+    }
+
+    /**
+     * Sets the registry used to read requests that {@link #addUnresponsiveRule(TransportAddress, TimeValue)} clones and holds back.
+     * Without it, cloning a request whose reader needs named writeables, such as a query, fails because the stream has no registry.
+     * The real inbound path reads requests with the node's registry too, see {@code InboundHandler}.
+     */
+    public void setNamedWriteableRegistry(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry.set(namedWriteableRegistry);
     }
 
     /**
@@ -577,7 +591,12 @@ public class MockTransportService extends TransportService {
                     request.writeTo(bStream);
                 }
                 RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
-                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+                StreamInput clonedInput = bStream.bytes().streamInput();
+                NamedWriteableRegistry registry = namedWriteableRegistry.get();
+                if (registry != null) {
+                    clonedInput = new NamedWriteableAwareStreamInput(clonedInput, registry);
+                }
+                final TransportRequest clonedRequest = reg.newRequest(clonedInput);
                 assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())
                     : clonedRequest + " vs " + request;
 

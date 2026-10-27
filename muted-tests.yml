@@ -442,11 +442,6 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163244
-- class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testSlowConsumerUnderNetworkDelay
-  issue: https://github.com/elastic/elasticsearch/issues/163264
 - class: org.elasticsearch.xpack.logsdb.OversizedArrayOffsetsRollingUpgradeIT
   tasks:
   - :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.0.8#bwcTest

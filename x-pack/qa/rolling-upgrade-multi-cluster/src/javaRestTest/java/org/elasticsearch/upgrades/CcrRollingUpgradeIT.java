@@ -7,7 +7,9 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -29,6 +31,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+// Boots two 3-node clusters and performs up to 6 rolling node restarts in one suite;
+// under CI contention this leaves too little margin against the default 20min suite
+// timeout. See #163301, #163266, #160284.
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     public CcrRollingUpgradeIT(

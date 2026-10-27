@@ -25,6 +25,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
@@ -229,5 +230,49 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
 
     private static int[] evenArray(int maxIndex) {
         return IntStream.range(0, maxIndex / 2).map(x -> x * 2).toArray();
+    }
+
+    /**
+     * The shape readers wrap a forward-only binary doc values iterator, so {@code canReuse} has to track the last document read.
+     * Reporting {@code true} for an earlier document lets {@code ValuesSourceReaderOperator} hand a retained reader a document it has
+     * already passed, which resolves against whichever binary doc values block is still loaded.
+     */
+    public void testCanReuseTracksLastReadDoc() throws IOException {
+        testCanReuseTracksLastReadDoc(new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field"));
+        testCanReuseTracksLastReadDoc(
+            new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.CentroidBlockLoader("field", CoordinateEncoder.CARTESIAN)
+        );
+        testCanReuseTracksLastReadDoc(
+            new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsAndCentroidBlockLoader(
+                "field",
+                CoordinateEncoder.CARTESIAN
+            )
+        );
+    }
+
+    private void testCanReuseTracksLastReadDoc(BlockDocValuesReader.DocValuesBlockLoader loader) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
+                for (int i = 0; i < 5; i++) {
+                    var geometry = new Rectangle(i, i + 1, i + 1, i);
+                    var shape = new BinaryShapeDocValuesField("field", CoordinateEncoder.CARTESIAN);
+                    shape.add(new CartesianShapeIndexer("field").indexShape(geometry), geometry);
+                    var doc = new Document();
+                    doc.add(shape);
+                    iw.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                var leaf = getOnlyLeafReader(reader).getContext();
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf)) {
+                    allReader.read(TestBlock.factory(), TestBlock.docs(3), 0, false).close();
+
+                    assertFalse(loader + " must not be reused for an earlier doc", allReader.canReuse(2));
+                    assertTrue(loader + " may be reused for the doc it just read", allReader.canReuse(3));
+                    assertTrue(loader + " may be reused for a later doc", allReader.canReuse(4));
+                }
+            }
+        }
     }
 }

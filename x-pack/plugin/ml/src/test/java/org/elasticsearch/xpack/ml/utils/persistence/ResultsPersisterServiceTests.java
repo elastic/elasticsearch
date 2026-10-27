@@ -10,6 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -37,6 +39,7 @@ import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -179,6 +182,44 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A search that fails with a 503 because no shard copy is available is retried.
+     */
+    public void testSearchWithRetries_SuccessAfterRetryDueToNoShardAvailable() {
+        doAnswer(withFailure(new NoShardAvailableActionException(new ShardId("my-index", "UUID", 0)))).doAnswer(
+            withResponse(searchResponseSuccess)
+        ).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+
+        List<String> messages = new ArrayList<>();
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
+        try {
+            assertThat(searchResponse, is(searchResponseSuccess));
+            assertThat(messages, hasSize(1));
+            verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    /**
+     * A search that fails with a 403 because a shard is being restored is retried like a 503: restores are expected to be short.
+     */
+    public void testSearchWithRetries_SuccessAfterRetryDueToShardRestoring() {
+        doAnswer(withFailure(new ShardRestoringException("my-index", randomUUID()))).doAnswer(withResponse(searchResponseSuccess))
+            .when(client)
+            .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+
+        List<String> messages = new ArrayList<>();
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
+        try {
+            assertThat(searchResponse, is(searchResponseSuccess));
+            assertThat(messages, hasSize(1));
+            verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
     private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
@@ -304,6 +345,64 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
         assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
+    }
+
+    /**
+     * A bulk item that fails with a 503 because its shard is unavailable is retried, and only the failed item is resent.
+     */
+    public void testBulkRequestRetriesItemFailingWithUnavailableShards() {
+        BulkItemResponse unavailable = BulkItemResponse.failure(
+            2,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure(
+                "my-index",
+                "fail",
+                new UnavailableShardsException(new ShardId("my-index", "UUID", 0), "primary shard is not active")
+            )
+        );
+        doAnswerWithResponses(
+            new BulkResponse(new BulkItemResponse[] { unavailable, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+
+        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {});
+
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), captor.capture(), any());
+        assertThat(captor.getAllValues().get(0).numberOfActions(), equalTo(2));
+        assertThat(captor.getAllValues().get(1).numberOfActions(), equalTo(1));
+        assertThat(captor.getAllValues().get(1).requests().get(0).id(), equalTo(INDEX_REQUEST_FAILURE.id()));
+    }
+
+    /**
+     * A bulk item that fails with a 403 because its shard is being restored is retried like a 503, and only the failed item is resent.
+     */
+    public void testBulkRequestRetriesItemFailingWithShardRestoring() {
+        BulkItemResponse restoring = BulkItemResponse.failure(
+            2,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "fail", new ShardRestoringException("my-index", randomUUID()))
+        );
+        doAnswerWithResponses(
+            new BulkResponse(new BulkItemResponse[] { restoring, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+
+        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {});
+
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), captor.capture(), any());
+        assertThat(captor.getAllValues().get(0).numberOfActions(), equalTo(2));
+        assertThat(captor.getAllValues().get(1).numberOfActions(), equalTo(1));
+        assertThat(captor.getAllValues().get(1).requests().get(0).id(), equalTo(INDEX_REQUEST_FAILURE.id()));
     }
 
     public void testBulkRequestChangeOnIrrecoverableFailures() {

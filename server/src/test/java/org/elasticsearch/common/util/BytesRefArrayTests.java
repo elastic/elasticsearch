@@ -704,6 +704,22 @@ public class BytesRefArrayTests extends ESTestCase {
         assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
+    public void testUseAfterClose() {
+        int size = randomIntBetween(1, 16 * 1024);
+        boolean fixedLength = randomBoolean();
+        BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays());
+        for (int i = 0; i < size; i++) {
+            var value = new BytesRef(randomByteArrayOfLength(fixedLength ? 10 : between(1, 20)));
+            array.append(value);
+        }
+        array.close();
+        BytesRef scratch = new BytesRef();
+        int id = randomIntBetween(0, size - 1);
+        expectThrows(NullPointerException.class, () -> array.get(id, scratch));
+        BytesRef newValue = new BytesRef(randomByteArrayOfLength(fixedLength ? 10 : between(1, 20)));
+        expectThrows(NullPointerException.class, () -> array.append(newValue));
+    }
+
     private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

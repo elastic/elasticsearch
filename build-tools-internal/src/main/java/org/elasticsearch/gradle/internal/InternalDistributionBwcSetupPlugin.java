@@ -46,11 +46,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -397,46 +399,91 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         return "gradle-" + project.getGradle().getGradleVersion() + "-bin";
     }
 
+    /**
+     * Seeds the unique Gradle user home of a nested BWC build with the Gradle config and the wrapper distribution of the outer build.
+     * <p>
+     * The unique user home is updated in place and never deleted as a whole: it also holds the nested build's dependency caches and
+     * the registry of its daemons. An idle nested daemon left over from a previous build keeps writing to its registry under
+     * {@code daemon/}, so deleting the whole directory races with that daemon and fails intermittently.
+     */
     static void seedUniqueGradleUserHome(File sourceGradleUserHome, File uniqueGradleUserHome, String wrapperDistributionPath) {
         File wrapperSeedLock = new File(uniqueGradleUserHome.getParentFile(), uniqueGradleUserHome.getName() + ".seed.lock");
         withExclusiveFileLock(wrapperSeedLock, () -> {
+            FileUtils.forceMkdir(uniqueGradleUserHome);
+            refreshGradleUserHomeConfig(sourceGradleUserHome, uniqueGradleUserHome);
             File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
-            File existingWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
-            File wrapperDistributionSeedSource = isReadyWrapperDistribution(sourceWrapperDistributionDir) ? sourceWrapperDistributionDir
-                : isReadyWrapperDistribution(existingWrapperDistributionDir) ? existingWrapperDistributionDir
-                : null;
-            File stagingGradleUserHome = new File(
-                uniqueGradleUserHome.getParentFile(),
-                uniqueGradleUserHome.getName() + ".tmp-" + UUID.randomUUID()
-            );
-            FileUtils.deleteQuietly(stagingGradleUserHome);
-            try {
-                copyGradleUserHomeConfig(sourceGradleUserHome, stagingGradleUserHome);
-                if (wrapperDistributionSeedSource != null) {
-                    FileUtils.copyDirectory(
-                        wrapperDistributionSeedSource,
-                        new File(new File(stagingGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH), wrapperDistributionSeedSource.getName())
-                    );
-                }
-                if (uniqueGradleUserHome.exists()) {
-                    FileUtils.deleteDirectory(uniqueGradleUserHome);
-                }
-                Files.move(stagingGradleUserHome.toPath(), uniqueGradleUserHome.toPath(), StandardCopyOption.ATOMIC_MOVE);
-            } finally {
-                FileUtils.deleteQuietly(stagingGradleUserHome);
+            File targetWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
+            // A distribution that is not ready is a leftover of an interrupted download; no nested build can be fetching it concurrently
+            // as this task runs before any nested build using this user home is started.
+            if (isReadyWrapperDistribution(targetWrapperDistributionDir) == false
+                && isReadyWrapperDistribution(sourceWrapperDistributionDir)) {
+                replaceDirectory(sourceWrapperDistributionDir, targetWrapperDistributionDir);
             }
         });
     }
 
-    private static void copyGradleUserHomeConfig(File sourceGradleUserHome, File targetGradleUserHome) throws IOException {
-        FileUtils.forceMkdir(targetGradleUserHome);
+    private static void refreshGradleUserHomeConfig(File sourceGradleUserHome, File targetGradleUserHome) throws IOException {
         File gradleProperties = new File(sourceGradleUserHome, "gradle.properties");
+        File targetGradleProperties = new File(targetGradleUserHome, gradleProperties.getName());
         if (gradleProperties.isFile()) {
-            FileUtils.copyFileToDirectory(gradleProperties, targetGradleUserHome);
+            FileUtils.copyFile(gradleProperties, targetGradleProperties);
+        } else {
+            FileUtils.deleteQuietly(targetGradleProperties);
         }
         File initScriptsDir = new File(sourceGradleUserHome, "init.d");
+        File targetInitScriptsDir = new File(targetGradleUserHome, initScriptsDir.getName());
         if (initScriptsDir.isDirectory()) {
-            FileUtils.copyDirectory(initScriptsDir, new File(targetGradleUserHome, initScriptsDir.getName()));
+            syncDirectory(initScriptsDir, targetInitScriptsDir);
+        } else {
+            FileUtils.deleteDirectory(targetInitScriptsDir);
+        }
+    }
+
+    /**
+     * Makes {@code target} mirror {@code source} without ever removing {@code target} itself: files are replaced through an atomic
+     * rename, so a concurrently starting nested build sees either the old or the new content of a file, never a missing directory or
+     * a partially written file. Files that no longer exist in {@code source} are removed.
+     */
+    private static void syncDirectory(File source, File target) throws IOException {
+        FileUtils.forceMkdir(target);
+        Set<Path> sourceFiles = new HashSet<>();
+        for (File file : FileUtils.listFiles(source, null, true)) {
+            Path relative = source.toPath().relativize(file.toPath());
+            sourceFiles.add(relative);
+            File targetFile = target.toPath().resolve(relative).toFile();
+            FileUtils.forceMkdir(targetFile.getParentFile());
+            File staging = new File(targetFile.getParentFile(), targetFile.getName() + ".tmp-" + UUID.randomUUID());
+            try {
+                FileUtils.copyFile(file, staging);
+                try {
+                    Files.move(staging.toPath(), targetFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                } catch (FileSystemException e) {
+                    // An atomic rename over an existing file is not supported everywhere (e.g. it can be refused on Windows).
+                    Files.move(staging.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                FileUtils.deleteQuietly(staging);
+            }
+        }
+        for (File existing : FileUtils.listFiles(target, null, true)) {
+            if (sourceFiles.contains(target.toPath().relativize(existing.toPath())) == false) {
+                FileUtils.deleteQuietly(existing);
+            }
+        }
+    }
+
+    /**
+     * Replaces {@code target} with a copy of {@code source}, staging the copy next to the target so that the target is either
+     * absent or complete, but never partially copied.
+     */
+    private static void replaceDirectory(File source, File target) throws IOException {
+        File staging = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
+        try {
+            FileUtils.copyDirectory(source, staging);
+            FileUtils.deleteDirectory(target);
+            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            FileUtils.deleteQuietly(staging);
         }
     }
 

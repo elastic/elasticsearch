@@ -107,8 +107,8 @@ public class VectorScorerInt7uOperationBenchmark {
     @Benchmark
     public int nativeWithHeapQuery() {
         return switch (function) {
-            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(heapSegA, nativeSegB, size);
-            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(heapSegA, nativeSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(nativeSegB, heapSegA, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(nativeSegB, heapSegA, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }

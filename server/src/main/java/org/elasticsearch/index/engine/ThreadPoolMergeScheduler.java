@@ -734,7 +734,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // stateless) it may even have been merged away so that its files are gone. If no size was captured (e.g. the size of the
             // committed segment could not be read), use the originally estimated merge size for metrics.
             if (currentMerge instanceof SizeTrackingOneMerge sizeTrackingMerge) {
-                return sizeTrackingMerge.mergedSegmentSizeInBytes().orElse(currentMerge.estimatedMergeBytes);
+                final var maybeMergedSize = sizeTrackingMerge.mergedSegmentSizeInBytes();
+                assert maybeMergedSize.isPresent() : "We expect merged segment size to be present";
+                return maybeMergedSize.orElse(currentMerge.estimatedMergeBytes);
             } else {
                 assert false
                     : "merges must be wrapped in a SizeTrackingOneMerge (see InternalEngine#wrapMergePolicy) but got "

@@ -36,6 +36,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
@@ -572,6 +573,28 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertThat(ranges.get(2).getDocCount(), equalTo(1L));
             assertTrue(AggregationInspectionHelper.hasValue(range));
         }, new AggTestConfig(aggregationBuilder, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER)));
+    }
+
+    /**
+     * A {@code global} sub-aggregation is rejected when the range aggregation
+     * has enough docs per range to run as a filters aggregation.
+     */
+    public void testGlobalSubAggregationWithFilters() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("r").field(NUMBER_FIELD_NAME)
+            .addRange(0, 1)
+            .subAggregation(new GlobalAggregationBuilder("g"));
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            for (int d = 0; d < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS; d++) {
+                iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, 0), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)));
+            }
+        }, range -> fail("Should have thrown exception"), new AggTestConfig(aggregationBuilder, fieldType)));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Aggregation [r] cannot have a global sub-aggregation [g]. Global aggregations can only be defined as top level aggregations"
+            )
+        );
     }
 
     /**

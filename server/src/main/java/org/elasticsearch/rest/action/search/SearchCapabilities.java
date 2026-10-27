@@ -68,6 +68,8 @@ public final class SearchCapabilities {
     private static final String EXCLUDE_SOURCE_VECTORS_ALL_LAYOUTS = "exclude_source_vectors_all_layouts";
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
+    /** A {@code global} aggregation under any parent aggregation is rejected with a 400. */
+    private static final String GLOBAL_UNDER_ADAPTING_AGG_ERROR = "global_under_adapting_agg_error";
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
@@ -129,6 +131,7 @@ public final class SearchCapabilities {
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
+        capabilities.add(GLOBAL_UNDER_ADAPTING_AGG_ERROR);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

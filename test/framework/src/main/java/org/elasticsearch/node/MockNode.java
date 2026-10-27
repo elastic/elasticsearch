@@ -130,7 +130,8 @@ public class MockNode extends Node {
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer,
-            OnlinePrewarmingService onlinePrewarmingService
+            OnlinePrewarmingService onlinePrewarmingService,
+            TaskManager taskManager
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -144,7 +145,8 @@ public class MockNode extends Node {
                     circuitBreakerService,
                     executorSelector,
                     tracer,
-                    onlinePrewarmingService
+                    onlinePrewarmingService,
+                    taskManager
                 );
             }
 
@@ -158,7 +160,8 @@ public class MockNode extends Node {
                 circuitBreakerService,
                 executorSelector,
                 tracer,
-                onlinePrewarmingService
+                onlinePrewarmingService,
+                taskManager
             );
         }
 

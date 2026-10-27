@@ -4266,6 +4266,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
     }
 
+    public void testStatsOverNestedForks() {
+        String query = nestedForks(40) + "\n| STATS COUNT(*)";
+        expectVerificationError(query, MAX_PLAN_NODES_ERROR);
+    }
+
     private static final String MAX_PLAN_NODES_ERROR =
         "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs.";
 

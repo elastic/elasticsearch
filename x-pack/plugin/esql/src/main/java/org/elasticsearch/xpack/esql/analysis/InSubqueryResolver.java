@@ -124,7 +124,7 @@ public class InSubqueryResolver {
      * traversals.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
         LogicalPlan resolved = resolveInSubqueries(plan, planSize);
         verify(resolved);
         return resolved;
@@ -537,7 +537,7 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        planSize.add(1 + PlanSize.countNodes(subqueryPlan));
+        planSize.add(1 + planSize.countNodes(subqueryPlan));
         LogicalPlan subquery = resolveInSubqueries(subqueryPlan, planSize);
         JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
         semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
@@ -667,7 +667,7 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        planSize.add(1 + PlanSize.countNodes(inSubquery.subquery()));
+        planSize.add(1 + planSize.countNodes(inSubquery.subquery()));
         LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
@@ -700,7 +700,7 @@ public class InSubqueryResolver {
             return mcs;
         }
         // resolveInSubqueries is reused here: see the single-column overload for the rationale.
-        planSize.add(1 + PlanSize.countNodes(mcs.subquery()));
+        planSize.add(1 + planSize.countNodes(mcs.subquery()));
         LogicalPlan subquery = resolveInSubqueries(mcs.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             mcs.source(),

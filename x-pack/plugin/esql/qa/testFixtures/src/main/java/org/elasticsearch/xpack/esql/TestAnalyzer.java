@@ -682,7 +682,7 @@ public class TestAnalyzer {
             // No views to expand, resolve and validate IN subqueries directly
             return InSubqueryResolver.resolve(plan);
         }
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
         LogicalPlan resolved = resolveViews(plan, planSize);
         InSubqueryResolver.verify(resolved);
         return resolved;

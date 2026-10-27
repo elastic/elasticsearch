@@ -89,13 +89,13 @@ public final class LetResolver {
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            PlanSize bindingSize = new PlanSize(PlanSize.countNodes(binding.plan()), maxPlanNodesCount);
+            PlanSize bindingSize = new PlanSize(binding.plan(), maxPlanNodesCount);
             var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
             resolved.put(binding.name(), current);
             sizes.put(binding.name(), bindingSize.size());
         }
         // Substitute the full map into the main query plan.
-        return substitute(plan, resolved, sizes, allBindings, new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount));
+        return substitute(plan, resolved, sizes, allBindings, new PlanSize(plan, maxPlanNodesCount));
     }
 
     /**

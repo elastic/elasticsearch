@@ -161,10 +161,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
+        this.planSize = new PlanSize(context.maxCommandCount());
     }
 
     private int queryDepth = 0;
     private boolean forkSeenInScope = false;
+    private final PlanSize planSize;
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
@@ -1427,7 +1429,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (duplicate) {
                 throw new VerificationException(List.of(Failure.fail(fork, Fork.MULTIPLE_FORKS_ERROR)));
             }
-            new PlanSize(0, context.maxCommandCount()).add(PlanSize.countNodes(fork));
+            planSize.check(fork);
             return fork;
         };
     }

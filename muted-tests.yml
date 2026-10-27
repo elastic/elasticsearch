@@ -447,11 +447,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSlowConsumerUnderNetworkDelay
   issue: https://github.com/elastic/elasticsearch/issues/163264
-- class: org.elasticsearch.xpack.logsdb.OversizedArrayOffsetsRollingUpgradeIT
-  tasks:
-  - :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.0.8#bwcTest
-  method: testOversizedArraysAcrossUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/163295
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -551,3 +546,13 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
   issue: https://github.com/elastic/elasticsearch/issues/163504
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  tasks:
+  - :server:internalClusterTest
+  method: testBulkRequestSameOutcomeAsSeparateRequests
+  issue: https://github.com/elastic/elasticsearch/issues/163520
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.19.24#yamlRestTest
+  method: test {yaml=msearch/10_basic/Search with new response format}
+  issue: https://github.com/elastic/elasticsearch/issues/163546

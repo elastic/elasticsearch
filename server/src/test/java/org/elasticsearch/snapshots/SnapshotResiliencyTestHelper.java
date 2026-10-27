@@ -85,7 +85,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivitySinks;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -1031,7 +1030,6 @@ public class SnapshotResiliencyTestHelper {
                         usageService,
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
                         ActivityLogWriterProvider.NOOP,
-                        ActivitySinks.EMPTY,
                         CrossProjectModeDecider.NOOP
                     )
                 );

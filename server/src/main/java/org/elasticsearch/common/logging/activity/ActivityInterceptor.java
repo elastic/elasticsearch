@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -26,6 +25,7 @@ import java.util.function.Consumer;
  * Specific details are added in the specific context types for each action, such as search, ESQL query, etc.
  * @param <Context> Logging context type
  */
+// TODO: move the activity classes out of org.elasticsearch.common.logging. Capturing activity for sinks is no longer logging.
 public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
     private static final Logger logger = LogManager.getLogger(ActivityInterceptor.class);
 
@@ -33,19 +33,6 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
 
     public ActivityInterceptor(List<ActivitySink<Context, ?>> sinks) {
         this.sinks = List.copyOf(sinks);
-    }
-
-    /**
-     * An interceptor for the given sink followed by more sinks, such as the ones contributed by plugins.
-     */
-    public static <Context extends ActivityCaptureContext> ActivityInterceptor<Context> of(
-        ActivitySink<Context, ?> sink,
-        List<ActivitySink<Context, ?>> moreSinks
-    ) {
-        List<ActivitySink<Context, ?>> sinks = new ArrayList<>(moreSinks.size() + 1);
-        sinks.add(sink);
-        sinks.addAll(moreSinks);
-        return new ActivityInterceptor<>(sinks);
     }
 
     private boolean anySinkEnabled() {
@@ -58,7 +45,7 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
     }
 
     // Accessible for tests
-    void logAction(Context context) {
+    void notifySinks(Context context) {
         for (var sink : sinks) {
             if (sink.isEnabled()) {
                 try {
@@ -86,24 +73,24 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
         return new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(R r) {
-                log(r);
+                captureResponse(r);
                 delegate.onResponse(r);
             }
 
             @Override
             public void onFailure(Exception e) {
-                log(e);
+                captureFailure(e);
                 super.onFailure(e);
             }
 
-            private void log(R r) {
+            private void captureResponse(R r) {
                 Context ctx = contextBuilder.build(r);
-                logAction(ctx);
+                notifySinks(ctx);
             }
 
-            private void log(Exception e) {
+            private void captureFailure(Exception e) {
                 Context ctx = contextBuilder.build(e);
-                logAction(ctx);
+                notifySinks(ctx);
             }
 
             @Override
@@ -138,10 +125,8 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
         }
     }
 
-    public <Req, R> void handleException(Exception e, ActivityCaptureContextBuilder<Context, Req, R> contextBuilder) {
-        if (anySinkEnabled()) {
-            Context ctx = contextBuilder.build(e);
-            logAction(ctx);
-        }
+    private <Req, R> void handleException(Exception e, ActivityCaptureContextBuilder<Context, Req, R> contextBuilder) {
+        Context ctx = contextBuilder.build(e);
+        notifySinks(ctx);
     }
 }

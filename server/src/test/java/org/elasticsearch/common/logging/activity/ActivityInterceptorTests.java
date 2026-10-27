@@ -12,6 +12,7 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,29 +25,33 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
-/**
- * Tests for how {@link ActivityInterceptor} builds the context and fans it out to its {@link ActivitySink}s.
- */
 public class ActivityInterceptorTests extends ESTestCase {
 
-    private final List<String> responses = new ArrayList<>();
-    private final List<Exception> failures = new ArrayList<>();
-    private final ActionListener<String> listener = ActionListener.wrap(responses::add, failures::add);
+    private List<String> responses = new ArrayList<>();
+    private List<Exception> failures = new ArrayList<>();
+    private ActionListener<String> listener = ActionListener.wrap(responses::add, failures::add);
+
+    @Before
+    public void resetListener() {
+        responses = new ArrayList<>();
+        failures = new ArrayList<>();
+        listener = ActionListener.wrap(responses::add, failures::add);
+    }
 
     public void testWrapIsNoopWhenNoSinkIsEnabled() {
         var sink = new RecordingSink(false);
 
-        assertThat(logger(List.of(sink.sink)).wrap(listener, new TestContextBuilder()), sameInstance(listener));
+        assertThat(interceptor(List.of(sink.sink)).wrap(listener, new TestContextBuilder()), sameInstance(listener));
     }
 
     public void testWrapIsNoopWithoutSinks() {
-        assertThat(logger(List.of()).wrap(listener, new TestContextBuilder()), sameInstance(listener));
+        assertThat(interceptor(List.of()).wrap(listener, new TestContextBuilder()), sameInstance(listener));
     }
 
     public void testSinkSeesResponseAndDelegateStillCalled() {
         var sink = new RecordingSink(true);
 
-        logger(List.of(sink.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+        interceptor(List.of(sink.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
 
         assertThat(sink.accepted.size(), equalTo(1));
         assertTrue(sink.accepted.get(0).isSuccess());
@@ -57,7 +62,7 @@ public class ActivityInterceptorTests extends ESTestCase {
         var sink = new RecordingSink(true);
         var failure = new IllegalStateException("boom");
 
-        logger(List.of(sink.sink)).wrap(listener, new TestContextBuilder()).onFailure(failure);
+        interceptor(List.of(sink.sink)).wrap(listener, new TestContextBuilder()).onFailure(failure);
 
         assertThat(sink.accepted.size(), equalTo(1));
         assertFalse(sink.accepted.get(0).isSuccess());
@@ -69,7 +74,7 @@ public class ActivityInterceptorTests extends ESTestCase {
         var disabled = new RecordingSink(false);
         var enabled = new RecordingSink(true);
 
-        logger(List.of(disabled.sink, enabled.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+        interceptor(List.of(disabled.sink, enabled.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
 
         assertThat(disabled.accepted, empty());
         assertThat(enabled.accepted.size(), equalTo(1));
@@ -77,7 +82,7 @@ public class ActivityInterceptorTests extends ESTestCase {
 
     public void testSinkCheckedForEnabledOnEveryAction() {
         var sink = new RecordingSink(false);
-        var actionLogger = logger(List.of(sink.sink));
+        var actionLogger = interceptor(List.of(sink.sink));
         var builder = new TestContextBuilder();
 
         actionLogger.wrap(listener, builder).onResponse("one");
@@ -94,7 +99,7 @@ public class ActivityInterceptorTests extends ESTestCase {
         });
         var after = new RecordingSink(true);
 
-        logger(List.of(failing, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+        interceptor(List.of(failing, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
 
         assertThat(after.accepted.size(), equalTo(1));
         assertThat(responses, contains("done"));
@@ -107,7 +112,7 @@ public class ActivityInterceptorTests extends ESTestCase {
 
         var thrown = expectThrows(
             IllegalStateException.class,
-            () -> logger(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), l -> {
+            () -> interceptor(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), l -> {
                 throw failure;
             })
         );
@@ -117,7 +122,7 @@ public class ActivityInterceptorTests extends ESTestCase {
         assertFalse(sink.accepted.get(0).isSuccess());
     }
 
-    private static ActivityInterceptor<TestContext> logger(List<ActivitySink<TestContext, ?>> sinks) {
+    private static ActivityInterceptor<TestContext> interceptor(List<ActivitySink<TestContext, ?>> sinks) {
         return new ActivityInterceptor<>(sinks);
     }
 

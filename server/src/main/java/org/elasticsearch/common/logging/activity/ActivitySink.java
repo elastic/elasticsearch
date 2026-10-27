@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * A downstream user of the completed context of an action handled by an {@link ActivityInterceptor}. The query log is one sink,
+ * A downstream consumer of the completed context of an action handled by an {@link ActivityInterceptor}. The query log is one sink,
  * a plugin that samples queries can be another. Each sink has its own switch, so any of them can be enabled or disabled
  * independently.
  * <p>

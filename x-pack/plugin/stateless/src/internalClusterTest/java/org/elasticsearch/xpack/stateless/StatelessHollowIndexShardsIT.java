@@ -882,11 +882,13 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 return null;
             }), "stop-" + clusterInfo.indexNodeB).start();
 
-            assertBusy(() -> assertThat(hollowShardsServiceB.lifecycleState(), equalTo(Lifecycle.State.CLOSED)));
-            for (int i = 0; i < clusterInfo.numberOfShards; i++) {
-                hollowShardsServiceB.ensureHollowShard(new ShardId(clusterInfo.index, i), false);
-            }
-            assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
+            assertBusy(() -> {
+                assertThat(hollowShardsServiceB.lifecycleState(), equalTo(Lifecycle.State.CLOSED));
+                for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+                    hollowShardsServiceB.ensureHollowShard(new ShardId(clusterInfo.index, i), false);
+                }
+                assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
+            });
         } finally {
             testStatelessPluginB.closeShardContinueSemaphoreReference.set(null);
             closeShardContinueSemaphore.release(clusterInfo.numberOfShards);

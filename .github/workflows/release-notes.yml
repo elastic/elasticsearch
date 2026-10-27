@@ -1,7 +1,7 @@
 name: release-notes
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review, converted_to_draft]
   push:
     branches: [main]
 permissions: {}

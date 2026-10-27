@@ -188,9 +188,8 @@ public class Analysis {
     }
 
     /**
-     * A SHA-256 of {@code text}, as hex, to stand in for large text (user dictionaries, rule files) in a {@code sharingKey()}.
-     * Hash exactly the text the Lucene object is parsed from, so equal hashes mean equal objects. Hashes UTF-16 code units, not
-     * an encoding, so unpaired surrogates stay distinct.
+     * A SHA-256 of {@code text}, as hex, to stand in for large text in a {@code sharingKey()}. Hashes UTF-16 code units, not an
+     * encoding, so unpaired surrogates stay distinct.
      */
     public static String sha256Hex(CharSequence text) {
         MessageDigest digest = MessageDigests.sha256();
@@ -207,6 +206,19 @@ public class Analysis {
         }
         digest.update(buf, 0, n);
         return MessageDigests.toHexString(digest.digest());
+    }
+
+    /**
+     * A parsed user dictionary with a SHA-256 of its rules. Dictionaries have no value equality and their rules can be large, so the
+     * hash stands in for them in sharing keys. Both are null when there are no rules.
+     */
+    public record LoadedUserDictionary<T>(T dictionary, String rulesSha256) {
+        private static final LoadedUserDictionary<?> NONE = new LoadedUserDictionary<>(null, null);
+
+        @SuppressWarnings("unchecked")
+        public static <T> LoadedUserDictionary<T> none() {
+            return (LoadedUserDictionary<T>) NONE;
+        }
     }
 
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {

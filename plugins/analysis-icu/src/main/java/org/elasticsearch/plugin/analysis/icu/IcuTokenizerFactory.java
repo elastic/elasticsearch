@@ -46,11 +46,11 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
             Map<Integer, String> rulesByScript = readRules(environment, settings);
             config = buildConfig(rulesByScript);
             // The rules can be large, so a SHA-256 of each script's rules stands in for them.
-            Map<Integer, String> rulesSha256ByScript = new HashMap<>();
-            for (Map.Entry<Integer, String> entry : rulesByScript.entrySet()) {
-                rulesSha256ByScript.put(entry.getKey(), Analysis.sha256Hex(entry.getValue()));
-            }
-            this.sharingKey = new Key(Map.copyOf(rulesSha256ByScript));
+            this.sharingKey = new Key(
+                rulesByScript.entrySet()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Analysis.sha256Hex(e.getValue())))
+            );
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load ICU rule files", e);
         }

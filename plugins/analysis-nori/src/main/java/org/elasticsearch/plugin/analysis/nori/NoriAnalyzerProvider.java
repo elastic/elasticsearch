@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.ko.KoreanAnalyzer;
 import org.apache.lucene.analysis.ko.KoreanPartOfSpeechStopFilter;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
 import org.apache.lucene.analysis.ko.POS;
+import org.apache.lucene.analysis.ko.dict.UserDictionary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -31,7 +32,7 @@ public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAn
     public NoriAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         final KoreanTokenizer.DecompoundMode mode = NoriTokenizerFactory.getMode(settings);
-        final NoriTokenizerFactory.LoadedUserDictionary userDictionary = NoriTokenizerFactory.loadUserDictionary(
+        final Analysis.LoadedUserDictionary<UserDictionary> userDictionary = NoriTokenizerFactory.loadUserDictionary(
             env,
             settings,
             indexSettings

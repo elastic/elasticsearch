@@ -41,19 +41,17 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         decompoundMode = getMode(settings);
-        LoadedUserDictionary loaded = loadUserDictionary(env, settings, indexSettings);
+        Analysis.LoadedUserDictionary<UserDictionary> loaded = loadUserDictionary(env, settings, indexSettings);
         userDictionary = loaded.dictionary();
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
         this.sharingKey = new Key(loaded.rulesSha256(), decompoundMode, discardPunctuation);
     }
 
-    // The dictionary has no value equality and its rules can be large, so a SHA-256 of the rules stands in for it in sharing
-    // keys. Both null when there are no rules.
-    record LoadedUserDictionary(UserDictionary dictionary, String rulesSha256) {
-        static final LoadedUserDictionary NONE = new LoadedUserDictionary(null, null);
-    }
-
-    static LoadedUserDictionary loadUserDictionary(Environment env, Settings settings, IndexSettings indexSettings) {
+    static Analysis.LoadedUserDictionary<UserDictionary> loadUserDictionary(
+        Environment env,
+        Settings settings,
+        IndexSettings indexSettings
+    ) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
@@ -69,7 +67,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             isSupportDuplicateCheck(indexSettings)
         );
         if (ruleList == null || ruleList.isEmpty()) {
-            return LoadedUserDictionary.NONE;
+            return Analysis.LoadedUserDictionary.none();
         }
         StringBuilder sb = new StringBuilder();
         for (String line : ruleList) {
@@ -77,7 +75,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
         }
         String rules = sb.toString();
         try (Reader rulesReader = new StringReader(rules)) {
-            return new LoadedUserDictionary(UserDictionary.open(rulesReader), Analysis.sha256Hex(rules));
+            return new Analysis.LoadedUserDictionary<>(UserDictionary.open(rulesReader), Analysis.sha256Hex(rules));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load nori user dictionary", e);
         }

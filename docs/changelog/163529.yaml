@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163496
+pr: 163529
+summary: "ES|QL|DS: Complete listing entry on raced path"
+type: bug

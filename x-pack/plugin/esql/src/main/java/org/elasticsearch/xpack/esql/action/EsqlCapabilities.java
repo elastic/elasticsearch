@@ -2897,6 +2897,10 @@ public class EsqlCapabilities {
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
         /**
+         * Dense_vector aggregation functions applied over timeseries.
+         */
+        DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS,
+        /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
          */
         ROUTING_FUNCTION_UPDATE,
@@ -4295,6 +4299,12 @@ public class EsqlCapabilities {
          * columns that keep their ids when a field below is rewritten in place (e.g. {@code text} in some indices, unmapped in others).
          */
         OPTIONAL_FIELDS_LOAD_ALL_FILLNULL(FILLNULL.isEnabled()),
+
+        /**
+         * {@code FILLNULL} patterns also match the fields {@code unmapped_fields} loads for a later command or for a union, and
+         * {@code ON *} is allowed in a subquery under {@code unmapped_fields="LOAD_ALL"}.
+         */
+        FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the

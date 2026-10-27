@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,8 +44,10 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO Use CountTests.parameters() once absent over time allows for dense_vectors
+        // TODO Use CountTests.parameters() once count over time allows for date_range, double_range, flattened, exponential_histogram,
+        // tdigest
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -64,17 +68,19 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geotileCases(1, 1000),
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000).stream().map(s -> s.withAppliesTo(denseVectorAppliesTo)).toList()
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
-        for (var dataType : List.of(
+        List<DataType> noRowsTypes = List.of(
             DataType.NULL,
             DataType.INTEGER,
             DataType.LONG,
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,
@@ -83,13 +89,19 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,
             DataType.UNSIGNED_LONG
-        )) {
+        );
+        Map<DataType, List<FunctionAppliesTo>> noRowsAppliesTo = Map.of(DataType.DENSE_VECTOR, List.of(denseVectorAppliesTo));
+        for (var dataType : noRowsTypes) {
+            var field = withAppliesTo(
+                TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field"),
+                noRowsAppliesTo.getOrDefault(dataType, List.of())
+            );
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
+                        List.of(field),
                         dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                         DataType.LONG,
                         equalTo(0L)
@@ -100,6 +112,13 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
 
         // "No rows" expects 0 here instead of null
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+    }
+
+    private static TestCaseSupplier.TypedData withAppliesTo(TestCaseSupplier.TypedData data, List<FunctionAppliesTo> appliesTo) {
+        for (var tag : appliesTo) {
+            data = data.withAppliesTo(tag);
+        }
+        return data;
     }
 
     @Override

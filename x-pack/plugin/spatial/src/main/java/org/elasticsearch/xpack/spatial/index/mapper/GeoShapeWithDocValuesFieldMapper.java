@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.GeoGridFromShapeDocValuesBlockLoader;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -370,8 +371,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             // Grid cells are computed from the indexed triangle tree in the doc values, whatever the extract preference asks for
-            // the shape itself.
-            return hasDocValues() && config instanceof BlockLoaderFunctionConfig.GeoGrid;
+            // the shape itself. Geometry transforms need doc values that can reconstruct the original geometry.
+            if (hasDocValues() == false) {
+                return false;
+            }
+            return config instanceof BlockLoaderFunctionConfig.GeoGrid
+                || (config instanceof BlockLoaderFunctionConfig.GeometryTransform && supportsGeometryDocValueReconstruction());
         }
 
         @Override
@@ -386,6 +391,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     case ST_GEOHASH, ST_GEOTILE, ST_GEOHEX -> new GeoGridFromShapeDocValuesBlockLoader(
                         name(),
                         (BlockLoaderFunctionConfig.GeoGrid) config,
+                        blContext.warnings()
+                    );
+                    case ST_SIMPLIFY -> new GeoGeometryBlockLoader(
+                        name(),
+                        (BlockLoaderFunctionConfig.GeometryTransform) config,
                         blContext.warnings()
                     );
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + config.function() + "]");
@@ -443,6 +453,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         static class GeoGeometryBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.GeometryBlockLoader {
             GeoGeometryBlockLoader(String fieldName) {
                 super(fieldName, CoordinateEncoder.GEO);
+            }
+
+            GeoGeometryBlockLoader(String fieldName, BlockLoaderFunctionConfig.GeometryTransform transform, Warnings warnings) {
+                super(fieldName, CoordinateEncoder.GEO, transform, warnings);
             }
         }
     }

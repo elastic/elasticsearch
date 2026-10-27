@@ -17,9 +17,12 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,7 +32,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.locationtech.jts.geom.GeometryFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNull {
+public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNull, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StSimplify",
@@ -194,6 +200,51 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
         return DataType.isSpatialGeo(geometry.dataType())
             ? new StSimplifyNonFoldableGeoShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance)
             : new StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+    }
+
+    /**
+     * Fuses this function into the loading of a {@code geo_shape} or {@code cartesian_shape} field whose doc values can
+     * reconstruct the original geometry, so the geometry is converted straight from the doc values into JTS and only
+     * the simplified result is written as WKB. See {@link BlockLoaderExpression} for the general mechanism. A tolerance
+     * that is not a non-negative constant number keeps using the evaluator so that it reports the error. Like the
+     * evaluator on doc-values input, the input coordinates are those of the doc values, already on the Lucene grid.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (geometry instanceof FieldAttribute field
+            && (field.dataType() == DataType.GEO_SHAPE || field.dataType() == DataType.CARTESIAN_SHAPE)
+            && tolerance instanceof Literal literal
+            && literal.value() instanceof Number number
+            && number.doubleValue() >= 0
+            && stats.hasDocValues(field.fieldName())
+            && stats.supportsGeometryDocValueReconstruction(field.fieldName())) {
+            double inputTolerance = number.doubleValue();
+            return new PushedBlockLoaderExpression(
+                field,
+                new BlockLoaderFunctionConfig.GeometryTransform(
+                    BlockLoaderFunctionConfig.Function.ST_SIMPLIFY,
+                    inputTolerance,
+                    simplifyTransformers(inputTolerance)
+                )
+            );
+        }
+        return null;
+    }
+
+    private static BlockLoaderFunctionConfig.GeometryTransformerFactory simplifyTransformers(double tolerance) {
+        return warnings -> {
+            JtsGeometryConverter converter = new JtsGeometryConverter(new GeometryFactory());
+            return geometry -> {
+                try {
+                    return processor.processSingleGeometry(converter.toJts(geometry), tolerance);
+                } catch (IllegalArgumentException e) {
+                    if (warnings != null) {
+                        warnings.registerException(IllegalArgumentException.class, e.getMessage());
+                    }
+                    return null;
+                }
+            };
+        };
     }
 
     @Override

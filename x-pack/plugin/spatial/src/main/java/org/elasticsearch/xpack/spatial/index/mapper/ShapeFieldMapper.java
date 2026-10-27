@@ -29,6 +29,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
@@ -227,7 +229,30 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // Geometry transforms need doc values that can reconstruct the original geometry
+            return hasDocValues()
+                && config instanceof BlockLoaderFunctionConfig.GeometryTransform
+                && supportsGeometryDocValueReconstruction();
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
+            if (config != null) {
+                // supportsBlockLoaderConfig gates which configs are accepted, so anything else here is a programming error
+                if (hasDocValues() == false) {
+                    throw new UnsupportedOperationException("function fusing only supported for doc values");
+                }
+                return switch (config.function()) {
+                    case ST_SIMPLIFY -> new CartesianGeometryBlockLoader(
+                        name(),
+                        (BlockLoaderFunctionConfig.GeometryTransform) config,
+                        blContext.warnings()
+                    );
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + config.function() + "]");
+                };
+            }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new CartesianBoundsBlockLoader(name());
             }
@@ -296,6 +321,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         static class CartesianGeometryBlockLoader extends GeometryBlockLoader {
             CartesianGeometryBlockLoader(String fieldName) {
                 super(fieldName, CoordinateEncoder.CARTESIAN);
+            }
+
+            CartesianGeometryBlockLoader(String fieldName, BlockLoaderFunctionConfig.GeometryTransform transform, Warnings warnings) {
+                super(fieldName, CoordinateEncoder.CARTESIAN, transform, warnings);
             }
         }
     }

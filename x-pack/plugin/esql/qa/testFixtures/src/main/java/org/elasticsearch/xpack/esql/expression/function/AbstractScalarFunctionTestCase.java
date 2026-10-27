@@ -486,11 +486,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Row folded = (Row) new FoldNull().apply(row, unboundLogicalOptimizerContext());
         Expression nullFolded = folded.fields().getFirst().child();
         assertFold(nullFolded);
-        if (nullFolded != expression) {
+        if (nullFolded != expression && expression instanceof AnyNullIsNull) {
             /*
              * FoldNull doesn't always replace an expression with null arguments before it's folded: it may not see
              * them as null (a CASE without a match, 1/0...), and optimizer rules may fold an expression directly
-             * once its references are replaced by literals. So fold must handle null arguments by itself too.
+             * once its references are replaced by literals. So AnyNullIsNull expressions must fold to null by
+             * themselves too. Other expressions may evaluate, and warn about, arguments FoldNull removed.
              */
             assertFold(expression);
         }

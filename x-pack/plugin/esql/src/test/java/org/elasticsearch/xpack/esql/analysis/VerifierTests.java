@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
@@ -2173,6 +2175,32 @@ public class VerifierTests extends AnalyzerTestCase {
                    (eval t = null | eval t = to_text(concat(title, body), {"analyzer": "english"}))
             | where match(t, "cat")
             """, containsString("conflicting values analyzers in FORK branches"));
+    }
+
+    public void testToTextAnalyzerOptionOnFieldAcrossSubqueries() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        Map<String, EsField> mapping = Map.of(
+            "message",
+            new TextEsField("message", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE),
+            "level",
+            new KeywordEsField("level", Map.of(), true, Integer.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("logs", mapping))
+            .addIndex(EsIndexGenerator.esIndex("old_logs", mapping))
+            .stripErrorPrefix(true);
+        // the merged column is the index-mapped field, so the error names that field rather than the FROM clause
+        analyzer.error(
+            """
+                FROM logs, (FROM old_logs | WHERE level == "error")
+                | EVAL m = TO_TEXT(message, {"analyzer": "whitespace"})
+                """,
+            allOf(
+                containsString(
+                    "[analyzer] option is not supported for [TO_TEXT] on index-mapped field [message]" + TO_TEXT_ANALYZER_REJECTION_REASON
+                ),
+                not(containsString("field [FROM logs"))
+            )
+        );
     }
 
     public void testToTextAnalyzerOptionOnUnionTypedField() throws Exception {

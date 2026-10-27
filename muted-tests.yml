@@ -144,9 +144,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
-  issue: https://github.com/elastic/elasticsearch/issues/154602
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
@@ -373,9 +370,6 @@ tests:
 - class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
   method: testWebhook
   issue: https://github.com/elastic/elasticsearch/issues/160935
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - secondary sort field}
-  issue: https://github.com/elastic/elasticsearch/issues/161280
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
@@ -448,9 +442,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162373
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testBulkRequestSameOutcomeAsSeparateRequests
-  issue: https://github.com/elastic/elasticsearch/issues/162390
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   method: testCrossClusterTransform
   issue: https://github.com/elastic/elasticsearch/issues/162405
@@ -502,10 +493,6 @@ tests:
 - class: org.elasticsearch.search.basic.TransportSearchFailuresIT
   method: testFailedSearchWithWrongQuery
   issue: https://github.com/elastic/elasticsearch/issues/162738
-- class: org.elasticsearch.xpack.esql.CsvColumnarCodecIT
-  issue: https://github.com/elastic/elasticsearch/issues/162749
-- class: org.elasticsearch.xpack.esql.CsvColumnarIT
-  issue: https://github.com/elastic/elasticsearch/issues/162751
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -554,11 +541,6 @@ tests:
   - :modules:data-streams:yamlRestCompatTest
   method: test {yaml=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/163288
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v9.1.9#yamlRestTest
-  - :qa:mixed-cluster:v9.2.8#yamlRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   tasks:
   - :x-pack:plugin:downsample:test
@@ -583,3 +565,20 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163244
+- class: org.elasticsearch.xpack.esql.CsvColumnarIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163462
+- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/160826
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.0.8#yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163053
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/160421

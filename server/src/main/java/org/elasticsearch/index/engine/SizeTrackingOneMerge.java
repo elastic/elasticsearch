@@ -38,7 +38,7 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
     private static final Logger logger = LogManager.getLogger(SizeTrackingOneMerge.class);
 
     private final MergePolicy.OneMerge wrapped;
-    private volatile long mergedSegmentSizeInBytes = -1L;
+    private volatile OptionalLong mergedSegmentSizeInBytes = OptionalLong.empty();
 
     public SizeTrackingOneMerge(MergePolicy.OneMerge wrapped) {
         super(wrapped);
@@ -56,10 +56,10 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
         SegmentCommitInfo mergeInfo = getMergeInfo();
         if (success && segmentDropped) {
             // The merged segment was fully deleted and dropped, so the merge produced no bytes.
-            mergedSegmentSizeInBytes = 0L;
+            mergedSegmentSizeInBytes = OptionalLong.of(0L);
         } else if (success && mergeInfo != null) {
             try {
-                mergedSegmentSizeInBytes = mergeInfo.sizeInBytes();
+                mergedSegmentSizeInBytes = OptionalLong.of(mergeInfo.sizeInBytes());
             } catch (IOException e) {
                 // The size is only used for metrics, so don't fail the merge; callers fall back to the estimate.
                 logger.debug(() -> Strings.format("failed to read size of merged segment [%s], falling back to estimate", mergeInfo), e);
@@ -75,7 +75,6 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
      * did not succeed or the size of the committed segment could not be read
      */
     public OptionalLong mergedSegmentSizeInBytes() {
-        long size = mergedSegmentSizeInBytes;
-        return size >= 0 ? OptionalLong.of(size) : OptionalLong.empty();
+        return mergedSegmentSizeInBytes;
     }
 }

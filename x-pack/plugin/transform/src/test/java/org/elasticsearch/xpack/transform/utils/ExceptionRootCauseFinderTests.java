@@ -24,6 +24,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -64,6 +65,21 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
+    /**
+     * A bulk failure because a shard is being restored is temporary, so a permanent failure later in the same response is the one
+     * reported, rather than being hidden behind the restore until it ends.
+     */
+    public void testGetFirstIrrecoverableExceptionFromBulkResponsesSkipsShardRestoring() {
+        Map<Integer, BulkItemResponse> bulkItemResponses = bulkItemResponses(
+            new ShardRestoringException("the_index", randomUUID()),
+            new DocumentParsingException(XContentLocation.UNKNOWN, "document parsing error")
+        );
+
+        assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "document parsing error");
+        bulkItemResponses.remove(2);
+        assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
+    }
+
     private static Map<Integer, BulkItemResponse> bulkItemResponses(Exception... exceptions) {
         var id = new AtomicInteger(1);
         return Arrays.stream(exceptions)
@@ -101,6 +117,8 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
                 new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED)
             )
         );
+        // A shard that is being restored from a snapshot fails with a 403, but the restore is temporary.
+        assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new ShardRestoringException("index", randomUUID())));
         assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexClosedException(new Index("index", "1234"))));
         assertTrue(
             ExceptionRootCauseFinder.isExceptionIrrecoverable(new DocumentParsingException(new XContentLocation(1, 2), "parse error"))

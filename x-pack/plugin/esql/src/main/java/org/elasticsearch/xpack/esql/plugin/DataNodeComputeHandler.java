@@ -791,8 +791,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
-                        // The slices the plan reads, for the field mappers that build its queries. A plan that selects none
-                        // says so: unlike a search request, it does not read every slice by default.
+                        // The slices the plan reads, for the field mappers that build its queries.
                         context.getSearchExecutionContext().setSliceSelection(slices);
                         context.preProcess();
                         newContexts.add(context);

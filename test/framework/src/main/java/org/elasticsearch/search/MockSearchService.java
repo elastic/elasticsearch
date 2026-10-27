@@ -231,6 +231,20 @@ public class MockSearchService extends SearchService {
         return searchContext;
     }
 
+    @Override
+    public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
+        throws IOException {
+        SearchContext searchContext = super.createSearchContext(readerContext, request, timeout);
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
+        // the reader context is registered, so its removal is reported when it is freed, not when this search context closes
+        return searchContext;
+    }
+
     public void setOnCheckCancelled(Function<CancellableTask, CancellableTask> onCheckCancelled) {
         this.onCheckCancelled = onCheckCancelled;
     }

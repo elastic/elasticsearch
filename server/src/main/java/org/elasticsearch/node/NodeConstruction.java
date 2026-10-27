@@ -217,6 +217,7 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
@@ -246,7 +247,6 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
-import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -500,6 +500,16 @@ class NodeConstruction {
                 DeprecationCategory.SETTINGS,
                 "multiple-data-paths-list",
                 "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
+            );
+        }
+        if (Runtime.version().feature() < 25) {
+            deprecationLogger.critical(
+                DeprecationCategory.OTHER,
+                "java-version-below-25",
+                "Running Elasticsearch with Java 21-24 is deprecated. This node is running Java [{}] "
+                    + "from [{}]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                Runtime.version(),
+                System.getProperty("java.home")
             );
         }
 
@@ -1302,15 +1312,9 @@ class NodeConstruction {
             threadPool,
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
-            featureService
+            featureService,
+            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
         );
-
-        getSinglePlugin(
-            pluginsService.filterPlugins(RepositoryPlugin.class)
-                .map(RepositoryPlugin::getRestoreLifecycleListener)
-                .filter(Objects::nonNull),
-            RestoreLifecycleListener.class
-        ).ifPresent(restoreService::setLifecycleListener);
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
             settings,
@@ -1426,6 +1430,7 @@ class NodeConstruction {
                 throttlingRecoveryService,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService.getClusterSettings(),
+                clusterService.getSettings(),
                 JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);

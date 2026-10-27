@@ -570,6 +570,112 @@ text_state_nonexistent  | nonexistent-1  | null
 text_state_unmapped     | unmapped-1     | null
 ;
 
+fillNullOnPartiallyUnmappedTextUnderLoad
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON txt
+| KEEP _index, doc_id, txt
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_mapped       | mapped-2       | Jane Austen
+text_state_nonexistent  | nonexistent-1  | none
+text_state_unmapped     | unmapped-1     | none
+;
+
+fillNullAllColumnsOnPartiallyUnmappedTextUnderLoad
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON *
+| RENAME txt AS filled
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+doc_id:keyword | filled:text      | _index:keyword
+mapped-1       | William Faulkner | text_state_mapped
+mapped-2       | Jane Austen      | text_state_mapped
+nonexistent-1  | none             | text_state_nonexistent
+unmapped-1     | none             | text_state_unmapped
+;
+
+fillNullTargetedInSubqueryBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "none" ON no_such_field)
+| KEEP _index, no_such_field
+| SORT _index
+;
+
+_index:keyword              | no_such_field:keyword
+no_mapping_sample_data      | none
+partial_mapping_sample_data | null
+;
+
+fillNullAllColumnsInSubqueryBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | EVAL m = CASE(message == "42", null, message) | KEEP _index, m),
+     (FROM no_mapping_sample_data METADATA _index | EVAL m = CASE(message == "42", null, message) | KEEP _index, m | FILLNULL "filled" ON *)
+| WHERE m IS NULL OR m == "filled"
+| SORT _index
+;
+
+_index:keyword              | m:keyword
+no_mapping_sample_data      | filled
+partial_mapping_sample_data | null
+;
+
+fillNullAllColumnsInForkBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP m
+| WHERE m IS NULL
+| FORK (FILLNULL "filled" ON *) (WHERE m IS NULL)
+| SORT _fork
+;
+
+m:keyword | _fork:keyword
+filled    | fork1
+null      | fork2
+;
+
+fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "x" ON *)
+| KEEP _index, message
+| SORT _index
+;
+
+_index:keyword              | message:keyword
+no_mapping_sample_data      | null
+partial_mapping_sample_data | 42
+;
+
 // A fully unmapped field loads as keyword, so match requires the exact value: "Connected" alone matches nothing,
 // although analyzed text would match the "Connected to ..." rows.
 matchOnFullyUnmappedKeywordUnderLoad

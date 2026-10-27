@@ -278,9 +278,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/160613
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824

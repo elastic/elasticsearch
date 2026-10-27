@@ -17,9 +17,12 @@ import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * The {@code BinaryDocValues} surface of a string column, beyond the {@code nextDoc} + {@code binaryValue} scan
@@ -175,6 +178,164 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = sparse(between(100, 500));
         final int numDocsWithField = numDocsWithField(docValues);
         withSurface(docValues, dv -> assertEquals(numDocsWithField, dv.cost()));
+    }
+
+    /**
+     * Each document is answered on its own: no value, several, one escaped, or the dense ordinal of its one value.
+     * A document of several slots with one non-null slot holds one value, and a null slot is no value.
+     */
+    public void testDenseTermOrdinalAnswersForEachDocument() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef term = new BytesRef(terms[d % terms.length]);
+            final BytesRef other = new BytesRef(terms[(d + 1) % terms.length]);
+            docSlots[d] = switch (d % 7) {
+                case 0 -> null;
+                case 1 -> new BytesRef[] { term };
+                case 2 -> new BytesRef[] { null };
+                case 3 -> new BytesRef[] { term, other };
+                case 4 -> new BytesRef[] { null, term };
+                case 5 -> new BytesRef[] { new BytesRef("escaped-" + d) };
+                case 6 -> new BytesRef[] { null, null };
+                default -> throw new IllegalStateException();
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
+            assertTrue(reader.hasDictionary());
+            int escaped = 0;
+            int inDictionary = 0;
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final List<BytesRef> valued = Arrays.stream(docSlots[doc]).filter(slot -> slot != null).toList();
+                assertEquals("count at doc " + doc, valued.size(), dv.nonNullValueCount());
+                final int ordinal = dv.denseTermOrdinal();
+                if (valued.isEmpty()) {
+                    assertEquals("doc " + doc, StringColumnSource.NO_VALUE, ordinal);
+                } else if (valued.size() > 1) {
+                    assertEquals("doc " + doc, StringColumnSource.MULTI_VALUED, ordinal);
+                } else if (ordinal == StringColumnSource.ESCAPED) {
+                    escaped++;
+                    assertEquals("doc " + doc, valued.get(0), dv.escapedValue(new BytesRef()));
+                } else {
+                    inDictionary++;
+                    assertThat("an ordinal from zero", ordinal, greaterThanOrEqualTo(0));
+                    assertThat("and below the dictionary's size", ordinal, lessThan(reader.dictionarySize()));
+                    assertEquals("doc " + doc, valued.get(0), dv.termAt(ordinal, new BytesRef()));
+                }
+            }
+            assertThat("some values are in the dictionary", inDictionary, greaterThan(0));
+            assertThat("and some escaped", escaped, greaterThan(0));
+        });
+    }
+
+    /**
+     * A column of one slot a document, where a slot is its own address, answers as a column of several does: no value for a
+     * null slot, the dense ordinal of a term in the dictionary, or {@link StringColumnSource#ESCAPED} with the bytes.
+     */
+    public void testDenseTermOrdinalOnAOneSlotColumn() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = switch (d % 4) {
+                case 0 -> null;
+                case 1 -> new BytesRef[] { new BytesRef(terms[d % terms.length]) };
+                case 2 -> new BytesRef[] { null };
+                case 3 -> new BytesRef[] { new BytesRef("escaped-" + d) };
+                default -> throw new IllegalStateException();
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertFalse("one slot a document", reader.hasValueAddresses());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
+            int escaped = 0;
+            int inDictionary = 0;
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final BytesRef value = docSlots[doc][0];
+                final int ordinal = dv.denseTermOrdinal();
+                if (value == null) {
+                    assertEquals("doc " + doc, StringColumnSource.NO_VALUE, ordinal);
+                } else if (ordinal == StringColumnSource.ESCAPED) {
+                    escaped++;
+                    assertEquals("doc " + doc, value, dv.escapedValue(new BytesRef()));
+                } else {
+                    inDictionary++;
+                    assertThat("an ordinal from zero", ordinal, greaterThanOrEqualTo(0));
+                    assertThat("and below the dictionary's size", ordinal, lessThan(reader.dictionarySize()));
+                    assertEquals("doc " + doc, value, dv.termAt(ordinal, new BytesRef()));
+                }
+            }
+            assertThat("some values are in the dictionary", inDictionary, greaterThan(0));
+            assertThat("and some escaped", escaped, greaterThan(0));
+        });
+    }
+
+    /**
+     * The escaped value is only for the call straight after an {@link StringColumnSource#ESCAPED} answer. After a document
+     * that holds no value, or several, there is no slot to read, and an earlier document's value must not come back.
+     */
+    public void testEscapedValueIsNotLeftOverFromAnEarlierDocument() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // Terms that repeat a lot, so the column has a dictionary, and values that appear once, which escape it.
+            final BytesRef term = new BytesRef(terms[d % terms.length]);
+            docSlots[d] = switch (d % 7) {
+                case 0 -> new BytesRef[] { new BytesRef("escaped-" + d) };
+                case 1 -> new BytesRef[] { null };
+                case 2 -> new BytesRef[] { term, new BytesRef(terms[(d + 1) % terms.length]) };
+                case 3, 4, 5 -> new BytesRef[] { term };
+                case 6 -> new BytesRef[] { new BytesRef("escaped-" + d), term };
+                default -> throw new IllegalStateException();
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
+            boolean escapedBefore = false;
+            int checked = 0;
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final int answer = dv.denseTermOrdinal();
+                if (answer == StringColumnSource.ESCAPED) {
+                    escapedBefore = true;
+                } else if ((answer == StringColumnSource.NO_VALUE || answer == StringColumnSource.MULTI_VALUED) && escapedBefore) {
+                    expectThrows(AssertionError.class, () -> dv.escapedValue(new BytesRef()));
+                    checked++;
+                }
+            }
+            assertThat("some document answered with no value or several after an escaped one", checked, greaterThan(0));
+        });
+    }
+
+    /** A term is looked up by ordinal at any time, not only for the document just visited. */
+    public void testTermAtLooksUpAnyOrdinal() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(100, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 5));
+        }
+        withColumn(
+            singleValued(docValues),
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            ROOMY,
+            (metadata, reader) -> {
+                final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), true);
+                assertEquals(5, reader.dictionarySize());
+                for (int ordinal = reader.dictionarySize() - 1; ordinal >= 0; ordinal--) {
+                    assertEquals(new BytesRef("term-" + ordinal), dv.termAt(ordinal, new BytesRef()));
+                }
+            }
+        );
+    }
+
+    /** A column with no dictionary has no ordinals, and says so. */
+    public void testNoDictionaryMeansNoOrdinals() throws IOException {
+        final BytesRef[] docValues = dense(between(20, 100));
+        withSurface(docValues, dv -> {
+            assertFalse(dv.reader().hasDictionary());
+            assertTrue(dv.advanceExact(0));
+            expectThrows(IllegalStateException.class, dv::denseTermOrdinal);
+        });
     }
 
     private interface SurfaceCheck {

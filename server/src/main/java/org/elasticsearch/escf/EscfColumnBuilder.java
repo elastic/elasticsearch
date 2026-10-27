@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -34,7 +35,9 @@ import java.util.Arrays;
  *
  * <p>Two call surfaces: an <b>append</b> surface ({@code addX}/{@code addAbsent}, in row order) and a
  * <b>positional</b> surface ({@code setX(row, value)}, non-decreasing rows) plus element-append
- * ({@code beginArray}/{@code appendX}/{@code endArray}). Both share one {@code lastWrittenRow} cursor.
+ * ({@code beginArray}/{@code appendX}/{@code endArray}). Both share one {@code lastWrittenRow} cursor. A locked
+ * STRING/BINARY scalar column also takes a slot's bytes in pieces ({@code beginBytes}/{@code writeX}/{@code endBytes}),
+ * so a caller framing a value does not assemble it elsewhere first.
  *
  * <p>Not thread-safe.
  */
@@ -64,6 +67,10 @@ public final class EscfColumnBuilder implements Releasable {
     private int lastWrittenRow = -1;
     /** {@code true} between {@link #beginArray} and {@link #endArray}. */
     private boolean arrayOpen;
+    /** {@code true} between {@link #beginBytes} and {@link #endBytes}/{@link #abandonBytes}. */
+    private boolean bytesOpen;
+    /** The row of the slot {@link #beginBytes} opened; it becomes {@link #lastWrittenRow} only once {@link #endBytes} commits it. */
+    private int openSlotRow;
     /** When set via {@link #lockScalar}, asserts that every scalar write uses this exact kind. {@code -1} = unrestricted. */
     private byte lockedKind = -1;
     private boolean finished;
@@ -354,7 +361,104 @@ public final class EscfColumnBuilder implements Releasable {
             sameRowScalar(kind, 0L, 0.0, bytes, off, len);
             return;
         }
+        // The common shape of a Lucene column builder: a fresh row into a scalar column of this very kind (typically one
+        // locked by lockScalar). The kind is settled, so none of the collision handling of newRowScalar can apply.
+        if (current instanceof VarBuilder vb && vb.kind == kind) {
+            assert lockedKind == -1 || kind == lockedKind
+                : "column locked to " + EscfColumnKind.name(lockedKind) + " but received " + EscfColumnKind.name(kind);
+            assert row > lastWrittenRow : nonDecreasing(row);
+            fillGapTo(row);
+            vb.addBytes(kind, bytes, off, len);
+            lastWrittenRow = row;
+            return;
+        }
         newRowScalar(row, kind, 0L, 0.0, bytes, off, len);
+    }
+
+    // ---- Streamed scalar slots -----------------------------------------------------------------------------------------
+    //
+    // A STRING/BINARY value that is framed out of several parts (a length prefix, then the bytes; a count, then the
+    // slots) would otherwise be assembled in a buffer of the caller's and copied into the column with setString. These
+    // let the caller write each part straight into the column's data buffer instead, so every byte is copied once.
+
+    /**
+     * Opens a scalar slot at the fresh row {@code row}, whose bytes then arrive in pieces through {@link #writeBytes},
+     * {@link #writeByte} and {@link #writeVInt} and go straight into the column's data buffer. {@link #endBytes} commits
+     * the slot; {@link #abandonBytes} drops it as though it had never been opened.
+     *
+     * <p>Requires a column locked by {@link #lockScalar} to {@link EscfColumnKind#STRING} or {@link EscfColumnKind#BINARY}
+     * that is still a scalar column, and a row past the last written one: a streamed slot is never a second same-row
+     * value, since that would turn the column into an array while the slot is open.
+     */
+    public void beginBytes(int row) {
+        assert bytesOpen == false : "beginBytes without a matching endBytes or abandonBytes";
+        assert arrayOpen == false : "beginBytes while an array is open";
+        assert lockedKind == EscfColumnKind.STRING || lockedKind == EscfColumnKind.BINARY
+            : "beginBytes requires a column locked to STRING or BINARY, not " + EscfColumnKind.name(lockedKind);
+        if (row == lastWrittenRow) {
+            throw new IllegalStateException("a streamed slot cannot be a second value for row " + row);
+        }
+        assert row > lastWrittenRow : nonDecreasing(row);
+        fillGapTo(row);
+        if (current == null) {
+            current = newScalarWithBackfill(lockedKind);
+        }
+        if (current instanceof VarBuilder vb && vb.kind == lockedKind) {
+            vb.beginSlot();
+        } else {
+            throw new IllegalStateException(
+                "a streamed slot needs a scalar " + EscfColumnKind.name(lockedKind) + " column, not " + EscfColumnKind.name(current.kind())
+            );
+        }
+        bytesOpen = true;
+        openSlotRow = row;
+    }
+
+    /** Appends {@code length} bytes of {@code bytes} at {@code offset} to the slot opened by {@link #beginBytes}. */
+    public void writeBytes(byte[] bytes, int offset, int length) {
+        assert bytesOpen : "writeBytes outside beginBytes/endBytes";
+        ((VarBuilder) current).slotBytes(bytes, offset, length);
+    }
+
+    /** Appends one byte to the slot opened by {@link #beginBytes}. */
+    public void writeByte(byte b) {
+        assert bytesOpen : "writeByte outside beginBytes/endBytes";
+        ((VarBuilder) current).slotByte(b);
+    }
+
+    /** Appends {@code value} as a vint, byte for byte as Lucene's {@code writeVInt} would, to the slot opened by {@link #beginBytes}. */
+    public void writeVInt(int value) {
+        assert bytesOpen : "writeVInt outside beginBytes/endBytes";
+        ((VarBuilder) current).slotVInt(value);
+    }
+
+    /**
+     * Writes {@code value} as a vint at the start of the open slot, over the {@code reserved} bytes written there first to
+     * stand in for it ({@code 0} when nothing was). Everything after the stand-in is moved along when the vint is wider
+     * than it, which costs a copy of the slot so far; a caller that knows the usual width reserves it and keeps that off
+     * its common path. The vint must not be narrower than the reservation, since the format has no padding.
+     */
+    public void prefixVInt(int value, int reserved) {
+        assert bytesOpen : "prefixVInt outside beginBytes/endBytes";
+        ((VarBuilder) current).prefixSlotVInt(value, reserved);
+    }
+
+    /** Commits the slot opened by {@link #beginBytes}; only now does its row count as written. */
+    public void endBytes() {
+        assert bytesOpen : "endBytes without a matching beginBytes";
+        ((VarBuilder) current).endSlot();
+        bytesOpen = false;
+        lastWrittenRow = openSlotRow;
+    }
+
+    /**
+     * Drops the slot opened by {@link #beginBytes} along with every byte written into it, leaving the row unwritten: it
+     * finishes as an absent row unless a later write fills it.
+     */
+    public void abandonBytes() {
+        assert bytesOpen : "abandonBytes without a matching beginBytes";
+        ((VarBuilder) current).abandonSlot();
+        bytesOpen = false;
     }
 
     /** Opens an array cell for {@code row}; elements are supplied via {@code appendX} until {@link #endArray}. */
@@ -461,6 +565,7 @@ public final class EscfColumnBuilder implements Releasable {
      */
     public EscfColumnData finish(int docCount) {
         assert arrayOpen == false : "finish while an array is open";
+        assert bytesOpen == false : "finish while a streamed slot is open";
         assert finished == false : "finish called twice";
         if (current == null) {
             FixedNumericBuilder allAbsent = new FixedNumericBuilder(EscfColumnKind.LONG, recycler);
@@ -1094,6 +1199,8 @@ public final class EscfColumnBuilder implements Releasable {
         private RecyclerBytesStreamOutput data;
         private int[] offsets = new int[16];
         private int dataLen;
+        /** Where the slot opened by {@link #beginSlot} starts in {@code data}. */
+        private int slotStart;
 
         VarBuilder(byte kind, Recycler<BytesRef> recycler) {
             this.kind = kind;
@@ -1131,6 +1238,82 @@ public final class EscfColumnBuilder implements Releasable {
         private void recordOffset() {
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
+        }
+
+        // Streamed slot: beginSlot opens the row, slotX append to it, endSlot commits it or abandonSlot rewinds it.
+        // dataLen tracks data.position() throughout, so the slot's start doubles as the stream position to seek back to.
+
+        void beginSlot() {
+            recordOffset();
+            slotStart = dataLen;
+        }
+
+        void slotBytes(byte[] bytes, int offset, int length) {
+            writeBytes(data, bytes, offset, length);
+            dataLen += length;
+        }
+
+        void slotByte(byte b) {
+            writeByte(data, b);
+            dataLen += 1;
+        }
+
+        void slotVInt(int value) {
+            data.writeVInt(value);
+            dataLen += RecyclerBytesStreamOutput.vIntLength(value);
+        }
+
+        /** See {@link EscfColumnBuilder#prefixVInt}. */
+        void prefixSlotVInt(int value, int reserved) {
+            final int width = RecyclerBytesStreamOutput.vIntLength(value);
+            if (width < reserved) {
+                throw new IllegalArgumentException(
+                    "vint of " + value + " takes " + width + " bytes but " + reserved + " were reserved for it"
+                );
+            }
+            final int end = dataLen;
+            assert data.position() == end : "stream at " + data.position() + " but " + end + " bytes recorded";
+            if (width > reserved) {
+                // The stand-in is too narrow: move the rest of the slot along by the difference. A copy, but only on the
+                // rare slot whose prefix outgrows what the caller reserved.
+                final int tailStart = slotStart + reserved;
+                final byte[] tail = copyOut(tailStart, end - tailStart);
+                data.seek(slotStart);
+                data.writeVInt(value);
+                writeBytes(data, tail, 0, tail.length);
+                dataLen = slotStart + width + tail.length;
+            } else {
+                data.seek(slotStart);
+                data.writeVInt(value);
+                data.seek(end);
+            }
+            assert data.position() == dataLen : "stream at " + data.position() + " but " + dataLen + " bytes recorded";
+        }
+
+        void endSlot() {
+            advancePresent();
+        }
+
+        void abandonSlot() {
+            data.seek(slotStart);
+            dataLen = slotStart;
+        }
+
+        /** Copies {@code length} bytes of the data buffer from {@code from} out into a fresh array. */
+        private byte[] copyOut(int from, int length) {
+            final byte[] out = new byte[length];
+            try {
+                final BytesRefIterator pieces = data.bytes().slice(from, length).iterator();
+                int at = 0;
+                for (BytesRef piece = pieces.next(); piece != null; piece = pieces.next()) {
+                    System.arraycopy(piece.bytes, piece.offset, out, at, piece.length);
+                    at += piece.length;
+                }
+                assert at == length : at + " bytes copied out of " + length;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return out;
         }
 
         @Override

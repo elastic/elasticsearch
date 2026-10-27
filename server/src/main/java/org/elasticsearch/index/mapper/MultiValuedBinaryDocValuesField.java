@@ -17,6 +17,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -573,6 +574,72 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 pos += valueLength;
             }
             return pos;
+        }
+
+        /**
+         * Streams one document's slots straight into the {@link EscfColumnBuilder} that becomes the field's binary doc-values
+         * column on the batch mapping path, laying out the bytes {@link #encode(Collection)} does: a document of exactly one
+         * non-null slot stores that value raw, every other shape stores {@code [len+1][val]} per value and {@code [0]} per null
+         * slot. Whether the first slot gets a prefix is therefore only known when the document closes or a second slot arrives,
+         * so a non-null first slot goes in raw and has its prefix moved in front of it on the second slot. The single-valued
+         * document, the common one, is thus written once, and a multi-valued one moves its first value once rather than having
+         * the whole blob assembled elsewhere and copied in.
+         *
+         * <p>Per document: {@link #begin} at its first slot, {@link #appendSlot} for each slot, then {@link #end} for a document
+         * with a non-null slot or {@link #abandon} for one without, which writes no blob (its {@code .counts} companion alone
+         * records it, as {@link #recordNull} does on the row path).
+         */
+        public static final class Streamer {
+
+            private final EscfColumnBuilder column;
+            /** Whether the next slot is the document's first. */
+            private boolean first;
+            /** Length of the first slot's value while it sits in the column raw; {@code -1} once prefixed, or when the first slot is null. */
+            private int rawFirstLength = -1;
+
+            public Streamer(EscfColumnBuilder column) {
+                this.column = column;
+            }
+
+            /** Opens the blob of the document at {@code row}, which must be past the last row the column has a value for. */
+            public void begin(int row) {
+                column.beginBytes(row);
+                first = true;
+                rawFirstLength = -1;
+            }
+
+            /** Appends one slot, {@code null} denoting a null slot. */
+            public void appendSlot(BytesRef value) {
+                if (first) {
+                    first = false;
+                    if (value != null) {
+                        // Raw for now: a document that closes on this one slot stores it without a prefix.
+                        column.writeBytes(value.bytes, value.offset, value.length);
+                        rawFirstLength = value.length;
+                        return;
+                    }
+                } else if (rawFirstLength >= 0) {
+                    // A second slot: the first value is not stored raw after all, so its prefix goes in front of it.
+                    column.prefixVInt(rawFirstLength + 1, 0);
+                    rawFirstLength = -1;
+                }
+                if (value == null) {
+                    column.writeVInt(0);
+                } else {
+                    column.writeVInt(value.length + 1);
+                    column.writeBytes(value.bytes, value.offset, value.length);
+                }
+            }
+
+            /** Commits the document's blob as the column's value for its row. Only valid for a document with a non-null slot. */
+            public void end() {
+                column.endBytes();
+            }
+
+            /** Drops the document's blob; the column keeps no value for its row. */
+            public void abandon() {
+                column.abandonBytes();
+            }
         }
 
         /**

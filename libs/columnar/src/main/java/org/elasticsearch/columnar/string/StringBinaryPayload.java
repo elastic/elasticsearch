@@ -157,6 +157,73 @@ public final class StringBinaryPayload {
     }
 
     /**
+     * Where a {@link SinkBuilder} puts a payload, byte for byte as a {@link Builder} would lay it out in its own buffer. The count
+     * leads the slots but is known last, so the builder writes a stand-in for it first and has {@link #prefixVInt} put the real
+     * count over that stand-in once the slots are in; a sink therefore has to be able to reach back to the start of the payload it
+     * is receiving.
+     */
+    public interface Sink {
+
+        /** Appends {@code value} as a vint, byte for byte as Lucene's {@code writeVInt} would. */
+        void writeVInt(int value);
+
+        /** Appends {@code length} bytes of {@code bytes} at {@code offset}. */
+        void writeBytes(byte[] bytes, int offset, int length);
+
+        /**
+         * Writes {@code value} as a vint at the start of the payload, over the {@code reserved} bytes written there first as a
+         * stand-in for it, moving everything after them along when the vint is wider than the stand-in.
+         */
+        void prefixVInt(int value, int reserved);
+    }
+
+    /**
+     * Builds one document's payload straight into a {@link Sink}, so a value is copied into its destination once rather than into a
+     * buffer here and then out of it. Reusable across documents like {@link Builder}, and lays out exactly the bytes {@link Builder}
+     * does: there is still one encoding of the format, with two places it can be put.
+     *
+     * <p>The count is the one part of a payload that cannot be streamed, since it leads the slots but is known last. The builder
+     * stands a single byte in for it, which is the width of every count below 128, and has the sink write the count over that
+     * byte on {@link #end}; a document with more slots than that has them moved along to make room, a copy that is paid there only.
+     */
+    public static final class SinkBuilder {
+
+        /** Bytes {@link #begin} stands in for the count: the width of a vint below 128, which nearly every document's count is. */
+        private static final int COUNT_STAND_IN_BYTES = 1;
+
+        private final Sink sink;
+        private int slotCount;
+
+        public SinkBuilder(Sink sink) {
+            this.sink = sink;
+        }
+
+        /** Starts a document, standing in for the count that {@link #end} writes once its slots are in. */
+        public void begin() {
+            assert ByteArrayInts.vIntLength(0) == COUNT_STAND_IN_BYTES;
+            sink.writeVInt(0);
+            slotCount = 0;
+        }
+
+        /** Appends one slot to the document under construction, {@code null} denoting a null slot; the bytes {@link Builder#appendSlot} writes. */
+        public void appendSlot(BytesRef value) {
+            if (value == null) {
+                sink.writeVInt(0);
+            } else {
+                sink.writeVInt(value.length + SLOT_LENGTH_BIAS);
+                sink.writeBytes(value.bytes, value.offset, value.length);
+            }
+            slotCount++;
+        }
+
+        /** Closes the document by writing its slot count in front of its slots, and returns that count. */
+        public int end() {
+            sink.prefixVInt(slotCount, COUNT_STAND_IN_BYTES);
+            return slotCount;
+        }
+    }
+
+    /**
      * Reads a payload one slot at a time. Reusable across documents, and {@link #next} points into the
      * payload's own bytes rather than copying, so a returned {@link BytesRef} lives exactly as long as the
      * payload does.

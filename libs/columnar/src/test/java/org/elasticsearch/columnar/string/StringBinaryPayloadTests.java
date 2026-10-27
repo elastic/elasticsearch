@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -218,6 +219,91 @@ public class StringBinaryPayloadTests extends ESTestCase {
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         assertEquals("the empty payload", 0, decoder.reset(StringBinaryPayload.EMPTY));
         assertEquals(StringBinaryPayload.EMPTY, encode(List.of()));
+    }
+
+    /**
+     * A payload streamed into a {@link StringBinaryPayload.Sink} is byte for byte the one {@link StringBinaryPayload.Builder} lays
+     * out in its own buffer, across every shape: no slots, one slot, nulls and empty values, and counts of one, two and three vint
+     * bytes, which are where the stand-in the sink builder leaves for the count has to be widened.
+     */
+    public void testSinkBuilderAgreesWithBuilder() {
+        final ArraySink sink = new ArraySink();
+        final StringBinaryPayload.SinkBuilder builder = new StringBinaryPayload.SinkBuilder(sink);
+        final List<List<BytesRef>> documents = new ArrayList<>();
+        documents.add(List.of());
+        documents.add(slots(new BytesRef("only")));
+        documents.add(slots((BytesRef) null));
+        documents.add(slots(new BytesRef(""), null, new BytesRef(""), new BytesRef("x"), null));
+        for (int count : new int[] { 127, 128, 16_383, 16_384 }) {
+            final List<BytesRef> wide = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                wide.add(randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 10)));
+            }
+            documents.add(wide);
+        }
+        for (int iter = 0; iter < 100; iter++) {
+            final List<BytesRef> random = new ArrayList<>();
+            for (int i = 0; i < between(0, 300); i++) {
+                random.add(randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 200)));
+            }
+            documents.add(random);
+        }
+        // One sink builder carried across documents, as the batch mapper carries it across a batch.
+        for (List<BytesRef> document : documents) {
+            sink.reset();
+            builder.begin();
+            for (BytesRef slot : document) {
+                builder.appendSlot(slot);
+            }
+            assertEquals("slot count", document.size(), builder.end());
+            assertEquals("payload of " + document.size() + " slots", encode(document), sink.payload());
+        }
+    }
+
+    /**
+     * The simplest {@link StringBinaryPayload.Sink}: an array that grows as bytes arrive, and that makes room for a wider count by
+     * moving the slots along. What a sink has to do, written out plainly as the reference for a real one.
+     */
+    private static final class ArraySink implements StringBinaryPayload.Sink {
+        private byte[] bytes = new byte[16];
+        private int length;
+
+        void reset() {
+            length = 0;
+        }
+
+        BytesRef payload() {
+            return new BytesRef(bytes, 0, length);
+        }
+
+        @Override
+        public void writeVInt(int value) {
+            grow(ByteArrayInts.MAX_VINT_BYTES);
+            length += ByteArrayInts.writeVInt(value, bytes, length);
+        }
+
+        @Override
+        public void writeBytes(byte[] src, int offset, int count) {
+            grow(count);
+            System.arraycopy(src, offset, bytes, length, count);
+            length += count;
+        }
+
+        @Override
+        public void prefixVInt(int value, int reserved) {
+            final int width = ByteArrayInts.vIntLength(value);
+            assertTrue("a vint narrower than its stand-in", width >= reserved);
+            grow(width - reserved);
+            System.arraycopy(bytes, reserved, bytes, width, length - reserved);
+            length += width - reserved;
+            assertEquals(width, ByteArrayInts.writeVInt(value, bytes, 0));
+        }
+
+        private void grow(int more) {
+            if (length + more > bytes.length) {
+                bytes = Arrays.copyOf(bytes, Math.max(bytes.length * 2, length + more));
+            }
+        }
     }
 
     private static void assertRoundTrip(List<BytesRef> slots) throws IOException {

@@ -54,7 +54,6 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.Automata;
@@ -62,7 +61,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -2125,11 +2123,13 @@ public final class TextFieldMapper extends FieldMapper {
             EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn(ctx.recycler()) : null
         ) {
             int currentDoc = -1;
-            final BytesRefBuilder docBlob = emitDvs && columnar == false ? new BytesRefBuilder() : null;
-            final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
-            int pos = 0;
+            // Each document's slots are streamed straight into binaryDvs: its first slot opens the document's blob, and the
+            // flush below commits or drops it.
+            final MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.Streamer docBlob = emitDvs && columnar == false
+                ? new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.Streamer(binaryDvs)
+                : null;
+            final ColumnarPayloadStreamer payload = emitDvs && columnar ? new ColumnarPayloadStreamer(binaryDvs) : null;
             int docSlotCount = 0;
-            int lastValueLength = 0;
             boolean hasNonNull = false;
             // The documents that carry the field but indexed nothing under it, and so need its index options stated separately.
             final FixedBitSet valuelessDocs = columnar && payloadTypeWhenValueless != null ? new FixedBitSet(docCount) : null;
@@ -2146,23 +2146,25 @@ public final class TextFieldMapper extends FieldMapper {
                             if (bareNull == false) {
                                 // An all-null document is a payload like any other, which is why no companion count
                                 // column is emitted alongside.
-                                final BytesRef blob = payload.build();
-                                binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                                payload.end();
                                 // A document that indexed nothing states the field's index options through its payload, the same
                                 // way the row path has ColumnarBinaryDocValuesField report them.
                                 if (hasNonNull == false && valuelessDocs != null) {
                                     valuelessDocs.set(currentDoc);
                                 }
+                            } else {
+                                payload.abandon();
                             }
-                            payload.reset();
                         } else if (bareNull == false) {
                             dvCounts.setLong(currentDoc, docSlotCount);
                             if (hasNonNull) {
-                                final int length = docSlotCount == 1 ? lastValueLength : pos;
-                                binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                                docBlob.end();
+                            } else {
+                                docBlob.abandon();
                             }
+                        } else {
+                            docBlob.abandon();
                         }
-                        pos = 0;
                         docSlotCount = 0;
                         hasNonNull = false;
                     }
@@ -2177,9 +2179,15 @@ public final class TextFieldMapper extends FieldMapper {
                 if (value == null) {
                     if (binaryDvs != null) {
                         if (columnar) {
+                            if (docSlotCount == 0) {
+                                payload.begin(currentDoc);
+                            }
                             payload.appendSlot(null);
                         } else {
-                            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                            if (docSlotCount == 0) {
+                                docBlob.begin(currentDoc);
+                            }
+                            docBlob.appendSlot(null);
                         }
                         docSlotCount++;
                     }
@@ -2197,11 +2205,16 @@ public final class TextFieldMapper extends FieldMapper {
                 }
                 if (binaryDvs != null) {
                     if (columnar) {
+                        if (docSlotCount == 0) {
+                            payload.begin(currentDoc);
+                        }
                         payload.appendSlot(value);
                     } else {
-                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+                        if (docSlotCount == 0) {
+                            docBlob.begin(currentDoc);
+                        }
+                        docBlob.appendSlot(value);
                     }
-                    lastValueLength = value.length;
                     docSlotCount++;
                     hasNonNull = true;
                 }

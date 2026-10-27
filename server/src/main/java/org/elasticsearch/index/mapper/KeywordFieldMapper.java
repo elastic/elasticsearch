@@ -39,7 +39,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -48,7 +47,6 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -1874,16 +1872,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         ) {
             int currentDoc = -1;
             boolean ignoredThisDoc = false;
-            // Buffer null when not emitted. Each document's slots are appended as they are read and
-            // the finished blob is handed to binaryDvs.setString, which copies it out immediately, so the
-            // buffer is free to be rewritten.
-            final BytesRefBuilder docBlob = emitDvs && columnar == false ? new BytesRefBuilder() : null;
-            // A columnar field's slots go through the payload builder, which carries the count for them; see
+            // Null when not emitted. Each document's slots are streamed straight into binaryDvs as they are read: its first
+            // slot opens the document's blob, and the flush below commits or drops it, so no value is buffered elsewhere.
+            final MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.Streamer docBlob = emitDvs && columnar == false
+                ? new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.Streamer(binaryDvs)
+                : null;
+            // A columnar field's slots go through the payload streamer, which carries the count for them; see
             // ColumnarBinaryDocValuesField for why the codec needs it in the blob.
-            final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
-            int pos = 0;
+            final ColumnarPayloadStreamer payload = emitDvs && columnar ? new ColumnarPayloadStreamer(binaryDvs) : null;
             int docSlotCount = 0;
-            int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
             // The documents that carry the field but indexed nothing under it, and so need its index options stated separately.
@@ -1896,11 +1893,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc != currentDoc) {
-                    // Flush the completed doc's elements.
+                    // Flush the completed doc's elements, committing or dropping the blob its first slot opened on binaryDvs.
                     // All-null docs write counts (matching ArrayOrderInlineNull.recordNull) but no blob.
                     if (binaryDvs != null && docSlotCount > 0) {
-                        // TODO: considering appending slots straight into the column builder's stream.
-                        //
                         // A bare null is the field being absent, matching the row path, and whichever layout is writing: the
                         // document keeps no slot for it. Only a null written inside the field's own array keeps its place. A
                         // null_value substitution turns the null into a value, which is why this also asks that nothing was
@@ -1920,30 +1915,33 @@ public final class KeywordFieldMapper extends FieldMapper {
                                 );
                             }
                             if (columnar) {
-                                payload.reset();
+                                payload.abandon();
+                            } else {
+                                docBlob.abandon();
                             }
                         } else if (columnar) {
                             if (bareNull == false) {
                                 // An all-null document is a payload like any other, which is why no companion count
                                 // column is emitted alongside.
-                                final BytesRef blob = payload.build();
-                                binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                                payload.end();
                                 // A document that indexed nothing states the field's index options through its payload, the same
                                 // way the row path has ColumnarBinaryDocValuesField report them.
                                 if (hasNonNull == false && valuelessDocs != null) {
                                     valuelessDocs.set(currentDoc);
                                 }
+                            } else {
+                                payload.abandon();
                             }
-                            payload.reset();
                         } else if (bareNull == false) {
                             dvCounts.setLong(currentDoc, docSlotCount);
                             if (hasNonNull) {
-                                // A single non-null slot is stored raw, so drop its length prefix; both cases end at pos.
-                                final int length = docSlotCount == 1 ? lastValueLength : pos;
-                                binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                                docBlob.end();
+                            } else {
+                                docBlob.abandon();
                             }
+                        } else {
+                            docBlob.abandon();
                         }
-                        pos = 0;
                         docSlotCount = 0;
                         hasNonNull = false;
                     }
@@ -1972,9 +1970,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                     } else {
                         if (binaryDvs != null) {
                             if (columnar) {
+                                if (docSlotCount == 0) {
+                                    payload.begin(currentDoc);
+                                }
                                 payload.appendSlot(null);
                             } else {
-                                pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                                if (docSlotCount == 0) {
+                                    docBlob.begin(currentDoc);
+                                }
+                                docBlob.appendSlot(null);
                             }
                             docSlotCount++;
                             // hasNonNull stays false: null slots do not produce a binary dv blob.
@@ -2014,11 +2018,16 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 if (binaryDvs != null) {
                     if (columnar) {
+                        if (docSlotCount == 0) {
+                            payload.begin(currentDoc);
+                        }
                         payload.appendSlot(binaryValue);
                     } else {
-                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
+                        if (docSlotCount == 0) {
+                            docBlob.begin(currentDoc);
+                        }
+                        docBlob.appendSlot(binaryValue);
                     }
-                    lastValueLength = binaryValue.length;
                     docSlotCount++;
                     hasNonNull = true;
                 }
@@ -2114,7 +2123,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 ? pending.add(mergeStringColumn(ctx.recycler()))
                 : null;
             final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn(ctx.recycler())) : null;
-            final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
+            final ColumnarPayloadStreamer payload = payloadDvs != null ? new ColumnarPayloadStreamer(payloadDvs) : null;
             final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn(ctx.recycler())) : null;
             // multi_value=true fallback needs a counts sidecar matching SeparateCount format.
             final EscfColumnBuilder fallbackCounts = emitFallback && multiValue ? pending.add(mergeLongColumn(ctx.recycler())) : null;
@@ -2216,12 +2225,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (values != null) {
                     values.setString(currentDoc, binaryValue);
                 }
-                if (payloadDvs != null) {
+                if (payload != null) {
                     // One slot, and the count in front of it, so the blob is the same payload the row path writes.
-                    payload.reset();
+                    payload.begin(currentDoc);
                     payload.appendSlot(binaryValue);
-                    final BytesRef blob = payload.build();
-                    payloadDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                    payload.end();
                 }
             }
 

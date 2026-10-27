@@ -545,3 +545,7 @@ tests:
   - :x-pack:plugin:esql:test
   method: testConcurrentUnionByNameResolvesIssueOneListing
   issue: https://github.com/elastic/elasticsearch/issues/163496
+- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
+  tasks:
+  - :server:test
+  issue: https://github.com/elastic/elasticsearch/issues/163500

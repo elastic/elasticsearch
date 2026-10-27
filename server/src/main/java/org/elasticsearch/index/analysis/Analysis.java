@@ -208,6 +208,16 @@ public class Analysis {
         return MessageDigests.toHexString(digest.digest());
     }
 
+    /**
+     * A parsed user dictionary with a SHA-256 of its rules. Dictionaries have no value equality and their rules can be large, so the
+     * hash stands in for them in sharing keys. Both are null when there are no rules.
+     */
+    public record LoadedUserDictionary<T>(T dictionary, String rulesSha256) {
+        public static <T> LoadedUserDictionary<T> none() {
+            return new LoadedUserDictionary<>(null, null);
+        }
+    }
+
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
         if (namedWords == null) {
             return new CharArraySet(words, ignoreCase);

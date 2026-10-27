@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,7 +76,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
                     public void onResponse(GetFieldMappingsResponse result) {
                         indexResponses.set(indexCounter.getAndIncrement(), result);
                         if (completionCounter.decrementAndGet() == 0) {
-                            listener.onResponse(merge(indexResponses));
+                            complete(listener, indexResponses);
                         }
                     }
 
@@ -83,12 +85,29 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
                         int index = indexCounter.getAndIncrement();
                         indexResponses.set(index, e);
                         if (completionCounter.decrementAndGet() == 0) {
-                            listener.onResponse(merge(indexResponses));
+                            complete(listener, indexResponses);
                         }
                     }
                 });
             }
         }
+    }
+
+    /**
+     * Responds with the merged per-index responses. Failed indices are normally dropped, which leaves an empty response when no index
+     * could answer. If that is because a shard is being restored by a restore that reports its shards, fail with that instead.
+     */
+    private static void complete(ActionListener<GetFieldMappingsResponse> listener, AtomicReferenceArray<Object> indexResponses) {
+        final GetFieldMappingsResponse merged = merge(indexResponses);
+        if (merged.mappings().isEmpty()) {
+            for (int i = 0; i < indexResponses.length(); i++) {
+                if (indexResponses.get(i) instanceof Exception e && ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException) {
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+        }
+        listener.onResponse(merged);
     }
 
     private static GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {

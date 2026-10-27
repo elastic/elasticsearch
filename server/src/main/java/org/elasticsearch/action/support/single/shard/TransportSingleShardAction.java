@@ -29,10 +29,12 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,6 +45,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -160,6 +164,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private final ShardsIterator shardIt;
         private final InternalRequest internalRequest;
         private final DiscoveryNodes nodes;
+        private final ProjectState projectState;
         private volatile Exception lastFailure;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
@@ -175,6 +180,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 );
             }
             nodes = project.cluster().nodes();
+            projectState = project;
             ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;
@@ -222,6 +228,26 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             perform(e);
         }
 
+        /**
+         * Returns a {@link ShardRestoringException} if the copies this request could have been served by ran out because the shard is
+         * being restored by a restore that asked for its shards to be reported, or {@code null} otherwise, in which case the caller keeps
+         * its existing shard-unavailable failure.
+         *
+         * <p>The iterator can be empty while the primary restores, because only started copies are searchable (in serverless a search
+         * copy is not even assigned until the primary is active), so the shard is taken from the iterator itself rather than from its
+         * first routing. An iterator without a shard id (an index-level iterator, or the empty one some actions return in serverless when
+         * no copy can be searched) says nothing about which shard, so the index is checked instead.
+         */
+        @Nullable
+        private ShardRestoringException restoringShardFailure() {
+            final ClusterState state = projectState.cluster();
+            if (shardIt instanceof ShardIterator shardIterator && shardIterator.shardId() != null) {
+                return RestoreService.reportableRestoreException(projectState.projectId(), shardIterator.shardId(), state);
+            }
+            final IndexMetadata index = projectState.metadata().index(internalRequest.concreteIndex());
+            return index == null ? null : RestoreService.reportableRestoreException(projectState.projectId(), index.getIndex(), state);
+        }
+
         private void perform(@Nullable final Exception currentFailure) {
             Exception lastFailure = this.lastFailure;
             if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
@@ -236,11 +262,16 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(
-                        null,
-                        LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
-                        failure
-                    );
+                    final ShardRestoringException restoring = restoringShardFailure();
+                    if (restoring != null) {
+                        failure = restoring;
+                    } else {
+                        failure = new NoShardAvailableActionException(
+                            null,
+                            LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
+                            failure
+                        );
+                    }
                 } else {
                     logger.debug(() -> format("%s: failed to execute [%s]", null, internalRequest.request()), failure);
                 }

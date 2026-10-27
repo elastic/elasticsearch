@@ -2209,7 +2209,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
                     searchRequestAttributes,
-                    false
+                    false,
+                    clusterState
                 ).addListener(listener.delegateFailureAndWrap((l, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)

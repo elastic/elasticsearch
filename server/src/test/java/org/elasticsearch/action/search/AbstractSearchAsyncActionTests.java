@@ -12,10 +12,12 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,6 +51,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.snapshots.RestoringShardTestState;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -90,6 +94,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
@@ -98,6 +103,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
     private RecordingMeterRegistry meterRegistry;
+    /** The cluster state the actions under test are created with; tests that need restores in it replace it. */
+    private ClusterState clusterState = ClusterState.EMPTY_STATE;
 
     @After
     public void cleanTransportService() {
@@ -232,7 +239,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             shardsIterators,
             Collections.emptyMap(),
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            clusterState,
             task,
             results,
             NoopCircuitBreaker.INSTANCE,
@@ -405,6 +412,161 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals("query", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
+    }
+
+    private static SearchShardIterator noCopyIterator(String clusterAlias, ShardId shardId) {
+        return new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), null, SplitShardCountSummary.UNSET);
+    }
+
+    private static SearchRequest disallowPartialResults() {
+        return new SearchRequest().allowPartialSearchResults(false);
+    }
+
+    /**
+     * With partial results disallowed, a search whose missing shards are all being restored by a restore that reports its shards is
+     * rejected with a {@link ShardRestoringException} as the cause, so that it is a 403 rather than a 503.
+     */
+    public void testMissingShardsBeingRestoredAreReported() {
+        final var first = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "a",
+            randomUUID(),
+            true
+        );
+        final var second = RestoringShardTestState.restoringIndex(first.state(), Metadata.DEFAULT_PROJECT_ID, "b", randomUUID(), true);
+        final var shardIterators = List.of(noCopyIterator(null, first.shardId()), noCopyIterator(null, second.shardId()));
+
+        final var e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> SearchPhase.doCheckNoMissingShards("query", disallowPartialResults(), shardIterators, second.state())
+        );
+
+        assertThat(e.getCause(), instanceOf(ShardRestoringException.class));
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString(first.shardId().toString()));
+        assertThat(e.getMessage(), containsString(second.shardId().toString()));
+    }
+
+    /**
+     * Nothing changes from the rejection a search always got unless every one of the conditions for reporting holds.
+     */
+    public void testMissingShardsAreNotReportedAsRestoringUnlessAllAreReported() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        final var notReporting = RestoringShardTestState.restoringIndex(
+            restoring.state(),
+            Metadata.DEFAULT_PROJECT_ID,
+            "not-reporting",
+            randomUUID(),
+            false
+        );
+        final var missing = new ShardId("missing", randomUUID(), 0);
+        // a remote index can share the restoring index's name, but has its own UUID
+        final var remote = new ShardId(restoring.shardId().getIndexName(), randomUUID(), restoring.shardId().id());
+
+        // the restore does not ask for its shards to be reported
+        assertRejectedWith503(notReporting.state(), List.of(noCopyIterator(null, notReporting.shardId())));
+        // one of the missing shards is not being restored at all
+        assertRejectedWith503(notReporting.state(), List.of(noCopyIterator(null, restoring.shardId()), noCopyIterator(null, missing)));
+        // one of the missing shards is being restored by a restore that does not report its shards
+        assertRejectedWith503(
+            notReporting.state(),
+            List.of(noCopyIterator(null, restoring.shardId()), noCopyIterator(null, notReporting.shardId()))
+        );
+        // a shard of a remote cluster, whose restores are not in this cluster state
+        assertRejectedWith503(restoring.state(), List.of(noCopyIterator(randomAlphaOfLength(5), remote)));
+        // there is no cluster state to look at
+        assertRejectedWith503(null, List.of(noCopyIterator(null, restoring.shardId())));
+        final var e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> SearchPhase.doCheckNoMissingShards("query", disallowPartialResults(), List.of(noCopyIterator(null, restoring.shardId())))
+        );
+        assertThat(e.getCause(), nullValue());
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    private static void assertRejectedWith503(ClusterState state, List<SearchShardIterator> shardIterators) {
+        final var e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> SearchPhase.doCheckNoMissingShards("query", disallowPartialResults(), shardIterators, state)
+        );
+        assertThat(e.getCause(), nullValue());
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    /**
+     * With partial results allowed there is no up-front rejection, so a missing shard that is being restored is recorded as a failure
+     * of that shard, which keeps its status and type.
+     */
+    public void testMissingShardBeingRestoredFailsOnlyThatShardWithPartialResults() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        this.clusterState = restoring.state();
+        final var shardIt = noCopyIterator(null, restoring.shardId());
+        final var other = noCopyIterator(null, new ShardId("other", randomUUID(), 0));
+        final var searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(2)) {
+            final var action = createAction(
+                searchRequest,
+                phaseResults,
+                ActionListener.wrap(r -> {}, e -> {}),
+                false,
+                new AtomicLong(),
+                null,
+                null,
+                List.of(shardIt, other)
+            );
+
+            action.doRun(Map.of(shardIt, 0, other, 1));
+
+            final ShardSearchFailure[] failures = action.buildShardFailures();
+            assertThat(failures, arrayWithSize(2));
+            final var restoringFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
+            assertTrue(restoringFailure.isPresent());
+            assertThat(restoringFailure.get().getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(restoringFailure.get().status(), equalTo(RestStatus.FORBIDDEN));
+            final var otherFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
+            assertTrue(otherFailure.isPresent());
+            assertThat(otherFailure.get().getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(otherFailure.get().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
+    /**
+     * A shard-not-available failure that is not a restoring shard is still folded into the generic 503 failure, and a restoring shard's
+     * failure is not, whichever way it reaches {@code onShardFailure}.
+     */
+    public void testOnShardFailureKeepsShardRestoringButGroupsOtherUnavailableFailures() {
+        final var shardId = new ShardId("index", "_na_", 0);
+        final var target = new SearchShardTarget(null, shardId, null);
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(2)) {
+            final var action = createAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                ActionListener.wrap(r -> {}, e -> {}),
+                false,
+                new AtomicLong()
+            );
+            action.onShardFailure(0, target, new ShardRestoringException("index", randomUUID()));
+            action.onShardFailure(1, target, new ShardNotFoundException(shardId));
+
+            final ShardSearchFailure[] failures = action.buildShardFailures();
+            assertThat(failures[0].getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(failures[0].status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(failures[1].getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(failures[1].status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
     }
 
     public void testMaybeReEncode() {

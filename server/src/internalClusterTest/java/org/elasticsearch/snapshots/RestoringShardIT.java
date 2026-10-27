@@ -1396,6 +1396,292 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Flag on — reads. A restore that asks for its shards to be reported makes the reads that fail with
+    // "no shard available" fail with a 403 shard_restoring_exception instead. Searches are not here: on a stateful cluster
+    // they are routed to the initializing primary and wait for it, so they are covered by StatelessRestoringShardIT.
+    //
+    // These go through the REST layer, so that what is asserted is what a client gets: the status, the error type, the
+    // empty body of a HEAD, and the 200 envelope of the multi-item APIs.
+    // -------------------------------------------------------------------------
+
+    @FunctionalInterface
+    private interface WhileRestoring {
+        void run(String restoreUuid, RestClient restClient) throws Exception;
+    }
+
+    /**
+     * Runs {@code body} while the index is being restored by a restore that reports its shards, with a REST client.
+     */
+    private void whileRestoringReportingShardRestoring(WhileRestoring body) throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try (RestClient restClient = createRestClient()) {
+            body.run(restoreUuid, restClient);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    private static Request request(String method, String path, String jsonBody) {
+        final Request request = new Request(method, path);
+        if (jsonBody != null) {
+            request.setJsonEntity(jsonBody);
+        }
+        return request;
+    }
+
+    /**
+     * Performs a request that is expected to fail with a 403 and returns its error body, which is empty for a HEAD.
+     */
+    private static ObjectPath performExpectingForbidden(RestClient restClient, Request request) throws IOException {
+        final ResponseException e = expectThrows(ResponseException.class, () -> restClient.performRequest(request));
+        assertThat(request.getMethod() + " " + request.getEndpoint(), e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        if (request.getMethod().equals("HEAD")) {
+            assertTrue("a HEAD has no body", e.getResponse().getEntity() == null || e.getResponse().getEntity().getContentLength() <= 0);
+            return null;
+        }
+        return ObjectPath.createFromResponse(e.getResponse());
+    }
+
+    private static void assertShardRestoringError(ObjectPath error, String path, String restoreUuid) throws IOException {
+        assertThat(path, error.evaluate("error.type"), equalTo("shard_restoring_exception"));
+        assertThat(path, error.evaluate("error.index"), equalTo(INDEX));
+        assertThat(path, error.evaluate("error.recovery_id"), equalTo(restoreUuid));
+        assertThat(path, error.evaluate("status"), equalTo(403));
+    }
+
+    /**
+     * {@code GET|HEAD /{index}/_doc/{id}} and {@code GET|HEAD /{index}/_source/{id}}, with and without {@code realtime}, fail with a 403.
+     * A HEAD has no body, so the status is the only thing it can say.
+     */
+    public void testDocReadsOverRestWhileRestoringReportingShardRestoringReturnForbidden() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            for (String path : List.of(
+                "/" + INDEX + "/_doc/" + DOC_ID,
+                "/" + INDEX + "/_doc/" + DOC_ID + "?realtime=false",
+                "/" + INDEX + "/_source/" + DOC_ID
+            )) {
+                assertShardRestoringError(performExpectingForbidden(restClient, request("GET", path, null)), path, restoreUuid);
+            }
+            for (String path : List.of("/" + INDEX + "/_doc/" + DOC_ID, "/" + INDEX + "/_source/" + DOC_ID)) {
+                assertNull(performExpectingForbidden(restClient, request("HEAD", path, null)));
+            }
+        });
+    }
+
+    public void testExplainOverRestWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            final String path = "/" + INDEX + "/_explain/" + DOC_ID;
+            for (String method : List.of("GET", "POST")) {
+                assertShardRestoringError(
+                    performExpectingForbidden(restClient, request(method, path, "{\"query\": {\"match_all\": {}}}")),
+                    method + " " + path,
+                    restoreUuid
+                );
+            }
+        });
+    }
+
+    public void testAnalyzeOverRestWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            final String path = "/" + INDEX + "/_analyze";
+            for (String method : List.of("GET", "POST")) {
+                assertShardRestoringError(
+                    performExpectingForbidden(restClient, request(method, path, "{\"text\": \"some text\"}")),
+                    method + " " + path,
+                    restoreUuid
+                );
+            }
+        });
+    }
+
+    /**
+     * {@code GET /{index}/_mapping/field/{fields}} fails with a 403 instead of answering with an empty body.
+     */
+    public void testFieldMappingOverRestWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            final String path = "/" + INDEX + "/_mapping/field/*";
+            assertShardRestoringError(performExpectingForbidden(restClient, request("GET", path, null)), path, restoreUuid);
+        });
+    }
+
+    /**
+     * On a stateful cluster {@code GET|POST /{index}/_termvectors/{id}} is sent to the initializing primary, which fails with the 500
+     * that wraps the real cause, so the flag changes nothing here. On a stateless cluster there is no copy to send it to, and it is a
+     * 403: see {@code StatelessRestoringShardIT}.
+     */
+    public void testTermVectorsOverRestWhileRestoringReportingShardRestoringKeepsInternalServerErrorOnAStatefulCluster() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            final String path = "/" + INDEX + "/_termvectors/" + DOC_ID;
+            for (String method : List.of("GET", "POST")) {
+                final ResponseException e = expectThrows(
+                    ResponseException.class,
+                    () -> restClient.performRequest(request(method, path, null))
+                );
+                assertThat(method + " " + path, e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            }
+        });
+    }
+
+    /**
+     * {@code GET|POST /_mget} and {@code GET|POST /{index}/_mget} keep their 200 and carry the 403 as the error of each document.
+     */
+    public void testMgetOverRestWhileRestoringReportingShardRestoringReturnsPerDocForbidden() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            final String docs = "{\"docs\": [{\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"a\"}, {\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"b\"}]}";
+            final String ids = "{\"ids\": [\"a\", \"b\"]}";
+            for (String method : List.of("GET", "POST")) {
+                assertPerItemShardRestoring(restClient, request(method, "/_mget", docs), restoreUuid);
+                assertPerItemShardRestoring(restClient, request(method, "/" + INDEX + "/_mget", ids), restoreUuid);
+            }
+        });
+    }
+
+    /**
+     * On a stateful cluster {@code POST /_mtermvectors} and {@code POST /{index}/_mtermvectors} are sent to the initializing primary, so
+     * each document still carries the wrapped error it always did and the flag changes nothing here. On a stateless cluster each document
+     * carries the 403: see {@code StatelessRestoringShardIT}.
+     */
+    public void testMtermvectorsOverRestWhileRestoringReportingShardRestoringKeepsPerDocErrorOnAStatefulCluster() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            final String docs = "{\"docs\": [{\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"a\"}, {\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"b\"}]}";
+            assertPerItemWrappedError(restClient, request("POST", "/_mtermvectors", docs));
+            assertPerItemWrappedError(restClient, request("POST", "/" + INDEX + "/_mtermvectors", "{\"ids\": [\"a\", \"b\"]}"));
+        });
+    }
+
+    private static void assertPerItemWrappedError(RestClient restClient, Request request) throws IOException {
+        final String what = request.getMethod() + " " + request.getEndpoint();
+        final Response response = restClient.performRequest(request);
+        assertThat(what, response.getStatusLine().getStatusCode(), equalTo(200));
+        final ObjectPath body = ObjectPath.createFromResponse(response);
+        for (int i = 0; i < 2; i++) {
+            assertThat(what, body.evaluate("docs." + i + ".error.type"), equalTo("exception"));
+        }
+    }
+
+    private static void assertPerItemShardRestoring(RestClient restClient, Request request, String restoreUuid) throws IOException {
+        final String what = request.getMethod() + " " + request.getEndpoint();
+        final Response response = restClient.performRequest(request);
+        assertThat(what, response.getStatusLine().getStatusCode(), equalTo(200));
+        final ObjectPath body = ObjectPath.createFromResponse(response);
+        for (int i = 0; i < 2; i++) {
+            assertThat(what, body.evaluate("docs." + i + ".error.type"), equalTo("shard_restoring_exception"));
+            assertThat(what, body.evaluate("docs." + i + ".error.recovery_id"), equalTo(restoreUuid));
+        }
+    }
+
+    /**
+     * {@code GET|POST /_field_caps} over several indices answers for the healthy ones and reports the restoring index in
+     * {@code failures[]} with a 403. Over only the restoring index it still fails with the 404 it always did.
+     */
+    public void testFieldCapsOverRestWhileRestoringReportingShardRestoring() throws Exception {
+        final String healthyIndex = "test-healthy-index";
+        createIndexWithContent(healthyIndex);
+        try {
+            whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+                for (String method : List.of("GET", "POST")) {
+                    final Response response = restClient.performRequest(
+                        request(method, "/" + INDEX + "," + healthyIndex + "/_field_caps?fields=*", null)
+                    );
+                    final ObjectPath body = ObjectPath.createFromResponse(response);
+                    assertThat(method, body.evaluate("failed_indices"), equalTo(1));
+                    assertThat(method, body.evaluate("failures.0.indices"), equalTo(List.of(INDEX)));
+                    assertThat(method, body.evaluate("failures.0.failure.error.type"), equalTo("shard_restoring_exception"));
+                    assertThat(method, body.evaluate("failures.0.failure.error.recovery_id"), equalTo(restoreUuid));
+
+                    final ResponseException single = expectThrows(
+                        ResponseException.class,
+                        () -> restClient.performRequest(request(method, "/" + INDEX + "/_field_caps?fields=*", null))
+                    );
+                    assertThat(method, single.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+                }
+            });
+        } finally {
+            assertAcked(indicesAdmin().prepareDelete(healthyIndex));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Flag on — the APIs that are unchanged: the flag makes no difference to them.
+    // -------------------------------------------------------------------------
+
+    public void testSegmentsStatsAndClearCacheWhileRestoringReportingShardRestoringSwallowExceptionAndReportNoFailedShards()
+        throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            assertThat(indicesAdmin().prepareSegments(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(indicesAdmin().prepareStats(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(indicesAdmin().prepareClearCache(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(
+                client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest(new String[] { INDEX }))
+                    .actionGet()
+                    .getFailedShards(),
+                equalTo(0)
+            );
+            assertThat(
+                client().execute(TransportReloadAnalyzersAction.TYPE, new ReloadAnalyzersRequest(null, false, INDEX))
+                    .actionGet()
+                    .getFailedShards(),
+                equalTo(0)
+            );
+        });
+    }
+
+    public void testValidateQueryAndDiskUsageWhileRestoringReportingShardRestoringReportShardFailures() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            assertThat(
+                indicesAdmin().prepareValidateQuery(INDEX).setQuery(QueryBuilders.matchAllQuery()).get().getFailedShards(),
+                greaterThan(0)
+            );
+            var diskUsage = client().execute(
+                TransportAnalyzeIndexDiskUsageAction.TYPE,
+                new AnalyzeIndexDiskUsageRequest(new String[] { INDEX }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, false)
+            ).actionGet();
+            assertThat(diskUsage.getTotalShards(), greaterThan(0));
+            assertThat(diskUsage.getFailedShards(), greaterThan(0));
+        });
+    }
+
+    public void testMasterNodeReadsWhileRestoringReportingShardRestoringSucceed() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            assertThat(
+                client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, INDEX))
+                    .actionGet()
+                    .getGroups().length,
+                greaterThan(0)
+            );
+            client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(INDEX)).actionGet();
+            assertThat(indicesAdmin().prepareRecoveries(INDEX).get().shardRecoveryInfos().containsKey(INDEX), equalTo(true));
+            assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX).get().mappings().containsKey(INDEX), equalTo(true));
+        });
+    }
+
+    /**
+     * On a stateful cluster a point in time is opened on the initializing primary, which refuses with an exception that is not the
+     * restoring one, so the flag changes nothing here. On a stateless cluster there is no copy to open it on, and it is a 403: see
+     * {@code StatelessRestoringShardIT}.
+     */
+    public void testOpenPitWhileRestoringReportingShardRestoringKeepsServiceUnavailableOnAStatefulCluster() throws Exception {
+        whileRestoringReportingShardRestoring((restoreUuid, restClient) -> {
+            Exception e = expectThrows(
+                Exception.class,
+                () -> client().execute(
+                    TransportOpenPointInTimeAction.TYPE,
+                    new OpenPointInTimeRequest(INDEX).keepAlive(TimeValue.timeValueMinutes(1))
+                ).actionGet(TimeValue.timeValueSeconds(10))
+            );
+            assertThat(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        });
+    }
+
     private static void assertForbiddenShardRestoring(ShardRestoringException e, String restoreUuid) {
         assertReportsShardRestoring(e, INDEX, restoreUuid);
         assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));

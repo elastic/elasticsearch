@@ -10,8 +10,12 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +25,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.snapshots.RestoringShardTestState;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -42,8 +48,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
@@ -52,6 +60,85 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
     @After
     public void closeThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A failure of an index that is being restored by a restore that reports its shards becomes a {@link ShardRestoringException} for that
+     * index. A failure that is not about shard availability, and one of an index that is not being restored, are left as they are.
+     */
+    public void testShardRestoringFailuresReplaceOnlyFailuresOfRestoringIndices() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        final var notReporting = RestoringShardTestState.restoringIndex(
+            restoring.state(),
+            Metadata.DEFAULT_PROJECT_ID,
+            "not-reporting",
+            randomUUID(),
+            false
+        );
+        final ProjectState projectState = notReporting.state().projectState(Metadata.DEFAULT_PROJECT_ID);
+        final var unavailable = new NoShardAvailableActionException(restoring.shardId());
+        final var unrelated = new IllegalArgumentException("unrelated");
+
+        final var restoringFailure = new FieldCapabilitiesFailure(new String[] { "restoring" }, unavailable);
+        final var notReportingFailure = new FieldCapabilitiesFailure(new String[] { "not-reporting" }, unavailable);
+        final var unknownFailure = new FieldCapabilitiesFailure(new String[] { "unknown" }, unavailable);
+        final var unrelatedFailure = new FieldCapabilitiesFailure(new String[] { "restoring" }, unrelated);
+        final var result = TransportFieldCapabilitiesAction.withShardRestoringFailures(
+            List.of(restoringFailure, notReportingFailure, unknownFailure, unrelatedFailure),
+            projectState
+        );
+
+        assertThat(result, org.hamcrest.Matchers.hasSize(4));
+        assertThat(result.get(0).getIndices(), arrayContaining("restoring"));
+        assertThat(result.get(0).getException(), instanceOf(ShardRestoringException.class));
+        assertThat(
+            ((ShardRestoringException) result.get(0).getException()).recoveryId(),
+            org.hamcrest.Matchers.equalTo(restoring.restoreUuid())
+        );
+        assertThat(result.get(1), sameInstance(notReportingFailure));
+        assertThat(result.get(2), sameInstance(unknownFailure));
+        assertThat(result.get(3), sameInstance(unrelatedFailure));
+    }
+
+    /**
+     * One failure can name several indices. Those being restored get their own failure, and the others keep the original one.
+     */
+    public void testShardRestoringFailuresSplitAFailureThatNamesSeveralIndices() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        final var other = RestoringShardTestState.restoringIndex(
+            restoring.state(),
+            Metadata.DEFAULT_PROJECT_ID,
+            "other",
+            randomUUID(),
+            false
+        );
+        final var failure = new FieldCapabilitiesFailure(
+            new String[] { "restoring", "other" },
+            new NoShardAvailableActionException(restoring.shardId())
+        );
+
+        final var result = TransportFieldCapabilitiesAction.withShardRestoringFailures(
+            List.of(failure),
+            other.state().projectState(Metadata.DEFAULT_PROJECT_ID)
+        );
+
+        assertThat(result, org.hamcrest.Matchers.hasSize(2));
+        assertThat(result.get(0).getIndices(), arrayContaining("restoring"));
+        assertThat(result.get(0).getException(), instanceOf(ShardRestoringException.class));
+        assertThat(result.get(1).getIndices(), arrayContaining("other"));
+        assertThat(result.get(1).getException(), sameInstance(failure.getException()));
     }
 
     public void testCCSCompatibilityCheck() {

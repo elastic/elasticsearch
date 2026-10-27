@@ -5188,6 +5188,35 @@ n:long | s:long
 37     | 371737
 ;
 
+aggFilter_ExistingKeyCount_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS k = COUNT(languages), s = SUM(salary) BY languages
+| WHERE s > 500000
+| STATS n = COUNT(*), sk = SUM(k), ss = SUM(s)
+;
+
+n:long | sk:long | ss:long
+100    | 1640    | 83020037
+;
+
+// AVG(languages) is computed from SUM(languages) and COUNT(languages), so the guard reuses that count too.
+aggFilter_ExistingKeyCountFromAvg_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS a = AVG(languages), m = MAX(salary) BY languages
+| WHERE m > 70000
+| STATS n = COUNT(*), sa = SUM(a), sm = SUM(m)
+;
+
+n:long | sa:double | sm:long
+79     | 176.0     | 5870513
+;
+
 // Left rows of a group without a matching right row get a null aggregate, which IS NULL accepts.
 nullAcceptingAggFilter_IsNull_PastInlineJoin
 required_capability: inline_stats

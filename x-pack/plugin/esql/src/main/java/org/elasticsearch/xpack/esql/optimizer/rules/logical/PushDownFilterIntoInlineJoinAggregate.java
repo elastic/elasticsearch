@@ -108,12 +108,7 @@ public final class PushDownFilterIntoInlineJoinAggregate extends OptimizerRules.
 
         Source source = aggregate.source();
         Count countRows = new Count(source, Literal.keyword(source, StringUtils.WILDCARD));
-        Alias countAll = aggregate.aggregates()
-            .stream()
-            .filter(ne -> ne instanceof Alias alias && alias.child().semanticEquals(countRows))
-            .map(Alias.class::cast)
-            .findFirst()
-            .orElse(null);
+        Alias countAll = findAggregate(aggregate, countRows);
         List<NamedExpression> aggregates = new ArrayList<>();
         if (countAll == null) {
             countAll = new Alias(source, locallyUniqueTemporaryName("count"), countRows);
@@ -130,8 +125,11 @@ public final class PushDownFilterIntoInlineJoinAggregate extends OptimizerRules.
             if (countKey.resolved() == false) {
                 return null;
             }
-            Alias countKeyAlias = new Alias(source, locallyUniqueTemporaryName(key.name()), countKey);
-            aggregates.add(countKeyAlias);
+            Alias countKeyAlias = findAggregate(aggregate, countKey);
+            if (countKeyAlias == null) {
+                countKeyAlias = new Alias(source, locallyUniqueTemporaryName(key.name()), countKey);
+                aggregates.add(countKeyAlias);
+            }
             keepGroup.add(new GreaterThan(source, countKeyAlias.toAttribute(), countAll.toAttribute()));
         }
         aggregates.addAll(aggregate.aggregates());
@@ -139,6 +137,20 @@ public final class PushDownFilterIntoInlineJoinAggregate extends OptimizerRules.
         Filter filtered = new Filter(source, aggregate.with(aggregate.groupings(), aggregates), Predicates.combineOr(keepGroup));
         LogicalPlan replacement = new Project(source, filtered, aggregate.output());
         return right.transformUp(Aggregate.class, a -> a == aggregate ? replacement : a);
+    }
+
+    /**
+     * Returns the alias of an aggregate that computes {@code function}, or {@code null} if there is none. The intermediate state of
+     * an aggregation holds each distinct aggregate function once, so a second copy of an existing one misaligns the aggregators with
+     * their state.
+     */
+    private static Alias findAggregate(Aggregate aggregate, Expression function) {
+        for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+            if (aggregateExpression instanceof Alias alias && alias.child().semanticEquals(function)) {
+                return alias;
+            }
+        }
+        return null;
     }
 
     /**

@@ -380,6 +380,17 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
+    public void testInlineStatsWithFilterAndKeyCountTransformToQueryAndTags() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.planFirstInlineSubPlan("""
+            from test
+            | eval x = date_trunc(1 day, date)
+            | inline stats c = count(*), k = count(x) by x
+            | where c > 10
+            """, searchStats, makeAnalyzer("mapping-all-types.json"));
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(true));
+    }
+
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());

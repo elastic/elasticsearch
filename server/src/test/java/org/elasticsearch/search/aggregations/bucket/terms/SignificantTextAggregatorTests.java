@@ -125,7 +125,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     /**
      * Uses the significant text aggregation to find the keywords in text fields and include/exclude selected terms
      */
-    /** The include/exclude regex is bounded by {@code index.max_regex_length} here too, as in the terms aggregation. */
+    /**
+     * The include/exclude regex is bounded by {@code index.max_regex_length} here too, as in the terms aggregation, on an
+     * unmapped field as well: that one builds no filter, so the pattern is checked before the aggregator is built.
+     */
     public void testIncludeExcludeRegexLengthLimit() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
@@ -133,20 +136,22 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()))) {
             indexDocuments(w);
             try (DirectoryReader reader = DirectoryReader.open(w)) {
-                for (IncludeExclude includeExclude : List.of(
-                    new IncludeExclude(tooLong, null, null, null),
-                    new IncludeExclude(null, tooLong, null, null)
-                )) {
-                    SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
-                        includeExclude
-                    );
-                    SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
-                    IllegalArgumentException e = expectThrows(
-                        IllegalArgumentException.class,
-                        () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, textFieldType))
-                    );
-                    assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
-                    assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+                for (String field : List.of("text", "unmapped_text")) {
+                    for (IncludeExclude includeExclude : List.of(
+                        new IncludeExclude(tooLong, null, null, null),
+                        new IncludeExclude(null, tooLong, null, null)
+                    )) {
+                        SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", field).includeExclude(
+                            includeExclude
+                        );
+                        SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, textFieldType))
+                        );
+                        assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
+                        assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+                    }
                 }
             }
         }

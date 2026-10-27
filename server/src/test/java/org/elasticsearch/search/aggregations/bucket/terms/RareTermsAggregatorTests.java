@@ -163,24 +163,29 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    /** The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query. */
+    /**
+     * The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query, on an unmapped field
+     * too: that one builds no filter, so the pattern is checked before the aggregator is built.
+     */
     public void testIncludeExcludeRegexLengthLimit() {
         int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
         String tooLong = "a".repeat(maxRegexLength + 1);
         IncludeExclude includeExclude = randomBoolean()
             ? new IncludeExclude(tooLong, null, null, null)
             : new IncludeExclude(null, tooLong, null, null);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testSearchCase(
-                Queries.ALL_DOCS_INSTANCE,
-                dataset,
-                aggregation -> aggregation.field(KEYWORD_FIELD).includeExclude(includeExclude),
-                agg -> fail("the regex must be rejected")
-            )
-        );
-        assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
-        assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+        for (String field : List.of(KEYWORD_FIELD, "unmapped")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> testSearchCase(
+                    Queries.ALL_DOCS_INSTANCE,
+                    dataset,
+                    aggregation -> aggregation.field(field).includeExclude(includeExclude),
+                    agg -> fail("the regex must be rejected")
+                )
+            );
+            assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+            assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+        }
     }
 
     public void testEmbeddedMaxAgg() throws IOException {

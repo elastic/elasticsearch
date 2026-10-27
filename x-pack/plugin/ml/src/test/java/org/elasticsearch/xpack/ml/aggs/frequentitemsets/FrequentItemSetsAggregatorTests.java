@@ -96,34 +96,45 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    /** The include/exclude regex of a field is bounded by {@code index.max_regex_length}, as in the terms aggregation. */
+    /**
+     * The include/exclude regex of a field is bounded by {@code index.max_regex_length}, as in the terms aggregation, on a
+     * numeric field as well: that one builds no filter, so the pattern is checked before the aggregator is built.
+     */
     public void testIncludeExcludeRegexLengthLimit() throws IOException {
         int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
         String tooLong = "a".repeat(maxRegexLength + 1);
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
-        for (IncludeExclude includeExclude : List.of(
-            new IncludeExclude(tooLong, null, null, null),
-            new IncludeExclude(null, tooLong, null, null)
-        )) {
-            FrequentItemSetsAggregationBuilder builder = new FrequentItemSetsAggregationBuilder(
-                "fi",
-                List.of(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1).setIncludeExclude(includeExclude).build()),
-                FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
-                FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
-                FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
-                null,
-                randomFrom(EXECUTION_HINT_ALLOWED_MODES)
-            );
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> testCase(
-                    iw -> iw.addDocument(List.of(new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("item-1")))),
-                    results -> fail("the regex must be rejected"),
-                    new AggTestConfig(builder, keywordType)
-                )
-            );
-            assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
-            assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+        MappedFieldType intType = new NumberFieldMapper.NumberFieldType(INT_FIELD, NumberFieldMapper.NumberType.INTEGER);
+        for (String field : List.of(KEYWORD_FIELD1, INT_FIELD)) {
+            for (IncludeExclude includeExclude : List.of(
+                new IncludeExclude(tooLong, null, null, null),
+                new IncludeExclude(null, tooLong, null, null)
+            )) {
+                FrequentItemSetsAggregationBuilder builder = new FrequentItemSetsAggregationBuilder(
+                    "fi",
+                    List.of(new MultiValuesSourceFieldConfig.Builder().setFieldName(field).setIncludeExclude(includeExclude).build()),
+                    FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
+                    FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
+                    FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
+                    null,
+                    randomFrom(EXECUTION_HINT_ALLOWED_MODES)
+                );
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> testCase(
+                        iw -> iw.addDocument(
+                            List.of(
+                                new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("item-1")),
+                                new NumericDocValuesField(INT_FIELD, 1)
+                            )
+                        ),
+                        results -> fail("the regex must be rejected"),
+                        new AggTestConfig(builder, keywordType, intType)
+                    )
+                );
+                assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
+                assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+            }
         }
     }
 

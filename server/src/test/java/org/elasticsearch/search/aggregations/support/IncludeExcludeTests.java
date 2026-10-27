@@ -292,6 +292,20 @@ public class IncludeExcludeTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code equals} compares the pattern text, so only the filters show whether a deserialized pattern compiles with the
+     * same flags as the parsed one, that is whether {@code ~} is the complement operator on both sides of the wire.
+     */
+    public void testComplementOperatorSurvivesSerialization() throws IOException {
+        IncludeExclude original = new IncludeExclude("a.*&~(.*e)", null, null, null);
+        IncludeExclude copy = copyWriteable(original, writableRegistry(), IncludeExclude::new);
+        for (IncludeExclude inexcl : List.of(original, copy)) {
+            StringFilter filter = inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
+            assertTrue(filter.accept(new BytesRef("application")));
+            assertFalse(filter.accept(new BytesRef("apple")));
+        }
+    }
+
     public void testRegexIncludeAndExclude() throws IOException {
         String incRegex = "foo.*";
         String excRegex = "football";

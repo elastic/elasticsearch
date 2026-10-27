@@ -85,35 +85,88 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
     public void testSameLanguageAsLuceneOnRandomRegexps() {
         int checked = 0;
         for (int i = 0; i < 500; i++) {
-            String pattern = AutomatonTestUtil.randomRegexp(random());
-            int matchFlags = randomBoolean() ? 0 : RegExp.CASE_INSENSITIVE;
-            RegExp lucene;
-            try {
-                lucene = new RegExp(pattern, FLAGS, matchFlags);
-            } catch (IllegalArgumentException e) {
-                continue;
+            if (sameLanguageAsLuceneIfBuildable(AutomatonTestUtil.randomRegexp(random()), null)) {
+                checked++;
             }
-            Automaton expected;
-            try {
-                expected = Operations.determinize(lucene.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-            } catch (TooComplexToDeterminizeException | IllegalArgumentException e) {
-                continue;
-            }
-            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
-            Automaton actual;
-            try {
-                actual = new CircuitBreakingRegExp(pattern, FLAGS, matchFlags).toAutomaton(breaker, "test");
-            } catch (TooComplexToDeterminizeException e) {
-                continue;
-            }
-            assertEquals("everything charged while building [" + pattern + "] is released", 0L, breaker.getUsed());
-            assertTrue(
-                "same language as Lucene for [" + pattern + "]",
-                AutomatonTestUtil.sameLanguage(expected, Operations.determinize(actual, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT))
-            );
-            checked++;
         }
         assertThat(checked, greaterThanOrEqualTo(100));
+    }
+
+    /**
+     * {@code randomRegexp} writes {@code . ? * + ( ) - [ ] |} on purpose and reaches {@code &}, {@code ~} and bounded
+     * repeats only by chance, so the kinds with ported code and closed-form costs get random operands here, wrapped in each
+     * operator in turn. Lucene's parser folds some compositions, {@code (ab)(cd)} into one string for instance, so a pattern
+     * whose parsed kind is not the intended one is skipped rather than counted.
+     */
+    public void testSameLanguageAsLuceneOnComposedRegexps() {
+        for (RegExp.Kind kind : List.of(
+            RegExp.Kind.REGEXP_INTERSECTION,
+            RegExp.Kind.REGEXP_DEPRECATED_COMPLEMENT,
+            RegExp.Kind.REGEXP_REPEAT_MINMAX,
+            RegExp.Kind.REGEXP_REPEAT_MIN,
+            RegExp.Kind.REGEXP_UNION,
+            RegExp.Kind.REGEXP_CONCATENATION
+        )) {
+            int checked = 0;
+            for (int i = 0; i < 100; i++) {
+                if (sameLanguageAsLuceneIfBuildable(composed(kind), kind)) {
+                    checked++;
+                }
+            }
+            assertThat(kind + " patterns checked", checked, greaterThanOrEqualTo(20));
+        }
+    }
+
+    private static String composed(RegExp.Kind kind) {
+        String left = "(" + AutomatonTestUtil.randomRegexp(random()) + ")";
+        String right = "(" + AutomatonTestUtil.randomRegexp(random()) + ")";
+        int min = between(0, 3);
+        return switch (kind) {
+            case REGEXP_INTERSECTION -> left + "&" + right;
+            case REGEXP_DEPRECATED_COMPLEMENT -> "~" + left;
+            case REGEXP_REPEAT_MINMAX -> left + "{" + min + "," + (min + between(0, 3)) + "}";
+            case REGEXP_REPEAT_MIN -> left + "{" + min + ",}";
+            case REGEXP_UNION -> left + "|" + right;
+            case REGEXP_CONCATENATION -> left + right;
+            default -> throw new AssertionError(kind);
+        };
+    }
+
+    /**
+     * Builds {@code pattern} with Lucene and with the charged compiler and asserts the same language and nothing left on
+     * the breaker; returns false, asserting nothing, when Lucene cannot parse or determinize it, when it parses to a kind
+     * other than {@code expectedKind} if one is given, or when the charged build refuses it as too complex.
+     */
+    private static boolean sameLanguageAsLuceneIfBuildable(String pattern, RegExp.Kind expectedKind) {
+        int matchFlags = randomBoolean() ? 0 : RegExp.CASE_INSENSITIVE;
+        RegExp lucene;
+        try {
+            lucene = new RegExp(pattern, FLAGS, matchFlags);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (expectedKind != null && lucene.kind != expectedKind) {
+            return false;
+        }
+        Automaton expected;
+        try {
+            expected = Operations.determinize(lucene.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } catch (TooComplexToDeterminizeException | IllegalArgumentException e) {
+            return false;
+        }
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        Automaton actual;
+        try {
+            actual = new CircuitBreakingRegExp(pattern, FLAGS, matchFlags).toAutomaton(breaker, "test");
+        } catch (TooComplexToDeterminizeException e) {
+            return false;
+        }
+        assertEquals("everything charged while building [" + pattern + "] is released", 0L, breaker.getUsed());
+        assertTrue(
+            "same language as Lucene for [" + pattern + "]",
+            AutomatonTestUtil.sameLanguage(expected, Operations.determinize(actual, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT))
+        );
+        return true;
     }
 
     /**

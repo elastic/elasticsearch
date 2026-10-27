@@ -247,6 +247,21 @@ teardown:
                 include: ".{0,10000}"
   - length: { aggregations.terms_agg.buckets: 2 }
 
+  # A string filter keeps its automaton charged until the request ends, so this must leave the breaker at zero too.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms_one_copy
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                execution_hint: map
+                include: "a.*"
+  - length: { aggregations.terms_agg.buckets: 1 }
+
   - do:
       nodes.stats:
         node_id: $node_id

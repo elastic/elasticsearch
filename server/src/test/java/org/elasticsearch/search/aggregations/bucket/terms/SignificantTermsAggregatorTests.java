@@ -193,7 +193,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    /** The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query. */
+    /**
+     * The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query, on an unmapped field
+     * too: that one builds no filter, so the pattern is checked before the aggregator is built.
+     */
     public void testIncludeExcludeRegexLengthLimit() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);
@@ -201,21 +204,23 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             addMixedTextDocs(w);
             int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
             String tooLong = "a".repeat(maxRegexLength + 1);
-            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("text")
-                .executionHint(randomExecutionHint())
-                .includeExclude(
-                    randomBoolean() ? new IncludeExclude(tooLong, null, null, null) : new IncludeExclude(null, tooLong, null, null)
-                );
             try (DirectoryReader reader = DirectoryReader.open(w)) {
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> searchAndReduce(
-                        reader,
-                        new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                    )
-                );
-                assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
-                assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+                for (String field : List.of("text", "unmapped_field")) {
+                    SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field(field)
+                        .executionHint(randomExecutionHint())
+                        .includeExclude(
+                            randomBoolean() ? new IncludeExclude(tooLong, null, null, null) : new IncludeExclude(null, tooLong, null, null)
+                        );
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> searchAndReduce(
+                            reader,
+                            new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
+                        )
+                    );
+                    assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+                    assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+                }
             }
         }
     }

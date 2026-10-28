@@ -40,7 +40,7 @@ id:long | name:keyword | pay:long
 ;
 
 // A declaration binds BY NAME even with no `path` on any column, on every format: binding is keyed on schema
-// provenance, not on whether a path was written (esql-planning#1307). The declaration is deliberately NOT in file
+// provenance, not on whether a path was written . The declaration is deliberately NOT in file
 // order -- the file leads with birth_date -- so binding by declaration POSITION would serve the wrong column's
 // values. It also pins that declared property order survives into the PUT body, since output order is declared
 // order.

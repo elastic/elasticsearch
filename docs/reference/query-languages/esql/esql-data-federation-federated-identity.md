@@ -26,7 +26,7 @@ Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/User
 
 To follow this guide, you need:
 
-- An Elastic project or deployment with {{esql}} Data Federation available.
+- An {{ech}} deployment with {{esql}} Data Federation available. Federated identity is on by default on {{ech}}, except in some special environments such as AWS GovCloud.
 - An AWS account with permissions to create IAM OpenID Connect identity providers, roles, and policies.
 - An S3 bucket containing the file or files you want to query.
 
@@ -215,6 +215,13 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
 :::
 
 ::::
+
+:::{note}
+If creating the data source fails with `federated authentication settings require the [<setting>] cluster setting to be enabled`, federated identity isn't available for your deployment. It isn't supported on self-managed, {{ece}}, or {{eck}} deployments, and it's off in some special {{ech}} environments such as AWS GovCloud. The error names one of these settings:
+
+- {applies_to}`stack: experimental 9.6+` `esql.external.federated_identity.enabled`
+- {applies_to}`stack: experimental =9.5` `esql.datasource.federated_identity.enabled`
+:::
 
 **Step 2.** **Create a dataset.** [Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 

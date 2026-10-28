@@ -70,6 +70,11 @@ public class PageRowLimitingIterator implements CloseableIterator<Page> {
     }
 
     @Override
+    public boolean isExhausted() {
+        return remaining <= 0 || delegate.isExhausted();
+    }
+
+    @Override
     public Page tryAdvance() {
         if (remaining <= 0) {
             return null;

@@ -2,7 +2,7 @@
 navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -19,8 +19,9 @@ You can query data stored in compatible external data sources, using the same sy
 
 Before using {{esql}} Data Federation, review the following requirements and limitations:
 
-- This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
+- This feature is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+- To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
 - Currently, this feature is not supported on Windows.
 
 ## Enable the feature
@@ -35,15 +36,40 @@ Add the following to your {{es}} configuration:
 esql.federation.enabled: true
 ```
 
+To learn how to configure this setting on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+
 **{{kib}}**
 
+The {{kib}} UI lets you connect data sources and add datasets without using the API. How you enable it depends on your version.
+
+:::::{applies-switch}
+
+::::{applies-item} stack: experimental 9.6+
+Turn on the UI with an advanced setting:
+
+1. Find **Advanced settings** in the navigation menu or use the global search field, then select the **Global Settings** tab.
+2. Turn on **{{esql}} Data Federation**:
+
+   ![The ES|QL Data Federation advanced setting turned on in the Global Settings tab](images/data-federation/advanced-setting.png)
+3. Click **Save changes**, then reload the page.
+
+:::{note}
+The setting applies to all spaces. Turning it off hides the UI only. Existing data sources and datasets keep working, and you can still manage them with the API. To learn more, refer to [global advanced settings](kibana://reference/advanced-settings.md#kibana-global-settings-reference).
+:::
+
+::::
+
+::::{applies-item} stack: experimental =9.5
 Add the following to your {{kib}} configuration:
 
 ```yaml
 xpack.dataFederation.enabled: true
 ```
 
-To learn how to configure these settings on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+To learn how to configure this setting on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+::::
+
+:::::
 
 ## Why use federated data
 
@@ -112,7 +138,10 @@ Datasets behave like indices. In most places where {{esql}} accepts an index nam
 
 The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
 
-{applies_to}`stack: preview 9.6` Relevance scoring works differently for datasets: `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25. (In 9.5, dataset rows do not contribute to `_score`).
+Relevance scoring works differently for datasets:
+
+- {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
 {{esql}} Data Federation is not currently supported on Windows.
 

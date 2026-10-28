@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -57,7 +56,6 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -66,16 +64,16 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunc
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -96,11 +94,9 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.mockito.exceptions.base.MockitoException;
 
@@ -203,7 +199,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         CIDRMatch.class,
         Fork.class,
         UnionAll.class,
-        ViewUnionAll.class
+        BranchPlan.class
     );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
@@ -575,17 +571,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomGeoDistanceSort();
         } else if (toBuildClass == Pow.class && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
-        } else if (toBuildClass == RemoteFetchHandleFunction.class && argClass == Attribute.class) {
-            // RemoteFetchHandleFunction requires a metadata _doc attribute.
-            return new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
-        } else if (toBuildClass == RemoteFetchExec.class && argClass == PhysicalPlan.class) {
-            // RemoteFetchExec requires fetch-side shape FragmentExec(RemoteFetchSource).
-            return randomRemoteFetchFragment();
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
         } else if (argClass == Stat.class) {
             // record field
             return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
+        } else if (argClass == BranchIdentity.class) {
+            // BranchIdentity is a record (final), so the mock fallback cannot proxy it; build a real one. BranchPlan's
+            // constructor normalizes the identity map against the branch map, so random keys are fine.
+            return randomFrom(BranchIdentity.INDEX, BranchIdentity.SUBQUERY, BranchIdentity.view(randomIdentifier()));
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == Double.class) {
@@ -594,10 +588,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
         } else if (toBuildClass == ResolvingProject.class && argType == LogicalPlan.class) {
-            // ResolvingProject's ctor asserts at most one $$unmapped_fields in the child output. randomResolvedExpression can draw
+            // ResolvingProject's ctor asserts at most one _unmapped_fields in the child output. randomResolvedExpression can draw
             // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.
             return randomEsRelation();
-        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, BranchPlan.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors
                 return randomEsRelation();
@@ -983,11 +977,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomIndexProperties(),
             randomFieldAttributes(0, 10, false)
         );
-    }
-
-    private static FragmentExec randomRemoteFetchFragment() {
-        RemoteFetchSource remoteFetchSource = new RemoteFetchSource(Source.EMPTY, randomFieldAttributes(1, 4, false));
-        return new FragmentExec(Source.EMPTY, remoteFetchSource, randomQuery(), between(0, Integer.MAX_VALUE));
     }
 
     static QueryBuilder randomQuery() {

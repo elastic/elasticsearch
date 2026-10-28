@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -184,6 +185,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         StorageObject storage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -272,6 +281,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         byte[] fileData = new byte[10000];
         StorageObject storage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -351,6 +368,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     public void testPrefetchFailureCompletesExceptionally() {
         StorageObject failingStorage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -406,6 +431,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         CountDownLatch started = new CountDownLatch(1);
         CompletableFuture<Void> backendGet = new CompletableFuture<>();
         StorageObject storage = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -933,6 +966,14 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

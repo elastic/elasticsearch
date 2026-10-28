@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,7 +37,7 @@ import java.util.function.BooleanSupplier;
  * group may overshoot when it is larger than the remaining budget, so a scan cannot stall;
  * that overshoot is node-wide, not per iterator, and belongs to one owner lease until
  * {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than fail the query.
- * Coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking
+ * Test-only coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking
  * wait and no charge-on-expiry.
  */
 final class ParquetIoWatermark implements AdmissionGate {
@@ -46,7 +47,7 @@ final class ParquetIoWatermark implements AdmissionGate {
     /**
      * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
      * {@link #forceAdd} (footer metadata, sliding window). {@link #GROUP_HOLD} is a footer
-     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} draws one unit ticket covering
+     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} is test-only: one unit ticket covering
      * every miss in the coalesced call. A null hold is never {@link #PER_GET}.
      */
     enum ByteGate {
@@ -187,11 +188,19 @@ final class ParquetIoWatermark implements AdmissionGate {
      * the overshoot owner.
      */
     void forceAdd(long bytes) {
-        budget.add(bytes);
+        forceAdd(bytes, null);
+    }
+
+    void forceAdd(long bytes, @Nullable RowGroupIo lease) {
+        budget.add(bytes, lease);
     }
 
     void release(long bytes) {
-        budget.release(bytes);
+        release(bytes, null);
+    }
+
+    void release(long bytes, @Nullable RowGroupIo lease) {
+        budget.release(bytes, lease);
     }
 
     long used() {
@@ -243,18 +252,25 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
+        RowGroupIo lease = affinityLease();
         AtomicBoolean released = new AtomicBoolean();
         DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
             try {
                 inner.close();
             } finally {
                 if (released.compareAndSet(false, true)) {
-                    release(footprint);
+                    release(footprint, lease);
                 }
             }
         });
-        forceAdd(footprint);
+        forceAdd(footprint, lease);
         return wrapped;
+    }
+
+    @Nullable
+    private static RowGroupIo affinityLease() {
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        return scope == null ? null : scope.lease();
     }
 
     static DirectBufferFactory bufferFactory(CircuitBreaker breaker, @Nullable ParquetIoWatermark watermark) {

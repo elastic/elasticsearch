@@ -131,6 +131,11 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     @Override
+    public boolean canEmitPartialResultsPeriodically() {
+        return false;
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays
     }
@@ -594,6 +599,19 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                     close();
                 }
             }
+        }
+
+        void append(int groupId, long timestamp, long value) {
+            prepareForAppend(groupId, 1, timestamp);
+            appendWithoutResize(timestamp, value);
+        }
+
+        long timestamp(int position) {
+            return timestamps.get(position);
+        }
+
+        long value(int position) {
+            return values.get(position);
         }
 
         void prepareForAppend(int groupId, int count, long firstTimestamp) {

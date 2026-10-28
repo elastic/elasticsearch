@@ -126,6 +126,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     private transient ExternalPlanningReservation externalPlanning;
     private transient boolean hasLinkedProjects;
+    /**
+     * Whether the analyzed plan contained an external relation. Runtime-only coordinator state: it is not serialized
+     * ({@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does not read it). Gates query
+     * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
+     */
+    private transient volatile boolean externalSource;
 
     private final EsqlQueryProfile queryProfile;
 
@@ -240,6 +246,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void externalPlanning(ExternalPlanningReservation reservation) {
         this.externalPlanning = reservation;
+    }
+
+    /** Marks that the analyzed plan contained an external relation. One-way: it is never cleared. Not serialized. */
+    public void markExternalSource() {
+        this.externalSource = true;
+    }
+
+    /** @return whether the analyzed plan contained an external relation, whether or not anything was scanned */
+    public boolean externalSource() {
+        return externalSource;
     }
 
     /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */

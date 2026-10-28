@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.request;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
@@ -18,28 +19,26 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class GoogleAiStudioRequestTests extends ESTestCase {
 
     public void testDecorateWithApiKeyParameter() throws URISyntaxException {
         var uriString = "https://localhost:3000";
         var secureApiKey = new SecureString("api_key".toCharArray());
-        var httpPost = new HttpPost(uriString);
+        var httpPost = SimpleRequestBuilder.post(uriString).build();
         var secretSettings = new DefaultSecretSettings(secureApiKey);
 
         GoogleAiStudioRequestUtils.decorateWithApiKeyParameter(httpPost, secretSettings);
 
-        assertThat(httpPost.getURI(), is(new URI(Strings.format("%s?key=%s", uriString, secureApiKey))));
+        assertThat(httpPost.getUri(), is(new URI(Strings.format("%s/?key=%s", uriString, secureApiKey))));
     }
 
     public void testDecorateWithApiKeyParameter_ThrowsValidationException_WhenAnyExceptionIsThrown() {
-        var errorMessage = "something went wrong";
-        var cause = new RuntimeException(errorMessage);
-        var httpPost = mock(HttpPost.class);
-        when(httpPost.getURI()).thenThrow(cause);
+        // SimpleHttpRequest is final and cannot be mocked, so we use a real request whose request-uri cannot be
+        // parsed (space in the authority), which makes SimpleHttpRequest#getUri throw a URISyntaxException.
+        var httpPost = SimpleHttpRequest.create("POST", "http://invalid host/");
 
         ValidationException validationException = expectThrows(
             ValidationException.class,
@@ -48,8 +47,8 @@ public class GoogleAiStudioRequestTests extends ESTestCase {
                 new DefaultSecretSettings(new SecureString("abc".toCharArray()))
             )
         );
-        assertThat(validationException.getCause(), is(cause));
-        assertThat(validationException.getMessage(), containsString(errorMessage));
+        assertThat(validationException.getCause(), instanceOf(URISyntaxException.class));
+        assertThat(validationException.getMessage(), containsString(validationException.getCause().getMessage()));
     }
 
 }

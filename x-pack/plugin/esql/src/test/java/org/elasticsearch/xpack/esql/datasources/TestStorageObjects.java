@@ -9,17 +9,25 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
@@ -38,6 +46,14 @@ final class TestStorageObjects {
      */
     static StorageObject metricsOnly(StorageObjectMetrics snapshot) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -83,6 +99,63 @@ final class TestStorageObjects {
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    /**
+     * Real metered leaf, the same base class S3/GCS/Azure/HTTP extend. Each {@code newStream} records one
+     * request of the returned range's bytes through {@link AbstractMeteredStorageObject}'s counters, so a
+     * decorator stack over it publishes {@code storage.*} metrics only if {@code attachMetrics} reaches it.
+     */
+    static AbstractMeteredStorageObject meteredLeaf(StoragePath path, byte[] data) {
+        return new AbstractMeteredStorageObject() {
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                byte[] range = Arrays.copyOfRange(data, (int) position, (int) Math.min(data.length, position + length));
+                counters.addRequest(0, range.length);
+                return new ByteArrayInputStream(range);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+        };
+    }
+
+    /**
+     * Returns the only measurement recorded for {@code name}, failing if there is not exactly one.
+     */
+    static Measurement singleMeasurement(RecordingMeterRegistry registry, InstrumentType type, String name) {
+        List<Measurement> found = registry.getRecorder().getMeasurements(type, name);
+        if (found.size() != 1) {
+            throw new AssertionError("expected exactly one measurement for [" + name + "] but found " + found.size());
+        }
+        return found.get(0);
     }
 
     /**

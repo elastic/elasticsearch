@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -21,8 +22,12 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
@@ -31,7 +36,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -68,6 +75,272 @@ public class S3RequestCountingTests extends ESTestCase {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
             new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 })))
         );
+    }
+
+    /**
+     * The metadata lookup a resolve makes is one HeadObject and nothing else. No range GET: the caller is not going
+     * to read the object, so it has no use for the generation pin a GET would establish, and HeadObject needs the
+     * same s3:GetObject so it costs no more.
+     */
+    public void testObjectMetadataIsOneHeadAndNoGet() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+        assertEquals(LAST_MODIFIED, metadata.lastModified());
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * A refused HEAD carries no response body, so it has no S3 error code and cannot say which action was denied.
+     * One range GET recovers the body, which is what makes the three denial conditions distinguishable. Asserting
+     * only that something threw would pass without the recovery, so this pins the mapped condition and the code.
+     */
+    public void testObjectMetadataDenialRecoversTheErrorCode() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(403).message("Access Denied").build()
+        );
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder()
+                .statusCode(403)
+                .message("Access Denied")
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("AccessDenied").errorMessage("Access Denied").build())
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException denied = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.ACCESS_DENIED, denied.condition());
+        assertThat(denied.getMessage(), containsString("AccessDenied"));
+
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * An expired session token is identified by error code, and a HEAD carries none, so recovering the body is
+     * what keeps the type. Without it the resolve path reports "HTTP 400" and the typed 400 the resolver
+     * unwraps is lost.
+     */
+    public void testObjectMetadataRecoversAnExpiredTokenDeliveredAsA400() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(400).build());
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder()
+                .statusCode(400)
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("ExpiredToken").errorMessage("token expired").build())
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        expectThrows(ExternalCredentialsExpiredException.class, obj::headObjectMetadata);
+    }
+
+    /**
+     * A refused HEAD followed by a GET that answers NoSuchKey means the object is not there.
+     * probeObjectViaRangeGet records that rather than throwing, so without an explicit check the method returns
+     * length 0 and an EPOCH timestamp, and the resolve path caches that as the file's metadata.
+     */
+    public void testObjectMetadataOnAMissingObjectDoesNotReportAnEmptyOne() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(403).build());
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("Not Found").build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException missing = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_NOT_FOUND, missing.condition());
+    }
+
+    /**
+     * A HEAD on an archived object succeeds and names the class in a header, where a GET is refused with
+     * InvalidObjectState. The resolve has to reach the same conclusion from the header, or it accepts the object
+     * and the read fails later instead.
+     */
+    public void testObjectMetadataRefusesAnArchivedObject() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).storageClass("GLACIER").build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
+        assertThat(archived.getMessage(), containsString("GLACIER"));
+        // The remedy, not just the condition: an archived message that does not say how to fix it is the regression
+        // ExternalErrorSurfaceIT caught when the resolve stopped failing here.
+        assertThat(archived.getMessage(), containsString("restore it"));
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * A refused HEAD whose recovery GET reports 416 is an empty object, not a failure. probeObject already drew
+     * that conclusion; the recovery path reported "HTTP 416" instead.
+     */
+    public void testObjectMetadataRecoveryTreatsA416AsAnEmptyObject() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(403).build());
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(416).message("Range Not Satisfiable").build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(0L, metadata.length());
+        assertEquals(Instant.EPOCH, metadata.lastModified());
+    }
+
+    /**
+     * A restored object still names its archive class; {@code x-amz-restore} is what says the copy is available.
+     * Refusing on the class alone tells the user to restore an object that is already restored.
+     */
+    public void testObjectMetadataAcceptsARestoredArchivedObject() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder()
+                .contentLength(FILE_SIZE)
+                .lastModified(LAST_MODIFIED)
+                .storageClass("GLACIER")
+                .restore("ongoing-request=\"false\", expiry-date=\"Fri, 21 Dec 2026 00:00:00 GMT\"")
+                .build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+    }
+
+    /**
+     * A restore still running is not a restore: the copy is not available yet, so a GET is still refused. Reading
+     * only whether {@code x-amz-restore} is present accepts the object here and fails at read time instead, with a
+     * message that no longer says to wait.
+     */
+    public void testObjectMetadataRefusesAnObjectWhoseRestoreIsStillRunning() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder()
+                .contentLength(FILE_SIZE)
+                .lastModified(LAST_MODIFIED)
+                .storageClass("GLACIER")
+                .restore("ongoing-request=\"true\"")
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
+        assertThat(archived.getMessage(), containsString("wait for a restore in progress"));
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * An Intelligent-Tiering object names INTELLIGENT_TIERING as its class and carries the archive state in
+     * {@code x-amz-archive-status}, so reading the class alone lets it through and the read fails later.
+     */
+    public void testObjectMetadataRefusesAnIntelligentTieringArchivedObject() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder()
+                .contentLength(FILE_SIZE)
+                .lastModified(LAST_MODIFIED)
+                .storageClass("INTELLIGENT_TIERING")
+                .archiveStatus("DEEP_ARCHIVE_ACCESS")
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
+        // Both parts, in the one form the refused-GET path also renders: the class alone does not say why this
+        // object is archived, and a separator that drifts from the sibling is the divergence this pins.
+        assertThat(archived.getMessage(), containsString("storage class [INTELLIGENT_TIERING] and access tier [DEEP_ARCHIVE_ACCESS]"));
+        assertThat(archived.getMessage(), containsString("restore it"));
+    }
+
+    /**
+     * A 404 is the other status the recovery GET is not spent on: a GET would only repeat it. The object is simply
+     * not there, which is already the whole answer, and the recovery exists to learn an error code a 404 has.
+     */
+    public void testObjectMetadataDoesNotRecoverOnANotFound() {
+        // statusCode must be set explicitly: the builder leaves it 0, which fails the guard's >= 400 arm before
+        // the 404 exclusion this test is named for is ever reached, and the test would pass for the wrong reason.
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            NoSuchKeyException.builder().statusCode(404).message("Not Found").build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException missing = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_NOT_FOUND, missing.condition());
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * A throttled HEAD must not spend a second request recovering an error body: the retry layer is about to ask
+     * again, so a GET per attempt is two requests against a store that asked for fewer.
+     */
+    public void testObjectMetadataDoesNotRecoverOnARetryableStatus() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(429).build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        // The mapped condition matters as much as the absent GET: a 429 that stopped arriving as back-pressure
+        // would still satisfy expectThrows(Exception.class) while the retry layer stopped backing off for it.
+        ExternalUnavailableException throttled = expectThrows(ExternalUnavailableException.class, obj::headObjectMetadata);
+        assertEquals(ExternalUnavailableException.Condition.STORE_THROTTLED, throttled.condition());
+        assertTrue(throttled.throttling());
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /** An instant-retrieval class is readable, so it must not be refused. */
+    public void testObjectMetadataAcceptsAnInstantRetrievalClass() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).storageClass("GLACIER_IR").build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+    }
+
+    /** A HeadObject response without a Content-Length cannot answer the length the caller asked for. */
+    public void testObjectMetadataWithoutContentLengthFails() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().lastModified(LAST_MODIFIED).build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        expectThrows(IOException.class, obj::headObjectMetadata);
+    }
+
+    /**
+     * Through the provider, which is what the resolve path calls. The object-level tests above cannot see the
+     * override being wired: deleting it leaves the interface default in place, which answers from a range GET.
+     */
+    public void testProviderObjectMetadataIsOneHeadAndNoGet() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+        );
+        S3StorageProvider provider = new S3StorageProvider(S3Configuration.fromMap(Map.of("auth", "anonymous")), mockS3);
+
+        StorageEntry metadata = provider.objectMetadata(PATH);
+
+        assertEquals(FILE_SIZE, metadata.length());
+        assertEquals(LAST_MODIFIED, metadata.lastModified());
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * Pre-known length and modification time reach the handle, so nothing asks the store for what the caller
+     * already supplied. The four single-path entry points resolve the bucket's clients through one step and then
+     * construct at different arities, and an argument dropped on the way to the longest one is otherwise silent.
+     */
+    public void testProviderPassesPreKnownLengthAndModificationTime() throws IOException {
+        S3StorageProvider provider = new S3StorageProvider(S3Configuration.fromMap(Map.of("auth", "anonymous")), mockS3);
+
+        StorageObject object = provider.newObject(PATH, FILE_SIZE, LAST_MODIFIED);
+
+        assertEquals(FILE_SIZE, object.length());
+        assertEquals(LAST_MODIFIED, object.lastModified());
+        verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
     }
 
     /**

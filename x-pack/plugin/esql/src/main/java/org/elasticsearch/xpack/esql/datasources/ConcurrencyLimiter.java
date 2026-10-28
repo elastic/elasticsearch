@@ -359,7 +359,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         asyncLock.lock();
         try {
             // Permits assigned to a waiter but not yet delivered do not count: the watchdog
-            // must still see Bug C (grant queued, no GET in flight). Admission already took
+            // must still see a queued grant with no GET in flight. Admission already took
             // them from the semaphore so we do not over-grant.
             return Math.max(0, maxPermits() - semaphore.availablePermits() - undelivered.get());
         } finally {

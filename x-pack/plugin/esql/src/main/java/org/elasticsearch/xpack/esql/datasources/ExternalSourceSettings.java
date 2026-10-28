@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -251,7 +252,7 @@ public final class ExternalSourceSettings {
      * runs one long-lived segmentator that pins a pool thread while it blocks on its chunk/buffer queues and the
      * upstream decompress stream; its per-chunk parser tasks run on the same pool. Without a cap, enough
      * concurrently-open reads pin every pool thread and their parser tasks — queued behind the segmentators — never
-     * get a thread, deadlocking the reads (elastic/esql-planning #1093, item 4). Bounding concurrent segmentators
+     * get a thread, deadlocking the reads. Bounding concurrent segmentators
      * below the pool size guarantees threads remain free for parser tasks.
      * <p>
      * Default {@code 0} means "derive": the effective cap tracks the {@code esql_external_io} pool size
@@ -317,9 +318,32 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * How long a worker waits for the cluster state it lacks (a node that has just joined and not yet applied its first
+     * state, or one that has not yet applied a dataset change the coordinator planned from) before failing the query with
+     * a retryable 503. Only a worker that has to wait does: the coordinator's only choice for a query's external splits,
+     * or the last worker of the walk those splits take once every other one declined them. A worker with another still
+     * to try declines at once instead. One bound per request, whatever it has to wait for in turn. The first state is applied within a
+     * couple of seconds on a healthy node; the default leaves room for a slow one without parking a query for the length
+     * of a master timeout. {@code 0} fails at once.
+     */
+    public static final Setting<TimeValue> WORKER_READY_TIMEOUT = Setting.timeSetting(
+        "esql.external.worker_ready_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
-     * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
-     * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
+     * prefix of the dataset. Default: 1,000 - far more files than a small LIMIT needs.
+     * <p>
+     * It counts matching files, not keys the store returns, so the request cost of an attempt is not bounded by it,
+     * and how far apart the two run depends on the provider. Where the pattern offers a literal name prefix and the
+     * provider narrows on it, the store returns only the keys under that prefix; S3 and the local filesystem do
+     * that, and the providers that take the interface default instead return every key under the prefix the glob
+     * sits beneath, one page per thousand keys, and select afterwards. What caps keys is
+     * {@code max_listed_objects}.
      * <p>
      * Not a cap and not a correctness setting: how many rows a file holds is only known from its footer, after the
      * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower
@@ -671,6 +695,7 @@ public final class ExternalSourceSettings {
             MAX_CONCURRENT_REQUESTS,
             MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
+            WORKER_READY_TIMEOUT,
             FIRST_ATTEMPT_LISTING_FILES,
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,

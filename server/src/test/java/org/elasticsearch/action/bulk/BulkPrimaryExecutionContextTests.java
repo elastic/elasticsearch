@@ -26,12 +26,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -69,6 +71,96 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         }
 
         assertThat(visitedRequests, equalTo(nonAbortedRequests));
+    }
+
+    /**
+     * The look-ahead is only allowed once an operation of the request waited for a mapping update, on an index that enables it.
+     * It goes through the index requests that follow the current operation, skips the aborted ones and ends at the first
+     * operation that is rejected or that is not an index request. The operations it went through don't start a new look-ahead.
+     */
+    public void testLookAheadForMappingUpdates() {
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("0")),
+            new BulkItemRequest(1, new IndexRequest("index").id("1")),
+            new BulkItemRequest(2, new IndexRequest("index").id("2")),
+            new BulkItemRequest(3, new IndexRequest("index").id("3")),
+            new BulkItemRequest(4, new DeleteRequest("index", "4")),
+            new BulkItemRequest(5, new IndexRequest("index").id("5")),
+            new BulkItemRequest(6, new IndexRequest("index").id("6")) };
+        items[2].abort("index", new ElasticsearchException("aborted"));
+        BulkShardRequest shardRequest = new BulkShardRequest(
+            new ShardId("index", "_na_", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
+        boolean enabled = randomBoolean();
+        final IndexShard primary = mock(IndexShard.class);
+        when(primary.shardId()).thenReturn(shardRequest.shardId());
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), enabled)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        when(primary.indexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
+        ShardRouting shardRouting = newShardRouting(shardRequest.shardId(), ShardRouting.Role.DEFAULT);
+        when(primary.routingEntry()).thenReturn(shardRouting);
+
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
+        assertFalse(context.shouldLookAheadForMappingUpdates());
+        // operation 0 waits for a mapping update and is executed
+        context.setRequestToExecute(context.getCurrent());
+        context.markAsRequiringMappingUpdate();
+        context.resetForMappingUpdateRetry();
+        completeCurrentOperation(context);
+
+        // operation 1
+        assertThat(context.shouldLookAheadForMappingUpdates(), equalTo(enabled));
+        if (enabled == false) {
+            return;
+        }
+        List<String> offered = new ArrayList<>();
+        context.lookAheadForMappingUpdates(request -> offered.add(request.id()));
+        assertThat(offered, equalTo(List.of("3")));
+        assertFalse(context.shouldLookAheadForMappingUpdates());
+        completeCurrentOperation(context);
+
+        // operation 3, the look-ahead went through it
+        assertThat(context.getCurrent().id(), equalTo("3"));
+        assertFalse(context.shouldLookAheadForMappingUpdates());
+        completeCurrentOperation(context);
+
+        // operation 4, the look-ahead ended on it
+        assertTrue(context.shouldLookAheadForMappingUpdates());
+        offered.clear();
+        context.lookAheadForMappingUpdates(request -> {
+            offered.add(request.id());
+            return false;
+        });
+        assertThat(offered, equalTo(List.of("5")));
+        completeCurrentOperation(context);
+
+        // operation 5, the look-ahead rejected it
+        assertTrue(context.shouldLookAheadForMappingUpdates());
+        offered.clear();
+        context.lookAheadForMappingUpdates(request -> offered.add(request.id()));
+        assertThat(offered, equalTo(List.of("6")));
+        completeCurrentOperation(context);
+
+        // operation 6
+        assertFalse(context.shouldLookAheadForMappingUpdates());
+    }
+
+    private static void completeCurrentOperation(BulkPrimaryExecutionContext context) {
+        context.setRequestToExecute(context.getCurrent());
+        context.markOperationAsExecuted(
+            new Engine.IndexResult(new ElasticsearchException("failed"), 1, context.getRequestToExecute().id())
+        );
+        context.markAsCompleted(context.getExecutionResult());
     }
 
     private BulkShardRequest generateRandomRequest() {

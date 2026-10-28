@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -177,7 +178,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
         }
 
-        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME), command.stepId());
+        // The step list and its expansion are this relation's own columns: the command's step attribute is defined once, by
+        // the final projection, so no filter above can fold the whole list in where a single step is meant.
+        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME));
         var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
 
         return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);
@@ -412,6 +415,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
         Source source = source(ctx);
+        if (ctx.op.getType() == MINUS) {
+            Instant end = visitTemporalInstant(ctx.left);
+            Instant start = visitTemporalInstant(ctx.right);
+            if (end != null || start != null) {
+                return timeRange(ctx, end, start);
+            }
+        }
         LogicalPlan le = wrapLiteral(ctx.left);
         LogicalPlan re = wrapLiteral(ctx.right);
 
@@ -509,6 +519,27 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             case OR -> VectorBinarySet.SetOp.UNION;
             default -> throw new ParsingException(source(opType), "Unknown arithmetic {}", opType.getText());
         };
+    }
+
+    /**
+     * The duration between two timestamp parameters, such as the start and end of a dashboard's time range in
+     * {@code [?_tend - ?_tstart]}. Both operands must be timestamp parameters, without vector matching modifiers.
+     */
+    private LiteralSelector timeRange(PromqlBaseParser.ArithmeticBinaryContext ctx, Instant end, Instant start) {
+        Source source = source(ctx);
+        if (end != null && start != null && ctx.modifier() == null) {
+            if (end.isAfter(start) == false) {
+                throw new ParsingException(
+                    source,
+                    "Time range [{}] must end after it starts, got [{}] and [{}]",
+                    source.text(),
+                    end,
+                    start
+                );
+            }
+            return new LiteralSelector(source, Literal.timeDuration(source, Duration.between(start, end)));
+        }
+        throw new ParsingException(source, "A timestamp parameter can only be subtracted from another timestamp, got [{}]", source.text());
     }
 
     /**

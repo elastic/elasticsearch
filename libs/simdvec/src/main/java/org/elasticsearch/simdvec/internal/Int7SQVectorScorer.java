@@ -75,7 +75,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         assert queryVector.length == values.getVectorByteLength();
         this.vectorByteSize = values.getVectorByteLength();
         this.vectorPitch = vectorByteSize + Float.BYTES;
-        MemorySegment querySeg = Arena.ofAuto().allocate(queryVector.length, 32);
+        MemorySegment querySeg = Arena.ofAuto().allocate(queryVector.length, ValueLayout.JAVA_LONG.byteAlignment());
         MemorySegment.copy(queryVector, 0, querySeg, ValueLayout.JAVA_BYTE, 0, queryVector.length);
         this.query = querySeg;
         this.queryCorrection = queryCorrection;

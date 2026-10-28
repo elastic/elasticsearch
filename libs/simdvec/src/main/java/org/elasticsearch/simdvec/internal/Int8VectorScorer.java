@@ -65,7 +65,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        MemorySegment querySeg = Arena.ofAuto().allocate(queryVector.length, 32);
+        MemorySegment querySeg = Arena.ofAuto().allocate(queryVector.length, ValueLayout.JAVA_LONG.byteAlignment());
         MemorySegment.copy(queryVector, 0, querySeg, ValueLayout.JAVA_BYTE, 0, queryVector.length);
         this.query = querySeg;
         this.scratch = new FixedSizeSegmentScratch(vectorByteSize);

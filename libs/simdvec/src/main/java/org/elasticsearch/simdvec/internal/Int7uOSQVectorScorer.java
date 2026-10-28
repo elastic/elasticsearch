@@ -134,7 +134,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        MemorySegment querySeg = Arena.ofAuto().allocate(quantizedQuery.length, 32);
+        MemorySegment querySeg = Arena.ofAuto().allocate(quantizedQuery.length, ValueLayout.JAVA_LONG.byteAlignment());
         MemorySegment.copy(quantizedQuery, 0, querySeg, ValueLayout.JAVA_BYTE, 0, quantizedQuery.length);
         this.query = querySeg;
         this.lowerInterval = lowerInterval;

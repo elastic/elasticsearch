@@ -117,7 +117,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             centroidDP,
             Int4Corrections.singleCorrectionFor(similarityType)
         );
-        MemorySegment querySeg = Arena.ofAuto().allocate(unpackedQuery.length, 32);
+        MemorySegment querySeg = Arena.ofAuto().allocate(unpackedQuery.length, ValueLayout.JAVA_LONG.byteAlignment());
         MemorySegment.copy(unpackedQuery, 0, querySeg, ValueLayout.JAVA_BYTE, 0, unpackedQuery.length);
         this.query = new QueryContext(lowerInterval, upperInterval, additionalCorrection, quantizedComponentSum, querySeg);
     }

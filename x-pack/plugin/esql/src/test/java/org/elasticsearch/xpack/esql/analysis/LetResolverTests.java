@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
-import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.Collections;
 import java.util.List;
@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Unit tests for {@link LetResolver}.
@@ -47,7 +48,7 @@ public class LetResolverTests extends ESTestCase {
     private static LogicalPlan parseAndResolveLet(String query) {
         assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
-        return LetResolver.resolve(statement.plan(), statement.letBindings());
+        return LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
     }
 
     /** Creates a bare UnresolvedRelation for the given pattern string. */
@@ -79,7 +80,7 @@ public class LetResolverTests extends ESTestCase {
 
     public void testEmptyBindingsReturnsSamePlan() {
         LogicalPlan plan = relation("some_index");
-        LogicalPlan result = LetResolver.resolve(plan, List.of());
+        LogicalPlan result = LetResolver.resolve(plan, List.of(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
         assertThat(result, sameInstance(plan));
     }
 
@@ -238,68 +239,68 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // Plan depth limit protections
+    // Plan size limit protections
     // -----------------------------------------------------------------------
 
-    public void testPlanDepthWithinLimit() {
-        // The limit counts commands, so exactly MAX_QUERY_DEPTH commands over the source is allowed.
-        LogicalPlan result = parseAndResolveLet("LET b = (" + limitChain("src", LogicalPlanBuilder.MAX_QUERY_DEPTH) + "); FROM b");
+    private static final String MAX_PLAN_NODES_ERROR =
+        "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs.";
+
+    public void testPlanSizeWithinLimit() {
+        LogicalPlan result = parseAndResolveLet("LET b = (" + limitChain("src", 300) + "); FROM b");
         assertThat(result, instanceOf(Limit.class));
     }
 
-    public void testBindingExceedingPlanDepthIsRejected() {
+    public void testBindingExceedingPlanSizeIsRejected() {
         expectThrows(
             VerificationException.class,
-            containsString(
-                "LET binding [b] resolved to a plan with "
-                    + (LogicalPlanBuilder.MAX_QUERY_DEPTH + 1)
-                    + " chained commands, exceeding the maximum of "
-                    + LogicalPlanBuilder.MAX_QUERY_DEPTH
-            ),
-            () -> parseAndResolveLet("LET b = (" + limitChain("src", LogicalPlanBuilder.MAX_QUERY_DEPTH + 1) + "); FROM b")
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> parseAndResolveLet("LET b = (" + limitChain("src", 500) + "); FROM b")
         );
     }
 
-    public void testChainedBindingsAccumulateDepth() {
-        // Each binding is within the limit on its own; the second inlines the first and goes over.
-        int half = LogicalPlanBuilder.MAX_QUERY_DEPTH / 2 + 1;
+    public void testChainedBindingsAccumulatePlanSize() {
         expectThrows(
             VerificationException.class,
-            containsString("LET binding [b] resolved to a plan with"),
-            () -> parseAndResolveLet("LET a = (" + limitChain("src", half) + "); LET b = (" + limitChain("a", half) + "); FROM b")
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> parseAndResolveLet("LET a = (" + limitChain("src", 250) + "); LET b = (" + limitChain("a", 250) + "); FROM b")
         );
     }
 
-    public void testMainQueryExceedingPlanDepthIsRejected() {
-        int half = LogicalPlanBuilder.MAX_QUERY_DEPTH / 2 + 1;
+    public void testMainQueryExceedingPlanSizeIsRejected() {
         expectThrows(
             VerificationException.class,
-            containsString("query resolved to a plan with"),
-            () -> parseAndResolveLet("LET b = (" + limitChain("src", half) + "); " + limitChain("b", half))
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> parseAndResolveLet("LET b = (FROM a); " + limitChain("b", 500))
         );
     }
 
-    public void testDepthIncludesInSubqueryPlans() {
-        // The IN subquery plan is substituted into too, so its depth counts toward the enclosing node.
+    public void testPlanSizeIncludesSubqueryPlans() {
         expectThrows(
             VerificationException.class,
-            containsString("resolved to a plan with"),
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> parseAndResolveLet("LET b = (" + limitChain("src", 250) + "); FROM b, (FROM b) | WHERE x > 0")
+        );
+    }
+
+    public void testPlanSizeIncludesInSubqueryPlans() {
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> parseAndResolveLet(
-                "LET b = (" + limitChain("src", LogicalPlanBuilder.MAX_QUERY_DEPTH) + "); FROM main | WHERE x IN (FROM b)"
+                "LET b = (" + limitChain("src", 205) + "); " + limitChain("main", 100) + " | WHERE x IN (FROM b) | WHERE y IN (FROM b)"
             )
         );
     }
 
-    public void testSharedBindingReferencedDepthCalculation() {
-        // 2^50 leaves if expanded; the depth walk is memoized by identity so this must return promptly and stay within the limit.
+    public void testSharedBindingExpansionIsRejectedWithoutExpanding() {
+        // 2^50 leaves if expanded; sizes are tracked arithmetically, so this must be rejected promptly.
         StringBuilder query = new StringBuilder("LET b0 = (FROM src); ");
         for (int i = 1; i < 50; i++) {
             String previous = "b" + (i - 1);
             query.append("LET b").append(i).append(" = (FROM ").append(previous).append(", ").append(previous).append("); ");
         }
         query.append("FROM b49");
-        LogicalPlan result = parseAndResolveLet(query.toString());
-        assertThat(result, instanceOf(UnionAll.class));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(query.toString()));
     }
 
     // -----------------------------------------------------------------------

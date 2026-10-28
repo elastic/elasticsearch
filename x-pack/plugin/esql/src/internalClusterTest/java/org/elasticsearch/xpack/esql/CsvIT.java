@@ -157,6 +157,7 @@ public class CsvIT extends ESTestCase {
         "views",
         "approximation",
         "unmapped-load",
+        "unmapped-load-all",
         "metadata-views-and-subqueries",
         "named_subquery"
     );

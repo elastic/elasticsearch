@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -100,28 +99,40 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
-    // LOAD_ALL is deliberately absent from this description: it is snapshot-only, and there is no mechanism to hold
-    // docs back for a snapshot-only value of an already-released setting. Document it once it ships.
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
         For a conceptual overview and use cases, including performance considerations, refer to
         [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
+        An unmapped field is present in documents but not defined in the index mapping. Across the queried indices, a field is:
+
+        - *fully unmapped* if none of the queried indices map it.
+        - *partially mapped* (also called *partially unmapped*) if some of the queried indices map it and others don't.
+          In the indices that don't map it, its values are `null` unless they are loaded with `LOAD`.
+
         Possible values are:
 
-        - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
+        - `DEFAULT` : Standard ESQL queries fail when referencing fully unmapped fields.
         - `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
           appear in the output.
         - `LOAD` : Loads referenced fully unmapped fields from the stored
           [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
-          absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
+          absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
+          even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
+        - `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+          single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
+          Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
-        Special notes about the `LOAD` option:
-        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
+        Special notes about the `LOAD` and `LOAD_ALL` options:
+        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
         - Referencing subfields of `flattened` parents is not supported.
+        - `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+          Other commands fail with an error that lists the supported ones.
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
           although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
           {applies_to}`stack: ga 9.5+`
@@ -155,11 +166,6 @@ public final class QuerySettings {
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
     )
-        .withValidator(
-            (value, ctx) -> value == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false
-                ? "unmapped_fields value [LOAD_ALL] requires a snapshot build"
-                : null
-        )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
         .withTelemetryLabels(
@@ -191,10 +197,10 @@ public final class QuerySettings {
         name = "wildcards_match_datasets",
         type = { "boolean" },
         // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
-        // every page documenting that feature is stack: experimental / serverless: unavailable. Deriving it from
+        // every page documenting that feature is stack: preview / serverless: unavailable. Deriving it from
         // preview() would instead claim the setting is available in preview on serverless, where the feature is not
         // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: unavailable\nstack: preview 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
@@ -213,14 +219,14 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: preview\nstack: experimental 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"preview\"}`"
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)
@@ -378,19 +384,10 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
+            throw new IllegalArgumentException(
+                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+            );
         }
-    }
-
-    /**
-     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
-     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
-     */
-    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
-        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
-            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
-            .toList();
-        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**
@@ -483,7 +480,6 @@ public final class QuerySettings {
      * above is only the fold, without those overrides.
      *
      * @param licenseState the license of the cluster, which decides what an operator's default for approximation means
-     * @param loadAllMaxFields the value of {@code esql.query.unmapped_fields.load_all_max_fields}; only {@code 0} has an effect
      */
     public static ResolvedSettings resolve(
         Settings clusterState,
@@ -491,11 +487,10 @@ public final class QuerySettings {
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
-        @Nullable XPackLicenseState licenseState,
-        int loadAllMaxFields
+        @Nullable XPackLicenseState licenseState
     ) {
         ResolvedSettings resolved = resolve(clusterState, nodeSettings, requestParams, statement, ctx);
-        return applyLoadAllMaxFields(applyApproximationLicense(resolved, requestParams, statement, licenseState), loadAllMaxFields);
+        return applyApproximationLicense(resolved, requestParams, statement, licenseState);
     }
 
     /**
@@ -531,19 +526,6 @@ public final class QuerySettings {
             return resolved;
         }
         return resolved.withOverride(APPROXIMATION, null);
-    }
-
-    /**
-     * A {@code load_all_max_fields} of {@code 0} makes {@code LOAD_ALL} discover nothing, which is what
-     * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase of the query sees {@code LOAD}: no
-     * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
-     * that only {@code LOAD_ALL} has do not apply.
-     */
-    private static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, int loadAllMaxFields) {
-        if (loadAllMaxFields == 0 && resolved.get(UNMAPPED_FIELDS) == UnmappedResolution.LOAD_ALL) {
-            return resolved.withOverride(UNMAPPED_FIELDS, UnmappedResolution.LOAD);
-        }
-        return resolved;
     }
 
     /**
@@ -588,8 +570,13 @@ public final class QuerySettings {
         }
     }
 
-    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
-    static ResolvedSettings resolve(
+    /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)} over {@code defs} only; every other
+     * setting reads as its registry default. A view definition resolves the settings it may {@code SET} with this, so that
+     * its body sees them folded exactly as a query would. Parameterized over the registry also so the fold is testable
+     * against a purpose-built setting, as byName(List) is.
+     */
+    public static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
         Settings clusterState,
         Settings nodeSettings,

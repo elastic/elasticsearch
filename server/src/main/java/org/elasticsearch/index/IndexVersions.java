@@ -297,6 +297,10 @@ public class IndexVersions {
     public static final IndexVersion TRACKS_UNMAPPED_FIELD_RETENTION = def(9_122_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT = def(9_123_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2 = def(9_124_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT = def(9_125_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion DOC_VALUES_TOP_LEVEL_ATTRIBUTES = def(9_126_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion COLUMNAR_CODEC_NO_FEATURE_FLAG = def(9_127_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion TSID_PREFIXED_DIMENSIONS_HASH = def(9_128_0_00, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

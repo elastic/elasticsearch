@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -39,6 +40,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -191,6 +194,7 @@ public final class DatasetRewriter {
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
         boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
@@ -199,6 +203,7 @@ public final class DatasetRewriter {
             projectMetadata,
             iner,
             wildcardsMatchDatasets,
+            viewSettings,
             maxBranchCountPerMerge(pragmas, flags),
             maxBranchCountPerMergeSource(pragmas)
         );
@@ -209,6 +214,7 @@ public final class DatasetRewriter {
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
         boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
         int maxBranchCountPerMerge,
         String maxBranchCountPerMergeSource
     ) {
@@ -220,7 +226,7 @@ public final class DatasetRewriter {
             return parsed;
         }
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
-        forEachRelation(parsed, wildcardsMatchDatasets, (r, relationWildcards) -> {
+        forEachRelation(parsed, wildcardsMatchDatasets, viewSettings, (r, relationWildcards) -> {
             if (resolutions.containsKey(r)) {
                 return;
             }
@@ -239,23 +245,65 @@ public final class DatasetRewriter {
 
     /**
      * Visits every {@link UnresolvedRelation} in {@code plan} together with its effective {@code wildcards_match_datasets}:
-     * the caller's setting, except inside a view body, where wildcards never match datasets — the caller's SET must not
-     * change which sources a stored view definition resolves to. A dataset named exactly inside a
+     * the caller's setting, except inside a view body, where only the view definition's own {@code SET} enables it — the
+     * caller's SET must not change which sources a stored view definition resolves to. A dataset named exactly inside a
      * view body is unaffected — exact reachability is not what the setting controls.
      * <p>
-     * A view body is a view branch of a {@link BranchPlan}. Every view is one while the setting is on, because
-     * {@code EsqlSession} then resolves views with {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}: otherwise a
-     * pass-through view's relation could merge with a sibling relation of the caller, and nothing in the merged relation
-     * would tell the view's patterns apart from the caller's.
+     * A view body is a view branch of a {@link BranchPlan}. Every view is one while the setting is on anywhere (the
+     * caller's SET or a view definition's), because {@code EsqlSession} then resolves views with
+     * {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}: otherwise a pass-through view's relation could merge with a
+     * sibling relation of the caller, and nothing in the merged relation would tell the view's patterns apart from the
+     * caller's. A nested view branch is its own scope, governed by its own definition, exactly like the caller's scope.
      */
-    static void forEachRelation(LogicalPlan plan, boolean wildcardsMatchDatasets, BiConsumer<UnresolvedRelation, Boolean> action) {
+    static void forEachRelation(
+        LogicalPlan plan,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
+        BiConsumer<UnresolvedRelation, Boolean> action
+    ) {
+        forEachRelation(plan, wildcardsMatchDatasets, null, null, viewSettings, (relation, wildcards, stop) -> {
+            action.accept(relation, wildcards);
+        });
+    }
+
+    /** Receives a relation from {@link #forEachRelation}. */
+    @FunctionalInterface
+    interface ScopedRelationVisitor {
+        /**
+         * @param wildcardsMatchDatasets the relation's effective {@code wildcards_match_datasets}
+         * @param stop where the enclosing scope's {@code true} stopped for this relation, or {@code null} if it was not stopped
+         */
+        void accept(UnresolvedRelation relation, boolean wildcardsMatchDatasets, @Nullable WildcardsStop stop);
+    }
+
+    /**
+     * Like {@link #forEachRelation(LogicalPlan, boolean, Map, BiConsumer)}, also telling the visitor where, if anywhere, the
+     * enclosing scope's {@code wildcards_match_datasets=true} stopped before reaching the relation. {@code settingView} is the
+     * view whose definition {@code SET} {@code wildcardsMatchDatasets}, or {@code null} for the caller's query.
+     */
+    static void forEachRelation(
+        LogicalPlan plan,
+        boolean wildcardsMatchDatasets,
+        @Nullable String settingView,
+        @Nullable WildcardsStop stop,
+        Map<String, ViewQuerySettings> viewSettings,
+        ScopedRelationVisitor visitor
+    ) {
         if (plan instanceof UnresolvedRelation relation) {
-            action.accept(relation, wildcardsMatchDatasets);
+            visitor.accept(relation, wildcardsMatchDatasets, stop);
         }
         List<LogicalPlan> children = plan.children();
         for (int i = 0; i < children.size(); i++) {
-            boolean viewBody = plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i);
-            forEachRelation(children.get(i), wildcardsMatchDatasets && viewBody == false, action);
+            boolean effective = wildcardsMatchDatasets;
+            String childSettingView = settingView;
+            WildcardsStop childStop = stop;
+            if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
+                String viewName = branchPlan.branchIdentity(i).settingsViewName();
+                effective = ViewQuerySettings.forView(viewName, viewSettings).wildcardsMatchDatasets();
+                childSettingView = effective ? viewName : null;
+                childStop = wildcardsMatchDatasets && effective == false ? new WildcardsStop(settingView, viewName) : null;
+            }
+            forEachRelation(children.get(i), effective, childSettingView, childStop, viewSettings, visitor);
         }
     }
 
@@ -507,7 +555,7 @@ public final class DatasetRewriter {
     }
 
     /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */
-    private static Set<String> exactNames(List<String> patterns) {
+    static Set<String> exactNames(List<String> patterns) {
         Set<String> exact = new LinkedHashSet<>();
         for (String pattern : patterns) {
             if (isWildcardOrExclusion(pattern)) {
@@ -587,13 +635,25 @@ public final class DatasetRewriter {
                 "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
             );
         }
+        Literal path = Literal.keyword(source, dataset.resource());
+        return new UnresolvedExternalRelation(source, path, datasetConfig(parent, dataset), metadataFields, name, dataset.mapping());
+    }
+
+    /**
+     * The query-time config a dataset is read under: its own settings, its data source's settings under
+     * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY}, the dataset context, and the
+     * {@link DefinitionVersion} of the two definitions. The single builder for both the coordinator, which
+     * puts it on the relation here, and the executing node, which rebuilds it from its own cluster state
+     * ({@link DatasetConfigResolver}) instead of trusting the copy that arrived with the plan. One builder,
+     * so the two cannot diverge.
+     */
+    public static Map<String, Object> datasetConfig(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = mergeSettings(parent, dataset);
         // Everything cached about this dataset's files is derived from these two definitions, so it is
         // addressed by a version of them. An edit to either takes the derived entries out of reach
         // without anything having to notice the edit and invalidate them.
         merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
-        Literal path = Literal.keyword(source, dataset.resource());
-        return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
+        return merged;
     }
 
     /**

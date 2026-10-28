@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.inference.services.elastic.compatibility.Completi
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
@@ -53,6 +56,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_TEXT_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createTaskTypeObject;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
@@ -182,6 +186,29 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         // than the exception propagating.
         assertThat(auth.getEndpoints(Set.of(id)), empty());
         assertFalse(auth.isAuthorized());
+    }
+
+    public void testOf_DecisionEndpoint_CreatesDecisionModelWithoutQuestions() {
+        var id = "decision-id";
+        var url = "base_url";
+        var response = singleEndpointResponse(id, "decision-model", TaskType.DECISION);
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url, FULLY_UPGRADED_COMPAT_SERVICE);
+
+        assertThat(auth.getTaskTypes(), is(EnumSet.of(TaskType.DECISION)));
+        assertThat(
+            auth.getEndpoints(Set.of(id)),
+            contains(
+                new ElasticInferenceServiceDecisionModel(
+                    id,
+                    TaskType.DECISION,
+                    new ElasticInferenceServiceDecisionServiceSettings("decision-model"),
+                    ElasticInferenceServiceDecisionTaskSettings.EMPTY,
+                    new ElasticInferenceServiceComponents(url),
+                    DEFAULT_ENDPOINT_METADATA
+                )
+            )
+        );
     }
 
     private static ElasticInferenceServiceAuthorizationResponseEntity singleEndpointResponse(String id, String name, TaskType taskType) {

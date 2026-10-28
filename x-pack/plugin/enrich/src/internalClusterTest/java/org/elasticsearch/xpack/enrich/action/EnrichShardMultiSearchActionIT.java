@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -53,6 +54,8 @@ public class EnrichShardMultiSearchActionIT extends ESIntegTestCase {
             // TODO Change this to run with security enabled
             // https://github.com/elastic/elasticsearch/issues/75940
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            // pin a real request breaker, overriding the test cluster's random noop one, which always reports 0
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
             .build();
     }
 

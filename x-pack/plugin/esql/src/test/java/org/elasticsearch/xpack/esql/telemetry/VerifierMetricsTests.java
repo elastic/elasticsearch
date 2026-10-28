@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.Map;
@@ -470,7 +471,7 @@ public class VerifierMetricsTests extends ESTestCase {
         if (metrics != null && statement.letBindings().isEmpty() == false) {
             metrics.inc(LET);
         }
-        var parsed = LetResolver.resolve(statement.plan(), statement.letBindings());
+        var parsed = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
         if (metrics != null && InSubqueryResolver.hasInSubquery(parsed)) {
             metrics.inc(IN_SUBQUERY);
         }

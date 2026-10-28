@@ -93,10 +93,12 @@ import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -124,6 +126,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -135,6 +138,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger.MAX_SLOW_OPERATION_THREAD_DUMPS;
@@ -519,7 +523,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             @Override
             public void installUploadBoundListener(
                 Runnable originalRunnable,
-                ShardId shardId,
+                IndexShard shard,
                 SubscribableListener<Long> uploadBoundListener
             ) {
                 if (installUploadBoundAttempts.incrementAndGet() == 1) {
@@ -528,7 +532,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     retriedOnSameShard.onResponse(indexShard.state() != IndexShardState.CLOSED);
                     assertFalse(
                         "the failed upload bound listener must be cleared before the retry",
-                        commitService.relocationUploadBoundIsInstalled(shardId)
+                        commitService.relocationUploadBoundIsInstalled(shard.shardId())
                     );
                 }
                 originalRunnable.run();
@@ -1249,6 +1253,12 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         static final LongAdder timFilePrefetchCount = new LongAdder();
 
+        /// Set `deferRegion0Prewarm` so that `warmCacheForBCCHeadersRead` does not warm but stores the warm into
+        /// `deferredRegion0Prewarm` for the test to run the prewarming later. This way we can simulate region-0 prewarming that is
+        /// still queued when the shard completes recovery.
+        final AtomicBoolean deferRegion0Prewarm = new AtomicBoolean();
+        final AtomicReference<Consumer<ActionListener<Void>>> deferredRegion0Prewarm = new AtomicReference<>();
+
         static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
             "test.stateless.warm_on_upload_enabled",
             true,
@@ -1330,6 +1340,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     Set<BlobFile> lastCommitBlobs,
                     ActionListener<Void> listener
                 ) {
+                    if (deferRegion0Prewarm.get()) {
+                        deferredRegion0Prewarm.set(l -> super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, l));
+                        listener.onResponse(null);
+                        return;
+                    }
                     if (clusterSettings.get(SYNC_BCC_HEADER_PREWARM) == false) {
                         super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, listener);
                         return;
@@ -1494,10 +1509,82 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // In case of hollow being disabled, we expect to have created one BCC which fits in one region, and thus we expect one cache write.
         // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
-        // 2nd hollow BCC to be read. Its region 0 is prewarmed before the BCC header is read, so the read is a cache hit.
+        // 2nd hollow BCC to be read.
         assertThat(cacheService.getStats().writeCount(), equalTo(1L));
-        assertThat(cacheService.getStats().missCount(), equalTo(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowNodeSettings) ? 0L : 1L));
+        // Region 0 prewarming races with the BCC header read to fill region 0, and only the read records a miss.
+        assertThat(cacheService.getStats().missCount(), lessThanOrEqualTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
+    }
+
+    // test that during relocation of a hollow shard, we do not end up bringing region-0 of a blob back to cache after it has been evicted
+    public void testQueuedRegion0WarmingDoesNotRefillCacheOfRelocatedHollowShard() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodesSettings = Settings.builder()
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO) // shard becomes immediately hollowable if there's no indexing
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4L))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256L))
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256L))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        final var indexNodeA = startIndexNode(indexNodesSettings);
+
+        final String indexName = randomIdentifier();
+        // disable merging so the shard is hollowable
+        createIndex(indexName, indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build());
+        indexDocs(indexName, randomIntBetween(1, 50));
+        flush(indexName);
+
+        // source would hollow the shard during relocation only if it's hollowable
+        var indexShard = findIndexShard(indexName);
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        assertBusy(() -> assertTrue(hollowShardsService.isHollowableIndexShard(findIndexShard(indexName))));
+
+        final var indexNodeB = startIndexNode(
+            Settings.builder()
+                .put(indexNodesSettings)
+                // disable so the test captures the region-0 prewarming
+                .put(StatelessTestPlugin.ENABLED_WARMING.getKey(), false)
+                .build()
+        );
+        ensureStableCluster(3);
+
+        // defer region-0 prewarming on the target node so it does not occur during relocation
+        final var targetPlugin = findPlugin(indexNodeB, StatelessTestPlugin.class);
+        targetPlugin.deferRegion0Prewarm.set(true);
+        try {
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+            internalCluster().awaitNodeVacated(indexName, indexNodeA);
+            ensureGreen(indexName);
+        } finally {
+            targetPlugin.deferRegion0Prewarm.set(false);
+        }
+
+        // assert the shard was relocated as hollow
+        indexShard = findIndexShard(indexName);
+        assertThat(indexShard.routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
+        getShardEngine(indexShard, HollowIndexEngine.class);
+        assertThat(indexShard.state(), equalTo(IndexShardState.STARTED));
+        final var shardId = indexShard.shardId();
+        final var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNodeB).get();
+        assertThat(
+            "recovery of the hollow shard evicts its cache regions",
+            cacheService.countCachedRegions(shardId, (key, region) -> true),
+            equalTo(0L)
+        );
+
+        // now run the region-0 prewarming: if we didn't have the `RECOVERING` check in `Region0Warmer.isCancelled`
+        // this would fetch region 0 again even though it was evicted
+        final var deferredPrewarm = targetPlugin.deferredRegion0Prewarm.getAndSet(null);
+        assertThat("expected the recovery to schedule region-0 prewarming", deferredPrewarm, notNullValue());
+        final var prewarmFuture = new PlainActionFuture<Void>();
+        deferredPrewarm.accept(prewarmFuture);
+        safeGet(prewarmFuture);
+        assertThat(
+            "region-0 prewarming must not refill the cache of an already started hollow shard",
+            cacheService.countCachedRegions(shardId, (key, region) -> true),
+            equalTo(0L)
+        );
     }
 
     private static void indexBinaryDoc(String indexName, int size) {

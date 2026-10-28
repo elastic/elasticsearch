@@ -28,12 +28,15 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private final Normalizer2 normalizer;
+    private final Object sharingKey;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         String method = settings.get("name", "nfkc_cf");
         Normalizer2 normalizerInstance = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
         this.normalizer = wrapWithUnicodeSetFilter(normalizerInstance, settings);
+        // Normalizer2 has identity equality, so key on the settings it is built from.
+        this.sharingKey = new Key(method, settings.get("unicode_set_filter"));
     }
 
     @Override
@@ -51,4 +54,11 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         }
         return normalizer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String method, String unicodeSetFilter) {}
 }

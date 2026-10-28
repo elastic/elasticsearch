@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -516,6 +517,13 @@ public class EsqlCapabilities {
          * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
          */
         LOAD_FLATTENED_FIELD,
+
+        /**
+         * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
+         * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
+         * deduplicated. A field below a nested object is still read from {@code _source}.
+         */
+        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
@@ -1412,7 +1420,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V4(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V5(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1561,6 +1569,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -1693,6 +1706,25 @@ public class EsqlCapabilities {
          * views or datasets, whatever the caller's {@code wildcards_match_views}/{@code wildcards_match_datasets} say.
          */
         SETTINGS_SCOPED_AT_VIEW_BOUNDARIES,
+        /**
+         * A view definition may itself {@code SET} the settings that are scoped at view boundaries for callers —
+         * {@code unmapped_fields} (except {@code LOAD_ALL}), {@code wildcards_match_views} and
+         * {@code wildcards_match_datasets} — applied to that view's body alone; a nested view is still governed only
+         * by its own definition's {@code SET}.
+         */
+        SET_IN_VIEW_DEFINITIONS,
+        /**
+         * A warning when an outer reference is null at a view's output because the loading {@code unmapped_fields}
+         * mode of the caller, or of an enclosing view's definition, does not reach inside the view, but would have
+         * loaded it there.
+         */
+        WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW,
+        /**
+         * A warning when {@code wildcards_match_views=true} or {@code wildcards_match_datasets=true}, set by the caller
+         * or by an enclosing view's definition, does not reach inside a view whose wildcards would have matched more
+         * views or datasets with it.
+         */
+        WARN_WILDCARDS_STOPPED_AT_VIEW,
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
@@ -2648,7 +2680,7 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL group modifiers.
          */
-        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
+        PROMQL_VECTOR_MATCHING_V0,
 
         /**
          * Support for PromQL time() function.
@@ -2872,6 +2904,10 @@ public class EsqlCapabilities {
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
+        /**
+         * Dense_vector aggregation functions applied over timeseries.
+         */
+        DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS,
         /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
          */
@@ -3643,7 +3679,7 @@ public class EsqlCapabilities {
          * Also, proper column ordering after loading all unmapped fields. This covers KEEP, DROP and EVAL generated columns.
          * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433
          */
-        OPTIONAL_FIELDS_LOAD_ALL_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_LOAD_ALL_V2,
 
         /**
          * Read an unmapped field straight from {@code _source}, so an object value reads as {@code null} rather than as Java's
@@ -3652,30 +3688,30 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(),
 
-        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION,
 
         /**
          * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, queries using LOOKUP JOIN and ENRICH are now supported.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH,
 
         /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_STATS,
 
         /**
          * Support for {@code FORK} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_FORK(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_FORK,
 
         /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
@@ -3688,54 +3724,52 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT_MV_EXPAND_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Support for {@code CHANGE_POINT} under {@code unmapped_fields="LOAD_ALL"}. The command reads a value (and optionally a key) that
+         * may be unmapped, promoting it out of {@code _unmapped_fields}, and appends its {@code type} and {@code pvalue} columns, or the
+         * names given with {@code AS}, which shadow an unmapped field of the same name. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/157189.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_CHANGE_POINT,
+
+        /**
+         * Support for {@code IP_LOCATION}, {@code REGISTERED_DOMAIN}, {@code URI_PARTS}, {@code USER_AGENT}, {@code LIMIT BY} and
+         * {@code DEDUP} under {@code unmapped_fields="LOAD_ALL"}. See https://github.com/elastic/elasticsearch/issues/157189.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_COMPOUND_OUTPUT_LIMIT_BY_DEDUP,
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
          * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
          * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
          * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
          * a stringified {@code "[]"}.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS,
 
         /**
          * Support for {@code FROM} subqueries under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES,
 
         /**
          * {@code WHERE IN} / {@code NOT IN} under {@code unmapped_fields="LOAD_ALL"}.
          * Separate from {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} so nodes that only support FROM subqueries skip these tests.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
          * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
          * See https://github.com/elastic/elasticsearch/issues/158466.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
-         * alphabetically first ones, with a warning if there were more. Superseded by
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN}, under which no per-field columns are produced and nothing is capped.
-         * See https://github.com/elastic/elasticsearch/issues/159972.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
-         * The cluster setting {@code esql.query.unmapped_fields.load_all_max_fields} exists. Under the single-column layout its only
-         * effect is that {@code 0} downgrades {@code unmapped_fields="LOAD_ALL"} to {@code LOAD}. Needed by tests that set it, which
-         * older nodes would reject as an unknown setting.
-         * See https://github.com/elastic/elasticsearch/issues/161340.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the keys of a mapped field whose type takes an object as its value are
          * not discovered on the shard that maps it: they are part of its value.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_BELOW_MAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_BELOW_MAPPED_FIELDS,
 
         /**
          * Under {@code unmapped_fields="LOAD"} and {@code "LOAD_ALL"}, a shard returns null for a key of a mapped field whose
@@ -3749,19 +3783,27 @@ public class EsqlCapabilities {
          * per field. Supersedes the per-field column layout and the cap on the number of expanded fields.
          * See https://github.com/elastic/elasticsearch/issues/161717.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the shard writes the {@code _unmapped_fields} column: one key per unmapped field
          * that would reach the output of the query if it were mapped, in the order the fields are first found in {@code _source}.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a query that has a column named {@code _unmapped_fields} of its own is not given
          * the column of unmapped fields, and a warning says so.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING,
+
+        /**
+         * {@code unmapped_fields="LOAD_ALL"} may be used with views. A view is a boundary the setting does not reach into, as
+         * for {@code LOAD}: nothing is loaded from {@code _source} inside a view body. A view has no {@code _unmapped_fields}
+         * column, which unions null-fill where a sibling branch has one, and the unmapped fields it does not output are null.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_VIEWS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -4123,6 +4165,15 @@ public class EsqlCapabilities {
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
+         * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
+         * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
+         * operand does not select. {@code count} and {@code count_over_time} of histograms count the histograms, not their
+         * observations.
+         */
+        FIX_PROMQL_EMPTY_RANGE_IS_NO_ELEMENT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4250,6 +4301,18 @@ public class EsqlCapabilities {
          * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
          */
         FILLNULL(Build.current().isSnapshot()),
+
+        /**
+         * {@code FILLNULL} under {@code unmapped_fields="LOAD_ALL"}, where {@code ON *} leaves {@code _unmapped_fields} alone, and filled
+         * columns that keep their ids when a field below is rewritten in place (e.g. {@code text} in some indices, unmapped in others).
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_FILLNULL(FILLNULL.isEnabled()),
+
+        /**
+         * {@code FILLNULL} patterns also match the fields {@code unmapped_fields} loads for a later command or for a union, and
+         * {@code ON *} is allowed in a subquery under {@code unmapped_fields="LOAD_ALL"}.
+         */
+        FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
@@ -4445,6 +4508,25 @@ public class EsqlCapabilities {
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         /**
+         * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
+         * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
+         * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
+         * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
+         * value read as {@code null}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/161383">#161383</a>.
+         */
+        FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
+        /**
+         * A predicate pushed to Lucene on a sub-field of a {@code nested} object (e.g. {@code n.x}, mapped as a plain
+         * {@code keyword} in another index) matches nothing on shards where {@code n} is {@code nested}, consistent
+         * with field caps and field extraction treating it as missing. Previously, with {@code include_in_root} or
+         * {@code include_in_parent}, {@code ==} and {@code IS NOT NULL} matched rows whose value read as {@code null}
+         * and {@code IS NULL} missed them.
+         */
+        FIX_NESTED_SUBFIELD_PUSHDOWN,
+
+        /**
          * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an
          * instant query can cover a dashboard's whole time range:
          * <a href="https://github.com/elastic/elasticsearch/issues/161115">#161115</a>
@@ -4539,6 +4621,27 @@ public class EsqlCapabilities {
          * does for a search on an indexed field, rather than the score from before it.
          */
         RUNTIME_SCORE_FIX,
+
+        /**
+         * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms
+         * rewritten to it) keeps documents without a value in the null bucket when there is a single rounding point.
+         * Older nodes tagged the whole main query with the point, so e.g. {@code date_trunc(1 month, field)} returned
+         * the bucket value instead of {@code null} for documents missing the field whenever all existing values fell
+         * into one bucket.
+         */
+        FIX_ROUND_TO_PUSHDOWN_SINGLE_POINT_NULL_BUCKET,
+
+        /**
+         * Simplify / fix null folding
+         */
+        FIX_FOLD_NULL,
+
+        /**
+         * A {@code _score} predicate that shares an {@code OR} with a search sees the score of the {@code WHERE}'s other
+         * searches, whether they are runtime searches or searches on indexed fields that aren't pushed to Lucene, rather
+         * than the score from before the {@code WHERE}.
+         */
+        SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

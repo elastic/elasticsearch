@@ -357,7 +357,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                                 return leafScript.execute();
                             }
                         };
-                        return FieldData.singleton(values);
+                        return SortedNumericDoubleValues.singletonWithoutDocIdIterator(values);
                     }
 
                     @Override

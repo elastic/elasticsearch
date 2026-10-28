@@ -94,13 +94,13 @@ public class BinaryFieldMapper extends FieldMapper {
                     ? nonColumnarDefault
                     : DocValuesParameter.defaultValues(indexSettings, nonColumnarDefault, DocValuesParameter.Values.Cardinality.HIGH),
                 m -> toType(m).docValues,
-                indexSettings != null && indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
         @Override
         public Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, stored, docValues };
+            return new Parameter<?>[] { meta, stored, docValues, docValues.multiValue(), docValues.nullability(), docValues.onFailure() };
         }
 
         public BinaryFieldMapper.Builder docValues(boolean hasDocValues) {

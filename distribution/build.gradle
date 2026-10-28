@@ -15,6 +15,8 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
+import org.elasticsearch.gradle.internal.distribution.ModulePlatforms
+import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.transform.FilteringJarTransform
 
@@ -259,7 +261,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.repositories'
 
   int bundledJdkMajor = BundledJdkPlatforms.bundledJdkMajor(buildParams)
-  def architecturesFor = { String platform -> BundledJdkPlatforms.architecturesFor(platform, bundledJdkMajor) }
 
   if (buildParams.runtimeJava.preRelease) {
     String preReleaseType = buildParams.runtimeJava.preReleaseType
@@ -267,9 +268,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     String preReleaseVersionString = String.format("%d-%s+%d", runtimeJavaMajorVersion, preReleaseType, buildParams.runtimeJava.buildNumber)
 
     project.jdks {
-      ['darwin', 'windows', 'linux'].each { platform ->
-        architecturesFor(platform).each { architecture ->
-          "bundled_${platform}_${architecture}" {
+      BundledJdkPlatforms.PLATFORMS.each { platform ->
+        BundledJdkPlatforms.architecturesFor(platform, bundledJdkMajor).each { architecture ->
+          "${BundledJdkPlatforms.jdkName(platform, architecture)}" {
             it.version = preReleaseVersionString;
             it.vendor = "openjdk"
             it.platform = platform
@@ -282,9 +283,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   } else {
     // Setup all required JDKs
     project.jdks {
-      ['darwin', 'windows', 'linux'].each { platform ->
-        architecturesFor(platform).each { architecture ->
-          "bundled_${platform}_${architecture}" {
+      BundledJdkPlatforms.PLATFORMS.each { platform ->
+        BundledJdkPlatforms.architecturesFor(platform, bundledJdkMajor).each { architecture ->
+          "${BundledJdkPlatforms.jdkName(platform, architecture)}" {
             it.platform = platform
             it.version = VersionProperties.bundledJdkVersion
             it.vendor = VersionProperties.bundledJdkVendor
@@ -437,17 +438,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.permissions.unix(0644)
           }
         }
-        List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (os != null) {
-          String platform = os + '-' + architecture
-          if (architecture == 'x64') {
-            // ML platform dir uses the x86_64 nomenclature
-            platform = os + '-x86_64'
-          }
-          excludePlatforms.remove(excludePlatforms.indexOf(platform))
-        } else {
-          excludePlatforms = []
-        }
+        List<String> excludePlatforms = ModulePlatforms.excludedDirectories(os, architecture)
         from(defaultModulesFiles) {
           // geo registers the geo_shape mapper that is overridden by
           // the geo_shape mapper registered in the x-pack-spatial plugin
@@ -476,7 +467,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          filter("tokens": expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
+          filter("tokens": TokenExpansions.forProject(project, distributionType, isTestDistro), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
         from isTestDistro ? integTestConfigFiles : defaultConfigFiles
@@ -495,7 +486,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
               unix(0755)
             }
           }
-          filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
+          filter("tokens": TokenExpansions.forProject(project, distributionType, testDistro), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -503,7 +494,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
+            filter("tokens": TokenExpansions.forProject(project, distributionType, testDistro), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -537,7 +528,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${os}_${architecture}"
+        from project.jdks.getByName(BundledJdkPlatforms.jdkName(os, architecture))
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
@@ -565,117 +556,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   }
 }
 
-/**
- * Build some variables that are replaced in the packages. This includes both
- * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also
- * scripts like postinst which are run as part of the installation.
- *
- * <dl>
- *  <dt>package.name</dt>
- *  <dd>The name of the project. Its sprinkled throughout the scripts.</dd>
- *  <dt>package.version</dt>
- *  <dd>The version of the project. Its mostly used to find the exact jar name.
- *    </dt>
- *  <dt>path.conf</dt>
- *  <dd>The default directory from which to load configuration. This is used in
- *    the packaging scripts, but in that context it is always
- *    /etc/elasticsearch. Its also used in bin/elasticsearch-plugin, where it is
- *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
- *  <dt>path.env</dt>
- *  <dd>The env file sourced before bin/elasticsearch to set environment
- *    variables. Think /etc/defaults/elasticsearch.</dd>
- *  <dt>scripts.footer</dt>
- *  <dd>Footer appended to control scripts embedded in the distribution that is
- *    (almost) entirely there for cosmetic reasons.</dd>
- * </dl>
- */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, isTestDistro ->
-    final String packagingPathData = "path.data: /var/lib/elasticsearch"
-    final String pathLogs = "/var/log/elasticsearch"
-    final String packagingPathLogs = "path.logs: ${pathLogs}"
-
-    String licenseText
-    if (isTestDistro) {
-      licenseText = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
-    } else {
-      licenseText = layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
-    }
-    // license text needs to be indented with a single space
-    licenseText = ' ' + licenseText.replace('\n', '\n ')
-
-    String footer = "# Built for ${project.name}-${project.version} " +
-      "(${distributionType})"
-    Map<String, Object> expansions = [
-      'project.name'         : project.name,
-      'project.version'      : version,
-      'project.minor.version': "${VersionProperties.elasticsearchVersion.major}.${VersionProperties.elasticsearchVersion.minor}",
-
-      'path.conf'            : [
-        'deb': '/etc/elasticsearch',
-        'rpm': '/etc/elasticsearch',
-        'def': '"$ES_HOME"/config'
-      ],
-      'path.data'            : [
-        'deb': packagingPathData,
-        'rpm': packagingPathData,
-        'def': '#path.data: /path/to/data'
-      ],
-      'path.env'             : [
-        'deb': '/etc/default/elasticsearch',
-        'rpm': '/etc/sysconfig/elasticsearch',
-        /* There isn't one of these files for tar or zip but its important to
-          make an empty string here so the script can properly skip it. */
-        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
-      ],
-      'source.path.env'      : [
-        'deb': 'source /etc/default/elasticsearch',
-        'rpm': 'source /etc/sysconfig/elasticsearch',
-        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
-      ],
-      'path.logs'            : [
-        'deb': packagingPathLogs,
-        'rpm': packagingPathLogs,
-        'def': '#path.logs: /path/to/logs'
-      ],
-
-      'scripts.footer'       : [
-        /* Debian needs exit 0 on these scripts so we add it here and preserve
-          the pretty footer. */
-        'deb': "exit 0\n${footer}",
-        'def': footer
-      ],
-
-      'es.distribution.type' : [
-        'deb': 'deb',
-        'rpm': 'rpm',
-        'tar': 'tar',
-        'zip': 'zip'
-      ],
-
-      'license.name'         : [
-        'deb': 'Elastic-License'
-      ],
-
-      'license.text'         : [
-        'deb': licenseText,
-      ],
-    ]
-    Map<String, String> result = [:]
-    expansions.each { key, value ->
-      if (value instanceof Map) {
-        // 'def' is for default but its three characters like 'rpm' and 'deb'
-        value = value[distributionType] ?: value['def']
-        if (value == null) {
-          return
-        }
-      }
-      // expansions is String->Object but result is String->String, so we have to coerce the values
-      result[key] = value.toString()
-    }
-    return result
-  }
-
   ext.assertLinesInFile = { Path path, List<String> expectedLines ->
     final List<String> actualLines = Files.readAllLines(path)
     int line = 0

@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -236,25 +238,7 @@ public class EsqlCCSUtils {
                     );
                 }
             } else {
-                // We check for the valid resolution because if we have empty resolution it's still an error.
-                for (IndexResolution indexResolution : indexResolutions) {
-                    if (indexResolution.isValid()) {
-                        List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
-                        // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
-                        if (failures.isEmpty()) {
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
-                        } else {
-                            // skip reporting index_not_found exceptions to avoid spamming users with such errors
-                            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
-                            Exception nonIndexNotFound = failures.stream()
-                                .map(FieldCapabilitiesFailure::getException)
-                                .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
-                                .findAny()
-                                .orElse(null);
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
-                        }
-                    }
-                }
+                markClusterWithNoMatchingIndices(executionInfo, c, indexResolutions);
             }
         }
         // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
@@ -281,6 +265,44 @@ public class EsqlCCSUtils {
 
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage.toString());
+        }
+    }
+
+    /**
+     * A wildcard cluster that matched no indices. Several resolutions can name the same cluster, one per
+     * {@link IndexPattern}. A resolution that did not query the cluster has an empty failure list, and marking from
+     * each resolution in turn would let that empty list overwrite a real field-caps failure.
+     */
+    private static void markClusterWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        Collection<IndexResolution> indexResolutions
+    ) {
+        boolean sawValid = false;
+        boolean sawFailure = false;
+        Exception nonIndexNotFound = null;
+        for (IndexResolution indexResolution : indexResolutions) {
+            if (indexResolution.isValid() == false) {
+                continue;
+            }
+            sawValid = true;
+            for (FieldCapabilitiesFailure failure : indexResolution.failures().getOrDefault(clusterAlias, List.of())) {
+                sawFailure = true;
+                if (nonIndexNotFound == null && ExceptionsHelper.unwrap(failure.getException(), IndexNotFoundException.class) == null) {
+                    nonIndexNotFound = failure.getException();
+                }
+            }
+        }
+        if (sawValid == false) {
+            return;
+        }
+        if (sawFailure == false) {
+            // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+            markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SUCCESSFUL, null);
+        } else {
+            // skip reporting index_not_found exceptions to avoid spamming users with such errors
+            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+            markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SKIPPED, nonIndexNotFound);
         }
     }
 
@@ -347,8 +369,12 @@ public class EsqlCCSUtils {
         try {
             // A pattern can occur twice: once for the query and once inside a view body (see IndexPattern#insideView). Both name the
             // same indices, which must not be registered for their cluster twice: each registration appends to the index expression.
+            // Sort by pattern text. indexPatterns is a hash set keyed by IndexPattern, whose hash includes the view scope, so
+            // iterating it directly would make "Unknown index [...]" list names in hash order.
+            List<IndexPattern> orderedPatterns = new ArrayList<>(indexPatterns);
+            orderedPatterns.sort(Comparator.comparing(IndexPattern::indexPattern));
             Set<String> registered = new HashSet<>();
-            for (IndexPattern indexPattern : indexPatterns) {
+            for (IndexPattern indexPattern : orderedPatterns) {
                 if (registered.add(indexPattern.indexPattern()) == false) {
                     continue;
                 }
@@ -456,7 +482,9 @@ public class EsqlCCSUtils {
      */
     public static boolean canAllowPartial(Exception e) {
         Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-        if (unwrapped instanceof IndexNotFoundException || unwrapped instanceof ElasticsearchSecurityException) {
+        if (unwrapped instanceof IndexNotFoundException
+            || unwrapped instanceof ElasticsearchSecurityException
+            || unwrapped instanceof TaskCancelledException) {
             return false;
         }
         return true;

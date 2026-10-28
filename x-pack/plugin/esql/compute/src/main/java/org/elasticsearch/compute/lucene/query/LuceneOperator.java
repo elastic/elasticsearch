@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +88,11 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<String> processedQueries = new TreeSet<>();
+    /**
+     * The queries already rendered into {@link #processedQueries}, by identity. One weight, so one query, serves every leaf of
+     * a shard, and rendering a large query can cost more than scoring a small leaf, so each query is rendered once.
+     */
+    private final Set<Query> renderedQueries = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<String> processedShards = new TreeSet<>();
 
     protected LuceneSlice currentSlice;
@@ -309,7 +315,9 @@ public abstract class LuceneOperator extends SourceOperator {
                     || currentScorer.weight != currentSlice.weight() // Moved to a new query
                 ) {
                     final Weight weight = currentSlice.weight();
-                    processedQueries.add(Status.queryString(weight.getQuery()));
+                    if (renderedQueries.add(weight.getQuery())) {
+                        processedQueries.add(Status.queryString(weight.getQuery()));
+                    }
                     releaseCurrentScorer();
                     currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
@@ -591,7 +599,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     + queryString.hashCode()
                     + "])";
             }
-            return query.toString();
+            return queryString;
         }
 
         protected Status(LuceneOperator operator) {

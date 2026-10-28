@@ -11,7 +11,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
-import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
@@ -20,7 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,75 +73,29 @@ public final class LetResolver {
      *
      * @param plan        the parsed main query plan
      * @param letBindings the ordered list of {@code LET} bindings (may be empty)
+     * @param maxPlanNodesCount the maximum number of plan nodes the substituted plan, and each substituted binding, may reach
      * @return the plan with all resolvable {@code LET} name references substituted
      */
-    public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings) {
+    public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount) {
         if (letBindings.isEmpty()) {
             return plan;
         }
 
         // Left fold: build the resolved map incrementally so binding N sees bindings 1..N-1.
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
+        // Expanded node count of each resolved binding. Bound plans are inserted by reference, so counting them again on every
+        // reference would be exponential for chained bindings; the sizes are tracked arithmetically instead.
+        Map<String, Integer> sizes = new HashMap<>(letBindings.size());
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
-        // Shared across all depth checks: bound plans are inserted by reference, so each distinct node is measured once.
-        Map<LogicalPlan, Integer> depths = new IdentityHashMap<>();
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            var current = substitute(binding.plan(), resolved, allBindings);
-            checkPlanDepth(current, depths, "LET binding [" + binding.name() + "]");
+            PlanSize bindingSize = new PlanSize(PlanSize.countNodes(binding.plan()), maxPlanNodesCount);
+            var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
             resolved.put(binding.name(), current);
+            sizes.put(binding.name(), bindingSize.size());
         }
         // Substitute the full map into the main query plan.
-        var result = substitute(plan, resolved, allBindings);
-        checkPlanDepth(result, depths, "query");
-        return result;
-    }
-
-    /**
-     * Rejects a plan deeper than the parser allows a single query to be ({@link LogicalPlanBuilder#MAX_QUERY_DEPTH} commands).
-     * Every reference inlines the already-resolved binding, so chained bindings stack their plans on top of each other and could
-     * otherwise produce a plan far deeper than any query the parser accepts. The analyzer and optimizer recurse over the result on a
-     * single thread, so the depth is capped here, before they run.
-     */
-    private static void checkPlanDepth(LogicalPlan plan, Map<LogicalPlan, Integer> depths, String subject) {
-        // The source (leaf) is not a command, so the command count is one less than the node depth.
-        int commands = depth(plan, depths) - 1;
-        if (commands > LogicalPlanBuilder.MAX_QUERY_DEPTH) {
-            throw new VerificationException(
-                "{} resolved to a plan with {} chained commands, exceeding the maximum of {}. "
-                    + "Reduce the number of chained LET bindings or commands, or split this into multiple queries.",
-                subject,
-                commands,
-                LogicalPlanBuilder.MAX_QUERY_DEPTH
-            );
-        }
-    }
-
-    /**
-     * Depth of {@code plan}: one for the node itself plus the deepest of its children and of the subqueries embedded in its
-     * {@link InSubquery} and {@link MultiColumnInSubquery} expressions, which {@link #substitute} also descends into.
-     * Memoized by identity because substituted bindings are shared by reference, so a plan that reuses a binding many times is
-     * measured in time proportional to its distinct nodes rather than its expanded size.
-     */
-    private static int depth(LogicalPlan plan, Map<LogicalPlan, Integer> depths) {
-        Integer cached = depths.get(plan);
-        if (cached != null) {
-            return cached;
-        }
-        int deepest = 0;
-        for (LogicalPlan child : plan.children()) {
-            deepest = Math.max(deepest, depth(child, depths));
-        }
-        // Boxed holder: the lambdas below cannot assign to a local.
-        int[] subqueryDepth = { 0 };
-        plan.forEachExpression(InSubquery.class, e -> subqueryDepth[0] = Math.max(subqueryDepth[0], depth(e.subquery(), depths)));
-        plan.forEachExpression(
-            MultiColumnInSubquery.class,
-            e -> subqueryDepth[0] = Math.max(subqueryDepth[0], depth(e.subquery(), depths))
-        );
-        int result = 1 + Math.max(deepest, subqueryDepth[0]);
-        depths.put(plan, result);
-        return result;
+        return substitute(plan, resolved, sizes, allBindings, new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount));
     }
 
     /**
@@ -153,7 +106,13 @@ public final class LetResolver {
      * Also substitutes into subquery plans embedded in {@link InSubquery} and
      * {@link MultiColumnInSubquery} expressions.
      */
-    private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved, Set<String> allBindings) {
+    private static LogicalPlan substitute(
+        LogicalPlan plan,
+        Map<String, LogicalPlan> resolved,
+        Map<String, Integer> sizes,
+        Set<String> allBindings,
+        PlanSize planSize
+    ) {
         // transformDownSkipBranch: when a replacement is made, set skipBranch so the replacement
         // subtree is not descended into. This enforces sequential scoping — a binding body that was
         // already evaluated against its own (partial) resolved map is not re-expanded with later
@@ -166,6 +125,7 @@ public final class LetResolver {
                 // Split the indexPattern, substitute each token that matches a binding, and union the parts.
                 String[] patterns = indexPattern.split(",", -1);
                 boolean anyMatch = false;
+                int addedNodes = 0;
                 List<LogicalPlan> result = new ArrayList<>();
                 List<String> nonBindingPatterns = new ArrayList<>();
                 for (String pattern : patterns) {
@@ -185,6 +145,7 @@ public final class LetResolver {
                             throw new ParsingException(ur.source(), "Subqueries are not supported in LOOKUP JOIN");
                         }
                         anyMatch = true;
+                        addedNodes += sizes.get(current);
                         result.add(bindingPlan);
                     } else {
                         // the query contained a reference to a binding that has not been resolved yet
@@ -210,7 +171,13 @@ public final class LetResolver {
                             )
                         );
                         nonBindingPatterns.clear();
+                        addedNodes++;
                     }
+                    if (result.size() > 1) {
+                        addedNodes++;
+                    }
+                    // The replaced relation is already part of the count.
+                    planSize.add(addedNodes - 1);
                     skipBranch.set(true);
                     return result.size() == 1 ? result.get(0) : new UnionAll(ur.source(), result, List.of());
                 }
@@ -220,11 +187,11 @@ public final class LetResolver {
             // plan-node children, so transformDownSkipBranch cannot reach it via the normal child
             // traversal. Substitute into those plans explicitly here.
             LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
-                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, allBindings);
+                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, sizes, allBindings, planSize);
                 return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
             });
             return result.transformExpressionsOnly(MultiColumnInSubquery.class, mcsub -> {
-                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, allBindings);
+                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, sizes, allBindings, planSize);
                 return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
             });
         });

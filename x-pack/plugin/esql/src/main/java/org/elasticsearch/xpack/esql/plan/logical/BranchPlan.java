@@ -157,6 +157,14 @@ public class BranchPlan extends UnionAll {
         return isViewBranch(branchKeys.get(childIndex));
     }
 
+    /**
+     * The {@link BranchIdentity} of the child at {@code childIndex} in {@link #children()}, positionally like
+     * {@link #isViewBranch(int)}.
+     */
+    public BranchIdentity branchIdentity(int childIndex) {
+        return branchIdentity(branchKeys.get(childIndex));
+    }
+
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
         if (children.size() != namedSubqueries.size()) {
             throw new IllegalArgumentException(

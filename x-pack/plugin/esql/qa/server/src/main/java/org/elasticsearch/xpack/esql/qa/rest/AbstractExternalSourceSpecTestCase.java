@@ -1527,6 +1527,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     @Override
+    protected String streamingIncompatibility(String query) {
+        if (EsqlDataSourceMixedClusterTestSupport.isBwcTest()) {
+            return "streaming is not tested in mixed-version clusters";
+        }
+        return super.streamingIncompatibility(query);
+    }
+
+    @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return EsqlDataSourceMixedClusterTestSupport.isBwcTest() || super.enableRoundingDoubleValuesOnAsserting();
     }

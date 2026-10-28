@@ -424,11 +424,6 @@ tests:
   - :server:heapPressureTest
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/163244
-- class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testSlowConsumerUnderNetworkDelay
-  issue: https://github.com/elastic/elasticsearch/issues/163264
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

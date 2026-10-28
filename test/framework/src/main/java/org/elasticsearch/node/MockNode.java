@@ -335,16 +335,23 @@ public class MockNode extends Node {
         final boolean forbidPrivateIndexSettings,
         final Closeable entitledNodePaths
     ) {
-        super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
+        super(withMockTransportRegistry(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
 
             @Override
             PluginsService newPluginService(Environment environment, PluginsLoader pluginsLoader) {
                 return new MockPluginsService(environment.settings(), environment, classpathPlugins);
             }
-        }, forbidPrivateIndexSettings));
+        }, forbidPrivateIndexSettings)));
 
         this.classpathPlugins = classpathPlugins;
         this.entitledNodePaths = entitledNodePaths;
+    }
+
+    private static NodeConstruction withMockTransportRegistry(NodeConstruction construction) {
+        if (construction.injector().getInstance(TransportService.class) instanceof MockTransportService mockTransportService) {
+            mockTransportService.setNamedWriteableRegistry(construction.namedWriteableRegistry());
+        }
+        return construction;
     }
 
     private static Environment prepareEnvironment(final Settings settings, final Path configPath) {

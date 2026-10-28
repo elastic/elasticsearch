@@ -84,7 +84,7 @@ import static org.mockito.Mockito.when;
 
 /// Unit tests for pending-allocation-state markers: each allocation's state carries its retry count so either
 /// the retry applier or cluster-state application may recreate the shard with the same count.
-public class IndicesClusterStateServiceRetryContextTests extends AbstractIndicesClusterStateServiceTestCase {
+public class IndicesClusterStateServicePendingAllocationStateTests extends AbstractIndicesClusterStateServiceTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;

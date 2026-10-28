@@ -23,6 +23,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 import org.elasticsearch.xpack.security.cli.bc.CertificateSigningRequest;
 import org.elasticsearch.xpack.security.cli.bc.KeyPurpose;
-import org.elasticsearch.xpack.security.cli.bc.PemGenerator;
 import org.elasticsearch.xpack.security.cli.bc.PemWriter;
 import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 
@@ -368,8 +368,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     )
                 );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_CSR, substitutions);
-                writePemEntry(zip, dirName + "/" + csrFile, new PemGenerator(csr));
-                writePemEntry(zip, dirName + "/" + keyFile, generator(keyPair.getPrivate(), password));
+                writePemEntry(zip, dirName + "/" + csrFile, pem -> pem.writeObject(csr));
+                writePemEntry(zip, dirName + "/" + keyFile, pem -> {
+                    if (password == null || password.length == 0) {
+                        pem.writeObject(keyPair.getPrivate());
+                    } else {
+                        pem.writeObject(keyPair.getPrivate(), CertificateTool.getEncrypter(password));
+                    }
+                });
                 writeTextFile(zip, dirName + "/" + ymlFile, ES_YML_CSR, substitutions);
             } else {
                 final ZonedDateTime notBefore = ZonedDateTime.now(ZoneOffset.UTC);
@@ -450,7 +456,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         try {
             writeTextFile(zip, dirName + "/README.txt", KIBANA_README, substitutions);
             if (ca != null) {
-                writePemEntry(zip, dirName + "/" + caCert, new PemGenerator(ca.certAndKey.cert));
+                writePemEntry(zip, dirName + "/" + caCert, pem -> pem.writeObject(ca.certAndKey.cert));
             }
             writeTextFile(zip, dirName + "/" + ymlFile, KIBANA_YML, substitutions);
         } catch (IOException e) {
@@ -545,21 +551,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void writePemEntry(ZipOutputStream zip, String name, PemGenerator generator) throws IOException {
+    private void writePemEntry(ZipOutputStream zip, String name, CheckedConsumer<PemWriter, IOException> writer) throws IOException {
         try (
             ZipEntryStream entry = new ZipEntryStream(zip, name);
             PemWriter pem = new PemWriter(new OutputStreamWriter(entry, StandardCharsets.UTF_8))
         ) {
-            pem.writeObject(generator);
+            writer.accept(pem);
             pem.flush();
         }
-    }
-
-    private static PemGenerator generator(PrivateKey privateKey, char[] password) throws IOException {
-        if (password == null || password.length == 0) {
-            return new PemGenerator(privateKey);
-        }
-        return new PemGenerator(privateKey, CertificateTool.getEncrypter(password));
     }
 
     private static Period getCertificateValidityPeriod(Terminal terminal) {

@@ -49,10 +49,6 @@ public final class PemWriter implements Closeable {
         pemWriter.writeObject(csr.request());
     }
 
-    public void writeObject(PemGenerator generator) throws IOException {
-        pemWriter.writeObject(generator.generator());
-    }
-
     public void flush() throws IOException {
         pemWriter.flush();
     }

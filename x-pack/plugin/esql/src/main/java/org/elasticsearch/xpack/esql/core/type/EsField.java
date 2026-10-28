@@ -339,8 +339,15 @@ public class EsField implements Writeable {
 
     /**
      * Whether this field is <em>statically</em> single-valued: the mapping of every index that has it guarantees at most one value per
-     * document. "Static" means known from the mapping, like a static type, without reading any data. The mapping is enforced when a
-     * document is indexed and cannot be updated, so the guarantee holds on every shard and for every future document.
+     * document, as the ES|QL field loaders read it. "Static" means known from the mapping, like a static type, without reading any
+     * data. The mapping is enforced when a document is indexed and cannot be updated, so the guarantee holds on every shard and for
+     * every future document.
+     * <p>
+     * With {@code on_failure=ignore}, an extra value is kept in {@code _source} and nowhere else: not in the doc values, the stored
+     * fields or the index. The field loaders do not read it, for any field extract preference, including {@code STORED}, which the ES|QL
+     * {@code field_extract_preference} pragma allows. {@code MapperTestCase} checks this for each mapper that supports
+     * {@code multi_value=false}. A reader of {@code _source} itself, such as the {@code _source} metadata column, can see more than one
+     * value, so do not use this flag to promise anything about that.
      * <p>
      * This is not the segment statistics behind {@code SearchStats#isSingleValue}. They are an observation of one shard's current
      * segments, so only local planning on a data node can use them.

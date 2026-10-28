@@ -38,9 +38,12 @@ import java.util.Map;
  *                       the default otherwise, so a missing name does not affect equality
  * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
  *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
- * @param isStaticallySingleValued {@code true} when the mapping guarantees that no document holds more than one value for this field
- *                       ({@code multi_value=false}). {@code false} only means "not guaranteed", which is also what
- *                       nodes that do not report this flag look like. It is not part of the merged field caps response.
+ * @param isStaticallySingleValued {@code true} when the mapping guarantees that a block loader sees at most one value per document for
+ *                       this field ({@code multi_value=false}). With {@code on_failure=ignore} an extra value is still in
+ *                       {@code _source}, so a reader of {@code _source} itself may see more; see
+ *                       {@code FieldMapper#guaranteesSingleValue}.
+ *                       {@code false} only means "not guaranteed", which is also what nodes that do not report this flag look like.
+ *                       It is not part of the merged field caps response.
  */
 
 public record IndexFieldCapabilities(

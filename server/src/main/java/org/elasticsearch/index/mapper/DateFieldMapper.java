@@ -1248,7 +1248,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected boolean guaranteesSingleValue() {
-        return docValuesParameters.multiValue() == false && docValuesParameters.onFailure() == DocValuesParameter.Values.OnFailure.FAIL;
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override

@@ -129,9 +129,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     /**
-     * Only a field that rejects a second value at parse time is reported as single-valued, so a reader can rely on it. The
-     * guarantee comes from the field's own {@code multi_value=false} or from the index-level default, but not from
-     * {@code on_failure=ignore}, which keeps the extra value out of doc values and is therefore not a rejection.
+     * A field with {@code multi_value=false} is reported as single-valued, so a reader of its doc values can rely on it. The
+     * guarantee comes from the field's own {@code multi_value=false} or from the index-level default. With
+     * {@code on_failure=ignore} the extra value is kept out of the doc values instead of rejecting the document, so the field is still
+     * reported.
      */
     public void testIsSingleValueGuaranteed() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -148,7 +149,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
             assertTrue(type, lookup.isStaticallySingleValued(type + "_single"));
             assertFalse(type, lookup.isStaticallySingleValued(type + "_multi"));
         }
-        assertFalse(lookup.isStaticallySingleValued("keyword_ignore"));
+        // With on_failure=ignore the extra value is not in the doc values, which is what ES|QL reads, so the field is still single-valued.
+        // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that the block loaders do not expose it.
+        assertTrue(lookup.isStaticallySingleValued("keyword_ignore"));
         assertFalse(lookup.isStaticallySingleValued("unknown"));
 
         MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));

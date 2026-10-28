@@ -569,8 +569,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     /**
-     * An {@code unsigned_long} with {@code multi_value=false} and {@code on_failure=fail} is statically single-valued, because a
-     * second value rejects the document. A field that allows many values, or that routes a second value elsewhere, is not.
+     * An {@code unsigned_long} with {@code multi_value=false} is statically single-valued: a second value rejects the document, or with
+     * {@code on_failure=ignore} goes to a side column and not to the doc values. A field that allows many values is not.
      */
     public void testStaticallySingleValued() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -582,7 +582,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         MappingLookup lookup = mapperService.mappingLookup();
         assertTrue(lookup.isStaticallySingleValued("single"));
         assertFalse(lookup.isStaticallySingleValued("multi"));
-        assertFalse(lookup.isStaticallySingleValued("ignore"));
+        assertTrue(lookup.isStaticallySingleValued("ignore"));
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         documentMapper.parse(source(b -> b.field("single", 1)));

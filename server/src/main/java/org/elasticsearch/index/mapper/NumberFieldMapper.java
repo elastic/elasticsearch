@@ -2816,7 +2816,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean guaranteesSingleValue() {
-        return isSingleValueEnforced() && onFailureBehavior() == DocValuesParameter.Values.OnFailure.FAIL;
+        return isSingleValueEnforced();
     }
 
     @Override

@@ -561,11 +561,21 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether the mapping guarantees at most one value per document for this field: {@code multi_value=false} with
-     * {@code on_failure=fail}, so a second value rejects the document. Readers such as field caps may rely on it.
+     * Whether the mapping guarantees that a block loader sees at most one value per document for this field:
+     * {@code multi_value=false}. Readers such as field caps, and through it ES|QL, may rely on it.
      * <p>
-     * Defaults to {@code false}, which only means "not guaranteed". {@code multi_value} is not updateable, so the guarantee cannot be
-     * removed later.
+     * With {@code on_failure=fail} a second value rejects the document, so no reader can see it. With {@code on_failure=ignore} the
+     * document is kept and a second value goes to the {@code ._on_failure} side column. It is in neither the doc values, the stored
+     * fields nor the index, but it is in {@code _source}. So the guarantee holds for the block loaders that ES|QL uses, and not for a
+     * reader of {@code _source} itself, such as the fetch phase or the ES|QL {@code _source} metadata column.
+     * <p>
+     * A change that makes a block loader return the {@code ._on_failure} values, or read the diverted value from {@code _source},
+     * for a field with {@code multi_value=false} would make the guarantee wrong without any error. {@code MapperTestCase} tests that
+     * the block loaders do not expose the diverted value, for every field extract preference and every source mode that allows
+     * {@code multi_value=false}; keep that test passing.
+     * <p>
+     * Defaults to {@code false}, which only means "not guaranteed". {@code multi_value} and {@code on_failure} are not updateable, so
+     * the guarantee cannot be removed later.
      */
     protected boolean guaranteesSingleValue() {
         return false;
@@ -2039,7 +2049,9 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "nullability": false} - reject any document that omits the field or supplies null (columnar only)</li>
          *   <li>{@code "on_failure": "fail"} - reject the document if it violates multi_value/nullability (default; columnar only)</li>
          *   <li>{@code "on_failure": "ignore"} - route the offending value to a per-field failure column
-         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}).</li>
+         *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}). The value is surfaced in synthetic
+         *       {@code _source} only. It is not exposed to block loaders, ES|QL or aggregations, and ES|QL relies on that: see
+         *       {@link #guaranteesSingleValue()}.</li>
          *   <li>Legacy nested form: {@code "doc_values": { "multi_value": false }} etc. — still accepted for backwards
          *       compatibility but no longer emitted for new indices.</li>
          * </ul>

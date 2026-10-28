@@ -163,7 +163,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /// Identifies one allocation attempt of a shard. Keying bookkeeping by allocation id (not just
-    /// {@link ShardId}) means a new allocation of a shard can never collide with, or be confused
+    /// [ShardId]) means a new allocation of a shard can never collide with, or be confused
     /// for, bookkeeping left behind by a previous allocation of the same shard.
     record ShardAllocationKey(ShardId shardId, String allocationId) {
         static ShardAllocationKey fromRouting(ShardRouting routing) {
@@ -181,8 +181,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /// recovery until it terminates in ([RecoveryListener#onRecoveryDone]/[RecoveryListener#onRecoveryFailure]).
         ///
         /// Each instance is an *identity* ticket that determines if "I'm still the owner of this attempt" --
-        /// [ShardRecoveryListener] and the retry/lock-wait continuations compare it against the current map
-        /// entry by reference before acting.
+        /// [ShardRecoveryListener] and the retry/lock-wait continuations ([createShardWhenLockAvailable]) compare
+        /// it against the current map entry by reference before acting.
         ///
         /// This is a final class rather than a record because we rely on pendingAllocationStates.remove(key, creatingShard)
         /// to remove the exact instance rather than a record that just has the same fields.
@@ -224,7 +224,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
         }
 
-        /// No attempt is currently running; the next createShard() for this allocation should use
+        /// No attempt is currently running; the next [createShard] for this allocation should use
         /// this retry count. Put on [FailureStrategy#RETRY] in [#handleRecoveryFailure].
         record AwaitingRecoveryRetry(int localRecoveryRetries, long primaryTerm) implements PendingAllocationState {}
 
@@ -474,13 +474,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * Removes pending-allocation-state entries that are no longer allocated to this node by the master, or
-     * were re-allocated with a different allocation id. {@link PendingAllocationState.CreatingShard} and
-     * {@link PendingAllocationState.AwaitingRecoveryRetry} entries are also removed once the allocation is no
-     * longer initializing, since their lifecycle only makes sense while a creation/recovery attempt is still
-     * in progress. Sends shard failures for shards that are marked as actively allocated to this node but
-     * don't actually exist on the node (handled in {@link #createIndicesAndUpdateShards}). Resends shard
-     * failures for shards that are still marked as allocated to this node but previously failed.
+     * Removes pending-allocation-state entries no longer allocated to this node, or re-allocated under a
+     * different allocation id. {@link PendingAllocationState.CreatingShard} and
+     * {@link PendingAllocationState.AwaitingRecoveryRetry} entries are also removed once their allocation
+     * stops initializing, since their lifecycle only makes sense during an in-progress creation/recovery
+     * attempt. For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
+     * master has processed the failure, or resends it if master hasn't yet -- the initial failure report
+     * is sent separately, from {@link #createIndicesAndUpdateShards}.
      *
      * @param state new cluster state
      */
@@ -555,7 +555,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /// Returns `true` if `key` is no longer "the current allocation" in `state` -- i.e. the shard isn't routed to this node anymore, is
     /// routed under a different allocation id, or is no longer initializing. Only valid for
     /// [PendingAllocationState.CreatingShard]/[PendingAllocationState.AwaitingRecoveryRetry] tickets: their lifecycle only spans the
-    /// shard-creation/recovery attempt, which is necessarily still initializing. Use [#shardAllocationGone] for
+    /// shard-creation/recovery attempt, which is necessarily still initializing. Use [shardAllocationGone] for
     /// [PendingAllocationState.FailureReported], which can legitimately persist while the shard shows as started.
     private static boolean shardAllocationTicketIsOutOfDate(ShardAllocationKey key, ClusterState state) {
         final ShardRouting currentRouting = getCurrentRouting(key, state);
@@ -928,29 +928,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         for (ShardRouting shardRouting : localRoutingNode) {
             ShardId shardId = shardRouting.shardId();
             ShardAllocationKey shardAllocationKey = ShardAllocationKey.fromRouting(shardRouting);
-            if (pendingAllocationStates.get(shardAllocationKey) instanceof PendingAllocationState.FailureReported == false) {
-                final Index index = shardRouting.index();
-                final var indexService = indicesService.indexService(index);
-                if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
-                    // the master thinks we are active, but we don't have this shard at all, mark it as failed
-                    final IndexMetadata indexMetadata = state.metadata().findIndex(index).orElse(null);
-                    assert indexMetadata != null : "null index metadata but non-null new shard routing " + shardRouting;
-                    sendFailShard(
-                        shardRouting,
-                        indexMetadata.primaryTerm(shardId.id()),
-                        "master marked shard as active, but shard has not been created, mark shard as failed",
-                        null,
-                        state
-                    );
-                } else {
-                    if (indexService == null) {
-                        indicesToCreate.computeIfAbsent(index, k -> new ArrayList<>()).add(shardRouting);
-                    } else {
-                        createOrUpdateShard(state, shardRouting, indexService);
-                    }
-                }
-            } else {
+
+            if (pendingAllocationStates.get(shardAllocationKey) instanceof PendingAllocationState.FailureReported) {
                 logger.debug("{} not creating/updating shard: failure already reported to master", shardAllocationKey);
+                continue;
+            }
+
+            final Index index = shardRouting.index();
+            final var indexService = indicesService.indexService(index);
+            if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
+                // the master thinks we are active, but we don't have this shard at all, mark it as failed
+                final IndexMetadata indexMetadata = state.metadata().findIndex(index).orElse(null);
+                assert indexMetadata != null : "null index metadata but non-null new shard routing " + shardRouting;
+                sendFailShard(
+                    shardRouting,
+                    indexMetadata.primaryTerm(shardId.id()),
+                    "master marked shard as active, but shard has not been created, mark shard as failed",
+                    null,
+                    state
+                );
+            } else {
+                if (indexService == null) {
+                    indicesToCreate.computeIfAbsent(index, k -> new ArrayList<>()).add(shardRouting);
+                } else {
+                    createOrUpdateShard(state, shardRouting, indexService);
+                }
             }
         }
 
@@ -1263,8 +1265,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                             if (pendingAllocationStates.get(key) != creatingShard) {
                                 // Not my claim anymore. Either the allocation went stale and was removed
-                                // when new cluster state way applied or the shard has been failed and
-                                // master has been notified.
+                                // when new cluster state applied or the shard has been failed and master has been notified.
                                 logger.debug("{} giving up on shard lock retry: no longer own the creating-shard attempt", key);
                                 listener.onResponse(false);
                                 return;

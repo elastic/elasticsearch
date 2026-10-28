@@ -571,6 +571,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testSortLimitAfterLetFork() {
+        assumeTrue("requires LET", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         runGoldenTest("""
             LET a = (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"));
             FROM a

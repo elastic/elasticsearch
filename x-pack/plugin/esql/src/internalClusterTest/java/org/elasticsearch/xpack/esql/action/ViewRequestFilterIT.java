@@ -193,15 +193,21 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * altogether, so no work is scheduled for it. The rewriter binds the missing field to {@code NULL}, the translated leaf is then
      * a constant, and the standard pipeline takes over: {@code ConstantFolding} folds it to {@code false}, {@code PruneFilters}
      * collapses the filtered branch to an empty {@code LocalRelation}, and {@code PruneEmptyMergeBranches} drops that branch — or
-     * the whole union, when every branch is a view. Pinned here so the rewriter never needs its own dead-branch detection.
+     * the whole union, when every branch is a view. The surviving child is the bare index, so {@code FlattenMergePlanWithOneBranch}
+     * unwraps the merge onto that index scan.
      */
     public void testFilterOnFieldMissingFromViewPrunesTheViewBranch() {
         assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
-        // View branch alongside a bare index: only the bare-index branch survives.
+        // View branch alongside a bare index: the view branch is dropped and the one-child merge is flattened onto the index.
         String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);
-        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("BranchPlan[[main=INDEX]]"));
+        assertThat(
+            "the view branch is pruned and the one-child merge is flattened onto the index",
+            mixed,
+            not(containsString("BranchPlan"))
+        );
         assertThat(mixed, not(containsString(PREFILTERED_VIEW)));
+        assertThat(mixed, containsString("EsRelation[" + INDEX + "]"));
         // Every branch is a view: the union collapses to an empty local relation.
         String allViews = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + STATS_VIEW, fake);
         assertThat("no branch survives", allViews, startsWith("LocalRelation["));

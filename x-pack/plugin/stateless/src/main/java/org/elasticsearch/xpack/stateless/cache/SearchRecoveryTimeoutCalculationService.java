@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,6 +68,15 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
+    /// Only shutdowns of search nodes that still hold shards shorten or skip the warming wait, since only their shards can relocate to
+    /// a search node. When disabled, any removal-type shutdown does.
+    public static final Setting<Boolean> OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_ignore_non_search_node_shutdowns",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile int maxConcurrentRelocationRecoveries;
@@ -80,6 +91,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
     private volatile boolean searchRecoveryWarmingFilterSourceShardsByTarget;
+    private volatile boolean ignoreNonSearchNodeShutdowns;
 
     public SearchRecoveryTimeoutCalculationService(
         StatelessSharedBlobCacheService cacheService,
@@ -140,6 +152,10 @@ public class SearchRecoveryTimeoutCalculationService {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
             value -> this.searchRecoveryWarmingFilterSourceShardsByTarget = value
         );
+        clusterSettings.initializeAndWatch(
+            OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
+            value -> this.ignoreNonSearchNodeShutdowns = value
+        );
     }
 
     /// Decides, on expiry of `latestPlan`, whether the wait continues and for how long: returns the re-evaluated plan with its timeout
@@ -180,8 +196,8 @@ public class SearchRecoveryTimeoutCalculationService {
     }
 
     /// When to await search recovery warming (internal replicated-files path only). Relocation targets use relocation-specific timeouts or
-    /// a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and there
-    /// is no cluster shutdown metadata, using [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING].
+    /// a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and no
+    /// search node is shutting down, using [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING].
     public SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,
@@ -202,7 +218,7 @@ public class SearchRecoveryTimeoutCalculationService {
                     previousPlan
                 );
             }
-            if (hasActiveShutdownForRemovalNodes(state)) {
+            if (hasShuttingDownSearchNodeWithShards(state)) {
                 return new SearchRecoveryTimeout(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
                     TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
@@ -213,7 +229,7 @@ public class SearchRecoveryTimeoutCalculationService {
                 TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN
             );
         }
-        if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
+        if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasShuttingDownSearchNodeWithShards(state) == false) {
             return new SearchRecoveryTimeout(searchRecoveryWarmingNonRelocationTimeout, TimeoutContext.NON_RELOCATION_ANOTHER_ACTIVE_COPY);
         }
         if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {
@@ -269,9 +285,25 @@ public class SearchRecoveryTimeoutCalculationService {
         return node.numberOfShardsWithState(ShardRoutingState.STARTED);
     }
 
-    private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
+    /// Whether a search node still holding shards is shutting down for removal, i.e. may need this node's relocation slots. Any
+    /// removal-type shutdown of a node in the cluster when [#OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING] is disabled.
+    private boolean hasShuttingDownSearchNodeWithShards(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
-            if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
+            if (entry.getValue().getType().isRemovalType() == false) {
+                continue;
+            }
+            final DiscoveryNode node = state.nodes().get(entry.getKey());
+            if (node == null) {
+                continue;
+            }
+            if (ignoreNonSearchNodeShutdowns == false) {
+                return true;
+            }
+            if (node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) == false) {
+                continue;
+            }
+            final RoutingNode routingNode = state.getRoutingNodes().node(node.getId());
+            if (routingNode != null && !routingNode.isEmpty()) {
                 return true;
             }
         }

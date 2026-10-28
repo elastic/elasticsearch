@@ -131,6 +131,11 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     }
 
     @Override
+    public boolean canEmitPartialResultsPeriodically() {
+        return false;
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays
     }

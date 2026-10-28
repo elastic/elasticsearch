@@ -33,6 +33,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
     static final String STREAMING_OPTION = "streaming";
+    static final String STORE_OPTION = "store";
     static final String NDJSON_FORMAT_VALUE = "ndjson";
 
     /**
@@ -75,6 +76,9 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
             String format = request.param(URL_PARAM_FORMAT);
 
+            if (request.hasParam(STORE_OPTION) && streaming == false) {
+                throw new IllegalArgumentException("[" + STORE_OPTION + "] requires [" + STREAMING_OPTION + "=true]");
+            }
             if (NDJSON_FORMAT_VALUE.equals(format) && streaming == false) {
                 throw new IllegalArgumentException("[format=ndjson] requires [" + STREAMING_OPTION + "=true]");
             }
@@ -111,7 +115,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
                 restListener::setPreHeaderFailureFooter
-            );
+            ).store(request.paramAsBoolean(STORE_OPTION, false));
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,
                 streamRequest,

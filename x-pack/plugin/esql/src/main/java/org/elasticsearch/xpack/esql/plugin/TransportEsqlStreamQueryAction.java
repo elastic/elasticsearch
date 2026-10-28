@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -28,15 +29,18 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -233,6 +237,10 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     ) {
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
+        // Stored results are identified so that they can be read again: the task id routes to this coordinator.
+        String streamId = request.store()
+            ? new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(clusterService.localNode().getId(), task.getId())).getEncoded()
+            : null;
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
@@ -287,6 +295,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     try {
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
                         Exception startFailure = startStream(
+                            streamId,
                             request,
                             publisher,
                             streamStarted,
@@ -381,6 +390,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     assert outputRunSeen.get() == false : "an OUTPUT plan ran but the stream was never started";
                     List<ColumnInfoImpl> columns = buildColumns(result.schema(), result.attributeMetadata());
                     Exception startFailure = startStream(
+                        streamId,
                         request,
                         publisher,
                         streamStarted,
@@ -448,6 +458,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     private static Exception startStream(
+        @Nullable String streamId,
         EsqlStreamQueryRequest request,
         PageStreamPublisher publisher,
         AtomicBoolean streamStarted,
@@ -455,7 +466,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(streamId, columns, publisher, nullColumns, zoneId));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

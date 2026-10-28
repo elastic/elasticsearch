@@ -29,6 +29,7 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
     private final ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener;
     private final boolean dropNullColumns;
     private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer;
+    private boolean store;
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
@@ -60,6 +61,18 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     public boolean dropNullColumns() {
         return dropNullColumns;
+    }
+
+    /**
+     * Whether the result is stored so that it can be read again by id, from any row, while the query runs and after.
+     */
+    public boolean store() {
+        return store;
+    }
+
+    public EsqlStreamQueryRequest store(boolean store) {
+        this.store = store;
+        return this;
     }
 
     @Override

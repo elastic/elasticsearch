@@ -52,7 +52,7 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
  * and streams results as NDJSON to the HTTP client, one JSON line per logical unit:
  * <ul>
- *   <li>First line: {@code {"columns":[...]}}</li>
+ *   <li>First line: {@code {"columns":[...]}}, preceded by {@code "id"} when the result is stored</li>
  *   <li>One line per page: {@code {"values":[[...],...]}}
  *   <li>Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...,"_clusters":{...}}}
  *       ({@code _clusters} is present only when {@link EsqlExecutionInfo#hasMetadataToReport()} is true: with
@@ -95,6 +95,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private ChunkedRestResponseBodyPart pendingPagePart;
 
     private volatile PageStreamPublisher publisher;
+    private volatile String id;
     private volatile List<ColumnInfoImpl> columns;
     private volatile boolean[] nullColumns;
     private volatile ZoneId zoneId;
@@ -139,6 +140,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     private void initializeStream(EsqlStreamQueryAction.ResultStream resultStream) throws IOException {
         this.publisher = resultStream.publisher();
+        this.id = resultStream.id();
         this.columns = resultStream.columns();
         this.nullColumns = resultStream.nullColumns();
         this.zoneId = resultStream.zoneId();
@@ -379,6 +381,9 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             try {
                 writeJson(out, builder -> {
                     builder.startObject();
+                    if (id != null) {
+                        builder.field("id", id);
+                    }
                     if (nullColumns != null) {
                         builder.startArray("all_columns");
                         for (ColumnInfoImpl col : cols) {

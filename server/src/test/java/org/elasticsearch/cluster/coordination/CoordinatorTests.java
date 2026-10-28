@@ -1552,11 +1552,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    /**
-     * How long an election attempt may take, given the delay variability, which determines the spacing of the election attempts. If this
-     * is shorter than an attempt actually takes then a newly started attempt can overtake the previous one while it is still in flight, and
-     * the two keep unseating each other so no leader emerges within the time that the test allows.
-     */
+    /// How long an election attempt may take, given the delay variability, which determines the spacing of the election attempts. If this
+    /// is shorter than an attempt actually takes then a newly started attempt can overtake the previous one while it is still in flight,
+    /// and the two keep unseating each other.
     protected long singleNodeElectionDurationMillis(long delayVariabilityMillis) {
         return delayVariabilityMillis;
     }

@@ -1647,6 +1647,160 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testInitialModeStopsWhenMetadataIsComplete() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+            Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"), SIMPLE_LOOKUP.lookup("my-index", "disk_io"))),
+            Map.of("my-index", Set.of("host"))
+        );
+        try (
+            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
+                driverContext()
+            )
+        ) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "my-index"));
+            assertTrue(op.needsInput());
+            assertNull(op.getOutput());
+
+            op.addInput(buildPage(blockFactory, "{\"disk_io\": 10, \"host\": \"b\"}", "my-index"));
+            assertFalse(op.needsInput());
+            Page output = op.getOutput();
+            assertNotNull(output);
+            try {
+                assertThat(collectColumnValues(output, 0), equalTo(Set.of("cpu_usage", "disk_io")));
+                assertTrue(op.isFinished());
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testInitialModeWaitsForEveryDimensionField() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+            Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"))),
+            Map.of("my-index", Set.of("host", "region"))
+        );
+        try (
+            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
+                driverContext()
+            )
+        ) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "my-index"));
+            assertTrue(op.needsInput());
+            assertNull(op.getOutput());
+
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"region\": \"eu\"}", "my-index"));
+            assertFalse(op.needsInput());
+            Page output = op.getOutput();
+            try {
+                assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("host", "region")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testInitialModeDoesNotInventMappedMetrics() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+            Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"), SIMPLE_LOOKUP.lookup("my-index", "disk_io"))),
+            Map.of("my-index", Set.of("host"))
+        );
+        try (
+            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
+                driverContext()
+            )
+        ) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "my-index"));
+            assertTrue(op.needsInput());
+            op.finish();
+            Page output = op.getOutput();
+            try {
+                assertThat(collectColumnValues(output, 0), equalTo(Set.of("cpu_usage")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testInitialDriversShareMetadataCompletion() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+            Map.of(
+                "index-a",
+                List.of(SIMPLE_LOOKUP.lookup("index-a", "cpu_usage")),
+                "index-b",
+                List.of(SIMPLE_LOOKUP.lookup("index-b", "cpu_usage"))
+            ),
+            Map.of("index-a", Set.of("host"), "index-b", Set.of("host"))
+        );
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
+            tracker
+        );
+        try (
+            Operator first = factory.get(driverContext());
+            Operator second = factory.get(driverContext());
+            Operator reducer = createFinalOperator()
+        ) {
+            first.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "index-a"));
+            assertTrue(first.needsInput());
+            assertTrue(second.needsInput());
+
+            second.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"b\"}", "index-b"));
+            assertFalse(first.needsInput());
+            assertFalse(second.needsInput());
+            reducer.addInput(first.getOutput());
+            reducer.addInput(second.getOutput());
+            reducer.finish();
+            Page output = reducer.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("index-a", "index-b")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testInitialModeKeepsScanningConflictingBackingIndices() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        String firstIndex = ".ds-k8s-2024.01.15-000001";
+        String secondIndex = ".ds-k8s-2024.01.15-000002";
+        MetricFieldInfo firstField = new MetricFieldInfo("cpu_usage", firstIndex, "double", "gauge", "percent");
+        MetricFieldInfo secondField = new MetricFieldInfo("cpu_usage", secondIndex, "float", "gauge", "bytes");
+        MetricsInfoOperator.MetricFieldLookup lookup = (index, field) -> "cpu_usage".equals(field)
+            ? (index.equals(firstIndex) ? firstField : secondField)
+            : null;
+        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+            Map.of("k8s", List.of(firstField, secondField)),
+            Map.of("k8s", Set.of("host"))
+        );
+        try (
+            Operator op = new MetricsInfoOperator.Factory(lookup, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
+                driverContext()
+            )
+        ) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", firstIndex));
+            assertTrue(op.needsInput());
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"b\"}", secondIndex));
+            assertTrue(op.needsInput());
+            op.finish();
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(collectMultiValues(output, 2, 0), equalTo(Set.of("percent", "bytes")));
+                assertThat(collectMultiValues(output, 4, 0), equalTo(Set.of("double", "float")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
     public void testCloseReleasesTrackedMemory() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();

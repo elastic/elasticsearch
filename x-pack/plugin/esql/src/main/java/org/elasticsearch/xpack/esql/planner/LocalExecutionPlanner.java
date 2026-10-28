@@ -51,6 +51,7 @@ import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricFieldInfo;
+import org.elasticsearch.compute.operator.MetricsInfoMetadataTracker;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -282,6 +283,17 @@ public class LocalExecutionPlanner {
     static final int MIN_PAGES_PER_LIMIT_DRIVER = ExternalLimitSplits.MIN_PAGES_PER_LIMIT_DRIVER;
 
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
+    private static final Set<String> METRICS_INFO_SCALAR_DIMENSION_TYPES = Set.of(
+        "keyword",
+        "constant_keyword",
+        "byte",
+        "short",
+        "integer",
+        "long",
+        "unsigned_long",
+        "ip",
+        "boolean"
+    );
 
     private final String sessionId;
     private final String clusterAlias;
@@ -2021,13 +2033,15 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(metricsInfoExec.output());
 
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
+        Map<String, String> dataStreamsByIndex = createDataStreamLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
             new MetricsInfoOperator.Factory(
                 fieldLookup,
-                createDataStreamLookup(context.shardContexts),
+                dataStreamsByIndex,
                 metadataSourceChannel,
-                indexChannel
+                indexChannel,
+                createMetricsInfoMetadataTracker(context.shardContexts, dataStreamsByIndex, fieldLookup)
             ),
             layoutBuilder.build()
         );
@@ -2204,6 +2218,47 @@ public class LocalExecutionPlanner {
             return null;
         }
         return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), index.getParentDataStream().getName());
+    }
+
+    @Nullable
+    private MetricsInfoMetadataTracker createMetricsInfoMetadataTracker(
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        Map<String, String> dataStreamsByIndex,
+        MetricsInfoOperator.MetricFieldLookup fieldLookup
+    ) {
+        Map<String, List<MetricFieldInfo>> metricsByDataStream = new HashMap<>();
+        Map<String, Set<String>> dimensionFieldsByDataStream = new HashMap<>();
+        Map<String, MappingLookup> visitedIndices = new HashMap<>();
+        for (ShardContext shard : shardContexts.iterable()) {
+            String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, shard.indexSettings().getIndex().getName());
+            MappingLookup mapping = shard.mappingLookup();
+            MappingLookup previousMapping = visitedIndices.putIfAbsent(indexName, mapping);
+            if (previousMapping != null) {
+                // Shards can capture different mapping snapshots during a concurrent mapping update.
+                if (previousMapping != mapping) {
+                    return null;
+                }
+                continue;
+            }
+            String dataStream = dataStreamsByIndex.getOrDefault(indexName, indexName);
+            Set<String> dimensionFields = dimensionFieldsByDataStream.computeIfAbsent(dataStream, k -> new HashSet<>());
+            for (var mapper : mapping.dimensionFieldMappers().values()) {
+                MappedFieldType field = mapper.fieldType();
+                // Compound dimensions can expose metadata leaf names that are not enumerated in the mapping.
+                if (METRICS_INFO_SCALAR_DIMENSION_TYPES.contains(field.typeName()) == false) {
+                    return null;
+                }
+                dimensionFields.add(field.name());
+            }
+            List<MetricFieldInfo> metrics = metricsByDataStream.computeIfAbsent(dataStream, k -> new ArrayList<>());
+            for (var mapper : mapping.metricFieldMappers().values()) {
+                MetricFieldInfo field = fieldLookup.lookup(indexName, mapper.fieldType().name());
+                if (field != null) {
+                    metrics.add(field);
+                }
+            }
+        }
+        return new MetricsInfoMetadataTracker(metricsByDataStream, dimensionFieldsByDataStream);
     }
 
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {

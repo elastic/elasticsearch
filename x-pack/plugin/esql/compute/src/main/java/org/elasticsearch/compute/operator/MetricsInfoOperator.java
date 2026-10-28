@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -142,13 +143,20 @@ public class MetricsInfoOperator implements Operator {
      * @param dataStreamsByIndex   backing index names mapped to their parent data streams, including cluster qualifiers
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
      * @param indexChannel         channel index for {@code _index} block
+     * @param metadataTracker      shared proof of metadata completeness, or null when metadata cannot be bounded
      */
     public record Factory(
         MetricFieldLookup fieldLookup,
         Map<String, String> dataStreamsByIndex,
         int metadataSourceChannel,
-        int indexChannel
+        int indexChannel,
+        @Nullable MetricsInfoMetadataTracker metadataTracker
     ) implements OperatorFactory {
+        /** Consumes all input when no mapping bounds are available to prove metadata completeness. */
+        public Factory(MetricFieldLookup fieldLookup, Map<String, String> dataStreamsByIndex, int metadataSourceChannel, int indexChannel) {
+            this(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel, null);
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new MetricsInfoOperator(
@@ -158,7 +166,8 @@ public class MetricsInfoOperator implements Operator {
                 dataStreamsByIndex,
                 metadataSourceChannel,
                 indexChannel,
-                null
+                null,
+                metadataTracker
             );
         }
 
@@ -181,7 +190,7 @@ public class MetricsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels);
+            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels, null);
         }
 
         @Override
@@ -213,6 +222,8 @@ public class MetricsInfoOperator implements Operator {
     private final int indexChannel;
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
+    @Nullable
+    private final MetricsInfoMetadataTracker metadataTracker;
 
     private boolean finished = false;
     private boolean outputProduced = false;
@@ -228,7 +239,8 @@ public class MetricsInfoOperator implements Operator {
         Map<String, String> dataStreamsByIndex,
         int metadataSourceChannel,
         int indexChannel,
-        int[] channels
+        int[] channels,
+        @Nullable MetricsInfoMetadataTracker metadataTracker
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
@@ -238,11 +250,16 @@ public class MetricsInfoOperator implements Operator {
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
+        this.metadataTracker = metadataTracker;
     }
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return inputFinished() == false;
+    }
+
+    private boolean inputFinished() {
+        return finished || (metadataTracker != null && metadataTracker.isComplete());
     }
 
     @Override
@@ -397,9 +414,19 @@ public class MetricsInfoOperator implements Operator {
             }
         }
 
-        if (prefix == null && dimensionKeys.isEmpty() == false) {
+        if (prefix == null) {
             for (MetricInfo info : touchedMetrics) {
                 trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
+                if (metadataTracker != null) {
+                    metadataTracker.observe(
+                        info.name,
+                        info.indexAbstractionName,
+                        info.units,
+                        info.fieldTypes,
+                        info.metricTypes,
+                        info.dimensionFieldKeys
+                    );
+                }
             }
         }
     }
@@ -449,7 +476,7 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && outputProduced;
+        return inputFinished() && outputProduced;
     }
 
     @Override
@@ -459,7 +486,7 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        if (finished == false || outputProduced) {
+        if (inputFinished() == false || outputProduced) {
             return null;
         }
 

@@ -77,6 +77,7 @@ import java.util.zip.ZipOutputStream;
 
 import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.buildKeyUsage;
 import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.generateSignedCertificate;
 import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.isValidKeyUsage;
 
@@ -349,7 +350,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     keyPair,
                     cert.subject,
                     sanList,
-                    cert.keyUsage,
+                    buildKeyUsage(cert.keyUsage),
                     Set.of(KeyPurpose.SERVER_AUTH)
                 );
                 final String csrFile = "http-" + cert.name + ".csr";
@@ -383,7 +384,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     notBefore,
                     notAfter,
                     null,
-                    cert.keyUsage,
+                    buildKeyUsage(cert.keyUsage),
                     Set.of(KeyPurpose.SERVER_AUTH)
                 );
 
@@ -962,7 +963,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 notBefore,
                 notAfter,
                 null,
-                keyUsage,
+                buildKeyUsage(keyUsage),
                 Set.of()
             );
 

@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 import org.elasticsearch.xpack.security.cli.bc.CertificateSigningRequest;
+import org.elasticsearch.xpack.security.cli.bc.KeyUsage;
 import org.elasticsearch.xpack.security.cli.bc.PemEncryptor;
 import org.elasticsearch.xpack.security.cli.bc.PemWriter;
 import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
@@ -68,6 +69,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -419,7 +421,7 @@ class CertificateTool extends MultiCommand {
             }
             X500Principal x500Principal = new X500Principal(dn);
             KeyPair keyPair = CertGenUtils.generateKeyPair(getKeySize(options));
-            final List<String> caKeyUsage = getCaKeyUsage(options);
+            final Set<KeyUsage> caKeyUsage = CertGenUtils.buildKeyUsage(getCaKeyUsage(options));
             X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options), caKeyUsage);
 
             if (options.hasArgument(caPasswordSpec)) {

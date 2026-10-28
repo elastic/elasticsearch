@@ -416,7 +416,12 @@ public class CertificateToolTests extends ESTestCase {
 
         KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
         List<String> caKeyUsage = randomBoolean() ? null : CertificateTool.DEFAULT_CA_KEY_USAGE;
-        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days, caKeyUsage);
+        X509Certificate caCert = CertGenUtils.generateCACertificate(
+            new X500Principal("CN=test ca"),
+            keyPair,
+            days,
+            CertGenUtils.buildKeyUsage(caKeyUsage)
+        );
 
         final boolean selfSigned = randomBoolean();
         final String keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD : null;

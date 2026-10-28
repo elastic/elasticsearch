@@ -103,6 +103,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.buildKeyUsage;
 
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
@@ -447,7 +448,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     true,
                     HTTP_CA_CERTIFICATE_DAYS,
                     SIGNATURE_ALGORITHM,
-                    DEFAULT_CA_KEY_USAGE,
+                    buildKeyUsage(DEFAULT_CA_KEY_USAGE),
                     Set.of()
                 );
             } catch (Throwable t) {
@@ -474,7 +475,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
-                DEFAULT_CERT_KEY_USAGE,
+                buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
                 Set.of(KeyPurpose.SERVER_AUTH)
             );
 

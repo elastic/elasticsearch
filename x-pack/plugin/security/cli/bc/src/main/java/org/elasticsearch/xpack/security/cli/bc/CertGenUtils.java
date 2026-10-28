@@ -21,7 +21,6 @@ import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.Time;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
@@ -54,6 +53,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -87,30 +87,24 @@ public class CertGenUtils {
     private static final int SERIAL_BIT_LENGTH = 20 * 8;
 
     /**
-     * The mapping of key usage names to their corresponding integer values as defined in {@code KeyUsage} class.
+     * The mapping of key usage names to their corresponding integer values as defined in {@link KeyUsage}.
      */
-    public static final Map<String, Integer> KEY_USAGE_MAPPINGS = Collections.unmodifiableMap(
-        new TreeMap<>(
-            Map.ofEntries(
-                Map.entry("digitalSignature", KeyUsage.digitalSignature),
-                Map.entry("nonRepudiation", KeyUsage.nonRepudiation),
-                Map.entry("keyEncipherment", KeyUsage.keyEncipherment),
-                Map.entry("dataEncipherment", KeyUsage.dataEncipherment),
-                Map.entry("keyAgreement", KeyUsage.keyAgreement),
-                Map.entry("keyCertSign", KeyUsage.keyCertSign),
-                Map.entry("cRLSign", KeyUsage.cRLSign),
-                Map.entry("encipherOnly", KeyUsage.encipherOnly),
-                Map.entry("decipherOnly", KeyUsage.decipherOnly)
-            )
-        )
-    );
+    public static final Map<String, Integer> KEY_USAGE_MAPPINGS;
+
+    static {
+        Map<String, Integer> mappings = new TreeMap<>();
+        for (KeyUsage keyUsage : KeyUsage.values()) {
+            mappings.put(keyUsage.usageName(), keyUsage.bits());
+        }
+        KEY_USAGE_MAPPINGS = Collections.unmodifiableMap(mappings);
+    }
 
     private CertGenUtils() {}
 
     /**
      * Generates a CA certificate
      */
-    public static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days, Collection<String> keyUsage)
+    public static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days, Set<KeyUsage> keyUsage)
         throws IOException, GeneralSecurityException {
         return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days, null, keyUsage, Set.of());
     }
@@ -159,8 +153,8 @@ public class CertGenUtils {
      * @param days               no of days certificate will be valid from now
      * @param signatureAlgorithm algorithm used for signing certificate. If {@code null} or
      *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
-     * @param keyUsage          the names of the key usages (see {@link #KEY_USAGE_MAPPINGS}) that should be added to the certificate as
-     *                           a X509v3 extension (can be {@code null} or empty)
+     * @param keyUsage          the key usages (see {@link #buildKeyUsage(Collection)}) that should be added to the certificate as an
+     *                           X509v3 extension. {@code null} or empty omits the extension
      * @param extendedKeyUsages the extended key usages that should be added to the certificate as a X509v3 extension (can be empty)
      * @return a signed {@link X509Certificate}
      */
@@ -173,7 +167,7 @@ public class CertGenUtils {
         boolean isCa,
         int days,
         String signatureAlgorithm,
-        Collection<String> keyUsage,
+        Set<KeyUsage> keyUsage,
         Set<KeyPurpose> extendedKeyUsages
     ) throws IOException, GeneralSecurityException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
@@ -233,7 +227,7 @@ public class CertGenUtils {
         ZonedDateTime notBefore,
         ZonedDateTime notAfter,
         String signatureAlgorithm,
-        Collection<String> keyUsage,
+        Set<KeyUsage> keyUsage,
         Set<KeyPurpose> extendedKeyUsages
     ) throws IOException, GeneralSecurityException {
         final BigInteger serial = CertGenUtils.getSerial();
@@ -269,7 +263,7 @@ public class CertGenUtils {
         }
         builder.addExtension(Extension.basicConstraints, isCa, new BasicConstraints(isCa));
 
-        final KeyUsage keyUsageExtension = buildKeyUsage(keyUsage);
+        final org.bouncycastle.asn1.x509.KeyUsage keyUsageExtension = buildKeyUsage(keyUsage);
         if (keyUsageExtension != null) {
             // as per RFC 5280 (section 4.2.1.3), if the key usage is present, then it SHOULD be marked as critical.
             final boolean isCritical = true;
@@ -352,7 +346,7 @@ public class CertGenUtils {
         KeyPair keyPair,
         X500Principal principal,
         SubjectAlternativeNames sanList,
-        Collection<String> keyUsage,
+        Set<KeyUsage> keyUsage,
         Set<KeyPurpose> extendedKeyUsages
     ) throws IOException, GeneralSecurityException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
@@ -365,7 +359,7 @@ public class CertGenUtils {
         if (sanList != null) {
             extGen.addExtension(Extension.subjectAlternativeName, false, sanList.generalNames());
         }
-        final KeyUsage keyUsageExtension = buildKeyUsage(keyUsage);
+        final org.bouncycastle.asn1.x509.KeyUsage keyUsageExtension = buildKeyUsage(keyUsage);
         if (keyUsageExtension != null) {
             extGen.addExtension(Extension.keyUsage, true, keyUsageExtension);
         }
@@ -492,35 +486,45 @@ public class CertGenUtils {
     }
 
     /**
-     * Converts the names of key usages (see {@link #KEY_USAGE_MAPPINGS}) into the value of the key usage extension.
+     * Resolves CLI key usage names (see {@link #KEY_USAGE_MAPPINGS}) to key usage values.
      *
-     * @return the key usage, or {@code null} if no names are given
+     * @return the key usages, or an empty set if no names are given
      * @throws IllegalArgumentException if any of the names is not a known key usage
      */
-    private static KeyUsage buildKeyUsage(Collection<String> keyUsages) {
+    public static Set<KeyUsage> buildKeyUsage(Collection<String> keyUsages) {
+        if (keyUsages == null || keyUsages.isEmpty()) {
+            return EnumSet.noneOf(KeyUsage.class);
+        }
+
+        EnumSet<KeyUsage> resolved = EnumSet.noneOf(KeyUsage.class);
+        for (String keyUsageName : keyUsages) {
+            KeyUsage keyUsage = KeyUsage.fromName(keyUsageName);
+            if (keyUsage == null) {
+                throw new IllegalArgumentException("Unknown keyUsage: " + keyUsageName);
+            }
+            resolved.add(keyUsage);
+        }
+        return resolved;
+    }
+
+    /**
+     * Combines key usages into the value of the key usage extension.
+     *
+     * @return the extension value, or {@code null} if no key usages are given
+     */
+    private static org.bouncycastle.asn1.x509.KeyUsage buildKeyUsage(Set<KeyUsage> keyUsages) {
         if (keyUsages == null || keyUsages.isEmpty()) {
             return null;
         }
 
         int usageBits = 0;
-        for (String keyUsageName : keyUsages) {
-            Integer keyUsageValue = findKeyUsageByName(keyUsageName);
-            if (keyUsageValue == null) {
-                throw new IllegalArgumentException("Unknown keyUsage: " + keyUsageName);
-            }
-            usageBits |= keyUsageValue;
+        for (KeyUsage keyUsage : keyUsages) {
+            usageBits |= keyUsage.bits();
         }
-        return new KeyUsage(usageBits);
+        return new org.bouncycastle.asn1.x509.KeyUsage(usageBits);
     }
 
     public static boolean isValidKeyUsage(String keyUsage) {
-        return findKeyUsageByName(keyUsage) != null;
-    }
-
-    private static Integer findKeyUsageByName(String keyUsageName) {
-        if (keyUsageName == null) {
-            return null;
-        }
-        return KEY_USAGE_MAPPINGS.get(keyUsageName.trim());
+        return KeyUsage.fromName(keyUsage) != null;
     }
 }

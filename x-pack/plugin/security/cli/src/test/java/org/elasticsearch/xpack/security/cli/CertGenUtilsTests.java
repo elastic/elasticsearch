@@ -155,7 +155,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            rootCaKeyUsages,
+            CertGenUtils.buildKeyUsage(rootCaKeyUsages),
             Set.of()
         );
 
@@ -173,7 +173,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            subCaKeyUsage,
+            CertGenUtils.buildKeyUsage(subCaKeyUsage),
             Set.of()
         );
 
@@ -191,7 +191,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            endEntityKeyUsage,
+            CertGenUtils.buildKeyUsage(endEntityKeyUsage),
             Set.of(KeyPurpose.ANY)
         );
 
@@ -257,7 +257,7 @@ public class CertGenUtilsTests extends ESTestCase {
                 true,
                 30,
                 null,
-                List.of("keyCertSign"),
+                CertGenUtils.buildKeyUsage(List.of("keyCertSign")),
                 Set.of()
             );
             final X509Certificate cert = CertGenUtils.generateSignedCertificate(
@@ -320,7 +320,7 @@ public class CertGenUtilsTests extends ESTestCase {
             true,
             30,
             null,
-            keyUsage,
+            CertGenUtils.buildKeyUsage(keyUsage),
             Set.of()
         );
     }

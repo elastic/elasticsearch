@@ -541,21 +541,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public boolean advanceExactStored(int target) throws IOException {
-            doc = target;
-            fields.granted.clear();
-            fields.grantedCount = 0;
-            return fields.counts.advanceExact(target) && fields.slots.advanceExact(target);
+        public BinaryDocValues storedSlots() {
+            return fields.slots;
         }
 
         @Override
-        public BytesRef storedSlots() throws IOException {
-            return fields.slots.binaryValue();
-        }
-
-        @Override
-        public int storedSlotCount() throws IOException {
-            return Math.toIntExact(fields.counts.longValue());
+        public NumericDocValues storedCounts() {
+            return fields.counts;
         }
 
         @Override

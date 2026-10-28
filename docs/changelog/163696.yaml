@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163696
+summary: Approximate METRICS_INFO with LIMIT hints
+type: enhancement

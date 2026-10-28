@@ -404,6 +404,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile Set<String> inSyncAllocationIds;
         private volatile IndexShardRoutingTable routingTable;
         private volatile long term;
+        private volatile IndexShardState state = IndexShardState.RECOVERING;
 
         public MockIndexShard(ShardRouting shardRouting, long term) {
             this.shardRouting = shardRouting;
@@ -466,7 +467,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public IndexShardState state() {
-            return null;
+            return state;
+        }
+
+        public void setState(IndexShardState state) {
+            this.state = state;
         }
 
         public long term() {

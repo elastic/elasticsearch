@@ -1544,12 +1544,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.debug("{} ignoring stale recovery failure; no longer the current attempt", key);
             return;
         }
-        // If local recovery retry is not enabled or recovery source is RESHARD_SPLIT we notify the master instead.
-        // TODO: Remove RESHARD_SPLIT exclusion once local retries support it
-        FailureStrategy finalStrategy = failureStrategy.equals(FailureStrategy.RETRY)
-            && (localRecoveryRetryEnabled == false || shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT))
-                ? FailureStrategy.FAIL_SEND
-                : failureStrategy;
+
+        final FailureStrategy finalStrategy;
+        final Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
+        // A still-live creatingShard ticket (checked above) guarantees any local shard for this shardId
+        // is this allocation's: every path that replaces it with a different allocation's shard also
+        // invalidates this exact ticket first, inside the same synchronized section.
+        assert shard == null || shard.routingEntry().isSameAllocation(shardRouting)
+            : "found shard for different allocation despite live ticket: " + shard.routingEntry() + " vs " + shardRouting;
+        final IndexShardState shardState = shard != null ? shard.state() : null;
+        if (failureStrategy != FailureStrategy.RETRY) {
+            finalStrategy = failureStrategy;
+        } else if (localRecoveryRetryEnabled == false) {
+            // local recovery retry is disabled
+            finalStrategy = FailureStrategy.FAIL_SEND;
+        } else if (shardState != IndexShardState.RECOVERING) {
+            // When the shard reaches POST_RECOVERY, updateShard may have sent a started notification even if routing is
+            // still initializing. In which case the master could respond with a `STARTED` update, and we could continue
+            // retrying locally without ever letting the master know that the shard is back in INITIALIZING.
+            // Fall back to FAIL_SEND in this case.
+            finalStrategy = FailureStrategy.FAIL_SEND;
+        } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
+            // TODO: Remove RESHARD_SPLIT exclusion once local retries support it
+            finalStrategy = FailureStrategy.FAIL_SEND;
+        } else {
+            finalStrategy = FailureStrategy.RETRY;
+        }
+
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(

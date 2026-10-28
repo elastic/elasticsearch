@@ -41,6 +41,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -142,6 +143,28 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+        assertThat(pendingApplierTasks.size(), equalTo(0));
+    }
+
+    public void testRetryBecomesFailSendWhenShardPastRecovering() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
+        assertNotNull(shard);
+        shard.setState(IndexShardState.POST_RECOVERY);
+
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            RETRY,
+            primaryTerm(shardRouting),
+            new Exception("simulated recovery failure"),
+            shard.recoveryState(),
+            currentCreatingShard(shardRouting)
+        );
+
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
         assertThat(pendingApplierTasks.size(), equalTo(0));

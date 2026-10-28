@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.action.shard.ShardStateAction.SHARD_FAILED_ACTION_NAME;
 import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.AFTER_INDEX_SHARD_RECOVERY;
 import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.BEFORE_INDEX_SHARD_RECOVERY;
-import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.STATE_CHANGED_POST_RECOVERY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -85,9 +84,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ) {
             if (currentState == IndexShardState.RECOVERING) {
                 recoveryCounter.incrementAndGet();
-            }
-            if (currentState == IndexShardState.POST_RECOVERY) {
-                maybeThrow(STATE_CHANGED_POST_RECOVERY);
             }
         }
 
@@ -858,7 +854,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// Typically on different calls to [IndexEventListener].
     enum FailureTarget {
         BEFORE_INDEX_SHARD_RECOVERY,
-        AFTER_INDEX_SHARD_RECOVERY,
-        STATE_CHANGED_POST_RECOVERY
+        AFTER_INDEX_SHARD_RECOVERY
     }
 }

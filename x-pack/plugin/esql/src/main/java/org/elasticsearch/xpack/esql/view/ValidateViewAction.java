@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class ValidateViewAction extends ActionType<ActionResponse.Empty> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            return new PutViewAction.Request(TimeValue.ZERO, TimeValue.ZERO, view).validate();
         }
 
         public View view() {

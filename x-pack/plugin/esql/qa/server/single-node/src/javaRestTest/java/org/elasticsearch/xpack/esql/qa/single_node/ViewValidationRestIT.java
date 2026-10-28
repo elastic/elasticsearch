@@ -21,6 +21,8 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +51,17 @@ public class ViewValidationRestIT extends ESRestTestCase {
 
     public void testValidationCanBeSkipped() throws IOException {
         assertThat(putView("view-validation-skipped", "FROM no-such-index-for-view", false).getWarnings(), empty());
+    }
+
+    public void testInvalidViewNameFailsTheRequest() {
+        var name = randomFrom("wildcard*", "Upper");
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            containsString("invalid view name [" + name + "]"),
+            () -> putView(URLEncoder.encode(name, StandardCharsets.UTF_8), "FROM no-such-index-for-view", randomBoolean())
+        );
+        assertThat(e.getResponse().getWarnings(), empty());
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testParseErrorStillFailsTheRequest() {
@@ -101,7 +114,8 @@ public class ViewValidationRestIT extends ESRestTestCase {
     private Map<String, Object> esqlStats() throws IOException {
         ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_esql/stats")));
         List<Object> nodes = path.evaluate("stats");
-        assertThat(nodes, hasSize(1));
+        // Stats are reported per node, and the validation request may run on a node other than the one queried.
+        assumeTrue("requires a single node", nodes.size() == 1);
         Map<String, Object> stats = path.evaluate("stats.0.stats");
         return stats == null ? Map.of() : stats;
     }

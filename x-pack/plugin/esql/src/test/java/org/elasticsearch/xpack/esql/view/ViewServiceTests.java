@@ -301,7 +301,7 @@ public class ViewServiceTests extends ESTestCase {
 
         validateView(service, new View("v", "FROM missing", null, false));
 
-        assertWarnings("view [v] query is not valid: Found 1 problem\nline 1:6: Unknown index [missing]");
+        assertWarnings("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]");
         assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
     }
 

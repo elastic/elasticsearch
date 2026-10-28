@@ -176,7 +176,9 @@ public class ViewService {
                     ActionListener.<Void>running(() -> listener.onResponse(null)).delegateResponse((l, e) -> {
                         final Throwable cause = ExceptionsHelper.unwrapCause(e);
                         if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
-                            HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), cause.getMessage());
+                            // HeaderWarning percent-encodes newlines, which makes the multi-line verification message unreadable.
+                            final String message = String.valueOf(cause.getMessage()).replace('\n', ' ');
+                            HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), message);
                         }
                         l.onFailure(e);
                     })

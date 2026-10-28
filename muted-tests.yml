@@ -436,3 +436,8 @@ tests:
   - :x-pack:plugin:yamlRestCompatTest
   method: test {yaml=deprecation/10_basic/Test Deprecations}
   issue: https://github.com/elastic/elasticsearch/issues/163655
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testUsingRCS1GeneratesDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/163658

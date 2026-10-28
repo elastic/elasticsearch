@@ -69,6 +69,8 @@ public class IncludeExcludeRegexRollingUpgradeIT extends AbstractRollingUpgradeT
             assertShardOn(onUpgraded, upgradedNode, nodes);
             assertRejected(onUpgraded);
         } else if (isUpgradedCluster()) {
+            // absent when the old phase was skipped because the old nodes already had the check
+            assumeTrue("old nodes must predate the include/exclude length check", indexExists(INDEX));
             assertRejected(INDEX);
         }
     }

@@ -146,15 +146,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     /**
      * @param maxCommandCount maximum number of commands in a statement, counting the main query and all its subqueries together
      * @param maxBranchCount maximum number of leaf branches of the query, each FORK repeating its input once per branch
-     * @param maxBranchCountSource label of the setting or pragma that supplied {@code maxBranchCount}, for the error
      */
     public record ParsingContext(
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
         int maxCommandCount,
-        int maxBranchCount,
-        String maxBranchCountSource
+        int maxBranchCount
     ) {}
 
     ExpressionBuilder(ParsingContext context) {

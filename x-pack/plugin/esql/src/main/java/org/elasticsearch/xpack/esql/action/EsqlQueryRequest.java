@@ -196,10 +196,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         SettingsValidationContext settingsValidationCtx,
         InferenceSettings inferenceSettings,
         int maxCommandCount,
-        int maxBranchCount,
-        String maxBranchCountSource
+        int maxBranchCount
     ) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, maxCommandCount, maxBranchCount, maxBranchCountSource);
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, maxCommandCount, maxBranchCount);
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }

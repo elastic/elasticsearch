@@ -4302,8 +4302,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new QueryParams(),
                 new InferenceSettings(Settings.EMPTY),
                 EsqlParser.DEFAULT_MAX_COMMAND_COUNT,
-                30,
-                "test"
+                30
             ).plan(),
             instanceOf(Fork.class)
         );

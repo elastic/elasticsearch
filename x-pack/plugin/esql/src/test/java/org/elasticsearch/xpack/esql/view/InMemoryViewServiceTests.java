@@ -1159,6 +1159,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query(q + pipes(50))));
     }
 
+    /**
+     * The limit only applies to queries that expand views or IN subqueries. A FORK repeats its upstream plan in every branch, so this
+     * query has more than the maximum number of nodes, but nothing is expanded.
+     */
+    public void testMaxPlanNodesCountDoesNotApplyWithoutViewsOrSubqueries() {
+        replaceViews(query("FROM emp" + pipes(400) + " | FORK (WHERE a > 0) (WHERE a > 1)"));
+    }
+
     public void testMaxPlanNodesCountWithNestedDeepViews() {
         addView("view_c", "FROM emp" + pipes(100));
         addView("view_b", "FROM view_c" + pipes(100));

@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -28,24 +30,21 @@ public class PlanSize {
     private final Map<LogicalPlan, Integer> sizes = new IdentityHashMap<>();
     private final Map<LogicalPlan, UnionAll.UnionStats> unionStats = new IdentityHashMap<>();
 
-    /**
-     * Starts the total at the nodes of {@code initial} without checking it: a plan over the maximum is accepted until something is
-     * expanded into it.
-     */
-    public PlanSize(LogicalPlan initial, int max) {
-        this.max = max;
-        this.size = countNodes(initial);
-    }
-
     public PlanSize(int max) {
         this.size = 0;
         this.max = max;
     }
 
+    /**
+     * Starts the total at the nodes of {@code initial}, failing if they already exceed the maximum.
+     */
+    public PlanSize(LogicalPlan initial, int max) {
+        this.size = countNodes(initial);
+        this.max = max;
+    }
+
+    // Used in testing
     public PlanSize(int initialSize, int max) {
-        if (initialSize > max) {
-            throw exceeded(initialSize);
-        }
         this.size = initialSize;
         this.max = max;
     }
@@ -54,6 +53,10 @@ public class PlanSize {
      * Adds {@code addedNodes} to the total and fails as soon as the maximum is exceeded.
      */
     public void add(int addedNodes) {
+        addNodes(addedNodes);
+    }
+
+    private void addNodes(int addedNodes) {
         size = (int) Math.min((long) size + addedNodes, Integer.MAX_VALUE);
         if (size > max) {
             throw exceeded(size);
@@ -69,15 +72,14 @@ public class PlanSize {
 
     /**
      * Fails if the leaf branches of {@code plan}, counted once per path as {@link UnionAll#unionStats} does, exceed
-     * {@code maxBranchCount}. The limit is the one {@code LogicalVerifier} applies to the optimized plan; applied to the plan as
-     * written, a FORK stacked on FORKs through subqueries fails before anything walks its paths, which double with every FORK. The
-     * stats are kept by identity, so a FORK built over a checked plan reads its stats instead of walking it again.
+     * {@code maxBranchCount}
      */
-    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount, String maxBranchCountSource) {
+    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount) {
         UnionAll.UnionStats stats = UnionAll.unionStats(plan, unionStats);
         if (stats.leaves() > maxBranchCount) {
+            String source = QueryPragmas.EMPTY.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
             throw new VerificationException(
-                List.of(Failure.fail(plan, UnionAll.TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, maxBranchCountSource))
+                List.of(Failure.fail(plan, UnionAll.TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, source))
             );
         }
     }

@@ -1429,7 +1429,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (duplicate) {
                 throw new VerificationException(List.of(Failure.fail(fork, Fork.MULTIPLE_FORKS_ERROR)));
             }
-            planSize.checkPlanWidth(fork, context.maxBranchCount(), context.maxBranchCountSource());
+            planSize.checkPlanWidth(fork, context.maxBranchCount());
             return fork;
         };
     }

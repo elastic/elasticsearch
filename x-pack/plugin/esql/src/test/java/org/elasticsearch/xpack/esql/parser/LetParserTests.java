@@ -283,9 +283,9 @@ public class LetParserTests extends AbstractStatementParserTests {
         var parser = new EsqlParser(new EsqlConfig(EsqlTestUtils.TEST_FUNCTION_REGISTRY));
         StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
         for (int i = 1; i < 40; i++) {
-            query.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+            query.append("LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
         }
-        query.append(" FROM f39");
+        query.append("FROM f39");
         var stmt = parser.parseView(
             query.toString(),
             new QueryParams(),

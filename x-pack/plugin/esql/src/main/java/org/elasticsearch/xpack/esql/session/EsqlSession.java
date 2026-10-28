@@ -460,14 +460,12 @@ public class EsqlSession {
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         int maxBranchCount = request.pragmas().maxBranchCount(flags.maxBranchCount());
-        String maxBranchCountSource = request.pragmas().maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings(),
             maxCommandCount,
-            maxBranchCount,
-            maxBranchCountSource
+            maxBranchCount
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -548,8 +546,7 @@ public class EsqlSession {
                     inferenceService.inferenceSettings(),
                     viewName,
                     maxCommandCount,
-                    maxBranchCount,
-                    maxBranchCountSource
+                    maxBranchCount
                 );
                 return new EsqlStatement(
                     LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount),

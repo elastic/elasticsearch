@@ -63,12 +63,16 @@ public class PlanSizeTests extends ESTestCase {
      */
     public void testCheckPlanWidthCountsLeavesOncePerPath() {
         PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
-        planSize.checkPlanWidth(limitChain(10), 1, "test");
-        planSize.checkPlanWidth(sharedInputForks(1), 2, "test");
-        planSize.checkPlanWidth(sharedInputForks(4), 16, "test");
-        var e = expectThrows(VerificationException.class, () -> planSize.checkPlanWidth(sharedInputForks(4), 15, "test"));
-        assertThat(e.getMessage(), containsString("query resolved to 16 branches in total, exceeding the limit of 15 set by the test"));
-        assertThat(planSize.size(), equalTo(0));
+        planSize.checkPlanWidth(limitChain(10), 1);
+        planSize.checkPlanWidth(sharedInputForks(1), 2);
+        planSize.checkPlanWidth(sharedInputForks(4), 16);
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "query resolved to 16 branches in total, exceeding the limit of 15 set by the [esql.query.max_branch_count] cluster setting"
+            ),
+            () -> planSize.checkPlanWidth(sharedInputForks(4), 15)
+        );
     }
 
     /**
@@ -80,18 +84,24 @@ public class PlanSizeTests extends ESTestCase {
         LogicalPlan plan = emptySource();
         for (int depth = 1; depth <= 60; depth++) {
             plan = new Fork(EMPTY, List.of(new Limit(EMPTY, null, plan), new Limit(EMPTY, null, plan)), List.of());
-            planSize.checkPlanWidth(plan, Integer.MAX_VALUE, "test");
+            planSize.checkPlanWidth(plan, Integer.MAX_VALUE);
         }
         LogicalPlan deepest = plan;
-        var e = expectThrows(VerificationException.class, () -> planSize.checkPlanWidth(deepest, Integer.MAX_VALUE - 1, "test"));
-        assertThat(e.getMessage(), containsString("query resolved to " + Integer.MAX_VALUE + " branches in total"));
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to " + Integer.MAX_VALUE + " branches in total"),
+            () -> planSize.checkPlanWidth(deepest, Integer.MAX_VALUE - 1)
+        );
     }
 
     public void testAddFailsPastTheMaximumWithoutOverflowing() {
         PlanSize planSize = new PlanSize(490, 500);
         planSize.add(limitChain(9));
         assertThat(planSize.size(), equalTo(500));
-        var e = expectThrows(VerificationException.class, () -> planSize.add(Integer.MAX_VALUE));
-        assertThat(e.getMessage(), containsString("Found at least [" + Integer.MAX_VALUE + "] plan nodes"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Found at least [" + Integer.MAX_VALUE + "] plan nodes"),
+            () -> planSize.add(Integer.MAX_VALUE)
+        );
     }
 }

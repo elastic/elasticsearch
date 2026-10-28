@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -242,8 +241,7 @@ public class ViewService {
             new InferenceSettings(Settings.EMPTY),
             view.name(),
             maxCommandCount,
-            maxBranchCount,
-            QueryPragmas.EMPTY.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey())
+            maxBranchCount
         );
         validateTsView(view.name(), statement.plan());
     }

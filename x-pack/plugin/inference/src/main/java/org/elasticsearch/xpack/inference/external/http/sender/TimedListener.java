@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -22,13 +25,19 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 /**
  * Provides a way to set a timeout on the listener. If the time expires, the original listener's
  * {@link ActionListener#onFailure(Exception)} is called with an error indicating there was a timeout.
+ * <p>
+ * Failing the listener does not by itself stop the work that was started on its behalf (for example an http request waiting for a
+ * pooled connection). Callers register {@link #addAbortHandler(Runnable) abort handlers} to release such resources once nobody is
+ * waiting for the result anymore.
  *
  * @param <Response> the type of the value that is passed in {@link ActionListener#onResponse(Object)}
  */
 public class TimedListener<Response> {
+    private static final Logger logger = LogManager.getLogger(TimedListener.class);
 
     private final ActionListener<Response> listenerWithTimeout;
     private final AtomicBoolean completed = new AtomicBoolean();
+    private final SubscribableListener<Boolean> failed = new SubscribableListener<>();
 
     public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool, String inferenceId) {
         listenerWithTimeout = getListener(
@@ -47,10 +56,18 @@ public class TimedListener<Response> {
     ) {
         ActionListener<Response> notificationListener = ActionListener.notifyOnce(ActionListener.wrap(result -> {
             completed.set(true);
-            origListener.onResponse(result);
+            try {
+                origListener.onResponse(result);
+            } finally {
+                failed.onResponse(false);
+            }
         }, e -> {
             completed.set(true);
-            origListener.onFailure(e);
+            try {
+                origListener.onFailure(e);
+            } finally {
+                failed.onResponse(true);
+            }
         }));
 
         if (timeout == null) {
@@ -72,6 +89,22 @@ public class TimedListener<Response> {
 
     public ActionListener<Response> getListener() {
         return listenerWithTimeout;
+    }
+
+    /**
+     * Registers an action that aborts work started on behalf of this listener. The action runs once the listener fails (including
+     * timing out), or immediately if it has already failed. It is dropped without running if the listener succeeds, because a
+     * successful response may still be backed by that work (e.g. a streamed response body).
+     *
+     * @param abortHandler the action releasing the resources held by the abandoned work, it must be safe to call more than once
+     */
+    public void addAbortHandler(Runnable abortHandler) {
+        Objects.requireNonNull(abortHandler);
+        failed.addListener(ActionListener.wrap(hasFailed -> {
+            if (hasFailed) {
+                abortHandler.run();
+            }
+        }, e -> logger.warn("Failed to abort the work of a failed inference request", e)));
     }
 
     /**

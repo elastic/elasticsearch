@@ -62,6 +62,11 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
+    public void addAbortHandler(Runnable abortHandler) {
+        timedListener.addAbortHandler(abortHandler);
+    }
+
+    @Override
     public void onRejection(Exception e) {
         timedListener.getListener().onFailure(e);
     }

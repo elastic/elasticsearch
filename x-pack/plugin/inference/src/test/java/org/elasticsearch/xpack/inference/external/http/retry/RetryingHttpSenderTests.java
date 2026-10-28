@@ -37,12 +37,15 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -78,7 +81,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[0]));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -111,7 +114,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[] { 'a' }));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -137,7 +140,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[] { 'a' }));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -166,7 +169,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[] { 'a' }));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -196,13 +199,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new RetryException(true, "failed"));
 
-            return Void.TYPE;
+            return null;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[] { 'a' }));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -229,13 +232,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new ContentTooLargeException(new IllegalStateException("failed")));
 
-            return Void.TYPE;
+            return null;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[] { 'a' }));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -262,13 +265,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new ConnectionClosedException("failed"));
 
-            return Void.TYPE;
+            return null;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[] { 'a' }));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -295,7 +298,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new UnknownHostException("failed"));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -384,7 +387,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[0]));
 
-            return Void.TYPE;
+            return null;
         }).when(sender).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -420,7 +423,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[0]));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
@@ -453,13 +456,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new RetryException(true, "failed"));
 
-            return Void.TYPE;
+            return null;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new RetryException(false, "failed again"));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var handler = mock(ResponseHandler.class);
@@ -485,7 +488,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new IllegalStateException("failed"));
 
-            return Void.TYPE;
+            return null;
         }).when(httpClient).send(any(), any(), any());
 
         var handler = mock(ResponseHandler.class);
@@ -524,6 +527,61 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verifyNoMoreInteractions(httpClient);
         verify(responseHandler, times(1)).parseResult(any(), ArgumentMatchers.<Flow.Publisher<HttpResult>>any());
         verify(responseHandler, never()).buildFailureStatusCodeException(any(), any());
+    }
+
+    public void testSend_RegistersAbortActionOfEveryAttempt() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        var httpResponse = mockHttpResponse();
+        var abortActions = new ArrayList<Runnable>();
+
+        doAnswer(invocation -> {
+            ActionListener<HttpResult> listener = invocation.getArgument(2);
+            listener.onResponse(new HttpResult(httpResponse, new byte[0]));
+            Runnable abortAction = () -> {};
+            abortActions.add(abortAction);
+            return abortAction;
+        }).when(httpClient).send(any(), any(), any());
+
+        var inferenceResults = mock(InferenceServiceResults.class);
+        var handler = mock(ResponseHandler.class);
+        doThrow(new RetryException(true, "failed")).doNothing().when(handler).validateResponse(any(), any(), any(), any());
+        when(handler.parseResult(any(OutboundRequest.class), any(HttpResult.class))).thenAnswer(invocation -> inferenceResults);
+
+        var retrier = createRetrier(httpClient);
+
+        var registeredAbortActions = new ArrayList<Runnable>();
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        executeTasks(() -> retrier.send(mock(Logger.class), mockRequest(), () -> false, handler, registeredAbortActions::add, listener), 1);
+
+        assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
+        assertThat(abortActions, hasSize(2));
+        assertThat(registeredAbortActions, is(abortActions));
+    }
+
+    public void testStream_RegistersAbortAction() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        Runnable abortAction = () -> {};
+        StreamingHttpResult streamingHttpResult = new StreamingHttpResult(mockHttpResponse(), randomPublisher());
+        doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(streamingHttpResult);
+            return abortAction;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var retrier = createRetrier(httpClient);
+
+        ActionListener<InferenceServiceResults> listener = mock();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        var registeredAbortActions = new ArrayList<Runnable>();
+        executeTasks(
+            () -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, registeredAbortActions::add, listener),
+            0
+        );
+
+        assertThat(registeredAbortActions, is(List.of(abortAction)));
     }
 
     private Flow.Publisher<byte[]> randomPublisher() {
@@ -586,7 +644,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
                 // respond with a retryable exception
                 listener.onFailure(new ConnectionClosedException("failed"));
 
-                return Void.TYPE;
+                return null;
             }).when(httpClient).send(any(), any(), any());
 
             var handler = mock(ResponseHandler.class);
@@ -663,7 +721,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
                 ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
                 listener.onFailure(new ConnectionClosedException("failed"));
 
-                return Void.TYPE;
+                return null;
             }).when(httpClient).send(any(), any(), any());
 
             // This handler will always tell the sender to retry
@@ -987,7 +1045,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         doAnswer(invocation -> {
             ActionListener<HttpRequest> listener = invocation.getArgument(0);
             listener.onResponse(HttpRequestTests.createMock(inferenceEntityId));
-            return Void.TYPE;
+            return null;
         }).when(request).createHttpRequest(any());
         when(request.getInferenceEntityId()).thenReturn(inferenceEntityId);
 

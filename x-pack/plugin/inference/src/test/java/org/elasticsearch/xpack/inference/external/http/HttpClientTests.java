@@ -57,6 +57,7 @@ import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -401,6 +402,105 @@ public class HttpClientTests extends ESTestCase {
                     TimeUnit.SECONDS
                 );
             }
+        }
+    }
+
+    /**
+     * Given a connection pool whose only connection is held by an exchange the server never answers
+     * When further requests queue up for a pooled connection and are then aborted
+     * Then their listeners fail and the aborted requests are removed from the pool's pending queue instead of waiting forever,
+     * holding on to their request bodies, for a connection to become available.
+     */
+    public void testAbort_RemovesRequestsWaitingForPooledConnection() throws Exception {
+        try (var server = new RawHttpServer((socket, serverDone) -> {
+            drainHttpRequestHeaders(socket.getInputStream());
+            // never respond; hold the only connection until the test finishes
+            serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        })) {
+            var connectionManager = createConnectionManager();
+            connectionManager.setMaxTotal(1);
+            connectionManager.setDefaultMaxPerRoute(1);
+            try (
+                var httpClient = HttpClient.create(
+                    emptyHttpSettings(),
+                    threadPool,
+                    connectionManager,
+                    mockThrottlerManager(),
+                    new TestCircuitBreaker()
+                )
+            ) {
+                httpClient.start();
+
+                var leasedListener = new PlainActionFuture<HttpResult>();
+                var abortLeased = httpClient.send(createHttpPost(server.port(), "a", "b"), HttpClientContext.create(), leasedListener);
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(1)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
+
+                var queuedRequests = randomIntBetween(1, 10);
+                var queuedListeners = new ArrayList<PlainActionFuture<?>>();
+                var abortQueued = new ArrayList<Runnable>();
+                for (int i = 0; i < queuedRequests; i++) {
+                    if (randomBoolean()) {
+                        var listener = new PlainActionFuture<HttpResult>();
+                        queuedListeners.add(listener);
+                        abortQueued.add(httpClient.send(createHttpPost(server.port(), "a", "b"), HttpClientContext.create(), listener));
+                    } else {
+                        var listener = new PlainActionFuture<StreamingHttpResult>();
+                        queuedListeners.add(listener);
+                        abortQueued.add(httpClient.stream(createStreamRequest(server.port()), HttpClientContext.create(), listener));
+                    }
+                }
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getPending(), equalTo(queuedRequests)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
+
+                abortQueued.forEach(Runnable::run);
+                for (var listener : queuedListeners) {
+                    expectThrows(CancellationException.class, () -> listener.actionGet(TIMEOUT));
+                }
+
+                // the pool drops cancelled lease requests the next time it hands out a released connection
+                abortLeased.run();
+                expectThrows(CancellationException.class, () -> leasedListener.actionGet(TIMEOUT));
+                assertBusy(() -> {
+                    var stats = connectionManager.getTotalStats();
+                    assertThat(stats.getPending(), equalTo(0));
+                    // none of the aborted requests was handed the released connection
+                    assertThat(stats.getLeased(), equalTo(0));
+                }, TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    public void testAbort_IsNoopAfterExchangeCompleted() throws Exception {
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
+            httpClient.start();
+
+            var listener = new PlainActionFuture<HttpResult>();
+            var abort = httpClient.send(createHttpPost(webServer.getPort(), "a", "b"), HttpClientContext.create(), listener);
+            var result = listener.actionGet(TIMEOUT);
+
+            abort.run();
+
+            assertThat(result.response().getCode(), equalTo(responseCode));
+            assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
         }
     }
 

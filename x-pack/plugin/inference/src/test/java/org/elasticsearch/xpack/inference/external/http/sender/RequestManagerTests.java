@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -67,6 +68,35 @@ public class RequestManagerTests {
         // just return something consistent so the hashing works
         when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);
 
+        when(mockManager.rateLimitSettings()).thenReturn(settings);
+        when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
+
+        return mockManager;
+    }
+
+    /**
+     * Unlike {@link #createMock(RequestSender, String, RateLimitSettings)}, the returned manager sends through the
+     * {@link RequestSender} and request-completed function the executor hands to {@link RequestManager#execute}, like real managers do.
+     */
+    public static RequestManager createMockSendingThroughExecutorRequestSender(String inferenceEntityId, RateLimitSettings settings) {
+        var mockManager = mock(RequestManager.class);
+
+        doAnswer(invocation -> {
+            RequestSender requestSender = invocation.getArgument(1);
+            Supplier<Boolean> hasRequestCompletedFunction = invocation.getArgument(2);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
+            requestSender.send(
+                mock(Logger.class),
+                RequestTests.mockRequest(inferenceEntityId),
+                hasRequestCompletedFunction,
+                mock(ResponseHandler.class),
+                listener
+            );
+
+            return Void.TYPE;
+        }).when(mockManager).execute(any(), any(), any(), any());
+
+        when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);
         when(mockManager.rateLimitSettings()).thenReturn(settings);
         when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
 

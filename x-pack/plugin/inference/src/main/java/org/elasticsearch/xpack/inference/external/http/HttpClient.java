@@ -127,8 +127,15 @@ public class HttpClient implements Closeable {
         client.start();
     }
 
-    public void send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) {
-        client.execute(
+    /**
+     * Sends the request asynchronously.
+     *
+     * @return an action aborting the exchange. Aborting removes a request still waiting for a pooled connection from the pool's
+     * pending queue, or tears down an exchange that is already in flight (the connection is then discarded instead of reused).
+     * It is a no-op once the exchange has completed.
+     */
+    public Runnable send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) {
+        var exchange = client.execute(
             SimpleRequestProducer.create(request.httpRequest()),
             SimpleResponseConsumer.create(),
             context,
@@ -149,6 +156,7 @@ public class HttpClient implements Closeable {
                 }
             }
         );
+        return () -> FutureUtils.cancel(exchange);
     }
 
     private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener) {
@@ -197,7 +205,13 @@ public class HttpClient implements Closeable {
         return new IllegalStateException("Http client is not running, please retry the request", exception);
     }
 
-    public void stream(HttpRequest request, HttpClientContext context, ActionListener<StreamingHttpResult> listener) {
+    /**
+     * Sends the request asynchronously and streams the response body.
+     *
+     * @return an action aborting the exchange, see {@link #send(HttpRequest, HttpClientContext, ActionListener)}. It is the same
+     * action the streamed body uses when its subscriber abandons it.
+     */
+    public Runnable stream(HttpRequest request, HttpClientContext context, ActionListener<StreamingHttpResult> listener) {
         var notifyOnceListener = ActionListener.notifyOnce(listener);
 
         /*
@@ -247,7 +261,13 @@ public class HttpClient implements Closeable {
             public void failed(Exception ex) {
                 // Only reachable before the response head arrives; BasicFuture.failed returns false once completed,
                 // so this callback cannot fire after completed() has already delivered the head.
-                failRequestUsingResponseThread(request, ex, notifyOnceListener);
+                if (abortRequested.get()) {
+                    // Aborting an exchange that is still waiting for a pooled connection surfaces here as an InterruptedIOException,
+                    // report it as the cancellation it is instead of warning about a failed request
+                    cancelRequestUsingResponseThread(request, notifyOnceListener);
+                } else {
+                    failRequestUsingResponseThread(request, ex, notifyOnceListener);
+                }
             }
 
             @Override
@@ -287,6 +307,7 @@ public class HttpClient implements Closeable {
         if (abortRequested.get()) {
             FutureUtils.cancel(exchangeFuture);
         }
+        return abortExchange;
     }
 
     @Override

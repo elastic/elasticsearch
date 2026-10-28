@@ -41,4 +41,10 @@ public interface InferenceRequest {
      * Returns a {@link Supplier} to determine if the request has completed.
      */
     Supplier<Boolean> getRequestCompletedFunction();
+
+    /**
+     * Registers an action aborting work that was started to fulfill this request (e.g. an http exchange waiting for a pooled
+     * connection). It runs once the request fails, including timing out, so that abandoned work stops holding on to resources.
+     */
+    void addAbortHandler(Runnable abortHandler);
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public interface RequestSender {
@@ -22,4 +23,22 @@ public interface RequestSender {
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     );
+
+    /**
+     * Same as {@link #send(Logger, OutboundRequest, Supplier, ResponseHandler, ActionListener)}, but additionally hands every
+     * outbound exchange's abort action to {@code abortHandlerRegistry}. The caller runs those actions once it gives up on the request
+     * (e.g. it timed out), so that exchanges still waiting for a pooled connection or a response stop holding on to the connection
+     * pool and the request body.
+     * Senders that do not hold on to such resources can rely on the default implementation, which ignores the registry.
+     */
+    default void send(
+        Logger logger,
+        OutboundRequest outboundRequest,
+        Supplier<Boolean> hasRequestTimedOutFunction,
+        ResponseHandler responseHandler,
+        Consumer<Runnable> abortHandlerRegistry,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        send(logger, outboundRequest, hasRequestTimedOutFunction, responseHandler, listener);
+    }
 }

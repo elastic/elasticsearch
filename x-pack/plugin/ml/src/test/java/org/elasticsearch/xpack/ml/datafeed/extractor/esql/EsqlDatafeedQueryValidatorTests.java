@@ -803,32 +803,37 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testDelayedCheckEnabledWithFieldSetShouldReturnRequiredSummaryCountField() {
-        Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig());
-
-        assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), equalTo(SUMMARY_COUNT_FIELD));
-    }
-
-    public void testDelayedCheckDisabledShouldReturnNullRequiredSummaryCountField() {
-        Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
-
-        assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), nullValue());
-    }
-
-    public void testNoSummaryCountFieldSetShouldReturnNullRequiredSummaryCountField() {
-        Job job = buildJob("job-1", null);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig());
-
-        assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), nullValue());
-    }
-
-    public void testNullDelayedDataCheckConfigShouldReturnNullRequiredSummaryCountField() {
-        Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
-        DatafeedConfig datafeed = buildDatafeedWithNullDelayedDataCheckConfig("datafeed-1", "job-1");
-
-        assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), nullValue());
+    public void testRequiredSummaryCountFieldShouldStayNullUnlessDelayedCheckIsEnabled() {
+        Job jobWithField = buildJob("job-1", SUMMARY_COUNT_FIELD);
+        assertThat(
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(
+                buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig()),
+                jobWithField
+            ),
+            equalTo(SUMMARY_COUNT_FIELD)
+        );
+        assertThat(
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(
+                buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.disabledDelayedDataCheckConfig()),
+                jobWithField
+            ),
+            nullValue()
+        );
+        Job jobWithoutField = buildJob("job-1", null);
+        assertThat(
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(
+                buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig()),
+                jobWithoutField
+            ),
+            nullValue()
+        );
+        assertThat(
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(
+                buildDatafeedWithNullDelayedDataCheckConfig("datafeed-1", "job-1"),
+                jobWithField
+            ),
+            nullValue()
+        );
     }
 
     private static Job buildJob(String jobId, String summaryCountFieldName) {

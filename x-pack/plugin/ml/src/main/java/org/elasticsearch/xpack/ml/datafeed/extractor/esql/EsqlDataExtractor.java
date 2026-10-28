@@ -23,14 +23,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
@@ -59,19 +56,11 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlDataExtractor.class);
 
-    private static final String EPOCH_MILLIS = "epoch_millis";
-
     /**
      * Injected row cap when the user query has no outer LIMIT; chunking truncation checks must use this value,
      * not {@code esql.query.result_truncation_default_size}.
      */
-    public static final long INJECTED_ROW_LIMIT = 10_000L;
-
-    private static final String DEFAULT_LIMIT = " | LIMIT " + INJECTED_ROW_LIMIT;
-    private static final String TIME_SORT = " | SORT ??timeField ASC";
-    private static final String SOURCE_RANGE_SUMMARY_STATS =
-        " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
-    private static final String PROBE_OUTPUT_ROWS_STATS = " | STATS probe_output_rows = COUNT(*)";
+    public static final long INJECTED_ROW_LIMIT = EsqlDataExtractorQueryUtils.INJECTED_ROW_LIMIT;
 
     private final Client client;
     private final EsqlDataExtractorContext context;
@@ -146,10 +135,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
     /** Source-level MIN/MAX/COUNT probe on {@link EsqlQueryClauseScanner#extractLeadingCommand}, not the user pipeline. */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(
-            EsqlQueryClauseScanner.extractLeadingCommand(context.esqlQuery()).stripTrailing(),
-            SOURCE_RANGE_SUMMARY_STATS
-        );
+        String sourceQuery = EsqlDataExtractorQueryUtils.sourceRangeSummaryQuery(context.esqlQuery());
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -187,8 +173,8 @@ public class EsqlDataExtractor implements DataExtractor {
      * STATS. Used only to measure output-row density over a small window, not over the full extraction range.
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
-        QueryBuilder probeFilter = new RangeQueryBuilder(context.sourceTimeField()).gte(probeStart).lt(probeEnd).format(EPOCH_MILLIS);
-        String probeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(context.esqlQuery(), PROBE_OUTPUT_ROWS_STATS);
+        QueryBuilder probeFilter = EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
+        String probeQuery = EsqlDataExtractorQueryUtils.boundedProbeQuery(context.esqlQuery());
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -209,7 +195,7 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private QueryBuilder buildTimeFilter() {
-        return new RangeQueryBuilder(context.sourceTimeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);
+        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
     }
 
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
@@ -245,21 +231,45 @@ public class EsqlDataExtractor implements DataExtractor {
 
         QueryBuilder timeFilter = buildTimeFilter();
 
-        String orderedQuery = buildOrderedQuery(context.esqlQuery());
+        String orderedQuery = EsqlDataExtractorQueryUtils.buildOrderedQuery(context.esqlQuery());
 
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
-            ExtractedData extractedData = toNdjson(
-                response.response(),
+            Optional<InputStream> data = Optional.empty();
+            long rowCount = 0L;
+            EsqlResponse esqlResponse = response.response();
+            List<? extends ColumnInfo> columns = esqlResponse.columns();
+            // Runtime extraction has no datafeed id for column-check messages.
+            EsqlDatafeedQueryValidator.checkRequiredColumns(columns, context.emittedTimeField(), context.requiredSummaryCountField(), null);
+            List<List<Object>> materializedRows = new ArrayList<>();
+            for (Iterable<Object> row : esqlResponse.rows()) {
+                List<Object> values = new ArrayList<>();
+                for (Object value : row) {
+                    values.add(value);
+                }
+                materializedRows.add(values);
+            }
+            EsqlDatafeedQueryValidator.validateEmittedTimesInSourceWindow(
+                columns,
+                materializedRows,
                 context.jobId(),
                 context.emittedTimeField(),
                 context.start(),
-                context.end(),
-                context.requiredSummaryCountField()
+                context.end()
             );
-            return new Result(searchInterval, extractedData.data(), List.of(), extractedData.rowCount());
+            BytesStreamOutput out = new BytesStreamOutput();
+            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, out)) {
+                for (List<Object> row : materializedRows) {
+                    processor.process(row);
+                }
+                rowCount = processor.getWrittenDocumentCount();
+            }
+            if (rowCount > 0) {
+                data = Optional.of(out.bytes().streamInput());
+            }
+            return new Result(searchInterval, data, List.of(), rowCount);
         }
     }
 
@@ -317,15 +327,6 @@ public class EsqlDataExtractor implements DataExtractor {
             || cause instanceof NodeDisconnectedException
             || cause instanceof NodeNotConnectedException
             || cause instanceof UnavailableShardsException;
-    }
-
-    /**
-     * Appends {@code SORT} on the time field and, when missing, {@link #INJECTED_ROW_LIMIT} after sort so capped
-     * chunks keep the earliest rows of the interval.
-     */
-    static String buildOrderedQuery(String query) {
-        String sorted = EsqlQueryClauseScanner.appendGeneratedPipeline(query, TIME_SORT);
-        return EsqlQueryClauseScanner.hasOuterLimit(query) ? sorted : sorted + DEFAULT_LIMIT;
     }
 
     private List<EsqlQueryParam> timeFieldParam() {
@@ -411,82 +412,4 @@ public class EsqlDataExtractor implements DataExtractor {
         }
         return null;
     }
-
-    private static ExtractedData toNdjson(
-        EsqlResponse response,
-        String jobId,
-        String emittedTimeField,
-        long sourceWindowStart,
-        long sourceWindowEnd,
-        String requiredSummaryCountField
-    ) throws IOException {
-        List<? extends ColumnInfo> columns = response.columns();
-        // Runtime extraction has no datafeed id for column-check messages.
-        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, emittedTimeField, requiredSummaryCountField, null);
-        List<List<Object>> materializedRows = new ArrayList<>();
-        for (Iterable<Object> row : response.rows()) {
-            List<Object> values = new ArrayList<>();
-            for (Object value : row) {
-                values.add(value);
-            }
-            materializedRows.add(values);
-        }
-        EsqlDatafeedQueryValidator.validateEmittedTimesInSourceWindow(
-            columns,
-            materializedRows,
-            jobId,
-            emittedTimeField,
-            sourceWindowStart,
-            sourceWindowEnd
-        );
-        boolean[] isDateColumn = new boolean[columns.size()];
-        for (int i = 0; i < columns.size(); i++) {
-            isDateColumn[i] = EsqlDatafeedColumnValues.isDateColumnType(columns.get(i).outputType());
-        }
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        boolean hasRows = false;
-        for (List<Object> row : materializedRows) {
-            hasRows = true;
-            try (XContentBuilder b = XContentFactory.jsonBuilder(out)) {
-                writeRow(b, row, columns, isDateColumn);
-            }
-            out.write('\n');
-        }
-        return new ExtractedData(hasRows ? Optional.of(out.bytes().streamInput()) : Optional.empty(), materializedRows.size());
-    }
-
-    private record ExtractedData(Optional<InputStream> data, long rowCount) {}
-
-    private static void writeRow(XContentBuilder b, Iterable<Object> row, List<? extends ColumnInfo> columns, boolean[] isDateColumn)
-        throws IOException {
-        b.startObject();
-        int columnIndex = 0;
-        for (Object value : row) {
-            if (value != null) {
-                writeField(b, columns.get(columnIndex).name(), value, isDateColumn[columnIndex]);
-            }
-            columnIndex++;
-        }
-        b.endObject();
-    }
-
-    private static void writeField(XContentBuilder b, String name, Object value, boolean isDate) throws IOException {
-        if (isDate) {
-            if (value instanceof List<?> list) {
-                List<Long> epochMillis = new ArrayList<>(list.size());
-                for (Object element : list) {
-                    epochMillis.add(EsqlDatafeedColumnValues.toEpochMillis(element, true));
-                }
-                b.field(name, epochMillis);
-            } else {
-                b.field(name, EsqlDatafeedColumnValues.toEpochMillis(value, true));
-            }
-        } else if (value instanceof List<?> list) {
-            b.field(name, list);
-        } else {
-            b.field(name, value);
-        }
-    }
-
 }

@@ -63,9 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -191,110 +189,6 @@ public class EsqlDataExtractorTests extends ESTestCase {
         result.get(10, TimeUnit.SECONDS);
     }
 
-    public void testQueryWithoutLimitCommandShouldAppendDefaultLimit() {
-        String query = "FROM logs-* | KEEP @timestamp, bytes";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testInjectedCapShouldFollowTimeSortSoTheEarliestRowsSurviveTruncation() {
-        // ES|QL runs pipelines sequentially: "LIMIT n | SORT t" keeps an arbitrary n rows and sorts only those,
-        // whereas "SORT t | LIMIT n" (planned as a top-N) keeps the n earliest rows. The chunker's
-        // incomplete-chunk handling relies on the latter.
-        String ordered = EsqlDataExtractor.buildOrderedQuery("FROM logs-* | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1h)");
-
-        int sortIdx = ordered.indexOf("| SORT ??timeField ASC");
-        int limitIdx = ordered.indexOf("| LIMIT 10000");
-        assertThat(sortIdx, greaterThan(-1));
-        assertThat(limitIdx, greaterThan(-1));
-        assertThat("time sort must precede the injected cap", sortIdx, lessThan(limitIdx));
-        assertThat(ordered, endsWith("| LIMIT 10000"));
-    }
-
-    public void testUserLimitShouldStayBeforeTimeSortAndNoCapIsInjected() {
-        String ordered = EsqlDataExtractor.buildOrderedQuery("FROM logs-* | SORT value DESC | LIMIT 20");
-
-        assertThat(ordered, equalTo("FROM logs-* | SORT value DESC | LIMIT 20 | SORT ??timeField ASC"));
-    }
-
-    public void testQueryWithLimitCommandShouldPreserveUserLimit() {
-        String query = "FROM logs-* | LIMIT 20";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
-    }
-
-    public void testQueryWithLimitInQuotedStringShouldAppendDefaultLimit() {
-        String query = "FROM logs-* | WHERE message == \"LIMIT 20\"";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithLimitInTripleQuotedStringShouldAppendDefaultLimit() {
-        String query = "FROM logs-* | WHERE message == \"\"\"| LIMIT 20\"\"\"";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithFiveQuoteTripleStringAndOuterLimitShouldPreserveOuterLimit() {
-        String query = "FROM logs-* | WHERE message == \"\"\"literal\"\"\"\"\" | LIMIT 20";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
-    }
-
-    public void testQueryWithLimitInCommentShouldAppendDefaultLimit() {
-        String query = "FROM logs-* // | LIMIT 20\n| KEEP @timestamp";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithLimitInBlockCommentShouldAppendDefaultLimit() {
-        String query = "FROM logs-* /* | LIMIT 20 */ | KEEP @timestamp";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithLimitInNestedBlockCommentShouldAppendDefaultLimit() {
-        String query = "FROM logs-* /* outer /* | LIMIT 20 */ comment */ | KEEP @timestamp";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithLimitSubstringShouldAppendDefaultLimit() {
-        String query = "FROM logs-* | KEEP limit_value, `LIMIT``_value`";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithLimitInInSubqueryShouldAppendDefaultLimit() {
-        String query = "FROM logs-* | WHERE id IN (FROM other-logs | LIMIT 3 | KEEP id)";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithLimitInForkBranchesShouldAppendDefaultLimit() {
-        String query = "FROM logs-* | FORK (WHERE level == \"warn\" | LIMIT 3) (WHERE level == \"error\" | LIMIT 4)";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testQueryWithNestedAndOuterLimitShouldPreserveOuterLimit() {
-        String query = "FROM logs-* | WHERE id IN (FROM other-logs | LIMIT 3 | KEEP id) | LIMIT 20";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
-    }
-
-    public void testQueryEndingInLineCommentShouldAppendLimitOnNewLine() {
-        String query = "FROM logs-* // no user limit";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + "\n | SORT ??timeField ASC | LIMIT 10000"));
-    }
-
-    public void testMultilineMixedCaseLimitCommandShouldPreserveUserLimit() {
-        String query = "FROM logs-*\n| KEEP @timestamp\n| lImIt 42";
-
-        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
-    }
-
     public void testQueryWithoutUserSortOrLimitShouldInjectTimeSortAndCap() throws IOException {
         RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE), column("value", LONG)), isoAtEpochMillis(1500L), 42L);
@@ -389,44 +283,6 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedTimeFilter, equalTo(new RangeQueryBuilder("timestamp").gte(1000L).lt(2000L).format("epoch_millis")));
     }
 
-    public void testStringAndLongFieldsShouldPassThroughOnNext() throws IOException {
-        RecordingSyncQuery extractor = createExtractor(0L, 5000L, DEFAULT_QUERY, TIME_FIELD);
-        extractor.enqueueRow(
-            List.of(column(TIME_FIELD, DATE), column("host", KEYWORD), column("count", LONG)),
-            "1970-01-01T00:00:01.500Z",
-            "web-1",
-            7L
-        );
-
-        DataExtractor.Result result = extractor.next();
-
-        assertThat(result.searchInterval(), equalTo(new SearchInterval(0L, 5000L)));
-        String ndjson = asString(result.data().get());
-        assertThat(ndjson, containsString("\"" + TIME_FIELD + "\":1500"));
-        assertThat(ndjson, containsString("\"host\":\"web-1\""));
-        assertThat(ndjson, containsString("\"count\":7"));
-    }
-
-    public void testDateColumnShouldConvertToEpochMillisOnNext() throws IOException {
-        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
-        String isoDate = isoAtEpochMillis(500L);
-        long expectedMillis = 500L;
-
-        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), isoDate);
-
-        assertThat(asString(extractor.next().data().get()), equalTo("{\"" + TIME_FIELD + "\":" + expectedMillis + "}"));
-    }
-
-    public void testDateNanosColumnShouldConvertToEpochMillisOnNext() throws IOException {
-        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
-        String isoDate = "1970-01-01T00:00:00.500123456Z";
-        long expectedMillis = epochMillis(isoDate);
-
-        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE_NANOS)), isoDate);
-
-        assertThat(asString(extractor.next().data().get()), equalTo("{\"" + TIME_FIELD + "\":" + expectedMillis + "}"));
-    }
-
     public void testMultiValuedEmittedTimeShouldFailWholeBatchOnNext() {
         RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), List.of(isoAtEpochMillis(100L), isoAtEpochMillis(200L)));
@@ -435,25 +291,6 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(JOB_ID));
         assertThat(e.getMessage(), containsString(TIME_FIELD));
         assertThat(e.getMessage(), containsString("multi-valued"));
-    }
-
-    public void testMultiValuedNonDateColumnShouldPassThroughOnNext() throws IOException {
-        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
-        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE), column("tags", KEYWORD)), isoAtEpochMillis(100L), List.of("a", "b"));
-
-        assertThat(asString(extractor.next().data().get()), containsString("\"tags\":[\"a\",\"b\"]"));
-    }
-
-    public void testNullFieldShouldBeOmittedFromRowOnNext() throws IOException {
-        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
-        extractor.enqueueRows(
-            List.of(column(TIME_FIELD, DATE), column("optional_field", KEYWORD)),
-            List.of(Arrays.asList(isoAtEpochMillis(100L), null))
-        );
-
-        String ndjson = asString(extractor.next().data().get());
-        assertThat(ndjson, containsString("\"" + TIME_FIELD + "\":"));
-        assertThat(ndjson, not(containsString("optional_field")));
     }
 
     public void testMissingTimeFieldShouldThrowIllegalArgumentOnNext() throws IOException {

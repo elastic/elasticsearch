@@ -66,22 +66,12 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(context.esqlQuery(), equalTo(ESQL_QUERY));
         assertThat(context.sourceTimeField(), equalTo(SOURCE_TIME_FIELD));
         assertThat(context.emittedTimeField(), equalTo(TIME_FIELD));
+        assertThat(context.sourceTimeField(), not(equalTo(context.emittedTimeField())));
         assertThat(context.groupingIntervalMillis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
         assertThat(context.start(), equalTo(1000L));
         assertThat(context.end(), equalTo(2000L));
         assertThat(context.requiredSummaryCountField(), nullValue());
-    }
-
-    public void testFactoryShouldKeepSourceAndEmittedFieldsDistinct() {
-        Job job = buildJob("job-1", "bucket_time", null);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
-
-        EsqlDataExtractorContext context = ((EsqlDataExtractor) factory.newExtractor(0L, 1000L)).getContext();
-
-        assertThat(context.sourceTimeField(), equalTo(SOURCE_TIME_FIELD));
-        assertThat(context.emittedTimeField(), equalTo("bucket_time"));
-        assertThat(context.sourceTimeField(), not(equalTo(context.emittedTimeField())));
+        assertThat(context.projectRouting(), nullValue());
     }
 
     public void testDelayedDataCheckEnabledShouldSetRequiredSummaryCountFieldOnNewExtractor() {
@@ -92,16 +82,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
         assertThat(extractor.getContext().requiredSummaryCountField(), equalTo(SUMMARY_COUNT_FIELD));
-    }
-
-    public void testDelayedDataCheckDisabledShouldLeaveRequiredSummaryCountFieldNullOnNewExtractor() {
-        Job job = buildJob("job-1", TIME_FIELD, SUMMARY_COUNT_FIELD);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.disabledDelayedDataCheckConfig(), null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
-
-        EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
-
-        assertThat(extractor.getContext().requiredSummaryCountField(), nullValue());
     }
 
     public void testNewExtractorShouldPassHeaders() {
@@ -123,16 +103,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
         assertThat(extractor.getContext().projectRouting(), equalTo("_alias:_origin"));
-    }
-
-    public void testUnsetProjectRoutingShouldRemainNullOnNewExtractor() {
-        Job job = buildJob("job-1", TIME_FIELD, null);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
-
-        EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
-
-        assertThat(extractor.getContext().projectRouting(), nullValue());
     }
 
     public void testCreateShouldInvokeListenerWithEsqlFactory() {

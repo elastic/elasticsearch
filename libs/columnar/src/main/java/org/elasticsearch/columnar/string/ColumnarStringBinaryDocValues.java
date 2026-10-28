@@ -267,24 +267,45 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             if (plain == null) {
                 return null;
             }
-            final int doc = iterator.docID();
-            if (doc == -1 || doc == NO_MORE_DOCS || endDoc <= doc) {
+            final long to = runEnd(endDoc);
+            return to > first ? new PlainRun(plain.plainValues(), first, to, reader.valuesSorted()) : null;
+        }
+
+        /**
+         * The slots of this dictionary column from the current document up to, not including, the first document at
+         * or after {@code endDoc}, as {@link #plainRun} finds them, or null when there is no such run or its ordinals
+         * cannot be carried over: the column is not a dictionary, the merge maps none of its ordinals, or it let a
+         * value escape, which no ordinal names. Asked before the current document's first {@link #nextValue()}.
+         */
+        public OrdinalRun ordinalRun(int endDoc) throws IOException {
+            if (ordinalMap == null || dictionary == null || dictionary.escapeCount() > 0) {
                 return null;
             }
+            final long to = runEnd(endDoc);
+            return to > first ? new OrdinalRun(dictionary, ordinalMap, first, to) : null;
+        }
+
+        /**
+         * The value address just past the slots of the documents from the current one up to {@code endDoc}, or the
+         * current document's first slot when there is no current document or the stretch holds none.
+         */
+        private long runEnd(int endDoc) throws IOException {
+            final int doc = iterator.docID();
+            if (doc == -1 || doc == NO_MORE_DOCS || endDoc <= doc) {
+                return first;
+            }
             assert upto == 0 : "a run starts on a document's first slot";
-            final long to;
             if (endDoc == NO_MORE_DOCS) {
-                to = reader.numValues();
-            } else if (endDoc == doc + 1) {
+                return reader.numValues();
+            }
+            if (endDoc == doc + 1) {
                 // A stretch of one document, which is every stretch a merge that interleaves segments finds: its
                 // slots are the document's own, so no cursor is opened to find where they end.
-                to = first + count;
-            } else {
-                // A cursor of its own, so the one this merge is stepping through stays where it is.
-                final ColumnIterator probe = reader.iterator();
-                to = probe.advance(endDoc) == NO_MORE_DOCS ? reader.numValues() : reader.firstValueAddress(probe.rank());
+                return first + count;
             }
-            return to > first ? new PlainRun(plain.plainValues(), first, to, reader.valuesSorted()) : null;
+            // A cursor of its own, so the one this merge is stepping through stays where it is.
+            final ColumnIterator probe = reader.iterator();
+            return probe.advance(endDoc) == NO_MORE_DOCS ? reader.numValues() : reader.firstValueAddress(probe.rank());
         }
 
         @Override
@@ -369,6 +390,18 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         @Override
         public int advance(int target) throws IOException {
             return position(iterator.advance(target));
+        }
+
+        @Override
+        public boolean skipDocuments(int count) throws IOException {
+            int doc = iterator.docID();
+            for (int i = 0; i < count; i++) {
+                doc = iterator.nextDoc();
+            }
+            assert doc != NO_MORE_DOCS : "skipped past the column's last document";
+            // Only the document landed on is positioned: the ones before it are not read.
+            position(doc);
+            return true;
         }
 
         @Override

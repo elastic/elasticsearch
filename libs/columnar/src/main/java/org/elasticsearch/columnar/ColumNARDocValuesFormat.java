@@ -148,8 +148,10 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
 
     /**
      * As above, choosing whether a merge copies a plain string column's chunks as they are stored where a source
-     * segment's documents land together, or decompresses and compresses every one of them again. Copying is what a
-     * merge does; turning it off is there to measure what it saves, and as a way back should it ever misbehave.
+     * segment's documents land together, or decompresses and compresses every one of them again. The same stretches of
+     * a dictionary column have their ordinals read a block at a time rather than asked for one value at a time. Copying
+     * is what a merge does; turning it off is there to measure what it saves, and as a way back should it ever
+     * misbehave.
      */
     public ColumNARDocValuesFormat(
         final NumericPipelineSelector pipelineSelector,

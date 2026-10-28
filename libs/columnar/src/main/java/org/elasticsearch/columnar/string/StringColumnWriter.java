@@ -61,6 +61,11 @@ public final class StringColumnWriter {
     /** How much of what packing them costs compressing them has to save before the larger block is worth it. */
     private static final double ORDINAL_TRIAL_GAIN = 0.5;
 
+    /** Ordinals of an {@link OrdinalRun} read at a time; a read stops at the end of a source block anyway. */
+    private static final int RUN_ORDINALS = 512;
+    /** Bytes of staged ordinals read back at a time when they are replayed a block at a time. */
+    private static final int STAGED_CHUNK_BYTES = 16 * 1024;
+
     /** Terms to a block in the dictionary, so the stream records an offset for every term. */
     private static final int TERMS_PER_BLOCK = 1;
 
@@ -115,7 +120,9 @@ public final class StringColumnWriter {
     /**
      * As {@link #write(int, StringColumnValues.Totals, IOSupplier, StringColumnOptions, Vocabulary.Terms, Directory,
      * IOContext, ColumnOutputs, IndexOutput)}, reporting to {@code infoStream} under {@link #INFO_STREAM_COMPONENT}
-     * each run of slots whose chunks a plain column copied as they were stored ({@link StringColumnValues#plainRun()}).
+     * each run of slots whose chunks a plain column copied as they were stored ({@link StringColumnValues#plainRun()}),
+     * and, once for a dictionary column, how many of its slots it took in runs of ordinals
+     * ({@link StringColumnValues#ordinalRun()}).
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -186,7 +193,8 @@ public final class StringColumnWriter {
                         directory,
                         context,
                         outputs,
-                        options.enableSkipIndex() ? skipIndex : null
+                        options.enableSkipIndex() ? skipIndex : null,
+                        infoStream
                     ),
                     vocabulary,
                     summaryPolicy,
@@ -419,7 +427,8 @@ public final class StringColumnWriter {
         Directory directory,
         IOContext context,
         ColumnOutputs outputs,
-        IndexOutput skipIndex
+        IndexOutput skipIndex,
+        InfoStream infoStream
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -457,6 +466,8 @@ public final class StringColumnWriter {
         }
         dictionary = dictionaryWriter.finish();
 
+        // Document i holds slot i, so replaying the staged ordinals needs only to count the documents, not walk them.
+        final boolean slotIsDocument = iterator.isDense() && totals.oneSlotADocument();
         String ordinalTempName = null;
         String escapeTempName = null;
         final List<IndexInput> replays = new ArrayList<>();
@@ -491,8 +502,64 @@ public final class StringColumnWriter {
                     final BytesRefBuilder previous = new BytesRefBuilder();
                     int previousOrdinal = Vocabulary.DROPPED;
                     boolean hasPrevious = false;
+                    // A run of slots whose ordinals are read a block at a time is staged whole when it is found, and
+                    // ends here; the documents it covers are then only stepped through, so where their slots begin is
+                    // recorded. None is asked for before it ends: a run is as long as it can be, so one starting inside
+                    // it would only be shorter.
+                    long stagedUntil = 0;
+                    final int[] runOrdinals = new int[RUN_ORDINALS];
+                    long runs = 0;
+                    long runSlots = 0;
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        assert slotIsDocument == false || doc == index : "document [" + doc + "] holds slot [" + index + "]";
                         slots.startDocument(index);
+                        if (index < stagedUntil) {
+                            index += values.valueCount();
+                            continue;
+                        }
+                        final OrdinalRun run = values.ordinalRun();
+                        if (run != null) {
+                            stagedUntil = index + run.slots();
+                            runs++;
+                            runSlots += run.slots();
+                            long slot = index;
+                            for (int n = run.read(runOrdinals); n > 0; n = run.read(runOrdinals)) {
+                                // Nothing in a run escapes, so every escape rank it crosses records the same count, and
+                                // they are found without testing each slot.
+                                final long firstRank = (slot + escapeRankBlockSize - 1) / escapeRankBlockSize * escapeRankBlockSize;
+                                for (long rank = firstRank; rank < slot + n; rank += escapeRankBlockSize) {
+                                    ranks.add(escapes);
+                                }
+                                for (int i = 0; i < n; i++, slot++) {
+                                    // Every slot of a run is a term's or a null, as the per-value path below finds a
+                                    // carried-over ordinal or a null value to be.
+                                    final int ordinal = runOrdinals[i];
+                                    if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                                        sorted = false;
+                                    } else {
+                                        if (ordinal < previousOrdinalSeen) {
+                                            sorted = false;
+                                        }
+                                        previousOrdinalSeen = ordinal;
+                                        final int length = termLengths[ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+                                        minLength = Math.min(minLength, length);
+                                        maxLength = Math.max(maxLength, length);
+                                    }
+                                    ordinalTemp.writeVInt(ordinal);
+                                }
+                            }
+                            assert slot == stagedUntil : "staged up to " + slot + " of a run ending at " + stagedUntil;
+                            // A slot a document makes the run's slots its documents, so there is nothing left to learn
+                            // from stopping on the rest of them.
+                            final long rest = run.slots() - 1;
+                            if (totals.oneSlotADocument() && rest > 0 && values.skipDocuments(Math.toIntExact(rest))) {
+                                slots.startDocuments(index + 1, Math.toIntExact(rest));
+                                index = stagedUntil;
+                                continue;
+                            }
+                            index += values.valueCount();
+                            continue;
+                        }
                         for (int i = 0, count = values.valueCount(); i < count; i++) {
                             if (index % escapeRankBlockSize == 0) {
                                 ranks.add(escapes);
@@ -567,6 +634,12 @@ public final class StringColumnWriter {
                     }
                     // One past the end, so the escapes in the last block can be counted like any other.
                     ranks.add(escapes);
+                    if (runs > 0 && infoStream.isEnabled(INFO_STREAM_COMPONENT)) {
+                        infoStream.message(
+                            INFO_STREAM_COMPONENT,
+                            "took [" + runSlots + "] of [" + numValues + "] dictionary slots in [" + runs + "] ordinal runs"
+                        );
+                    }
                 }
             }
             addressing = slots.finish(index);
@@ -603,7 +676,7 @@ public final class StringColumnWriter {
             final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
                 final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
-                return stagedOrdinals(cursors.get(), in);
+                return slotIsDocument ? stagedOrdinals(numDocsWithField, in) : stagedOrdinals(cursors.get(), in);
             },
                 compressOrdinals
                     ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
@@ -731,6 +804,80 @@ public final class StringColumnWriter {
             }, out);
         }
         return out.size();
+    }
+
+    /**
+     * The staged ordinals of a dense column holding a slot a document, so they can be written as a numeric column
+     * without walking the documents again: document {@code d} holds slot {@code d}.
+     */
+    private static NumericColumnValues stagedOrdinals(int numDocs, IndexInput staged) {
+        return new NumericColumnValues() {
+            private int doc = -1;
+
+            @Override
+            public int valueCount() {
+                return 1;
+            }
+
+            @Override
+            public long nextValue() throws IOException {
+                return staged.readVInt();
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                return doc = doc < numDocs - 1 ? doc + 1 : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            // The staged bytes, copied out a chunk at a time so a vint is decoded off an array rather than a byte at a time
+            // off the input. A chunk is topped up before it runs short of the longest vint.
+            private final byte[] chunk = new byte[STAGED_CHUNK_BYTES];
+            private int pos;
+            private int end;
+
+            @Override
+            public int nextValuesOfConsecutiveDocuments(long[] dst) throws IOException {
+                final int read = doc == DocIdSetIterator.NO_MORE_DOCS ? 0 : Math.min(dst.length, numDocs - 1 - doc);
+                for (int i = 0; i < read; i++) {
+                    if (end - pos < 5) {
+                        refill();
+                    }
+                    int b = chunk[pos++];
+                    int value = b & 0x7F;
+                    for (int shift = 7; b < 0; shift += 7) {
+                        b = chunk[pos++];
+                        value |= (b & 0x7F) << shift;
+                    }
+                    dst[i] = value;
+                }
+                doc += read;
+                return read;
+            }
+
+            private void refill() throws IOException {
+                final int left = end - pos;
+                System.arraycopy(chunk, pos, chunk, 0, left);
+                final int more = (int) Math.min(chunk.length - left, staged.length() - staged.getFilePointer());
+                staged.readBytes(chunk, left, more);
+                pos = 0;
+                end = left + more;
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return numDocs;
+            }
+        };
     }
 
     /** The staged ordinals, over the documents {@code source} walks, so they can be written as a numeric column. */

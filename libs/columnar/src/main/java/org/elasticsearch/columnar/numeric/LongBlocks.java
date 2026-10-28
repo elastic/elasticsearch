@@ -134,6 +134,23 @@ public final class LongBlocks {
             }
         }
 
+        /** Adds the first {@code count} of {@code values} as the next values of the sequence, as that many {@link #add(long)} would. */
+        public void add(long[] values, int count) throws IOException {
+            for (int from = 0; from < count;) {
+                if (inBlock == 0) {
+                    blockOffsets.add(written());
+                }
+                final int n = Math.min(blockSize - inBlock, count - from);
+                System.arraycopy(values, from, buffer, inBlock, n);
+                inBlock += n;
+                added += n;
+                from += n;
+                if (inBlock == blockSize) {
+                    flush(blockSize);
+                }
+            }
+        }
+
         /** Writes the last block and answers where the blocks landed. */
         public Metadata finish() throws IOException {
             assert finished == false : "already finished";

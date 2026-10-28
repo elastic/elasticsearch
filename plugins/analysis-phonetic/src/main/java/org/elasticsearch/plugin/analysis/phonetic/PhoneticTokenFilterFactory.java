@@ -47,6 +47,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
     private final Object sharingKey;
+    private boolean legacyHaaseVariations;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -99,10 +100,9 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
                 this.encoder = new KoelnerPhonetik(maxVariations(settings));
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik(
-                    maxVariations(settings),
-                    indexSettings.getIndexVersionCreated().before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS)
-                );
+                this.legacyHaaseVariations = indexSettings.getIndexVersionCreated()
+                    .before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
+                this.encoder = new HaasePhonetik(maxVariations(settings), legacyHaaseVariations);
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -120,7 +120,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             languageset == null ? null : Set.copyOf(languageset),
             nametype,
             ruletype,
-            isDaitchMokotoff
+            isDaitchMokotoff,
+            legacyHaaseVariations
         );
     }
 
@@ -179,6 +180,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         Set<String> languageSet,
         NameType nameType,
         RuleType ruleType,
-        boolean daitchMokotoff
+        boolean daitchMokotoff,
+        // Derived from the index version rather than a setting: the encoder class alone can't tell legacy and fixed haasephonetik apart.
+        boolean legacyHaaseVariations
     ) {}
 }

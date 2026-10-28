@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
@@ -47,6 +48,12 @@ public class EsqlParser {
 
     /** Maximum number of commands in a statement when the caller does not provide one. */
     public static final int DEFAULT_MAX_COMMAND_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+
+    /** Maximum number of leaf branches of a query when the caller does not provide one, and the label of where it comes from. */
+    public static final int DEFAULT_MAX_BRANCH_COUNT = QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
+    public static final String DEFAULT_MAX_BRANCH_COUNT_SOURCE = QueryPragmas.EMPTY.maxBranchCountLimitSource(
+        EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()
+    );
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
@@ -125,6 +132,8 @@ public class EsqlParser {
             inferenceSettings,
             null,
             DEFAULT_MAX_COMMAND_COUNT,
+            DEFAULT_MAX_BRANCH_COUNT,
+            DEFAULT_MAX_BRANCH_COUNT_SOURCE,
             EsqlBaseParser::singleStatement,
             AstBuilder::plan
         );
@@ -137,7 +146,15 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, DEFAULT_MAX_COMMAND_COUNT);
+        return createStatement(
+            query,
+            params,
+            new InferenceSettings(Settings.EMPTY),
+            null,
+            DEFAULT_MAX_COMMAND_COUNT,
+            DEFAULT_MAX_BRANCH_COUNT,
+            DEFAULT_MAX_BRANCH_COUNT_SOURCE
+        );
     }
 
     // testing utility
@@ -161,7 +178,22 @@ public class EsqlParser {
      * counting the main query and all its subqueries together.
      */
     public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings, int maxCommandCount) {
-        var parsed = createStatement(query, params, inferenceSettings, null, maxCommandCount);
+        return parse(query, params, inferenceSettings, maxCommandCount, DEFAULT_MAX_BRANCH_COUNT, DEFAULT_MAX_BRANCH_COUNT_SOURCE);
+    }
+
+    /**
+     * Like {@link #parse(String, QueryParams, InferenceSettings, int)}, but with the maximum number of leaf branches the query may
+     * have, which every FORK built is checked against, and the label of the setting or pragma it comes from.
+     */
+    public EsqlStatement parse(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        int maxCommandCount,
+        int maxBranchCount,
+        String maxBranchCountSource
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, null, maxCommandCount, maxBranchCount, maxBranchCountSource);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -185,7 +217,31 @@ public class EsqlParser {
         String viewName,
         int maxCommandCount
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName, maxCommandCount);
+        return parseView(
+            query,
+            params,
+            inferenceSettings,
+            viewName,
+            maxCommandCount,
+            DEFAULT_MAX_BRANCH_COUNT,
+            DEFAULT_MAX_BRANCH_COUNT_SOURCE
+        );
+    }
+
+    /**
+     * Like {@link #parseView(String, QueryParams, InferenceSettings, String, int)}, but with the maximum number of leaf branches the
+     * view may have and the label of the setting or pragma it comes from.
+     */
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        int maxCommandCount,
+        int maxBranchCount,
+        String maxBranchCountSource
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, viewName, maxCommandCount, maxBranchCount, maxBranchCountSource);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -199,12 +255,24 @@ public class EsqlParser {
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
-        int maxCommandCount
+        int maxCommandCount,
+        int maxBranchCount,
+        String maxBranchCountSource
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, viewName, maxCommandCount, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            viewName,
+            maxCommandCount,
+            maxBranchCount,
+            maxBranchCountSource,
+            EsqlBaseParser::statements,
+            AstBuilder::statement
+        );
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
@@ -232,6 +300,8 @@ public class EsqlParser {
         InferenceSettings inferenceSettings,
         String viewName,
         int maxCommandCount,
+        int maxBranchCount,
+        String maxBranchCountSource,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -277,7 +347,16 @@ public class EsqlParser {
             }
 
             return result.apply(
-                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, maxCommandCount)),
+                new AstBuilder(
+                    new ExpressionBuilder.ParsingContext(
+                        params,
+                        inferenceSettings,
+                        viewName,
+                        maxCommandCount,
+                        maxBranchCount,
+                        maxBranchCountSource
+                    )
+                ),
                 tree
             );
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking

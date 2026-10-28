@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,6 +26,7 @@ public class PlanSize {
     private final int max;
     private int size;
     private final Map<LogicalPlan, Integer> sizes = new IdentityHashMap<>();
+    private final Map<LogicalPlan, UnionAll.UnionStats> unionStats = new IdentityHashMap<>();
 
     /**
      * Starts the total at the nodes of {@code initial} without checking it: a plan over the maximum is accepted until something is
@@ -64,13 +68,17 @@ public class PlanSize {
     }
 
     /**
-     * Fails if {@code plan} by itself exceeds the maximum, leaving the total alone: the check for a plan still being built, where
-     * every plan checked holds the ones checked before it.
+     * Fails if the leaf branches of {@code plan}, counted once per path as {@link UnionAll#unionStats} does, exceed
+     * {@code maxBranchCount}. The limit is the one {@code LogicalVerifier} applies to the optimized plan; applied to the plan as
+     * written, a FORK stacked on FORKs through subqueries fails before anything walks its paths, which double with every FORK. The
+     * stats are kept by identity, so a FORK built over a checked plan reads its stats instead of walking it again.
      */
-    public void check(LogicalPlan plan) {
-        int nodes = countNodes(plan);
-        if (nodes > max) {
-            throw exceeded(nodes);
+    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount, String maxBranchCountSource) {
+        UnionAll.UnionStats stats = UnionAll.unionStats(plan, unionStats);
+        if (stats.leaves() > maxBranchCount) {
+            throw new VerificationException(
+                List.of(Failure.fail(plan, UnionAll.TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, maxBranchCountSource))
+            );
         }
     }
 

@@ -459,11 +459,15 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
+        int maxBranchCount = request.pragmas().maxBranchCount(flags.maxBranchCount());
+        String maxBranchCountSource = request.pragmas().maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings(),
-            maxCommandCount
+            maxCommandCount,
+            maxBranchCount,
+            maxBranchCountSource
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -538,7 +542,15 @@ public class EsqlSession {
             // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
             // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
             (query, viewName) -> planningCpu.meteredCpu(() -> {
-                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
+                var viewStmt = parser.parseView(
+                    query,
+                    request.params(),
+                    inferenceService.inferenceSettings(),
+                    viewName,
+                    maxCommandCount,
+                    maxBranchCount,
+                    maxBranchCountSource
+                );
                 return new EsqlStatement(
                     LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount),
                     viewStmt.settings(),

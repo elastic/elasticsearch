@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.List;
 
@@ -40,7 +41,7 @@ public class PlanSizeTests extends ESTestCase {
     }
 
     public void testCountNodesCountsEveryNode() {
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
         assertThat(planSize.countNodes(emptySource()), equalTo(1));
         assertThat(planSize.countNodes(limitChain(10)), equalTo(11));
         assertThat(planSize.countNodes(sharedInputForks(1)), equalTo(5));
@@ -51,25 +52,39 @@ public class PlanSizeTests extends ESTestCase {
      * in a few hundred steps, saturating instead of overflowing.
      */
     public void testCountNodesWalksASharedInputOnce() {
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
         assertThat(planSize.countNodes(sharedInputForks(20)), equalTo((1 << 22) - 3));
         assertThat(planSize.countNodes(sharedInputForks(60)), equalTo(Integer.MAX_VALUE));
     }
 
-    /** The plans the parser checks in turn each hold the ones before, so the check of each one reads the earlier sizes. */
-    public void testCheckFailsPastTheMaximumWithoutAddingToTheTotal() {
-        PlanSize planSize = new PlanSize(0, 100);
-        LogicalPlan plan = emptySource();
-        for (int depth = 1; depth < 5; depth++) {
-            plan = new Fork(EMPTY, List.of(new Limit(EMPTY, null, plan), new Limit(EMPTY, null, plan)), List.of());
-            planSize.check(plan);
-            assertThat(planSize.size(), equalTo(0));
-        }
-        LogicalPlan tooDeep = new Fork(EMPTY, List.of(new Limit(EMPTY, null, plan), new Limit(EMPTY, null, plan)), List.of());
-        var e = expectThrows(VerificationException.class, () -> planSize.check(tooDeep));
-        assertThat(e.getMessage(), containsString("maximum of [100] plan nodes"));
-        assertThat(e.getMessage(), containsString("Found at least [125] plan nodes"));
+    /**
+     * The width of a plan is its leaf branches counted once per path, as {@link UnionAll#unionStats} counts them on the optimized plan:
+     * a FORK over a shared input repeats the input's leaves per branch, so FORKs stacked through subqueries double them at every level.
+     */
+    public void testCheckPlanWidthCountsLeavesOncePerPath() {
+        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
+        planSize.checkPlanWidth(limitChain(10), 1, "test");
+        planSize.checkPlanWidth(sharedInputForks(1), 2, "test");
+        planSize.checkPlanWidth(sharedInputForks(4), 16, "test");
+        var e = expectThrows(VerificationException.class, () -> planSize.checkPlanWidth(sharedInputForks(4), 15, "test"));
+        assertThat(e.getMessage(), containsString("query resolved to 16 branches in total, exceeding the limit of 15 set by the test"));
         assertThat(planSize.size(), equalTo(0));
+    }
+
+    /**
+     * The plans the parser checks in turn each hold the ones checked before, so each check reads the earlier stats: a 60-deep DAG
+     * has 2^60 paths and is checked in a few hundred steps, its leaves saturating instead of overflowing.
+     */
+    public void testCheckPlanWidthWalksASharedInputOnce() {
+        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
+        LogicalPlan plan = emptySource();
+        for (int depth = 1; depth <= 60; depth++) {
+            plan = new Fork(EMPTY, List.of(new Limit(EMPTY, null, plan), new Limit(EMPTY, null, plan)), List.of());
+            planSize.checkPlanWidth(plan, Integer.MAX_VALUE, "test");
+        }
+        LogicalPlan deepest = plan;
+        var e = expectThrows(VerificationException.class, () -> planSize.checkPlanWidth(deepest, Integer.MAX_VALUE - 1, "test"));
+        assertThat(e.getMessage(), containsString("query resolved to " + Integer.MAX_VALUE + " branches in total"));
     }
 
     public void testAddFailsPastTheMaximumWithoutOverflowing() {

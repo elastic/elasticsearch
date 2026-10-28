@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PARSED_PLAN_SIZE_LIMIT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.junit.Assume.assumeFalse;
@@ -69,11 +68,6 @@ public class ForkTestUtils {
         assumeFalse(
             "Tests using PROMQL are not supported for now",
             testCase.requiredCapabilities.contains(PROMQL_COMMAND_V0.capabilityName())
-        );
-
-        assumeFalse(
-            "Pipelines that pass the parsed-plan size limit once repeated per FORK branch are skipped",
-            testCase.requiredCapabilities.contains(PARSED_PLAN_SIZE_LIMIT.capabilityName())
         );
 
         assumeFalse(

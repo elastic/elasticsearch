@@ -4259,22 +4259,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b) | FORK (WHERE y > 0) (WHERE y < 0)");
         query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b | FORK (WHERE x > 1) (WHERE x < 1))");
         query("""
-            FROM (FROM (FROM a, (FROM b) | FORK (WHERE x > 0) (WHERE x < 0)), (FROM c) | FORK (WHERE y > 0) (WHERE y < 0)), (FROM d)
+            FROM (FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM c) | FORK (WHERE y > 0) (WHERE y < 0)), (FROM d)
             | FORK (WHERE z > 0) (WHERE z < 0)
             """);
         query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
         query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
     }
 
-    public void testStatsOverNestedForks() {
-        String query = nestedForks(40) + "\n| STATS COUNT(*)";
-        expectVerificationError(query, MAX_PLAN_NODES_ERROR);
-    }
+    private static final String MAX_BRANCH_COUNT_ERROR =
+        "query resolved to 30 branches in total, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting";
 
-    private static final String MAX_PLAN_NODES_ERROR =
-        "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs.";
-
-    /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^depth paths. */
+    /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^(depth + 2) - 2 leaves. */
     private static String nestedForks(int depth) {
         String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
         for (int i = 0; i < depth; i++) {
@@ -4284,15 +4279,35 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * 40 FORKs nested through UNION ALL subqueries, which account for 2^40 paths and would otherwise take days in any per-path walk.
+     * FORKs nested through UNION ALL subqueries double the leaf branches at every level, and every walk after the parser pays once per
+     * leaf. The parser applies the query-wide branch limit to each FORK it builds, so a 40-deep nesting, 2^42 leaves, is rejected at
+     * the fourth FORK before any command on top of it is applied; the same query is rejected by the verifier with the same message.
      */
-    public void testNestedForksPastTheCeilingRejectedWhileParsing() {
+    public void testNestedForksPastTheBranchCountRejectedWhileParsing() {
         for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {
-            expectVerificationError(nestedForks(40) + suffix, MAX_PLAN_NODES_ERROR);
+            expectVerificationError(nestedForks(40) + suffix, MAX_BRANCH_COUNT_ERROR);
         }
-        expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_PLAN_NODES_ERROR);
+        expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_PLAN_NODES_ERROR);
+        expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+    }
+
+    /** The limit is on leaf branches, not on plan nodes: a long pipeline with one FORK stays at two leaves. */
+    public void testForksWithinTheBranchCountParse() {
+        assertThat(query("FROM a" + " | EVAL x = 1".repeat(400) + " | FORK (WHERE x > 0) (WHERE x < 0)"), instanceOf(Fork.class));
+        assertThat(query(nestedForks(2)), instanceOf(Fork.class));
+        assertThat(
+            TEST_PARSER.parse(
+                nestedForks(3),
+                new QueryParams(),
+                new InferenceSettings(Settings.EMPTY),
+                EsqlParser.DEFAULT_MAX_COMMAND_COUNT,
+                30,
+                "test"
+            ).plan(),
+            instanceOf(Fork.class)
+        );
+        expectVerificationError(nestedForks(3), MAX_BRANCH_COUNT_ERROR);
     }
 
     public void testSecondForkOnOnePipelineInExplainRejectedAfterParsing() {

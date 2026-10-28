@@ -58,7 +58,12 @@ public class ViewServiceTests extends ESTestCase {
             threadPool,
             ProjectId.DEFAULT,
             Settings.EMPTY,
-            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING, EsqlFlags.ESQL_MAX_COMMAND_COUNT)
+            Set.of(
+                ViewService.MAX_VIEWS_COUNT_SETTING,
+                ViewService.MAX_VIEW_LENGTH_SETTING,
+                EsqlFlags.ESQL_MAX_COMMAND_COUNT,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT
+            )
         );
         // The default test publisher never acknowledges, so acked tasks would not complete their listeners.
         var publisher = ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService());

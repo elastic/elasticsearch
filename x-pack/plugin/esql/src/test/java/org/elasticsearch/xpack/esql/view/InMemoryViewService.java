@@ -69,6 +69,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
         settings.add(MAX_VIEW_LENGTH_SETTING);
         settings.add(MAX_VIEW_DEPTH_SETTING);
         settings.add(EsqlFlags.ESQL_MAX_COMMAND_COUNT);
+        settings.add(EsqlFlags.ESQL_MAX_BRANCH_COUNT);
         ALL_SETTINGS = settings;
     }
 

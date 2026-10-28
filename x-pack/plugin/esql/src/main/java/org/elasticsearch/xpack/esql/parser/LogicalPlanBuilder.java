@@ -161,7 +161,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
-        this.planSize = new PlanSize(context.maxCommandCount());
+        this.planSize = new PlanSize(Integer.MAX_VALUE);
     }
 
     private int queryDepth = 0;
@@ -1429,7 +1429,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (duplicate) {
                 throw new VerificationException(List.of(Failure.fail(fork, Fork.MULTIPLE_FORKS_ERROR)));
             }
-            planSize.check(fork);
+            planSize.checkPlanWidth(fork, context.maxBranchCount(), context.maxBranchCountSource());
             return fork;
         };
     }

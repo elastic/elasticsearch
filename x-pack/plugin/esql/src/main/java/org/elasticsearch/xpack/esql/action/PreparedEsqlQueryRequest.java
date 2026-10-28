@@ -111,7 +111,9 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
         EsqlParser parser,
         SettingsValidationContext settingsValidationCtx,
         InferenceSettings inferenceSettings,
-        int maxCommandCount
+        int maxCommandCount,
+        int maxBranchCount,
+        String maxBranchCountSource
     ) {
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;

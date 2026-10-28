@@ -201,7 +201,6 @@ true               | false                | false              | true           
 
 
 repetitiveEval
-required_capability: parsed_plan_size_limit
 from employees | sort emp_no | keep emp_no | eval sum = emp_no + 1
 | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no
 | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no

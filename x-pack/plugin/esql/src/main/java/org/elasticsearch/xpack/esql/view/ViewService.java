@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -81,6 +82,7 @@ public class ViewService {
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
     private volatile int maxCommandCount;
+    private volatile int maxBranchCount;
 
     public ViewService(ClusterService clusterService, EsqlParser parser) {
         this.clusterService = clusterService;
@@ -93,6 +95,7 @@ public class ViewService {
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
         clusterService.getClusterSettings().initializeAndWatch(EsqlFlags.ESQL_MAX_COMMAND_COUNT, v -> this.maxCommandCount = v);
+        clusterService.getClusterSettings().initializeAndWatch(EsqlFlags.ESQL_MAX_BRANCH_COUNT, v -> this.maxBranchCount = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -232,13 +235,15 @@ public class ViewService {
 
         // Parse the query to ensure it's syntactically valid. A definition may SET only the settings scoped at view
         // boundaries; anything else, including unmapped_fields=LOAD_ALL, is rejected here. TS must be followed by STATS.
-        // A PUT request carries no pragmas, so the command limit comes from the cluster setting only.
+        // A PUT request carries no pragmas, so the command and branch limits come from the cluster settings only.
         var statement = parser.parseView(
             view.query(),
             new QueryParams(),
             new InferenceSettings(Settings.EMPTY),
             view.name(),
-            maxCommandCount
+            maxCommandCount,
+            maxBranchCount,
+            QueryPragmas.EMPTY.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey())
         );
         validateTsView(view.name(), statement.plan());
     }

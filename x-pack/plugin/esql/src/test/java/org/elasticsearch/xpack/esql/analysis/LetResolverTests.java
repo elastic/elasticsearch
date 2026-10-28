@@ -317,7 +317,10 @@ public class LetResolverTests extends ESTestCase {
         );
     }
 
-    /** Each binding adds a FORK over the previous one; the chain goes over the plan size limit */
+    /**
+     * Each binding adds a FORK over the previous one; the chain goes over the plan size limit. FORKs nested through subqueries in
+     * the main query are rejected by the parser already, by the branch count.
+     */
     public void testBigForkExpansionRejected() {
         StringBuilder insideLet = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
         for (int i = 1; i < 40; i++) {
@@ -331,7 +334,11 @@ public class LetResolverTests extends ESTestCase {
             outsideLet = new StringBuilder("FROM (" + outsideLet + "), b | FORK (WHERE x > 0) (WHERE x < 0)");
         }
         String statement = "LET q = (FROM a); " + outsideLet;
-        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(statement));
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 30 branches in total, exceeding the limit of 20"),
+            () -> parseAndResolveLet(statement)
+        );
     }
 
     // -----------------------------------------------------------------------

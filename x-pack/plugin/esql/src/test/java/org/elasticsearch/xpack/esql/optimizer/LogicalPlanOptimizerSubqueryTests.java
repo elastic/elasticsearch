@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -317,15 +320,29 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
 
     /**
      * FORKs nested through UNION ALL subqueries multiply the leaf branches: each FORK repeats its input, and the UNION ALL under it,
-     * in every branch. The query-wide branch count limit rejects them on the optimized plan, and the same plan passes once the
-     * limit allows it, so nothing else stands in its way.
+     * in every branch. The parser applies the branch count limit to each FORK as it is built. Parsed under a raised limit, the same
+     * plan is rejected by the verifier on the optimized plan with the full count, and passes once the pragma allows it, so nothing
+     * else stands in its way.
      */
     public void testNestedForksRejectedByTotalBranchCount() {
         String query = nestedForks(4) + " | STATS c = COUNT(*)";
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(query, Settings.EMPTY));
+        assertThat(e.getMessage(), containsString("query resolved to 30 branches in total, exceeding the limit of 20"));
+
+        LogicalPlan parsed = TEST_PARSER.parse(
+            query,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            EsqlParser.DEFAULT_MAX_COMMAND_COUNT,
+            62,
+            "test"
+        ).plan();
+        TestAnalyzer analyzer = subqueryAnalyzer();
+        LogicalPlan analyzed = analyzer.buildAnalyzer().analyze(analyzer.resolveViewsAndInSubqueries(parsed));
+        e = expectThrows(VerificationException.class, () -> optimizeWithPragmas(analyzed, query, Settings.EMPTY, null));
         assertThat(e.getMessage(), containsString("query resolved to 62 branches in total, exceeding the limit of 20"));
         Settings raised = Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 62).build();
-        planSubquery(query, raised);
+        optimizeWithPragmas(analyzed, query, raised, null);
     }
 
     /** {@code depth} FORKs, each over a UNION ALL of the previous one and {@code test}: 2^(depth + 2) - 2 leaves. */

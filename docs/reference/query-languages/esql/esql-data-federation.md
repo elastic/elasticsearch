@@ -19,41 +19,22 @@ You can query data stored in compatible external data sources, using the same sy
 
 Before using {{esql}} Data Federation, review the following requirements and limitations:
 
-- {applies_to}`stack: preview 9.6+` This feature is enabled by default in {{es}}. The {{kib}} UI is turned on separately. Refer to [Enable the feature](#enable-the-feature).
-- {applies_to}`stack: experimental =9.5` This feature is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
+- This feature is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 - To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
 - Currently, this feature is not supported on Windows.
 
 ## Enable the feature
 
-To use {{esql}} Data Federation, make sure the feature is enabled in {{es}} and enable the UI in {{kib}}.
+{{esql}} Data Federation is not enabled by default. To use it, enable the feature in {{es}} and enable the UI in {{kib}}.
 
 **{{es}}**
 
-:::::{applies-switch}
-
-::::{applies-item} stack: preview 9.6+
-{{esql}} Data Federation is enabled by default. To turn it off, add the following to your {{es}} configuration:
-
-```yaml
-esql.federation.enabled: false
-```
-
-:::{note}
-During a rolling upgrade from 9.5, the feature is enabled on the upgraded nodes and disabled on the others. Until the upgrade finishes, a query on a dataset succeeds or fails with `Unknown index`, depending on which node coordinates it. Nothing is lost, and the cluster settles once every node is upgraded. To avoid the inconsistency, set `esql.federation.enabled` explicitly on every node before the upgrade, or wait until the upgrade finishes before creating or querying datasets.
-:::
-::::
-
-::::{applies-item} stack: experimental =9.5
-{{esql}} Data Federation is not enabled by default. To use it, add the following to your {{es}} configuration:
+Add the following to your {{es}} configuration:
 
 ```yaml
 esql.federation.enabled: true
 ```
-::::
-
-:::::
 
 To learn how to configure this setting on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
 

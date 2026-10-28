@@ -26,11 +26,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end REST coverage for the default value of {@code esql.federation.enabled}, which follows both the build and
- * the platform: on in a non-Windows snapshot build, off everywhere else. This is the only suite here that takes that
- * default, so it is the only one whose result changes with the build or platform. Every other suite either pins the
- * setting in {@code elasticsearch.yml} or unregisters the feature on the node JVM, which decides the outcome before
- * the default is ever consulted.
+ * End-to-end REST coverage for the default value of {@code esql.federation.enabled} on a stateful node, which is on
+ * whatever the build; the only thing that can take the feature away is a Windows release build, where nothing can turn
+ * it on. This is the only suite here that takes that default, so it is the only one whose result changes with the build
+ * or platform. Every other suite either pins the setting in {@code elasticsearch.yml} or unregisters the feature on the
+ * node JVM, which decides the outcome before the default is ever consulted. The stateless default (on only in a
+ * snapshot build) cannot be exercised on this stateful test cluster and is covered by the unit tests.
  *
  * <p>The single test sends one request, the same one in every build and on every platform, and only the outcome
  * differs. Creating a data source is that request: it needs the whole feature to be available, and unlike creating a
@@ -50,20 +51,21 @@ public class FederationBuildDefaultRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testCreatingADataSourceFollowsTheBuildDefault() throws IOException {
+    public void testCreatingADataSourceFollowsTheDefault() throws IOException {
         Request putDataSource = new Request("PUT", "/_query/data_source/" + DATA_SOURCE);
         putDataSource.setJsonEntity("""
             {"type": "s3", "settings": {"region": "us-east-1", "auth": "anonymous"}}""");
         putDataSource.setOptions(putDataSource.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
 
-        if (Constants.WINDOWS == false && Build.current().isSnapshot()) {
-            // Federation is on by default (non-Windows snapshot), so the data source is created.
+        boolean windowsRelease = Constants.WINDOWS && Build.current().isSnapshot() == false;
+        if (windowsRelease == false) {
+            // Federation is on by default on a stateful node, so the data source is created.
             assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
             client().performRequest(new Request("DELETE", "/_query/data_source/" + DATA_SOURCE));
         } else {
-            // Federation is off by default (release build, or any Windows build): the node answers as if the feature
-            // never existed — the route is unregistered and the framework rejects the request before any data source
-            // validation runs.
+            // A Windows release build cannot serve the feature, so the default is vetoed and the node answers as if the
+            // feature never existed — the route is unregistered and the framework rejects the request before any data
+            // source validation runs.
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(putDataSource));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("no handler found for uri"));

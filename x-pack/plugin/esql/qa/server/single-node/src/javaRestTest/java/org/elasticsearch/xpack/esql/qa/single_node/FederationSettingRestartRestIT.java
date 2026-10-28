@@ -12,13 +12,19 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.ClassRule;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * The user lever of {@link AbstractFederationRestartRestTestCase}: {@code esql.federation.enabled} is set back to
- * {@code false} and the node bounced, which is how a user opts out again after opting in.
+ * The user lever of {@link AbstractFederationRestartRestTestCase}: {@code esql.federation.enabled} is set to
+ * {@code false} and the node bounced, which is how a user opts out again after opting in, and then set back to
+ * {@code true} and bounced again. The value is always explicit, in both directions, so that this suite does not depend
+ * on the default; only {@link FederationBuildDefaultRestIT} does.
+ *
+ * <p>The endpoint allowlist is set here rather than left to the shared cluster builder, which also adds it in this
+ * repository but is substituted elsewhere with a builder that only defines the node shape.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationSettingRestartRestIT extends AbstractFederationRestartRestTestCase {
@@ -28,6 +34,7 @@ public class FederationSettingRestartRestIT extends AbstractFederationRestartRes
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
         spec -> spec.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled::get)
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
     );
 
     @Override
@@ -36,8 +43,8 @@ public class FederationSettingRestartRestIT extends AbstractFederationRestartRes
     }
 
     @Override
-    protected void turnFederationOff() {
-        federationEnabled.set("false");
+    protected void setFederation(boolean on) {
+        federationEnabled.set(Boolean.toString(on));
     }
 
     @Override

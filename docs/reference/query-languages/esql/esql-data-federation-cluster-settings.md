@@ -14,7 +14,7 @@ Use these cluster settings to configure {{esql}} Data Federation, including its 
 
 Each setting is labeled Static or Dynamic. You can update a dynamic setting on a running cluster. A static setting takes effect after a node restart.
 
-On {{ech}}, you can update dynamic settings with the cluster settings API, unless a setting can be updated only by operator users. You can't change static settings on {{ech}}, except `esql.federation.enabled`, which you add to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
+On {{ech}}, you can update dynamic settings with the cluster settings API, unless a setting can be updated only by operator users. You can't change static settings on {{ech}}, except `esql.federation.enabled`, which you add to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md) to turn the feature on or off.
 
 :::{note}
 Some of these settings were renamed. Where an entry lists a previous name, the badge on each name shows which versions accept it. Unless a note says otherwise, the previous name is no longer registered, and a node that still sets it in `elasticsearch.yml` fails to start.
@@ -22,17 +22,19 @@ Some of these settings were renamed. Where an entry lists a previous name, the b
 
 ## Turn the feature on or off
 
-This setting turns {{esql}} Data Federation on for a node.
+This setting controls whether {{esql}} Data Federation is on for a node.
 
 $$$esql-federation-enabled$$$
 
 `esql.federation.enabled`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables {{esql}} Data Federation, including the data source and dataset APIs, on the node. On {{ech}}, add this setting to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables {{esql}} Data Federation, including the data source and dataset APIs, on the node. On {{ech}}, to change it, add this setting to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
 
-    - **Default:** `false`
+    - **Default:**
+      - {applies_to}`stack: experimental 9.6+` `true`. Set it to `false` to turn the feature off.
+      - {applies_to}`stack: experimental =9.5` `false`
     - **Valid values:** `true`, `false`
 
-    {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows, where this setting has no effect. If you set it to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 

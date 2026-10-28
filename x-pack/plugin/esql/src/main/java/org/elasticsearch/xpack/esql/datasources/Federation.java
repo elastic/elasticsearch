@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -33,10 +34,10 @@ import java.util.function.Function;
  *       suppresses the feature by setting it to {@code false}. Cloud/GovCloud can set system
  *       properties on any deployment.</li>
  *   <li>the setting {@link #FEDERATION_ENABLED} decides whether the registered feature is
- *       <em>enabled</em>. Its default follows the build: on in a snapshot build, so a development or
- *       test deployment gets the feature without configuring anything, and off in a release build,
- *       where turning it on is a deliberate act. A value in {@code elasticsearch.yml} wins over the
- *       default either way.</li>
+ *       <em>enabled</em>. It is on by default on a stateful node. On a stateless node the default follows
+ *       the build: on in a snapshot build, so a development or test deployment gets the feature without
+ *       configuring anything, and off in a release build, where turning it on is a deliberate act. A value
+ *       in {@code elasticsearch.yml} wins over the default on every node type.</li>
  * </ul>
  *
  * <p>The two levers are not symmetric. An unregistered feature has no settings at all: {@link #settings()}
@@ -97,17 +98,21 @@ public final class Federation {
     public static final String REGISTER_PROPERTY = "es.esql.register_federation_feature";
 
     /**
-     * Enables the ES|QL federation feature (external data sources and datasets) on this node. The default
-     * follows the build: a snapshot build has it on, so development and test deployments exercise the
-     * feature without configuring it, and a release build has it off. An explicit value wins over the
-     * default. The value is read from the node's settings rather than from cluster state and gates REST
-     * handler registration, so a change takes effect only after a restart. It is registered only when the
-     * feature is registered, so on a node where an operator set {@value #REGISTER_PROPERTY} to
-     * {@code false} this key is unknown and rejected at startup.
+     * Enables the ES|QL federation feature (external data sources and datasets) on this node. The default is
+     * {@code true} on a stateful node. On a stateless node it follows the build: a snapshot build has it on,
+     * so development and test deployments exercise the feature without configuring it, and a release build
+     * has it off. An explicit value wins over the default on every node type, except that a Windows release
+     * build can never serve the feature (see {@link #enabled}). The value is read from the node's settings
+     * rather than from cluster state and gates REST handler registration, so a change takes effect only after
+     * a restart. It is registered only when the feature is registered, so on a node where an operator set
+     * {@value #REGISTER_PROPERTY} to {@code false} this key is unknown and rejected at startup.
+     *
+     * <p>The default is a function of the node settings rather than a constant because it depends on
+     * {@code stateless.enabled}; every caller passes the full node settings, so the function sees that key.
      */
     public static final Setting<Boolean> FEDERATION_ENABLED = Setting.boolSetting(
         "esql.federation.enabled",
-        defaultEnabled(Constants.WINDOWS, Build.current().isSnapshot()),
+        settings -> Boolean.toString(defaultEnabled(DiscoveryNode.isStateless(settings), Build.current().isSnapshot())),
         Setting.Property.NodeScope
     );
 
@@ -162,12 +167,16 @@ public final class Federation {
     }
 
     /**
-     * The default for {@link #FEDERATION_ENABLED}: the build's own default, except on Windows, where external data
-     * sources are off unless a deployment asks for them. A Windows release build cannot be asked — see
+     * The default for {@link #FEDERATION_ENABLED}: on for a stateful node, and the build's own default (on only in
+     * a snapshot build) for a stateless one, where turning the feature on in production is a deliberate act. The
+     * platform plays no part in the default; a Windows release build vetoes the effective value instead, see
      * {@link #enabled}.
+     *
+     * @param stateless whether this is a stateless node ({@code stateless.enabled})
+     * @param snapshot  whether this is a snapshot build
      */
-    static boolean defaultEnabled(boolean windows, boolean snapshot) {
-        return windows == false && snapshot;
+    static boolean defaultEnabled(boolean stateless, boolean snapshot) {
+        return stateless == false || snapshot;
     }
 
     /**
@@ -207,15 +216,42 @@ public final class Federation {
      * bounce. The states that change what the node does reach {@code INFO}: an enabled node serves external
      * data sources, and an unregistered one has lost a whole configuration surface. A registered node with
      * the setting off is inert, so it is logged at {@code DEBUG} and confirming it takes raising the level
-     * for this class. An unregistered node cannot also have the setting on, because it does not accept the
-     * setting at all, so there is no combination to warn about.
+     * for this class. An unregistered node does not accept the setting at all, so it can only carry the default;
+     * registration is therefore reported first, before the setting's value is considered at all.
+     *
+     * <p>A Windows release build that has the setting on is the one state where the node does something other than
+     * what the setting says. That is an {@code ERROR} when the operator set the value explicitly, because their
+     * configuration is being ignored. When the value is only the default, nobody asked for anything, so the platform
+     * veto is logged at {@code DEBUG} like any other disabled node.
      */
     public static void logEffectiveState(Settings settings) {
-        logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings), Constants.WINDOWS, Build.current().isSnapshot());
+        logEffectiveState(
+            REGISTERED,
+            FEDERATION_ENABLED.get(settings),
+            FEDERATION_ENABLED.exists(settings),
+            Constants.WINDOWS,
+            Build.current().isSnapshot()
+        );
     }
 
-    static void logEffectiveState(boolean registered, boolean configured, boolean windows, boolean snapshot) {
+    static void logEffectiveState(boolean registered, boolean configured, boolean explicit, boolean windows, boolean snapshot) {
+        if (registered == false) {
+            // Reported before the setting is looked at: an unregistered node carries only the default, and on a
+            // platform that vetoes the default the veto must not hide that the feature was removed on purpose.
+            logger.info("ES|QL federation (external data sources) is not registered ([{}]=[false])", REGISTER_PROPERTY);
+            return;
+        }
         if (configured && enabled(configured, windows, snapshot) == false) {
+            if (explicit == false) {
+                // The default is on, but this platform cannot serve the feature. Nothing was asked for, so this is
+                // not a misconfiguration to report; it is simply a node without the feature.
+                logger.debug(
+                    "ES|QL federation (external data sources) is not supported on Windows; ignoring the default of [{}]=[true] "
+                        + "and leaving the feature off",
+                    FEDERATION_ENABLED.getKey()
+                );
+                return;
+            }
             // Asked for on a platform that cannot serve it. Reported rather than silently dropped: this is the one
             // case where the node deliberately does something other than what it was configured to do.
             logger.error(
@@ -225,10 +261,7 @@ public final class Federation {
             );
             return;
         }
-        boolean enabled = enabled(configured, windows, snapshot);
-        if (registered == false) {
-            logger.info("ES|QL federation (external data sources) is not registered ([{}]=[false])", REGISTER_PROPERTY);
-        } else if (enabled) {
+        if (enabled(configured, windows, snapshot)) {
             logger.info("ES|QL federation (external data sources) is enabled ([{}]=[true])", FEDERATION_ENABLED.getKey());
         } else {
             logger.debug("ES|QL federation (external data sources) is disabled ([{}]=[false])", FEDERATION_ENABLED.getKey());

@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -94,9 +94,6 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         /** Breaker label for the lookup responses held until the slot listeners have run; same category as the shard-side charge. */
         static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[enrich_coordinator]";
-
-        /** Per-hit constant for the {@code SearchHit} object and its holders, mirroring the one used for msearch responses. */
-        static final long PER_HIT_OBJECT_OVERHEAD = 400L;
 
         final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
@@ -222,19 +219,21 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         /**
-         * Estimates the heap held by the hits of a lookup response: the exact length of each source plus a constant per hit. Items that
-         * are still charged on the shard side (local responses, see {@link EnrichShardMultiSearchAction.ChargedSearchResponse}) are
-         * skipped; their charge is released when the coordinator releases the item. This relies on the local transport path and
-         * {@link #reduce} passing the shard-side items through as they are, without wrapping or copying them.
+         * Estimates the heap held by the successful items of a lookup response, with the estimate that the msearch response of
+         * {@link TransportMultiSearchAction} uses. Items that are still charged on the shard side (local responses, see
+         * {@link EnrichShardMultiSearchAction.ChargedSearchResponse}) are skipped; their charge is released when the coordinator
+         * releases the item. This relies on the local transport path and {@link #reduce} passing the shard-side items through as they
+         * are, without wrapping or copying them.
+         * <p>
+         * Failures are not charged: {@link EnrichShardMultiSearchAction} fails a whole lookup rather than single items, so the only
+         * failure that reaches a slot is the one exception of its index, shared by all slots of that index.
          */
         static long estimateResponseBytes(MultiSearchResponse response) {
             long bytes = 0;
             for (MultiSearchResponse.Item item : response.getResponses()) {
-                if (item.isFailure() || item.getResponse() instanceof EnrichShardMultiSearchAction.ChargedSearchResponse) {
-                    continue;
-                }
-                for (SearchHit hit : item.getResponse().getHits().getHits()) {
-                    bytes += PER_HIT_OBJECT_OVERHEAD + hit.rawSourceLength();
+                if (item.isFailure() == false
+                    && item.getResponse() instanceof EnrichShardMultiSearchAction.ChargedSearchResponse == false) {
+                    bytes += TransportMultiSearchAction.estimateActualBytes(item.getResponse());
                 }
             }
             return bytes;
@@ -281,7 +280,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                             consumer.accept(res, null);
                         } finally {
                             res.decRef();
-                            final long bytes = chargedBytes.get();
+                            long bytes = chargedBytes.getAndSet(0);
                             if (bytes > 0) {
                                 breaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
                             }

@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -718,7 +719,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
-                List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
+                List<DriverProfile> reduceProfiles = profile.drivers()
+                    .stream()
+                    .filter(d -> d.description().equals(ComputeService.REDUCE_DESCRIPTION))
+                    .toList();
+                assertThat(reduceProfiles, empty());
+                List<DriverProfile> dataProfiles = profile.drivers()
+                    .stream()
+                    .filter(d -> d.description().equals(ComputeService.DATA_DESCRIPTION))
+                    .toList();
                 for (DriverProfile p : dataProfiles) {
                     assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
                     LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
@@ -740,6 +749,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.query("TS my-hosts | STATS avg(avg_over_time(cpu)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
+                List<DriverProfile> reduceProfiles = profile.drivers()
+                    .stream()
+                    .filter(d -> d.description().equals(ComputeService.REDUCE_DESCRIPTION))
+                    .toList();
+                assertThat(reduceProfiles, empty());
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 assertThat(dataProfiles, hasSize(1));
                 List<OperatorStatus> ops = dataProfiles.get(0).operators();

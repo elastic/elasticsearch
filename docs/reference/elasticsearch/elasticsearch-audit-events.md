@@ -676,7 +676,7 @@ $$$event-delete-data-source$$$
 
 $$$event-put-dataset$$$
 `put_dataset` {applies_to}`stack: experimental 9.6+`
-:   Logged when the [create or update dataset API](../query-languages/esql/esql-data-federation-manage-datasets.md#create-or-update-a-dataset) is invoked to create or update a dataset at `/_query/dataset/{name}`.
+:   Logged when the [create or update dataset API](../query-languages/esql/esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset) is invoked to create or update a dataset at `/_query/dataset/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -694,7 +694,7 @@ $$$event-put-dataset$$$
 
 $$$event-delete-dataset$$$
 `delete_dataset` {applies_to}`stack: experimental 9.6+`
-:   Logged when the [delete dataset API](../query-languages/esql/esql-data-federation-manage-datasets.md#delete-a-dataset) is invoked to delete a dataset at `/_query/dataset/{name}`.
+:   Logged when the [delete dataset API](../query-languages/esql/esql-data-federation-manage-datasets-api.md#delete-a-dataset) is invoked to delete a dataset at `/_query/dataset/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
 

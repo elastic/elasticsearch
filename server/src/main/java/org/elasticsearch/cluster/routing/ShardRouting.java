@@ -79,8 +79,10 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         ///
         /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because, until the source hands
         /// off to the target, the index is fully available from the source shard, so the new shard only improves performance.
-        /// It is also lower priority than [#UNASSIGNED_REPLICA_SCALING] because a split is expected to take longer than starting
-        /// a new replica, and holds its recovery slot on the target while the source does most of the work.
+        /// Its order relative to [#UNASSIGNED_REPLICA_SCALING] has no effect in practice: resharding only currently exists
+        /// in stateless, where split targets with this priority are primaries recovering on indexing nodes, whereas
+        /// [#UNASSIGNED_REPLICA_SCALING] replicas are search shards recovering on search nodes, so they never compete for
+        /// the same recovery slots.
         UNASSIGNED_RESHARDING(false, true),
 
         /// A shard which is assigned, and is being relocated because

@@ -921,8 +921,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /// just a retry, so it keeps the last priority it had.
     private static ShardRouting.RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard) {
         // TODO: a reshard split target primary takes over writes for its share of the documents at HANDOFF, before it becomes
-        // active, so its failure in that window does reduce availability and it should then be UNASSIGNED_UNEXPECTED.
-        // The window is small and this edge case is expected to be rare, but this should be fixed.
+        // active, so its failure in that window does reduce availability. It then keeps UNASSIGNED_RESHARDING and its
+        // recovery queues behind any pending split clones. It should be UNASSIGNED_UNEXPECTED. In practice, the window
+        // is small but this should still be fixed.
         if (failedShard.initializing()) {
             assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
             return failedShard.recoveryPriority();

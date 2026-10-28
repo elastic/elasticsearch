@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -67,6 +68,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.SHARD
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -77,7 +79,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/// Unit tests for local recovery-retry markers: each allocation's marker carries its retry count so either
+/// Unit tests for pending-allocation-state markers: each allocation's state carries its retry count so either
 /// the retry applier or cluster-state application may recreate the shard with the same count.
 public class IndicesClusterStateServiceRetryContextTests extends AbstractIndicesClusterStateServiceTestCase {
 
@@ -132,12 +134,13 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
             FAIL_SEND,
             primaryTerm(shardRouting),
             new Exception("simulated recovery failure"),
-            shard.recoveryState()
+            shard.recoveryState(),
+            currentCreatingShard(shardRouting)
         );
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        assertFalse(indicesClusterStateService.failedShardsCache.isEmpty());
+        assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
         assertThat(pendingApplierTasks.size(), equalTo(0));
     }
@@ -149,8 +152,8 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         handleRecoveryFailureWithRetry(shardRouting);
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(1));
-        assertTrue(indicesClusterStateService.failedShardsCache.isEmpty());
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
+        assertFalse(isFailureReported(shardRouting));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
         assertThat(pendingApplierTasks.size(), equalTo(1));
         assertThat(pendingApplierTasks.peek().source(), equalTo("retry recovery " + shardRouting.shardId()));
@@ -162,15 +165,22 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
 
         handleRecoveryFailureWithRetry(shardRouting);
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         drainApplierTasks();
 
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        // CreatingShard is held through recovery
+        assertThat(
+            indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)),
+            instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class)
+        );
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+
+        completeRecoveryViaListener();
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
     }
 
     public void testConsecutiveRetriesIncrementLocalRetries() {
@@ -178,13 +188,13 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(0));
 
         failRecoveryViaListener(RETRY);
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(1));
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
         drainApplierTasks();
         shardRouting = indicesService.getShardOrNull(shardRouting.shardId()).routingEntry();
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
 
         failRecoveryViaListener(RETRY);
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(2));
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(2));
         drainApplierTasks();
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(2));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
@@ -222,8 +232,8 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         handleRecoveryFailureWithRetry(shardRouting);
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        assertTrue(indicesClusterStateService.retryingShards.isEmpty());
-        assertTrue(indicesClusterStateService.failedShardsCache.containsKey(shardRouting.shardId()));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        assertTrue(isFailureReported(shardRouting));
         assertTrue(pendingApplierTasks.isEmpty());
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
@@ -232,7 +242,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         int createsAfterFail = indicesService.createShardCalls.get();
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
         // Intervening cluster-state apply may recreate; context supplies localRecoveryRetries.
@@ -240,7 +250,11 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsAfterFail + 1));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        // CreatingShard now spans recovery too: recovery for this CS-apply-created attempt is still pending.
+        assertThat(
+            indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)),
+            instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class)
+        );
 
         // Retry applier still pending; context already cleared so it must not create again.
         assertThat(pendingApplierTasks.size(), equalTo(1));
@@ -248,12 +262,15 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         drainApplierTasks();
         assertThat(indicesService.createShardCalls.get(), equalTo(createsAfterCs));
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
+        completeRecoveryViaListener();
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
     }
 
     public void testGiveUpOnAllocationChangeThenClusterStateCreates() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         ShardRouting newAllocation = TestShardRouting.newShardRouting(
             shardRouting.shardId(),
@@ -264,7 +281,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertFalse(newAllocation.isSameAllocation(shardRouting));
         applyState(stateWithShardRouting(newAllocation));
 
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(
             indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().allocationId(),
@@ -274,7 +291,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertThat(pendingApplierTasks.size(), equalTo(1));
         int createsAfterCs = indicesService.createShardCalls.get();
         drainApplierTasks();
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsAfterCs));
         assertThat(
             indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().allocationId(),
@@ -285,17 +302,17 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
     public void testUpdateRetryContextClearsWhenShardNotOnLocalNode() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         applyState(stateWithShardMovedOffLocalNode(shardRouting));
-        assertTrue(indicesClusterStateService.retryingShards.isEmpty());
+        assertTrue(indicesClusterStateService.pendingAllocationStates.isEmpty());
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
     public void testUpdateRetryContextClearsWhenAllocationIdChanges() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         ShardRouting newAllocation = TestShardRouting.newShardRouting(
             shardRouting.shardId(),
@@ -304,13 +321,76 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
             ShardRoutingState.INITIALIZING
         );
         applyState(stateWithShardRouting(newAllocation));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+    }
+
+    public void testPendingAllocationStateClearedWhenPrimaryTermBumped() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        final var originalCreatingShard = currentCreatingShard(shardRouting);
+        int createsBefore = indicesService.createShardCalls.get();
+
+        // Batched cluster-state processing can take a primary straight from initializing(term1) to
+        // initializing(term2) with the same routing/allocation id (see
+        // IndicesClusterStateService#removeIndicesAndShards's "primary term bumped" branch). The old
+        // ticket must not survive this, or the new chapter's createShard would find it still "owned".
+        applyState(stateWithPrimaryTermBumped(shardRouting));
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
+        final var newTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting));
+        assertThat(newTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class));
+        assertNotSame(originalCreatingShard, newTicket);
+    }
+
+    public void testPendingAllocationStateClearedWhenReplicaPromoted() {
+        String indexName = randomIndexName();
+        ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+        String localNodeId = base.nodes().getLocalNodeId();
+        Index index = base.metadata().getProject().index(indexName).getIndex();
+        ShardRouting oldPrimary = base.routingTable().index(index).shard(0).primaryShard();
+        assertTrue(oldPrimary.active());
+        assertFalse(oldPrimary.currentNodeId().equals(localNodeId));
+        ShardRouting replica = TestShardRouting.newShardRouting(oldPrimary.shardId(), localNodeId, false, ShardRoutingState.INITIALIZING);
+        applyState(
+            ClusterState.builder(base)
+                .routingTable(
+                    RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(oldPrimary).addShard(replica).build()).build()
+                )
+                .build()
+        );
+        assertNotNull(indicesService.getShardOrNull(replica.shardId()));
+        final var originalCreatingShard = currentCreatingShard(replica);
+        int createsBefore = indicesService.createShardCalls.get();
+
+        // Old primary failed; the former replica is promoted (same allocation id), bumping the primary
+        // term (see IndicesClusterStateService#removeIndicesAndShards's "primary promotion" branch). The
+        // old ticket must not survive this, or the new chapter's createShard would find it still "owned".
+        ShardRouting promoted = TestShardRouting.shardRoutingBuilder(replica.shardId(), localNodeId, true, ShardRoutingState.INITIALIZING)
+            .withAllocationId(replica.allocationId())
+            .build();
+        ShardRouting oldPrimaryGone = TestShardRouting.newShardRouting(oldPrimary.shardId(), null, false, ShardRoutingState.UNASSIGNED);
+        IndexMetadata currentMetadata = state.metadata().getProject().index(index);
+        IndexMetadata bumped = IndexMetadata.builder(currentMetadata)
+            .primaryTerm(replica.id(), currentMetadata.primaryTerm(replica.id()) + 1)
+            .build();
+        applyState(
+            ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).put(bumped, false))
+                .routingTable(
+                    RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(promoted).addShard(oldPrimaryGone).build()).build()
+                )
+                .build()
+        );
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
+        final var newTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(replica));
+        assertThat(newTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class));
+        assertNotSame(originalCreatingShard, newTicket);
     }
 
     public void testUpdateRetryContextClearsWhenNotInitializing() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         ShardRouting started = TestShardRouting.shardRoutingBuilder(
             shardRouting.shardId(),
@@ -319,45 +399,26 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
             ShardRoutingState.STARTED
         ).withAllocationId(shardRouting.allocationId()).build();
         applyState(stateWithShardRouting(started));
-        assertTrue(indicesClusterStateService.retryingShards.isEmpty());
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        // Master thinks this allocation is active but we have no shard for it (it was removed by the
+        // earlier recovery failure) -- createIndicesAndUpdateShards reports it as failed separately.
+        assertTrue(isFailureReported(shardRouting));
     }
 
-    public void testUpdateRetryContextClearsWhenFailedShardsCacheHit() {
-        ShardRouting shardRouting = applyInitializingPrimary();
-        handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
-
-        // FAIL_SEND fills failedShardsCache; sendFailShard also clears the context.
-        indicesClusterStateService.handleRecoveryFailure(
-            shardRouting,
-            FAIL_SEND,
-            primaryTerm(shardRouting),
-            new Exception("concurrent fail-send"),
-            recoveryState(shardRouting, 0)
-        );
-        assertTrue(indicesClusterStateService.failedShardsCache.containsKey(shardRouting.shardId()));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
-
-        // Re-seed context so both marker and cache are present — isolates retryingShardMarkerIsOutOfDate's
-        // failedShardsCache branch (sendFailShard already cleared the original context).
-        indicesClusterStateService.retryingShards.put(retryKey(shardRouting), 1);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
-
-        applyState(ClusterState.builder(state).version(state.version() + 1).build());
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
-        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-
-        // Pending retry applier from the original RETRY must not recreate.
-        int createsAfterCs = indicesService.createShardCalls.get();
-        drainApplierTasks();
-        assertThat(indicesService.createShardCalls.get(), equalTo(createsAfterCs));
-        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-    }
+    // NOTE: a test formerly lived here ("...ClearsWhenFailedShardsCacheHit") simulating a FailureReported
+    // write landing on top of an existing AwaitingRecoveryRetry via a second direct handleRecoveryFailure(FAIL_SEND)
+    // call. That scenario is no longer constructible: handleRecoveryFailure now requires the caller's
+    // ticket to match the live pendingAllocationStates entry, and a single CreatingShard attempt can only ever
+    // produce one terminal signal (RecoveryListener#assertOnce), so two independent handleRecoveryFailure
+    // calls for the same attempt can't happen. The only remaining production path that can still write
+    // FailureReported over a live AwaitingRecoveryRetry is FailedShardHandler (a separate, ticket-independent
+    // caller -- see the "leave FailedShardHandler as is" decision). testRetryDoesNotClobberFailureReported
+    // covers the mirror-image ordering (FailureReported already present, then a stale RETRY arrives).
 
     public void testRetrySkipsWhenIndexServiceMissingKeepsMarker() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
         int createsBefore = indicesService.createShardCalls.get();
 
         indicesService.removeIndex(
@@ -370,14 +431,14 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNull(indicesService.indexService(shardRouting.index()));
 
         drainApplierTasks();
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
         applyState(ClusterState.builder(state).version(state.version() + 1).build());
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
     }
 
     public void testRetryContextKeptWhenCreateGivesUpMissingPeerSource() {
@@ -400,7 +461,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotNull(indicesService.getShardOrNull(replica.shardId()));
 
         handleRecoveryFailureWithRetry(replica);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(replica)));
+        assertTrue(isAwaitingRecoveryRetry(replica));
 
         // Remove node holding primary and make sure master is an existing node
         applyState(
@@ -414,12 +475,12 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
                 .build()
         );
         // CS apply may attempt create; missing peer source → early return, keep marker for localRecoveryRetries.
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(replica)));
+        assertTrue(isAwaitingRecoveryRetry(replica));
 
         int createsBefore = indicesService.createShardCalls.get();
         drainApplierTasks();
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(replica)));
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(replica)), equalTo(1));
+        assertTrue(isAwaitingRecoveryRetry(replica));
+        assertThat(awaitingRecoveryRetryCount(replica), equalTo(1));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
         assertNull(indicesService.getShardOrNull(replica.shardId()));
     }
@@ -427,16 +488,16 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
     public void testRetryContextClearedWhenCreateFails() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         indicesService.failNextCreateShard = new IOException("simulated create failure");
         drainApplierTasks();
 
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
         // create failure path notifies master via failAndRemoveShard(sendShardFailure=true)
         verify(shardStateAction).localShardFailed(any(), anyString(), any(), any(), any());
-        assertTrue(indicesClusterStateService.failedShardsCache.containsKey(shardRouting.shardId()));
+        assertTrue(isFailureReported(shardRouting));
     }
 
     public void testRetryUsesCurrentRoutingFromClusterState() {
@@ -461,7 +522,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotNull(indicesService.getShardOrNull(shardId));
 
         handleRecoveryFailureWithRetry(withRelocating);
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(1));
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
 
         final var clearedRelocating = TestShardRouting.shardRoutingBuilder(
             shardId,
@@ -476,7 +537,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         // proving the retry path passes currentRouting (relocating cleared) into createShard.
         state = stateWithShardRouting(clearedRelocating);
         when(clusterService.state()).thenReturn(state);
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         drainApplierTasks();
 
@@ -485,26 +546,65 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertThat(recreated.routingEntry().relocatingNodeId(), nullValue());
         assertThat(recreated.routingEntry().allocationId(), equalTo(clearedRelocating.allocationId()));
         assertThat(recreated.recoveryState().getLocalRetries(), equalTo(1));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
     }
 
-    public void testDoubleRetryContextUpdatesCount() {
+    public void testRetryDoesNotRegressAnExistingFresherMarker() {
         final var shardRouting = applyInitializingPrimary();
+        // Capture the original ticket before it's spent, so the later "stale" call below can present it.
+        final var originalCreatingShard = currentCreatingShard(shardRouting);
         handleRecoveryFailureWithRetry(shardRouting);
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(1));
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
 
+        // Seed a fresher marker, as if a newer attempt had already recorded more retries.
+        indicesClusterStateService.pendingAllocationStates.put(
+            allocationKey(shardRouting),
+            new IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(5)
+        );
+        int tasksBefore = pendingApplierTasks.size();
+
+        // A late failure from the original (now-superseded) attempt, presenting its own now-stale
+        // ticket, must not regress the marker nor schedule a second retry task.
         indicesClusterStateService.handleRecoveryFailure(
             shardRouting,
             RETRY,
             primaryTerm(shardRouting),
-            new Exception("again"),
-            recoveryState(shardRouting, 1)
+            new Exception("stale failure"),
+            recoveryState(shardRouting, 0),
+            originalCreatingShard
         );
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(2));
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(5));
+        assertThat(pendingApplierTasks.size(), equalTo(tasksBefore));
+    }
 
-        drainApplierTasks();
-        assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(2));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+    public void testRetryDoesNotClobberFailureReported() {
+        final var shardRouting = applyInitializingPrimary();
+        final var creatingShard = currentCreatingShard(shardRouting);
+
+        // A failure already reported to master for this exact allocation.
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SEND,
+            primaryTerm(shardRouting),
+            new Exception("already failed to master"),
+            recoveryState(shardRouting, 0),
+            creatingShard
+        );
+        assertTrue(isFailureReported(shardRouting));
+        int tasksBefore = pendingApplierTasks.size();
+
+        // A second call presenting the same (now-spent) ticket must be a no-op: FailureReported survives.
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            RETRY,
+            primaryTerm(shardRouting),
+            new Exception("stale failure"),
+            recoveryState(shardRouting, 0),
+            creatingShard
+        );
+        assertTrue(isFailureReported(shardRouting));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        assertThat(pendingApplierTasks.size(), equalTo(tasksBefore));
     }
 
     public void testLateFailureFromPreviousAllocationPreservesReplacementRetry() {
@@ -525,7 +625,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
             new RecoveryFailedException(oldRecoveryState, "late failure", new IOException("old attempt")),
             RETRY
         );
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(replacement)), equalTo(1));
+        assertThat(awaitingRecoveryRetryCount(replacement), equalTo(1));
 
         drainApplierTasks();
 
@@ -533,61 +633,76 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotNull(recreated);
         assertTrue(recreated.routingEntry().isSameAllocation(replacement));
         assertThat(recreated.recoveryState().getLocalRetries(), equalTo(1));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(replacement)));
+        assertFalse(isAwaitingRecoveryRetry(replacement));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
     }
 
-    public void testShardLockRetryCompletionPreservesNewerRetryCount() throws Exception {
-        final var routing = applyInitializingPrimary();
-        handleRecoveryFailureWithRetry(routing);
-        indicesService.failNextCreateShard = new ShardLockObtainFailedException(routing.shardId(), "test lock held");
+    public void testLockWaitSurvivesUnrelatedClusterStateUpdate() throws Exception {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        handleRecoveryFailureWithRetry(shardRouting);
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
 
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
         final var recoveryRetry = pendingApplierTasks.remove();
         recoveryRetry.consumer().accept(state);
         recoveryRetry.listener().onResponse(null);
         assertBusy(() -> assertFalse(pendingApplierTasks.isEmpty()));
 
-        // Model a recovery failure between shard registration and the creation listener's completion.
-        // The unsynchronized shard-lock continuation allows a recovery thread to run in this interval.
-        indicesService.afterShardCreated = () -> failRecoveryViaListener(RETRY);
+        // An unrelated cluster-state update (same allocation, just a different stateUUID) while the
+        // lock-wait is pending must not cause the continuation to give up -- only a genuine
+        // allocation change should. The claim survives and uses the fresh state once it wakes up.
+        state = ClusterState.builder(state).stateUUID(UUIDs.randomBase64UUID()).build();
+        when(clusterService.state()).thenReturn(state);
+
         final var lockRetry = pendingApplierTasks.remove();
         lockRetry.consumer().accept(state);
         lockRetry.listener().onResponse(null);
 
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(routing)), equalTo(2));
-        drainApplierTasks();
-        assertThat(indicesService.getShardOrNull(routing.shardId()).recoveryState().getLocalRetries(), equalTo(2));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(routing)));
-    }
-
-    public void testLockWaitGiveUpKeepsRetryContextForLaterCreate() throws Exception {
-        ShardRouting shardRouting = applyInitializingPrimary();
-        handleRecoveryFailureWithRetry(shardRouting);
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(1));
-
-        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
-        drainApplierTasks();
-
-        assertBusy(
-            () -> assertTrue(
-                "expected lock-retry create-shard applier task",
-                pendingApplierTasks.stream().anyMatch(t -> t.source().contains("create shard"))
-            )
-        );
-
-        // Newer CS UUID while lock-wait is pending → onResponse(false); context must stay.
-        state = ClusterState.builder(state).stateUUID(UUIDs.randomBase64UUID()).build();
-        when(clusterService.state()).thenReturn(state);
-        drainApplierTasks();
-
-        assertTrue(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
-        assertThat(indicesClusterStateService.retryingShards.get(retryKey(shardRouting)), equalTo(1));
-        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-
-        applyState(ClusterState.builder(state).version(state.version() + 1).build());
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
-        assertFalse(indicesClusterStateService.retryingShards.containsKey(retryKey(shardRouting)));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        // CreatingShard is held through recovery, then released once recovery actually finishes.
+        assertThat(
+            indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)),
+            instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class)
+        );
+        completeRecoveryViaListener();
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+    }
+
+    public void testLockWaitGivesUpWhenAllocationGoesStale() throws Exception {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        handleRecoveryFailureWithRetry(shardRouting);
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
+
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
+        final var recoveryRetry = pendingApplierTasks.remove();
+        recoveryRetry.consumer().accept(state);
+        recoveryRetry.listener().onResponse(null);
+        assertBusy(() -> assertFalse(pendingApplierTasks.isEmpty()));
+
+        // A genuine allocation change while the lock-wait is pending must cause the continuation to
+        // give up quietly and clean up its own claim, rather than attempt to create a shard for an
+        // allocation that no longer exists.
+        ShardRouting newAllocation = TestShardRouting.newShardRouting(
+            shardRouting.shardId(),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        applyState(stateWithShardRouting(newAllocation));
+        int createsAfterCs = indicesService.createShardCalls.get();
+
+        final var lockRetry = pendingApplierTasks.remove();
+        lockRetry.consumer().accept(state);
+        lockRetry.listener().onResponse(null);
+
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsAfterCs));
+        assertThat(
+            indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().allocationId(),
+            equalTo(newAllocation.allocationId())
+        );
     }
 
     // --- helpers ---
@@ -641,12 +756,39 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
             RETRY,
             primaryTerm(shardRouting),
             new Exception("simulated recovery failure"),
-            shard.recoveryState()
+            shard.recoveryState(),
+            currentCreatingShard(shardRouting)
         );
     }
 
-    private static IndicesClusterStateService.RetryKey retryKey(ShardRouting routing) {
-        return new IndicesClusterStateService.RetryKey(routing.shardId(), routing.allocationId().getId());
+    private static IndicesClusterStateService.ShardAllocationKey allocationKey(ShardRouting routing) {
+        return IndicesClusterStateService.ShardAllocationKey.fromRouting(routing);
+    }
+
+    /// Fetches the currently-claimed [IndicesClusterStateService.PendingAllocationState.CreatingShard] ticket for
+    /// `routing`'s allocation, for tests that call [IndicesClusterStateService#handleRecoveryFailure]
+    /// directly rather than through the real [RecoveryListener].
+    private IndicesClusterStateService.PendingAllocationState.CreatingShard currentCreatingShard(ShardRouting routing) {
+        var current = indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing));
+        assertThat(current, instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class));
+        return (IndicesClusterStateService.PendingAllocationState.CreatingShard) current;
+    }
+
+    private boolean isAwaitingRecoveryRetry(ShardRouting routing) {
+        return indicesClusterStateService.pendingAllocationStates.get(
+            allocationKey(routing)
+        ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
+    }
+
+    private Integer awaitingRecoveryRetryCount(ShardRouting routing) {
+        var current = indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing));
+        return current instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(var n) ? n : null;
+    }
+
+    private boolean isFailureReported(ShardRouting routing) {
+        return indicesClusterStateService.pendingAllocationStates.get(
+            allocationKey(routing)
+        ) instanceof IndicesClusterStateService.PendingAllocationState.FailureReported;
     }
 
     private RecoveryState recoveryState(ShardRouting shardRouting, int localRetries) {
@@ -666,6 +808,18 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
             new RecoveryFailedException(recoveryState, "simulated", new Exception("simulated")),
             failureStrategy
         );
+    }
+
+    /// Completes the currently-captured [RecoveryListener] successfully via
+    /// [RecoveryListener#onRecoveryDone], so tests can verify the creating-shard ticket is released
+    /// once recovery actually finishes (it's deliberately held through recovery, not just construction
+    /// -- see [RecordingIndicesService#autoCompleteRecovery]).
+    private void completeRecoveryViaListener() {
+        RecoveryListener listener = indicesService.lastRecoveryListener;
+        assertNotNull("createShard must have captured a RecoveryListener", listener);
+        MockIndexShard shard = indicesService.getShardOrNull(indicesService.lastCreatedShardId);
+        assertNotNull(shard);
+        listener.onRecoveryDone(shard.recoveryState(), ShardLongFieldRange.UNKNOWN, ShardLongFieldRange.UNKNOWN);
     }
 
     private long primaryTerm(ShardRouting shardRouting) {
@@ -693,6 +847,14 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotNull("index metadata must exist for " + index, indexMetadata);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
         return ClusterState.builder(state).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+    }
+
+    private ClusterState stateWithPrimaryTermBumped(ShardRouting shardRouting) {
+        Index index = shardRouting.index();
+        IndexMetadata current = state.metadata().getProject().index(index);
+        long newTerm = current.primaryTerm(shardRouting.id()) + 1;
+        IndexMetadata bumped = IndexMetadata.builder(current).primaryTerm(shardRouting.id(), newTerm).build();
+        return ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(bumped, false)).build();
     }
 
     private ClusterState stateWithShardMovedOffLocalNode(ShardRouting shardRouting) {
@@ -725,6 +887,12 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         volatile RecoveryListener lastRecoveryListener;
         volatile ShardId lastCreatedShardId;
         Runnable afterShardCreated;
+
+        @Override
+        protected boolean autoCompleteRecovery() {
+            // This test drives recovery completion/failure manually via lastRecoveryListener/failRecoveryViaListener.
+            return false;
+        }
 
         @Override
         public void createShard(

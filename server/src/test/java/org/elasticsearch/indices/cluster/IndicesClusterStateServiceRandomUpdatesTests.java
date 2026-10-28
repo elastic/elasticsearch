@@ -445,16 +445,20 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             FAIL_SILENT,
             primaryTerm,
             new Exception("dummy"),
-            indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState()
+            indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState(),
+            new IndicesClusterStateService.PendingAllocationState.CreatingShard(0, 0)
         );
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
+        final var creatingShard = (IndicesClusterStateService.PendingAllocationState.CreatingShard) indicesCSSvc.pendingAllocationStates
+            .get(IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting));
         indicesCSSvc.handleRecoveryFailure(
             shardRouting,
             FAIL_SILENT,
             primaryTerm,
             new Exception("dummy"),
-            indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState()
+            indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState(),
+            creatingShard
         );
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }

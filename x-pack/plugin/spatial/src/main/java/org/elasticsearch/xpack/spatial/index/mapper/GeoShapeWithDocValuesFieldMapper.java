@@ -393,7 +393,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                         (BlockLoaderFunctionConfig.GeoGrid) config,
                         blContext.warnings()
                     );
-                    case ST_SIMPLIFY -> new GeoGeometryBlockLoader(
+                    case ST_SIMPLIFY, ST_SIMPLIFYPRESERVETOPOLOGY, ST_BUFFER -> new GeoGeometryBlockLoader(
                         name(),
                         (BlockLoaderFunctionConfig.GeometryTransform) config,
                         blContext.warnings()

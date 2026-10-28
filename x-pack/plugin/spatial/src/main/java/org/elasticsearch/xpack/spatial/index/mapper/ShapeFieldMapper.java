@@ -245,7 +245,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                     throw new UnsupportedOperationException("function fusing only supported for doc values");
                 }
                 return switch (config.function()) {
-                    case ST_SIMPLIFY -> new CartesianGeometryBlockLoader(
+                    case ST_SIMPLIFY, ST_SIMPLIFYPRESERVETOPOLOGY, ST_BUFFER -> new CartesianGeometryBlockLoader(
                         name(),
                         (BlockLoaderFunctionConfig.GeometryTransform) config,
                         blContext.warnings()

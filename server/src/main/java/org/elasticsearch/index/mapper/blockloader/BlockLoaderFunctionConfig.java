@@ -163,28 +163,38 @@ public interface BlockLoaderFunctionConfig {
 
     /**
      * Configuration for loading {@code geo_shape} or {@code shape} doc values as a geometry transformed by a function
-     * such as {@code ST_SIMPLIFY}, so the geometry is never read from {@code _source} nor materialised as WKB before
-     * being transformed. Only supported by fields whose doc values can reconstruct the original geometry. Equality
-     * deliberately ignores the transformers: they are fully determined by the function and parameter.
+     * such as {@code ST_SIMPLIFY} or {@code ST_BUFFER}, so the geometry is never read from {@code _source} nor
+     * materialised as WKB before being transformed. Only supported by fields whose doc values can reconstruct the
+     * original geometry. The {@code options} are a canonical description of any further arguments of the function, such
+     * as the buffer style, or empty if it has none. Equality deliberately ignores the transformers: they are fully
+     * determined by the function, parameter and options.
      */
-    record GeometryTransform(Function function, double parameter, GeometryTransformerFactory transformers)
+    record GeometryTransform(Function function, double parameter, String options, GeometryTransformerFactory transformers)
         implements
             BlockLoaderFunctionConfig {
         public GeometryTransform {
-            if (function != Function.ST_SIMPLIFY) {
+            if (function != Function.ST_SIMPLIFY && function != Function.ST_SIMPLIFYPRESERVETOPOLOGY && function != Function.ST_BUFFER) {
                 throw new IllegalArgumentException("not a geometry transform function [" + function + "]");
             }
+            Objects.requireNonNull(options);
+        }
+
+        public GeometryTransform(Function function, double parameter, GeometryTransformerFactory transformers) {
+            this(function, parameter, "", transformers);
         }
 
         @Override
         public int hashCode() {
             // Enum hashCode is identity based; use the name so the hash is stable across JVMs (it ends up in attribute names).
-            return Objects.hash(function.name(), parameter);
+            return Objects.hash(function.name(), parameter, options);
         }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof GeometryTransform other && function == other.function && Double.compare(parameter, other.parameter) == 0;
+            return o instanceof GeometryTransform other
+                && function == other.function
+                && Double.compare(parameter, other.parameter) == 0
+                && options.equals(other.options);
         }
     }
 
@@ -199,10 +209,12 @@ public interface BlockLoaderFunctionConfig {
         MV_MIN,
         LENGTH,
         ROUND_TO,
+        ST_BUFFER,
         ST_GEOHASH,
         ST_GEOTILE,
         ST_GEOHEX,
         ST_SIMPLIFY,
+        ST_SIMPLIFYPRESERVETOPOLOGY,
         V_COSINE,
         V_DOT_PRODUCT,
         V_HAMMING,

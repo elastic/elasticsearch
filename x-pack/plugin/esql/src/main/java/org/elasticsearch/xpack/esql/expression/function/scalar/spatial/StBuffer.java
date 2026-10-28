@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,10 +20,12 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -38,7 +41,9 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.operation.buffer.BufferOp;
@@ -64,7 +69,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument, AnyNullIsNull {
+public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument, AnyNullIsNull, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class).ternary(StBuffer::new).name("st_buffer");
 
@@ -367,6 +372,48 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
             geometryEvaluator,
             inputDistance,
             bufferParameters
+        );
+    }
+
+    /**
+     * Fuses this function into the loading of shape doc values that can reconstruct the original geometry, like
+     * {@link StSimplify#tryPushToFieldLoading}. Distances that are not constant numbers, and invalid options, keep using
+     * the evaluator so that it reports the error. The options are part of the fused configuration, so buffers of the
+     * same field with different styles are loaded separately.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        FieldAttribute field = fusableShapeField(geometry, stats);
+        Double inputDistance = constantNumber(distance);
+        if (field == null || inputDistance == null) {
+            return null;
+        }
+        BufferParameters bufferParameters;
+        try {
+            bufferParameters = bufferParameters();
+        } catch (InvalidArgumentException e) {
+            return null;
+        }
+        String canonicalOptions = Strings.format(
+            "%s=%d, %s=%d, %s=%d, %s=%s",
+            QUAD_SEGS_OPTION,
+            bufferParameters.getQuadrantSegments(),
+            ENDCAP_OPTION,
+            bufferParameters.getEndCapStyle(),
+            JOIN_OPTION,
+            bufferParameters.getJoinStyle(),
+            MITRE_LIMIT_OPTION,
+            bufferParameters.getMitreLimit()
+        );
+        var bufferProcessor = new SpatialGeometryBlockProcessor(UNSPECIFIED, (g, d) -> bufferOp(g, d, bufferParameters));
+        return new PushedBlockLoaderExpression(
+            field,
+            new BlockLoaderFunctionConfig.GeometryTransform(
+                BlockLoaderFunctionConfig.Function.ST_BUFFER,
+                inputDistance,
+                canonicalOptions,
+                bufferProcessor.transformers(inputDistance)
+            )
         );
     }
 

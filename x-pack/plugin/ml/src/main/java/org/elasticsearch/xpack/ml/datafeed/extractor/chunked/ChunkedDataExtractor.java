@@ -119,7 +119,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
         if (dataSummary.hasData()) {
             long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
-            // ES|QL summary MIN may precede the queried window (e.g. DATE_TRUNC); never rewind. Jump forward so an
+            // ES|QL summary MIN may precede the queried window (e.g. DATE_TRUNC). Jump forward so an
             // unbounded range skips empty chunks.
             currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;

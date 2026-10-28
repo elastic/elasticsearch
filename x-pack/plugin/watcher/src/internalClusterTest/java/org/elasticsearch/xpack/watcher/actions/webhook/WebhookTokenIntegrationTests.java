@@ -122,7 +122,6 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         ).get();
 
         timeWarp().trigger("_id");
-        refresh();
 
         SearchResponse searchResponse = searchHistoryForExecutedWatch("_id", 1);
         try {

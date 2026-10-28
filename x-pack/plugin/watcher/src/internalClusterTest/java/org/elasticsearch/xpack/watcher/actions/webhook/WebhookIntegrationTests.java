@@ -85,7 +85,6 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         ).get();
 
         timeWarp().trigger("_id");
-        refresh();
 
         SearchResponse searchResponse = searchHistoryForExecutedWatch("_id", 1);
         try {
@@ -127,7 +126,6 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         ).get();
 
         timeWarp().trigger("_id");
-        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1);
 

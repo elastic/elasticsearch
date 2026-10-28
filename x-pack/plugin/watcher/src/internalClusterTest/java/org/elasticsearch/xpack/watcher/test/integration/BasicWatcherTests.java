@@ -116,7 +116,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        refresh();
 
         assertWatcherExecutionWithPayloadHits("_name", 1);
     }
@@ -197,7 +196,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        refresh();
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
 
         new PutWatchRequestBuilder(client()).setId("_name")

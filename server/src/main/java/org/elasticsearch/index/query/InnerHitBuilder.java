@@ -103,7 +103,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareObject(
             InnerHitBuilder::setHighlightBuilder,
-            (p, c) -> HighlightBuilder.fromXContent(p),
+            (p, c) -> HighlightBuilder.fromXContent(p, null),
             SearchSourceBuilder.HIGHLIGHT_FIELD
         );
         PARSER.declareField((parser, builder, context) -> {

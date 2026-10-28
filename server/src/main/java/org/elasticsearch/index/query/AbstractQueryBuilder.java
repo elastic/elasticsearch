@@ -461,6 +461,24 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
+     * Charges {@code bytes} directly to the parse-time circuit breaker and registers the release with
+     * {@code trackTo}. Use this for non-{@link QueryBuilder} parse-time allocations — such as raw float
+     * or byte arrays — that are not automatically covered by the {@link #parseTopLevelQuery} namedObject
+     * hook. If the breaker is not configured or {@code bytes} is non-positive, this is a no-op.
+     */
+    public static void chargeRawBytes(long bytes, QueryParsingReservation trackTo) {
+        if (bytes <= 0L) return;
+        CircuitBreaker breaker = queryParsingBreaker.get();
+        if (breaker == null) return;
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "query-parsing");
+        if (trackTo != null) {
+            trackTo.addCharges(List.of(() -> breaker.addWithoutBreaking(-bytes)));
+        } else {
+            breaker.addWithoutBreaking(-bytes);
+        }
+    }
+
+    /**
      * Estimated heap bytes this QueryBuilder contributes at parse time, charged to the REQUEST
      * circuit breaker immediately after construction. Every clause in the tree — including the root
      * query — is charged this amount. Subclasses whose parse-time representation includes large value
@@ -521,6 +539,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * for instance to collect statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
+        return parseTopLevelQuery(parser, queryNameConsumer, null);
+    }
+
+    /**
+     * Like {@link #parseTopLevelQuery(XContentParser, Consumer)} but, when {@code trackTo} is non-null and parsing
+     * succeeds, defers the circuit-breaker release by adding the charge to {@code trackTo} via
+     * {@link QueryParsingReservation#addCharges}. When {@code trackTo} is {@code null}, or when parsing fails,
+     * the charge is released before this method returns.
+     */
+    public static QueryBuilder parseTopLevelQuery(
+        XContentParser parser,
+        Consumer<String> queryNameConsumer,
+        QueryParsingReservation trackTo
+    ) throws IOException {
         final CircuitBreaker breaker = queryParsingBreaker.get(); // snapshot once per call
         final long[] totalCharged = breaker != null ? new long[1] : null;
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
@@ -567,8 +599,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 return namedObject;
             }
         };
+        boolean success = false;
         try {
-            return parseInnerQueryBuilder(parserWrapper);
+            QueryBuilder result = parseInnerQueryBuilder(parserWrapper);
+            success = true;
+            return result;
         } catch (XContentParseException xpe) {
             // ObjectParser wraps any exception from the namedObject hook (including
             // CircuitBreakingException) in XContentParseException. ExceptionsHelper.status()
@@ -585,7 +620,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             throw xpe;
         } finally {
             if (breaker != null && totalCharged[0] > 0) {
-                breaker.addWithoutBreaking(-totalCharged[0]);
+                if (success && trackTo != null) {
+                    trackTo.addCharges(List.of(() -> breaker.addWithoutBreaking(-totalCharged[0])));
+                } else {
+                    breaker.addWithoutBreaking(-totalCharged[0]);
+                }
             }
         }
     }

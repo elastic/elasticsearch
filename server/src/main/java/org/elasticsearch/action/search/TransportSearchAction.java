@@ -416,9 +416,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // Capture source before rewrite; close() releases parse-time circuit-breaker charge when the request ends.
+        final var searchSource = searchRequest.source();
+        final ActionListener<SearchResponse> releaseListener = searchSource != null
+            ? ActionListener.runAfter(listener, searchSource::close)
+            : listener;
         SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
         activityLogger.wrapAndRun(
-            listener,
+            releaseListener,
             searchLogContextBuilder,
             l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
@@ -802,6 +807,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             allowPartialSearchResults
         );
         rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        if (source != null) {
+            rewriteContext.setQueryParsingReservation(source.queryParsingReservation());
+        }
         // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
         final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
         task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));

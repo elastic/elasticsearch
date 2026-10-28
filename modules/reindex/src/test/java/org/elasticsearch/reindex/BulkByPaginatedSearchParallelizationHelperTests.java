@@ -22,17 +22,22 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -41,9 +46,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -59,6 +68,7 @@ import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearch
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -66,6 +76,15 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
 
     private ThreadPool threadPool;
     private TaskManager taskManager;
+    private NamedXContentRegistry searchRegistry;
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        if (searchRegistry == null) {
+            searchRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        }
+        return searchRegistry;
+    }
 
     @Before
     public void setUpTaskManager() {
@@ -307,6 +326,203 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         float expectedChildRps = capturedRps / incompleteSliceCount;
         for (ReindexRequest childRequest : capturedChildRequests) {
             assertThat(childRequest.getRequestsPerSecond(), equalTo(expectedChildRps));
+        }
+    }
+
+    /**
+     * When the shard-count lookup fails during {@code slices=auto} initialisation, the parse-time
+     * breaker charge on the search source must be released. The {@code closingListener} installed
+     * in {@code startSlicedAction} before {@code initTaskState} is responsible for this.
+     */
+    public void testBreakerReleasedOnAutoSlicesInitFailure() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE / 2));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            ReindexRequest request = new ReindexRequest();
+            request.getSearchRequest().indices("source-index");
+            request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            request.getSearchRequest().source(new SearchSourceBuilder());
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"query\":{\"match_all\":{}}}")) {
+                request.getSearchRequest().source().parseXContent(parser, false, nf -> false);
+            }
+            assertThat("breaker must be charged after parse", breaker.getUsed(), greaterThan(0L));
+
+            BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
+            Client failingClient = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request actionRequest,
+                    ActionListener<Response> listener
+                ) {
+                    listener.onFailure(new RuntimeException("index not found"));
+                }
+            };
+            DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
+            BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
+                request,
+                task,
+                ReindexAction.INSTANCE,
+                ActionListener.noop(),
+                failingClient,
+                node,
+                wrappedListener -> {
+                    throw new AssertionError("worker action must not be invoked on init failure");
+                }
+            );
+            assertEquals("breaker must be fully released after init failure", 0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    /**
+     * In the multi-slice (leader) path, the parse-time breaker charge must remain positive while
+     * any slice is outstanding and must drop to zero only when the final slice completes.
+     */
+    public void testBreakerHeldUntilFinalSliceCompletes() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE / 2));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            ReindexRequest request = new ReindexRequest();
+            request.getSearchRequest().indices("source-index");
+            request.setSlices(2);
+            request.getSearchRequest().source(new SearchSourceBuilder());
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"query\":{\"match_all\":{}}}")) {
+                request.getSearchRequest().source().parseXContent(parser, false, nf -> false);
+            }
+            assertThat("breaker must be charged after parse", breaker.getUsed(), greaterThan(0L));
+
+            BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
+            task.setWorkerCount(2, request.getRequestsPerSecond());
+
+            List<ActionListener<BulkByPaginatedSearchResponse>> sliceListeners = new ArrayList<>();
+            Client client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Req extends ActionRequest, Resp extends ActionResponse> void doExecute(
+                    ActionType<Resp> action,
+                    Req req,
+                    ActionListener<Resp> listener
+                ) {
+                    sliceListeners.add((ActionListener<BulkByPaginatedSearchResponse>) listener);
+                }
+            };
+
+            DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
+            executeSlicedAction(task, request, ReindexAction.INSTANCE, ActionListener.noop(), client, node, null, v -> {});
+
+            assertEquals("two slice requests must be dispatched", 2, sliceListeners.size());
+            assertThat("breaker must be held while slices are outstanding", breaker.getUsed(), greaterThan(0L));
+
+            sliceListeners.get(0).onResponse(emptySliceResponse(0));
+            assertThat("breaker must still be held after only the first slice completes", breaker.getUsed(), greaterThan(0L));
+
+            sliceListeners.get(1).onResponse(emptySliceResponse(1));
+            assertEquals("breaker must be released after the final slice completes", 0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    /**
+     * In the worker (single-slice) path, the parse-time breaker charge must remain positive while
+     * the worker search is in flight and must drop to zero only when the worker's listener fires —
+     * including via cancellation detected mid-search.
+     */
+    public void testBreakerHeldDuringWorkerExecution() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE / 2));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            ReindexRequest request = new ReindexRequest();
+            request.getSearchRequest().indices("source-index");
+            request.setSlices(1);
+            request.getSearchRequest().source(new SearchSourceBuilder());
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"query\":{\"match_all\":{}}}")) {
+                request.getSearchRequest().source().parseXContent(parser, false, nf -> false);
+            }
+            assertThat("breaker must be charged after parse", breaker.getUsed(), greaterThan(0L));
+
+            BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
+            DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
+
+            // Worker stores the wrapped listener without calling it, simulating a search in flight.
+            AtomicReference<Runnable> triggerCancellation = new AtomicReference<>();
+            BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
+                request,
+                task,
+                ReindexAction.INSTANCE,
+                ActionListener.noop(),
+                null,
+                node,
+                wrappedListener -> triggerCancellation.set(
+                    () -> wrappedListener.onFailure(new RuntimeException("task cancelled mid-reindex"))
+                )
+            );
+
+            assertThat("breaker must be held while the worker search is outstanding", breaker.getUsed(), greaterThan(0L));
+            triggerCancellation.get().run();
+            assertEquals("breaker must be released after the worker search completes", 0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    private static BulkByPaginatedSearchResponse emptySliceResponse(int sliceId) {
+        BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
+            sliceId,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            TimeValue.ZERO,
+            0f,
+            null,
+            TimeValue.ZERO
+        );
+        return new BulkByPaginatedSearchResponse(TimeValue.ZERO, status, List.of(), List.of(), false);
+    }
+
+    /**
+     * When a worker task is cancelled before its first search (i.e., the worker action calls
+     * {@code wrappedListener.onFailure} without ever reaching {@code TransportSearchAction}), the
+     * parse-time breaker charge on the original search source must be released via the wrapped listener
+     * that {@code startSlicedAction} passes to the worker.
+     */
+    public void testBreakerReleasedOnWorkerCancellationBeforeSearch() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(Long.MAX_VALUE / 2));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            ReindexRequest request = new ReindexRequest();
+            request.getSearchRequest().indices("source-index");
+            request.setSlices(1);
+            request.getSearchRequest().source(new SearchSourceBuilder());
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"query\":{\"match_all\":{}}}")) {
+                request.getSearchRequest().source().parseXContent(parser, false, nf -> false);
+            }
+            assertThat("breaker must be charged after parse", breaker.getUsed(), greaterThan(0L));
+
+            BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
+            DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
+            // Worker action immediately fails (simulates cancellation before the first search call).
+            BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
+                request,
+                task,
+                ReindexAction.INSTANCE,
+                ActionListener.noop(),
+                null,
+                node,
+                wrappedListener -> wrappedListener.onFailure(new RuntimeException("task cancelled"))
+            );
+            assertEquals("breaker must be fully released after worker cancellation", 0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
         }
     }
 }

@@ -75,7 +75,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
     }
 
     protected KnnSearchBuilder parseKnnSearchBuilder(XContentParser parser) throws IOException {
-        return KnnSearchBuilder.fromXContent(parser).build(DEFAULT_SIZE);
+        return KnnSearchBuilder.fromXContent(parser, null).build(DEFAULT_SIZE);
     }
 
     public final void testKnnSearchBuilderXContent() throws Exception {

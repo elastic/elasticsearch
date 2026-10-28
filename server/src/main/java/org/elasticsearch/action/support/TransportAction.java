@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ReleasableRequest;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -92,6 +93,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         // Releasables#releaseOnce to avoid a double-release.
         request.mustIncRef();
         final var releaseRef = Releasables.releaseOnce(request::decRef);
+        if (request instanceof ReleasableRequest rel) {
+            final var reservationHandle = rel.acquireReservation();
+            if (reservationHandle != null) {
+                listener = ActionListener.runBefore(listener, reservationHandle::close);
+            }
+        }
         RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger, handler, releaseRef);
         requestFilterChain.proceed(task, actionName, request, ActionListener.runBefore(listener, releaseRef::close));
     }

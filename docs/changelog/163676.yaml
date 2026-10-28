@@ -1,0 +1,5 @@
+area: Analysis
+issues: [163431]
+pr: 163676
+summary: "Fix haasephonetik dropping the letter after a leading CH for new indices only; existing indices keep their previous codes until reindexed"
+type: bug

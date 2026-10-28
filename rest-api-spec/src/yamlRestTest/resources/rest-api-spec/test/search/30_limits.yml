@@ -171,7 +171,7 @@ setup:
         - method: GET
           path: /_search
           capabilities: [ aggregation_include_exclude_regex_length_limit ]
-      reason: include/exclude regex length is bounded by index.max_regex_length since 9.6
+      reason: include/exclude regex length is bounded by index.max_regex_length since 9.7
 
   - do:
       catch: bad_request
@@ -266,7 +266,7 @@ setup:
         - method: GET
           path: /_search
           capabilities: [ aggregation_include_exclude_regex_length_limit ]
-      reason: include/exclude regex length is bounded by index.max_regex_length since 9.6
+      reason: include/exclude regex length is bounded by index.max_regex_length since 9.7
 
   - do:
       indices.create:

@@ -5,7 +5,7 @@ setup:
         - method: GET
           path: /_search
           capabilities: [ regexp_query_charged ]
-      reason: "the regexp query builds its automaton through the charged compiler since 9.6"
+      reason: "the regexp query builds its automaton through the charged compiler"
 
   # One copy of one shard, so the node that builds the automaton is the one whose breaker is read below.
   - do:

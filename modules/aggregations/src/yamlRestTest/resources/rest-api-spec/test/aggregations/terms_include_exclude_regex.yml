@@ -5,7 +5,7 @@ setup:
         - method: GET
           path: /_search
           capabilities: [ aggregation_include_exclude_regex_charged ]
-      reason: "include/exclude regex is compiled on the shard through the charged compiler since 9.6"
+      reason: "include/exclude regex is compiled on the shard through the charged compiler"
 
   - do:
       indices.create:

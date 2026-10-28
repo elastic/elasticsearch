@@ -221,7 +221,7 @@ $$$index-max-regex-length$$$
 :   The maximum length of value that can be used in the following places:
 
     * A `regexp` or `prefix` query.
-    * {applies_to}`stack: ga 9.6` The regular expression in the `include` and `exclude` parameters of the `terms`, `significant_terms`, `significant_text`, `rare_terms` and `frequent_item_sets` aggregations.
+    * {applies_to}`stack: ga 9.7` The regular expression in the `include` and `exclude` parameters of the `terms`, `significant_terms`, `significant_text`, `rare_terms` and `frequent_item_sets` aggregations.
 
     Defaults to `1000`.
 
@@ -303,7 +303,7 @@ $$$index-esql-stored-fields-sequential-proportion$$$
 $$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
 :   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `true` for indexes created with {{es}} 9.3, `false` for indexes created with older versions.
 
-$$$index-dense-vector-post-filter-selectivity-threshold$$$ `index.dense_vector.post_filter_selectivity_threshold` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+$$$index-dense-vector-post-filter-selectivity-threshold$$$ `index.dense_vector.post_filter_selectivity_threshold` {applies_to}`stack: ga 9.7` {applies_to}`serverless: ga`
 :   Controls when a filtered approximate kNN search applies its filter after the vector search instead of during it. For each shard, {{es}} estimates the fraction of vectors that match the filter. If that fraction is greater than or equal to this setting, the search runs without the filter, gathers extra candidates to make up for the ones the filter is expected to remove, and then applies the filter. Otherwise, {{es}} applies the filter during the search. Accepts values from `0.0` to `1.0`. Lower values post-filter more selective filters, and `1.0` turns post-filtering off. Defaults to `0.7`. Applies to `dense_vector` fields. For details, refer to [Filter approximate kNN results](docs-content://solutions/search/vector/knn/filtered-knn-search.md#filtering-behavior-and-performance).
 
 $$$index-use_time_series_doc_values_format$$$ `index.use_time_series_doc_values_format` {applies_to}`stack: ga 9.3`

@@ -222,8 +222,9 @@ public class SearchColdSegmentsMetricsIT extends AbstractStatelessPluginIntegTes
     }
 
     /**
-     * Object store strategy that stalls the upload of Batched Compound Commit blobs once {@link #blocking} is set, until {@link #release} is
-     * counted down. It records the stalled blob names so the test can retrieve the matching VBCC and assert an upload was actually in flight.
+     * Object store strategy that stalls the upload of Batched Compound Commit blobs once {@link #blocking} is set, until
+     * {@link #release} is counted down. It records the stalled blob names so the test can retrieve the matching VBCC and
+     * assert an upload was actually in flight.
      */
     private static final class BlockBccUploadStrategy extends StatelessMockRepositoryStrategy {
         private final AtomicBoolean blocking = new AtomicBoolean(false);

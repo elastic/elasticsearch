@@ -173,6 +173,32 @@ public class SortFieldValidationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("incompatible sort types"));
     }
 
+    public void testPlaceholderMissingValueMatchesTheValuesGivenToPlaceholderDocs() {
+        SortField last = placeholder(false, SortField.STRING_LAST);
+        SortField first = placeholder(false, SortField.STRING_FIRST);
+        for (Object max : new Object[] {
+            Integer.MAX_VALUE,
+            Long.MAX_VALUE,
+            Float.POSITIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            "Infinity" }) {
+            assertTrue(SortFieldValidation.isPlaceholderMissingValue(last, max));
+            assertFalse(SortFieldValidation.isPlaceholderMissingValue(first, max));
+        }
+        for (Object min : new Object[] {
+            Integer.MIN_VALUE,
+            Long.MIN_VALUE,
+            Float.NEGATIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            "-Infinity" }) {
+            assertTrue(SortFieldValidation.isPlaceholderMissingValue(first, min));
+            assertFalse(SortFieldValidation.isPlaceholderMissingValue(last, min));
+        }
+        assertFalse(SortFieldValidation.isPlaceholderMissingValue(last, 3.14));
+        assertFalse(SortFieldValidation.isPlaceholderMissingValue(last, "foo"));
+        assertFalse(SortFieldValidation.isPlaceholderMissingValue(new SortField(FIELD, SortField.Type.STRING), Long.MAX_VALUE));
+    }
+
     private static Sort validate(boolean inGivenOrder, TopFieldDocs... shards) {
         List<TopFieldDocs> results = new ArrayList<>(List.of(shards));
         if (inGivenOrder == false) {

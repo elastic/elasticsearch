@@ -207,6 +207,32 @@ public final class SortFieldValidation {
     }
 
     /**
+     * Whether a {@code search_after} value is the numeric missing value that {@link #validateAndMaybeRewrite} gave to the docs of a
+     * placeholder shard (see {@link #findUnmappedPlaceholders}), as seen by a shard that still sorts on the STRING placeholder.
+     * Such a value stands for "no value for the field": parsing it as a string would not tie with the docs of the shard, which all
+     * have no value, so a page would skip or repeat them. The values are the ones given by {@link #numericMissingValue}, as
+     * numbers or, for infinities, as the strings they are rendered as in a response.
+     */
+    public static boolean isPlaceholderMissingValue(SortField sortField, Object value) {
+        Object missingValue = stringMissingValue(sortField);
+        if (missingValue != SortField.STRING_FIRST && missingValue != SortField.STRING_LAST) {
+            return false;
+        }
+        boolean max = missingValue == SortField.STRING_LAST;
+        if (value instanceof String string) {
+            return string.equals(max ? "Infinity" : "-Infinity");
+        }
+        if (value instanceof Long || value instanceof Integer) {
+            long number = ((Number) value).longValue();
+            return number == (max ? Long.MAX_VALUE : Long.MIN_VALUE) || number == (max ? Integer.MAX_VALUE : Integer.MIN_VALUE);
+        }
+        if (value instanceof Double || value instanceof Float) {
+            return ((Number) value).doubleValue() == (max ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
+        }
+        return false;
+    }
+
+    /**
      * Gives the docs of the placeholder shards the value that a doc without a value would have if the field was mapped as
      * {@code type}, so that they are ordered according to the {@code missing} option of the sort, like the other missing docs.
      */

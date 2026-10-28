@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,6 +38,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -69,6 +72,27 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
 
     public void testCategorize_withDriver() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        runWithDriver(bigArrays);
+    }
+
+    public void testCategorize_withDriver_withCrankyBreaker() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
+            .withCircuitBreaking();
+        CircuitBreakingException exception = null;
+        try {
+            runWithDriver(bigArrays);
+            // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
+        } catch (CircuitBreakingException e) {
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            exception = e;
+        }
+        long usedBytes = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed();
+        if (usedBytes != 0L) {
+            fail(exception, "Expected no used bytes, found: " + usedBytes);
+        }
+    }
+
+    private void runWithDriver(BigArrays bigArrays) {
         DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
@@ -114,7 +138,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     messagesBuilder.appendNull();
                     idsBuilder.appendInt(43);
                 }
-                return new Block[] { messagesBuilder.build(), idsBuilder.build() };
+                return Block.Builder.buildAll(messagesBuilder, idsBuilder);
             }
         };
         LocalSourceOperator.BlockSupplier input2 = () -> {
@@ -134,133 +158,147 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     messagesBuilder.appendNull();
                     idsBuilder.appendNull();
                 }
-                return new Block[] { messagesBuilder.build(), idsBuilder.build() };
+                return Block.Builder.buildAll(messagesBuilder, idsBuilder);
             }
         };
 
         List<Page> intermediateOutput = new ArrayList<>();
-
-        Driver driver = TestDriverFactory.create(
-            driverContext,
-            new LocalSourceOperator(input1),
-            List.of(
-                new HashAggregationOperator.Builder().groups(groupSpecs)
-                    .mode(AggregatorMode.INITIAL)
-                    .aggregators(
-                        List.of(
-                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
-                        )
-                    )
-                    .maxPageSize(16 * 1024)
-                    .aggregationBatchSize(16 * 1024)
-                    .analysisRegistry(analysisRegistry)
-                    .build()
-                    .get(driverContext)
-            ),
-            new PageConsumerOperator(intermediateOutput::add)
-        );
-        new TestDriverRunner().run(driver);
-
-        driver = TestDriverFactory.create(
-            driverContext,
-            new LocalSourceOperator(input2),
-            List.of(
-                new HashAggregationOperator.Builder().groups(groupSpecs)
-                    .mode(AggregatorMode.INITIAL)
-                    .aggregators(
-                        List.of(
-                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
-                        )
-                    )
-                    .maxPageSize(16 * 1024)
-                    .aggregationBatchSize(16 * 1024)
-                    .analysisRegistry(analysisRegistry)
-                    .build()
-                    .get(driverContext)
-            ),
-            new PageConsumerOperator(intermediateOutput::add)
-        );
-        new TestDriverRunner().run(driver);
-
         List<Page> finalOutput = new ArrayList<>();
+        // Once the final driver is created, it owns the intermediate pages
+        boolean finalDriverCreated = false;
+        try {
 
-        driver = TestDriverFactory.create(
-            driverContext,
-            new CannedSourceOperator(intermediateOutput.iterator()),
-            List.of(
-                new HashAggregationOperator.Builder().groups(groupSpecs)
-                    .mode(AggregatorMode.FINAL)
-                    .aggregators(
-                        List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2)))
-                    )
-                    .maxPageSize(16 * 1024)
-                    .aggregationBatchSize(16 * 1024)
-                    .analysisRegistry(analysisRegistry)
-                    .build()
-                    .get(driverContext)
-            ),
-            new PageConsumerOperator(finalOutput::add)
-        );
-        new TestDriverRunner().run(driver);
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new LocalSourceOperator(input1),
+                List.of(
+                    new HashAggregationOperator.Builder().groups(groupSpecs)
+                        .mode(AggregatorMode.INITIAL)
+                        .aggregators(
+                            List.of(
+                                new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
+                            )
+                        )
+                        .maxPageSize(16 * 1024)
+                        .aggregationBatchSize(16 * 1024)
+                        .analysisRegistry(analysisRegistry)
+                        .build()
+                        .get(driverContext)
+                ),
+                new PageConsumerOperator(intermediateOutput::add)
+            );
+            new TestDriverRunner().run(driver);
 
-        assertThat(finalOutput, hasSize(1));
-        assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
-        BytesRefBlock outputMessages = finalOutput.get(0).getBlock(0);
-        IntBlock outputIds = finalOutput.get(0).getBlock(1);
-        BytesRefBlock outputValues = finalOutput.get(0).getBlock(2);
-        assertThat(outputIds.getPositionCount(), equalTo(outputMessages.getPositionCount()));
-        assertThat(outputValues.getPositionCount(), equalTo(outputMessages.getPositionCount()));
-        Map<String, Map<Integer, Set<String>>> result = new HashMap<>();
-        for (int i = 0; i < outputMessages.getPositionCount(); i++) {
-            BytesRef messageBytesRef = ((BytesRef) BlockUtils.toJavaObject(outputMessages, i));
-            String message = messageBytesRef == null ? null : messageBytesRef.utf8ToString();
-            result.computeIfAbsent(message, key -> new HashMap<>());
+            driver = TestDriverFactory.create(
+                driverContext,
+                new LocalSourceOperator(input2),
+                List.of(
+                    new HashAggregationOperator.Builder().groups(groupSpecs)
+                        .mode(AggregatorMode.INITIAL)
+                        .aggregators(
+                            List.of(
+                                new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
+                            )
+                        )
+                        .maxPageSize(16 * 1024)
+                        .aggregationBatchSize(16 * 1024)
+                        .analysisRegistry(analysisRegistry)
+                        .build()
+                        .get(driverContext)
+                ),
+                new PageConsumerOperator(intermediateOutput::add)
+            );
+            new TestDriverRunner().run(driver);
 
-            Integer id = (Integer) BlockUtils.toJavaObject(outputIds, i);
-            result.get(message).computeIfAbsent(id, key -> new HashSet<>());
+            driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(intermediateOutput.iterator()),
+                List.of(
+                    new HashAggregationOperator.Builder().groups(groupSpecs)
+                        .mode(AggregatorMode.FINAL)
+                        .aggregators(
+                            List.of(
+                                new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))
+                            )
+                        )
+                        .maxPageSize(16 * 1024)
+                        .aggregationBatchSize(16 * 1024)
+                        .analysisRegistry(analysisRegistry)
+                        .build()
+                        .get(driverContext)
+                ),
+                new PageConsumerOperator(finalOutput::add)
+            );
+            finalDriverCreated = true;
+            new TestDriverRunner().run(driver);
 
-            Object values = BlockUtils.toJavaObject(outputValues, i);
-            if (values == null) {
-                result.get(message).get(id).add(null);
-            } else {
-                if ((values instanceof List) == false) {
-                    values = List.of(values);
-                }
-                for (Object valueObject : (List<?>) values) {
-                    BytesRef value = (BytesRef) valueObject;
-                    result.get(message).get(id).add(value.utf8ToString());
+            assertThat(finalOutput, hasSize(1));
+            assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
+            BytesRefBlock outputMessages = finalOutput.get(0).getBlock(0);
+            IntBlock outputIds = finalOutput.get(0).getBlock(1);
+            BytesRefBlock outputValues = finalOutput.get(0).getBlock(2);
+            assertThat(outputIds.getPositionCount(), equalTo(outputMessages.getPositionCount()));
+            assertThat(outputValues.getPositionCount(), equalTo(outputMessages.getPositionCount()));
+            Map<String, Map<Integer, Set<String>>> result = new HashMap<>();
+            for (int i = 0; i < outputMessages.getPositionCount(); i++) {
+                BytesRef messageBytesRef = ((BytesRef) BlockUtils.toJavaObject(outputMessages, i));
+                String message = messageBytesRef == null ? null : messageBytesRef.utf8ToString();
+                result.computeIfAbsent(message, key -> new HashMap<>());
+
+                Integer id = (Integer) BlockUtils.toJavaObject(outputIds, i);
+                result.get(message).computeIfAbsent(id, key -> new HashSet<>());
+
+                Object values = BlockUtils.toJavaObject(outputValues, i);
+                if (values == null) {
+                    result.get(message).get(id).add(null);
+                } else {
+                    if ((values instanceof List) == false) {
+                        values = List.of(values);
+                    }
+                    for (Object valueObject : (List<?>) values) {
+                        BytesRef value = (BytesRef) valueObject;
+                        result.get(message).get(id).add(value.utf8ToString());
+                    }
                 }
             }
-        }
-        Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
 
-        List<String> keys = switch (categorizeDef.outputFormat()) {
-            case REGEX -> List.of(".*?connected.+?to.*?", ".*?connection.+?error.*?", ".*?disconnected.*?");
-            case TOKENS -> List.of("connected to", "connection error", "disconnected");
-        };
-        Map<String, Map<Integer, Set<String>>> expectedResult = Map.of(
-            keys.get(0),
-            Map.of(
-                7,
-                Set.of("connected to 1.1.1", "connected to 1.1.2", "connected to 1.1.4", "connected to 2.1.2"),
-                42,
-                Set.of("connected to 1.1.3"),
-                111,
-                Set.of("connected to 2.1.1")
-            ),
-            keys.get(1),
-            Map.of(7, Set.of("connection error"), 42, Set.of("connection error")),
-            keys.get(2),
-            Map.of(7, Set.of("disconnected"))
-        );
-        if (withNull) {
-            expectedResult = new HashMap<>(expectedResult);
-            expectedResult.put(null, new HashMap<>());
-            expectedResult.get(null).put(null, new HashSet<>());
-            expectedResult.get(null).get(null).add(null);
-            expectedResult.get(null).put(43, new HashSet<>());
-            expectedResult.get(null).get(43).add(null);
+            List<String> keys = switch (categorizeDef.outputFormat()) {
+                case REGEX -> List.of(".*?connected.+?to.*?", ".*?connection.+?error.*?", ".*?disconnected.*?");
+                case TOKENS -> List.of("connected to", "connection error", "disconnected");
+            };
+            Map<String, Map<Integer, Set<String>>> expectedResult = Map.of(
+                keys.get(0),
+                Map.of(
+                    7,
+                    Set.of("connected to 1.1.1", "connected to 1.1.2", "connected to 1.1.4", "connected to 2.1.2"),
+                    42,
+                    Set.of("connected to 1.1.3"),
+                    111,
+                    Set.of("connected to 2.1.1")
+                ),
+                keys.get(1),
+                Map.of(7, Set.of("connection error"), 42, Set.of("connection error")),
+                keys.get(2),
+                Map.of(7, Set.of("disconnected"))
+            );
+            if (withNull) {
+                expectedResult = new HashMap<>(expectedResult);
+                expectedResult.put(null, new HashMap<>());
+                expectedResult.get(null).put(null, new HashSet<>());
+                expectedResult.get(null).get(null).add(null);
+                expectedResult.get(null).put(43, new HashSet<>());
+                expectedResult.get(null).get(43).add(null);
+            }
+            assertThat(result, equalTo(expectedResult));
+        } finally {
+            if (finalDriverCreated == false) {
+                releasePages(intermediateOutput);
+            }
+            releasePages(finalOutput);
         }
-        assertThat(result, equalTo(expectedResult));
+    }
+
+    private static void releasePages(List<Page> pages) {
+        Releasables.close(() -> Iterators.map(pages.iterator(), (Page p) -> p::releaseBlocks));
     }
 }

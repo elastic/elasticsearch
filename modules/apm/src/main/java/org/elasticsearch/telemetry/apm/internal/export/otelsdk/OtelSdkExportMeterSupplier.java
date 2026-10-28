@@ -70,6 +70,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     private final Path diskBufferPath;
     @Nullable
     private final MetricReaderProvider metricReaderProvider;
+    final String authHeader;
     private volatile OTelMetricsResources resources;
     private final Object mutex = new Object();
 
@@ -77,6 +78,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
         this.metricReaderProvider = metricReaderProvider;
+        this.authHeader = buildOtlpAuthorizationHeader(settings);
     }
 
     /** For testing: pre-initializes resources so tests can inject readable providers. */
@@ -84,6 +86,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
         this.metricReaderProvider = null;
+        this.authHeader = buildOtlpAuthorizationHeader(settings);
         this.resources = testResources;
     }
 
@@ -179,7 +182,6 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
             .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
-        String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }

@@ -33,6 +33,9 @@ public final class QuerySampler {
 
     private static final long REGULATION_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(10);
 
+    // what is left of the chance of a pick while the pick limit is reached: never 0, so that every query keeps a chance
+    static final double LIMITED_FACTOR = 0.01;
+
     private volatile double scale;
     private volatile long headThreshold;
     private final Random random;
@@ -83,7 +86,7 @@ public final class QuerySampler {
         }
     }
 
-    /** Arrivals given no chance to be picked because the pick limit was reached. */
+    /** Arrivals whose chance to be picked was cut because the pick limit was reached. */
     public long starved() {
         return starved.sum();
     }
@@ -122,8 +125,9 @@ public final class QuerySampler {
             probability = Math.min(1.0, uncappedAcceptance(multiplicity, 1.0 / weights.captureRate()) * strata);
         }
         if (head == false && budget.available() == false) {
-            // limit reached: record probability 0 like any other draw so estimates stay unbiased; head queries are exempt
-            probability = 0.0;
+            // limit reached: the chance is cut, not taken away, so every query keeps one and estimates stay unbiased; a few
+            // picks may pass the limit. Head queries are exempt
+            probability *= LIMITED_FACTOR;
             starved.increment();
         }
         query.recordDraw(probability);

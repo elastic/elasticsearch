@@ -21,7 +21,8 @@ import java.util.function.LongSupplier;
  * Counts arrivals per distinct query so duplicates can be stored once with their multiplicity, which keeps traffic
  * estimates unbiased. Queries are forgotten between one and two windows after their last arrival: each remembers the
  * window of its last arrival, and at the end of a window the ones from two windows ago are removed. The number of
- * distinct queries is bounded; unknown queries beyond it are only counted as untracked.
+ * distinct queries is bounded: when it is reached, the queries not seen in the current window are forgotten early, and
+ * unknown queries beyond that are only counted as untracked.
  */
 public final class MultiplicityTracker {
 
@@ -29,9 +30,10 @@ public final class MultiplicityTracker {
     private volatile long windowNanos;
     private final LongSupplier nanoTime;
     private final Map<QueryFingerprint, TrackedQuery> tracked = new ConcurrentHashMap<>();
-    // both only used by the thread that records
+    // only used by the thread that records
     private long windowStart;
     private long window;
+    private long roomMadeInWindow = -1;
     private final LongAdder untracked = new LongAdder();
 
     public MultiplicityTracker(int maxDistinct) {
@@ -64,7 +66,7 @@ public final class MultiplicityTracker {
         rotateIfDue();
         TrackedQuery query = tracked.get(fingerprint);
         if (query == null) {
-            if (distinct() >= maxDistinct) {
+            if (distinct() >= maxDistinct && makeRoom() == false) {
                 untracked.increment();
                 return null;
             }
@@ -86,6 +88,17 @@ public final class MultiplicityTracker {
             tracked.values().removeIf(query -> query.lastWindow < window - 1);
             windowStart = now;
         }
+    }
+
+    // when full, forgets now the queries not seen in this window, which its end would forget anyway, so that new queries keep a
+    // chance; at most once a window, as it goes through them all
+    private boolean makeRoom() {
+        if (roomMadeInWindow == window) {
+            return false;
+        }
+        roomMadeInWindow = window;
+        tracked.values().removeIf(query -> query.lastWindow < window);
+        return distinct() < maxDistinct;
     }
 
     // once false, the query's counters no longer change: its next arrival starts a new count

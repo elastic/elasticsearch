@@ -24,11 +24,11 @@ public class QuerySamplerTests extends ESTestCase {
 
     private static final QueryFingerprint FINGERPRINT = new QueryFingerprint(1, 1);
 
-    public void testQueriesGetNoChanceOnceThePicksAreUsedUpAndThatIsRecorded() {
+    public void testQueriesGetALowerChanceOnceThePicksAreUsedUpAndThatIsRecorded() {
         AtomicLong clock = new AtomicLong();
         PickBudget limit = new PickBudget(clock::get);
         limit.perHour(60);
-        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), limit, new SpatialStrata(0));
+        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.5), limit, new SpatialStrata(0));
         MultiplicityTracker tracker = new MultiplicityTracker(10);
 
         TrackedQuery first = tracker.record(new QueryFingerprint(1, 1));
@@ -38,8 +38,12 @@ public class QuerySamplerTests extends ESTestCase {
         assertTrue("the pick there is", sampler.offer(first));
         assertFalse(sampler.offer(second));
         assertFalse(sampler.offer(third));
-        assertThat("no chance, which is what the probability of the query says", second.weights().inclusionProbability(), equalTo(0.0));
-        assertThat("both were turned away by the limit", sampler.starved(), equalTo(2L));
+        assertThat(
+            "a chance cut, not taken away, which is what the probability of the query says",
+            second.weights().inclusionProbability(),
+            closeTo(QuerySampler.LIMITED_FACTOR * Math.log(2), 1e-12)
+        );
+        assertThat("both were cut by the limit", sampler.starved(), equalTo(2L));
         assertThat(first.weights().inclusionProbability(), greaterThan(0.0));
 
         clock.addAndGet(TimeUnit.MINUTES.toNanos(2));

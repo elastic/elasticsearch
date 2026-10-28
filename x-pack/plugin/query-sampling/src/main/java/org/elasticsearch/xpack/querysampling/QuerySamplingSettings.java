@@ -81,7 +81,10 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /** Most queries a node picks per hour, apart from the hottest ones. 0 means no limit. */
+    /**
+     * Most queries a node picks per hour, apart from the hottest ones; once it is reached the chance of a pick is cut to a
+     * hundredth, not to 0, so a few more may pass. 0 means no limit.
+     */
     public static final Setting<Long> MAX_PICKS_PER_HOUR = Setting.longSetting(
         "xpack.query_sampling.max_picks_per_hour",
         0L,

@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.common.RemoveProcessor.shouldKeep;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RemoveProcessorTests extends ESTestCase {
@@ -186,6 +187,16 @@ public class RemoveProcessorTests extends ESTestCase {
         assertTrue(document.hasField("_version"));
         assertTrue(document.hasField("_id"));
         assertTrue(document.hasField("_version_type"));
+    }
+
+    public void testKeepFieldsLeavesDynamicTemplatesMetadataIntact() throws Exception {
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("name", "eric clapton")));
+        document.getMetadata().put("_dynamic_templates", new HashMap<>(Map.of("foo", "bar")));
+
+        Processor processor = new RemoveProcessor(null, null, List.of(), templates("name"), false);
+        processor.execute(document);
+
+        assertThat(document.getMetadata().getDynamicTemplates(), equalTo(Map.of("foo", "bar")));
     }
 
     public void testShouldKeep() {

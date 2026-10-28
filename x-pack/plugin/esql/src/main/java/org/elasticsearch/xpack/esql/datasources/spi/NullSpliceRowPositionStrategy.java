@@ -96,6 +96,11 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
         }
 
         @Override
+        public boolean isExhausted() {
+            return inner.isExhausted();
+        }
+
+        @Override
         public void revokeOvershootOnPark() {
             inner.revokeOvershootOnPark();
         }

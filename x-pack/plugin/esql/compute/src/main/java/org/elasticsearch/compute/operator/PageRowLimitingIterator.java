@@ -63,7 +63,15 @@ public class PageRowLimitingIterator implements CloseableIterator<Page> {
 
     @Override
     public SubscribableListener<Void> waitForReady() {
+        if (remaining <= 0) {
+            return SubscribableListener.newSucceeded(null);
+        }
         return delegate.waitForReady();
+    }
+
+    @Override
+    public boolean isExhausted() {
+        return remaining <= 0 || delegate.isExhausted();
     }
 
     @Override

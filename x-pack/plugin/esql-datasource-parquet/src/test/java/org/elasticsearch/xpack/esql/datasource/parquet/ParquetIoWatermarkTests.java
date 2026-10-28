@@ -14,12 +14,15 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +55,35 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertFalse("tryReserve must not cross the cap", watermark.tryReserve(30));
         assertEquals(80, watermark.used());
         assertEquals(1, watermark.holders());
+    }
+
+    public void testGrantAgePolicyAndRescuePlainHold() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        assertEquals(AdmissionGate.StallPolicy.GRANT_AGE, watermark.stallPolicy());
+        assertTrue(watermark.tryReserve(80));
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold overshoot = awaitAdmit(watermark, 25, owner);
+        overshoot.drop();
+        assertEquals(80, watermark.used());
+        assertSame(owner, watermark.overshootOwner());
+
+        RowGroupIo head = new RowGroupIo();
+        AtomicReference<ParquetIoWatermark.AdmitHold> headHold = new AtomicReference<>();
+        CountDownLatch granted = new CountDownLatch(1);
+        watermark.admitAsync(50, head, () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            headHold.set(h);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertEquals(1, watermark.waiterCount());
+        assertEquals(AdmissionGate.RescueResult.OVER_CAP, watermark.rescueHead(null));
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertNotNull(headHold.get());
+        assertEquals(130, watermark.used());
+        assertSame("rescue must not steal the overshoot slot", owner, watermark.overshootOwner());
+        headHold.get().drop();
+        watermark.release(80);
+        watermark.clearOwner(owner);
+        assertEquals(0, watermark.used());
     }
 
     public void testHoldersCountsOutstandingAdmitHolds() {
@@ -115,6 +147,24 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    public void testAccountReleaseUsesAllocLeaseWithoutAffinity() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        NodeByteBudgetService budget = new NodeByteBudgetService(1024);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
+        RowGroupIo lease = new RowGroupIo();
+        DirectReadBuffer buffer;
+        try (var ignored = StorageIoAffinity.open(lease, false)) {
+            buffer = watermark.accountingFactory(breaker).allocate(64);
+            assertEquals(HeapFootprint.byteArrayBytes(64), lease.untracked());
+        }
+        assertNull(StorageIoAffinity.current());
+        buffer.close();
+        assertEquals(0, lease.untracked());
+        assertEquals(0, budget.untracked());
+        assertEquals(0, watermark.used());
+        assertEquals(0, breaker.getUsed());
+    }
+
     public void testAdmitHoldDroppedOnceOnAllocNotDoubleCounted() throws Exception {
         CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
@@ -147,6 +197,106 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         second.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
+    }
+
+    public void testRetargetGrowsAndDropsRemaining() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(50);
+        assertNotNull(hold);
+        hold.retarget(10);
+        assertEquals(10, watermark.used());
+        assertEquals(10, hold.remaining());
+        hold.retarget(40);
+        assertEquals(40, watermark.used());
+        assertEquals(40, hold.remaining());
+        hold.retarget(80);
+        assertEquals("retarget must not grow past admitted bytes", 50, watermark.used());
+        assertEquals(50, hold.remaining());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDropIoRemainderKeepsDecodeSliceUntilDrop() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(200);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(100);
+        assertNotNull(hold);
+        hold.dropIoRemainder(40);
+        assertEquals("unused I/O estimate released; decode slice stays", 40, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDropIoRemainderForceAddsWhenIoAteDecodeSlice() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(10);
+        assertNotNull(hold);
+        hold.drop(10);
+        assertEquals(0, watermark.used());
+        hold.dropIoRemainder(20);
+        assertEquals("restore overshoots the cap without waiting", 20, watermark.used());
+        hold.dropIoRemainder(20);
+        assertEquals("second dropIoRemainder must not restore again", 20, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetForceAddsShortfallNeverWaits() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(30);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(30);
+        assertNotNull(hold);
+        hold.dropIoRemainder(30);
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 30);
+        budget.consume(50);
+        assertEquals("shortfall overshoots the cap without waiting", 50, watermark.used());
+        assertEquals(20, budget.extra());
+        budget.close();
+        assertEquals(30, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetZeroEstimateForceAddsFullConsume() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 0L);
+        budget.consume(25);
+        assertEquals("missing footer estimate still forceAdds dest/dict charges over the cap", 25, watermark.used());
+        assertEquals(25, budget.extra());
+        budget.close();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetReleaseUsesConsumeLeaseWithoutAffinity() {
+        NodeByteBudgetService nodeBudget = new NodeByteBudgetService(10);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(nodeBudget);
+        RowGroupIo lease = new RowGroupIo();
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 0L);
+        try (var ignored = StorageIoAffinity.open(lease, false)) {
+            budget.consume(25);
+            assertEquals(25, lease.untracked());
+        }
+        assertNull(StorageIoAffinity.current());
+        budget.close();
+        assertEquals(0, lease.untracked());
+        assertEquals(0, nodeBudget.untracked());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetConsumeAfterCloseIsNoop() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(40);
+        ParquetDecodeBudget leftover = ParquetDecodeBudget.tracking(watermark, 30);
+        leftover.close();
+        leftover.consume(20);
+        assertEquals("leftover estimate must not swallow dest after close", 0, watermark.used());
+        assertEquals(0, leftover.extra());
+
+        ParquetDecodeBudget exhausted = ParquetDecodeBudget.tracking(watermark, 0L);
+        exhausted.consume(15);
+        assertEquals(15, watermark.used());
+        exhausted.close();
+        assertEquals(0, watermark.used());
+        exhausted.consume(10);
+        assertEquals("forceAdd after close must not leak extras", 0, watermark.used());
+        assertEquals(0, exhausted.extra());
     }
 
     public void testTryReserveRetriesWhenReleaseLandsOverLimit() {

@@ -160,7 +160,6 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimeSlottedAccumulator;
-import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -812,7 +811,14 @@ public class StatelessPlugin extends Plugin
         final Collection<Object> components = new ArrayList<>();
         var objectStoreService = setAndGet(
             this.objectStoreService,
-            createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService, projectResolver.get())
+            createObjectStoreService(
+                settings,
+                services.repositoriesService(),
+                threadPool,
+                clusterService,
+                projectResolver.get(),
+                meterRegistry
+            )
         );
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
@@ -852,14 +858,12 @@ public class StatelessPlugin extends Plugin
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
 
-        final WarmingRatioProviderFactory warmingRatioProviderFactory = warmingRatioProviderFactoryRef.get() != null
-            ? warmingRatioProviderFactoryRef.get()
-            : new DefaultWarmingRatioProviderFactory();
-        final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            clusterService.getSettings(),
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -867,7 +871,6 @@ public class StatelessPlugin extends Plugin
             threadPool,
             services.telemetryProvider(),
             clusterService.getClusterSettings(),
-            warmingRatioProvider,
             searchRecoveryTimeoutCalculationService
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
@@ -925,7 +928,8 @@ public class StatelessPlugin extends Plugin
                 settings,
                 objectStoreService,
                 consistencyService,
-                projectResolver.get().supportsMultipleProjects()
+                projectResolver.get().supportsMultipleProjects(),
+                meterRegistry
             )
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(meterRegistry));
@@ -1194,9 +1198,10 @@ public class StatelessPlugin extends Plugin
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        MeterRegistry meterRegistry
     ) {
-        return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+        return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
     }
 
     protected StatelessSharedBlobCacheService createSharedBlobCacheService(
@@ -1238,7 +1243,6 @@ public class StatelessPlugin extends Plugin
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider,
         SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
         return new SharedBlobCacheWarmingService(
@@ -1246,7 +1250,6 @@ public class StatelessPlugin extends Plugin
             threadPool,
             telemetryProvider,
             clusterSettings,
-            warmingRatioProvider,
             searchRecoveryTimeoutCalculationService
         );
     }
@@ -1445,7 +1448,6 @@ public class StatelessPlugin extends Plugin
             FillCacheMemoryPressure.STALL_WARN_THRESHOLD,
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
@@ -1502,7 +1504,12 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,
@@ -1536,6 +1543,7 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
@@ -1669,7 +1677,8 @@ public class StatelessPlugin extends Plugin
                     sharedBlobCacheWarmingService.get(),
                     projectResolver.get(),
                     bccHeaderReadExecutor.get(),
-                    clusterService.get()
+                    clusterService.get(),
+                    warmingRatioProviderFactoryRef.get()
                 )
             );
         }
@@ -1926,6 +1935,8 @@ public class StatelessPlugin extends Plugin
             throw new IllegalStateException(WarmingRatioProviderFactory.class + " may not have multiple implementations");
         } else if (warmingRatioProviderFactories.size() == 1) {
             warmingRatioProviderFactoryRef.set(warmingRatioProviderFactories.get(0));
+        } else {
+            warmingRatioProviderFactoryRef.set(new DefaultWarmingRatioProviderFactory(() -> getClusterService().getClusterSettings()));
         }
 
         var evictionPolicyFactories = loader.loadExtensions(EvictionPolicyFactory.class);

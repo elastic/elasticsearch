@@ -12,8 +12,11 @@ package org.elasticsearch.gradle.internal.nativelibs
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
+import org.elasticsearch.gradle.internal.util.HttpUtils
 import org.gradle.api.GradleException
 import spock.lang.Specification
+
+import java.util.concurrent.atomic.AtomicInteger
 
 
 /**
@@ -28,6 +31,7 @@ class NativeArtifactRepositorySpec extends Specification {
     static final byte[] DEBUG_INFO = "debuginfo-zip-bytes".getBytes("UTF-8")
 
     HttpServer server
+    AtomicInteger requests = new AtomicInteger()
 
     def cleanup() {
         server?.stop(0)
@@ -51,12 +55,13 @@ class NativeArtifactRepositorySpec extends Specification {
 
         expect:
         repository.download(NAME, HASH).isEmpty()
+        requests.get() == 1
     }
 
-    def "download fails loudly on a server error"() {
+    def "download fails loudly on a server error, after retrying it"() {
         given:
         def repository = repositoryServing { exchange ->
-            respond(exchange, 500, "boom".getBytes("UTF-8"))
+            respond(exchange, 500, "upstream is down".getBytes("UTF-8"))
         }
 
         when:
@@ -65,6 +70,8 @@ class NativeArtifactRepositorySpec extends Specification {
         then:
         def e = thrown(Exception)
         e.message.contains("500") || e.cause?.message?.contains("500")
+        e.message.contains("upstream is down")
+        requests.get() == 3
     }
 
     def "publish with correct credentials correctly uploads the content"() {
@@ -237,10 +244,14 @@ class NativeArtifactRepositorySpec extends Specification {
 
     private NativeArtifactRepository repositoryServing(HttpHandler handler) {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
-        server.createContext("/", handler)
+        server.createContext("/") { exchange ->
+            requests.incrementAndGet()
+            handler.handle(exchange)
+        }
         server.start()
         String host = server.address.address.hostAddress
-        return new NativeArtifactRepository("http://${host}:${server.address.port}")
+        def doNotSleep = { } as HttpUtils.Sleeper
+        return new NativeArtifactRepository("http://${host}:${server.address.port}", doNotSleep)
     }
 
     private static void respond(HttpExchange exchange, int status, byte[] body) {

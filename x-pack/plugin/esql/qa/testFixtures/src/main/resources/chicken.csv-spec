@@ -32,7 +32,9 @@ ___________\n< Soup time >\n -----------\n     \\n      \       ______\n       \
 
 chickenNull
 required_capability: fn_chicken
+required_capability: warn_null_misuse
 ROW result = CHICKEN(null, {"style": "ordinary"});
+warning:Line 1:14: Expression [CHICKEN(null, {\"style\": \"ordinary\"})] always evaluates to NULL.
 
 result:keyword
 null

@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/** Registers the internal kNN evaluation REST and transport actions. */
+/** Registers the kNN evaluation REST and transport actions and their settings. */
 public class KnnEvalPlugin extends Plugin implements ActionPlugin {
 
     static final ActionType<KnnEvalResponse> KNN_EVAL_ACTION = new ActionType<>("indices:data/read/knn_eval");
@@ -32,9 +32,18 @@ public class KnnEvalPlugin extends Plugin implements ActionPlugin {
         Setting.Property.OperatorDynamic
     );
 
+    /** Per-index opt-out; cannot override a cluster-wide {@link #ENABLED} off. */
+    static final Setting<Boolean> INDEX_ENABLED = Setting.boolSetting(
+        "index.knn_eval.enabled",
+        true,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENABLED);
+        return List.of(ENABLED, INDEX_ENABLED);
     }
 
     @Override

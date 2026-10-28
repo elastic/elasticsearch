@@ -32,6 +32,20 @@ The following table shows where each [supported file format](esql-data-federatio
 
 Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled.
 
+### How the sample is shared across files [shared-schema-sample]
+```{applies_to}
+stack: experimental 9.6+
+```
+
+With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), every file a query reads is sampled, and the files split `schema_sample_size` between them. Each file gets `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and never fewer than `100` rows or lines unless `schema_sample_size` is lower.
+
+For example, with the default CSV `schema_sample_size` of `40000`:
+
+- A query over 3 files samples `10000` rows from each.
+- A query over 3000 files samples `100` rows from each, `300000` rows in total.
+
+A file's share is the rows or lines sampled from it. A column that first appears after those rows isn't part of the inferred schema, and neither is a type change in an existing column. With `strict`, this means a type difference after the sampled rows isn't caught when the query is planned. The value is read as the inferred type instead, and if it can't be converted, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides whether the query fails, the row is skipped, or the value becomes null.
+
 ## Choose a schema resolution strategy
 
 When a dataset spans multiple files, [`schema_resolution`](esql-data-federation-dataset-settings.md#schema-resolution) controls how differences between their schemas are reconciled.
@@ -44,7 +58,7 @@ The following table compares the available strategies:
 
 | Strategy | Behavior | Use when |
 |---|---|---|
-| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Columns that exist only in later files aren't included. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
+| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Columns that exist only in other files aren't included. Only one file's schema is inspected.<br>{applies_to}`stack: experimental 9.6+` Other CSV and TSV files [match it by header name](#first-file-wins-csv-tsv). | Files share a schema, and you want the least schema-discovery work. |
 | `union_by_name` | Inspects every file and merges columns by name. Missing columns contain null values. Compatible types are widened, and incompatible types become `keyword`. | Files can gain or lose columns, and those differences shouldn't fail the query. |
 | `strict` | Inspects every file and requires the same schema, apart from nullability. | Schema drift should fail the query. |
 
@@ -57,6 +71,15 @@ A type mismatch in a later Parquet file doesn't fail the query. If a column's ty
 - `fail_fast`: The query fails.
 - `null_field`: The column contains null values for that file, and the response includes a warning.
 - `skip_row`: All rows of that file are skipped. Each counts as a malformed row against [`max_errors`](esql-data-federation-dataset-settings.md#max-errors) and [`max_error_ratio`](esql-data-federation-dataset-settings.md#max-error-ratio), so the file exceeds any `max_error_ratio` below `1.0`, and a large file can exceed a small `max_errors`.
+
+### How `first_file_wins` matches columns in CSV and TSV files [first-file-wins-csv-tsv]
+```{applies_to}
+stack: experimental 9.6+
+```
+
+Each CSV or TSV file after the one that supplies the schema is matched to the schema's columns by its own header names, so files whose columns come in a different order read the same values. A column that a file lacks contains null values for that file, and the response includes a warning. Columns that only that file has are ignored. A file with duplicate header names fails the query.
+
+Files without a header row are read by position. A row with more fields than the schema is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). Declared schemas follow the same header rules, as described in [How declared columns match file columns](#how-declared-columns-match-file-columns).
 
 ## Control which file supplies the schema
 ```{applies_to}
@@ -132,9 +155,13 @@ Files without a modification time sort as the oldest. Equal modification times u
 
 ## Declare a schema explicitly
 
-By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets.md#create-or-update-a-dataset).
+By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
-{applies_to}`stack: experimental 9.6+` You can also declare columns in the **Mapping** step when you add a dataset in {{kib}}.
+{applies_to}`stack: experimental 9.6+` You can also declare columns in the **Schema mappings** step when you [add a dataset in {{kib}}](esql-data-federation-manage-datasets-ui.md#schema-mappings). The step's controls set the same properties:
+
+- **Use mapped fields only** sets `dynamic` to `false`.
+- **Original field name** sets `path`.
+- **Enable time-based filtering** declares an `@timestamp` column whose `path` is the date column you enter.
 
 The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, and supplies its date format:
 
@@ -159,17 +186,60 @@ PUT /_query/dataset/access_logs
 }
 ```
 
+### Mapping properties
+
 The `mappings` block supports the following properties:
 
-- `properties`: Columns keyed by their logical name. Each column requires a `type`.
-  - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
-    - {applies_to}`stack: experimental 9.6` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
-  - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
-    - {applies_to}`stack: experimental 9.6+` A plain number in a `date_nanos` column without a `format` is also read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, can't be represented and is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). There is no `format` for epoch nanoseconds: to read epoch-nanoseconds values, declare the column as `long` and convert it with `TO_DATE_NANOS` in the query.
-    - {applies_to}`stack: experimental =9.5` A plain number in a `date_nanos` column without a `format` is read as epoch nanoseconds.
+- `properties`: Columns keyed by their logical name. Each column supports:
+  - `type`: Required. The column's data type. Refer to [supported types](#declared-types).
+  - `path`: Optional physical column name. Use it to expose a file column under a different logical name. For example, to rename a timestamp column to `@timestamp`.
+    - {applies_to}`stack: experimental 9.6+` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
+  - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Refer to [date columns](#declared-date-columns).
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference, and leave undeclared columns unavailable to queries.
 
-{applies_to}`stack: experimental 9.6+` A `mappings` block can't include `_id`. A create or update request that contains one is rejected.
+### Supported types [declared-types]
+
+Declared types use the same names and value ranges as {{es}} [field data types](/reference/elasticsearch/mapping-reference/field-data-types.md). The supported types are `boolean`, `date`, `date_nanos`, `double`, `integer`, `ip`, `keyword`, `long`, and `unsigned_long`.
+
+::::{applies-switch}
+
+:::{applies-item} stack: experimental 9.6+
+`text` isn't supported. Declare the column as `keyword` and convert it with `TO_TEXT` in the query.
+:::
+
+:::{applies-item} stack: experimental =9.5
+`text` is also supported.
+:::
+
+::::
+
+### Date columns [declared-date-columns]
+
+Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
+
+How a plain number in a `date_nanos` column is read without a `format` depends on your version:
+
+::::{applies-switch}
+
+:::{applies-item} stack: experimental 9.6+
+The number is read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, can't be represented and is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). There is no `format` for epoch nanoseconds. To read epoch-nanoseconds values, declare the column as `long` and convert it with `TO_DATE_NANOS` in the query.
+:::
+
+:::{applies-item} stack: experimental =9.5
+The number is read as epoch nanoseconds.
+:::
+
+::::
+
+### Invalid mappings [invalid-mappings]
+
+{{es}} validates the `mappings` block when you create or update a dataset. The request is rejected with a `400` error when:
+
+- A column uses an unsupported type, such as `geo_point`.
+- {applies_to}`stack: experimental 9.6+` A column uses the `text` type.
+- A column includes a mapping parameter other than `type`, `path`, and `format`, such as `ignore_above`.
+- A column sets `format`, but its type isn't `date` or `date_nanos`.
+- {applies_to}`stack: experimental 9.6+` The `mappings` block includes `_id`.
 
 ### How declared columns match file columns
 

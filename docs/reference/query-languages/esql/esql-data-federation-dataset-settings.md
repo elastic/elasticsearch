@@ -10,7 +10,7 @@ products:
 
 # Dataset settings reference for {{esql}} Data Federation
 
-Dataset settings control how the files in a dataset are discovered, parsed, and reconciled. Add settings to the `settings` object when you [create or update a dataset](esql-data-federation-manage-datasets.md#create-or-update-a-dataset).
+Dataset settings control how the files in a dataset are discovered, parsed, and reconciled. Add settings to the `settings` object when you [create or update a dataset](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
@@ -19,7 +19,7 @@ Dataset settings control how the files in a dataset are discovered, parsed, and 
 
 The following settings apply to every file-based data source, unless an entry lists specific formats.
 
-% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
+% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op.
 
 ### Format and discovery
 
@@ -238,7 +238,7 @@ $$$split-probe-window$$$
 `split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV and TSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`
@@ -246,7 +246,7 @@ $$$split-probe-window$$$
     If a dataset's records are longer than this value, its files are cut into fewer splits than `target_split_size` requests, which reduces parallelism. Raise the value for datasets with long records. If the pair is rejected, lower one of the two probe settings.
 
     :::{dropdown} How record-boundary searches work
-    A search that doesn't reach the end of a record finds no boundary, so the file can't be split at that offset.<br><br>`max_split_probes` sets how many searches a query runs, and `split_probe_window` sets how many bytes each search reads. Their product is the number of bytes a query can read while searching. With the default values, that is 1000 searches of 256 KiB, or about 250 MiB. Size the window from the dataset's longest record, and size `max_split_probes` from the number of splits the scan needs.<br><br>Values below about 136 KiB are read in full by every search, because finishing a small window costs less than opening another connection. Lowering the value below that point doesn't reduce the bytes each search reads.<br><br>Quoted or escaped CSV and TSV can't be searched at a fixed offset, so record boundaries in those files are found by reading them sequentially. That sequential read is bounded by its own convergence behavior and by the `external_max_record_size` query pragma, not by `split_probe_window` or `max_split_probes`.
+    A search that doesn't reach the end of a record finds no boundary, so the file can't be split at that offset.<br><br>`max_split_probes` sets how many searches a query runs, and `split_probe_window` sets how many bytes each search reads. Their product is the number of bytes a query can read while searching. With the default values, that is 1000 searches of 256 KiB, or about 250 MiB. Size the window from the dataset's longest record, and size `max_split_probes` from the number of splits the scan needs.<br><br>Values below about 136 KiB are read in full by every search, because finishing a small window costs less than opening another connection. Lowering the value below that point doesn't reduce the bytes each search reads.<br><br>Other quoted or escaped CSV and TSV can't be searched at a fixed offset, so record boundaries in those files are found by reading them sequentially. That sequential read is bounded by its own convergence behavior and by the `external_max_record_size` query pragma, not by `split_probe_window` or `max_split_probes`.
 
     :::
 
@@ -255,7 +255,7 @@ $$$max-split-probes$$$
 `max_split_probes` {applies_to}`stack: experimental 9.6+`
 :   The maximum number of record-boundary searches that a query can perform, which limits how many splits its files are cut into.
 
-    - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV and TSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** `1000`
     - **Valid values:** An integer from `1` through `10000`. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `split_probe_window`, `target_split_size`
@@ -282,12 +282,12 @@ $$$amazon-s3-region$$$
 
     - **Default:** Auto-detected
     - **Valid values:** A non-empty AWS region name
-    - **Related:** `endpoint` and `sts_region` on the [data source](esql-data-federation-sources.md)
+    - **Related:** [`endpoint`](esql-data-federation-data-source-settings.md#endpoint) and [`sts_region`](esql-data-federation-data-source-settings.md#sts-region) on the data source
 
     Omit `region` for standard AWS S3. Set it when the data source uses a custom `endpoint`, such as MinIO or Scaleway, to skip region discovery on the first request.
 
     :::{dropdown} Region discovery and federated identity
-    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region, and the result is cached for the lifetime of the data source. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
+    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region. {{es}} caches the result and clears it after a few minutes without requests. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
 
     :::
 
@@ -325,6 +325,8 @@ $$$csv-mode$$$
     - **Related:** `quote`, `escape`
 
     An explicit `quote` or `escape` value overrides the preset.
+
+    {applies_to}`stack: experimental 9.6+` Whether a quoted field, or a backslash-escaped line break inside a quoted field, can span several lines isn't decided by `mode` but by [`multiline_fields`](#csv-multiline-fields), which also decides how files that can carry such values are split. A `plain` file is always cut and read line by line, because no field in it can span lines. With `mode` set to `escaped`, a raw newline always ends a record: an in-field newline is the two characters `\` and `n`, so `multiline_fields` does not change the rows that are read.
 
     :::{dropdown} Why `escaped` with `quote` is rejected
     Setting `quote` turns quoting on, and the quoting parser doesn't decode escape sequences. The combination therefore reads neither as escaped nor as quoted data, so it's rejected when you create or update the dataset. A dataset stored with this combination before the check took effect continues to read.
@@ -380,12 +382,14 @@ $$$csv-schema-sample-size$$$
 `schema_sample_size`
 :   The number of rows sampled to infer the schema.
 
-    - **Default:** `20000`
+    - **Default:** `40000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
+
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
 $$$csv-quote$$$
 
@@ -459,6 +463,22 @@ $$$csv-trim-spaces$$$
 
     Typed values, such as numbers and dates, tolerate surrounding whitespace regardless of this setting.
 
+$$$csv-multiline-fields$$$
+
+`multiline_fields` {applies_to}`stack: experimental 9.6+`
+:   Whether a quoted field, or a backslash-escaped line break inside a quoted field, can span several lines.
+
+    - **Default:** `false`
+    - **Valid values:** `true`, `false`
+    - **Conflicts with:** `multi_value_syntax` set to `brackets` when `false`, which is rejected when you create or update the dataset
+    - **Related:** `mode`, `target_split_size`
+
+    By default, {{esql}} assumes that no value spans lines. Files are split on plain newlines, with no look at the data, which avoids the sequential search for record boundaries that quote-aware files need. This applies to every file, including each file of a glob. Set `true` to read quoted fields and escaped line breaks inside them that span several lines: files are then split with quote awareness.
+
+    With `multi_value_syntax` set to `brackets`, files are always split with quote awareness, because bracketed cells can span lines. With `mode` set to `plain`, the setting has no effect, because no field in such a file can span lines; a query over a dataset that sets it to `true` anyway reports this as a warning. With `mode` set to `escaped`, a raw newline always ends a record. An in-field newline there is the two characters `\` and `n`, so the setting does not change the rows that are read.
+
+    If a quoted value spans lines while `multiline_fields` isn't `true`, the query fails, whatever the `error_mode`, as soon as a read meets that record: in the rows sampled for schema inference, in a file read in one piece, or in a split. The error suggests setting `multiline_fields` to `true`. The split that contains the start of the value is the one that fails. A split that starts inside the value cannot tell, so a query that stops before reading the owning split, such as one satisfied by `LIMIT`, can return rows built from the tail. Make sure the data honors the setting rather than relying on the check.
+
 $$$csv-multi-value-syntax$$$
 
 `multi_value_syntax`
@@ -479,6 +499,16 @@ $$$csv-max-field-size$$$
     - **Default:** 10 MiB (`10485760`)
     - **Valid values:** An integer number of bytes. `0` removes the limit.
 
+$$$csv-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the header (or the widest sampled row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+
 ## NDJSON settings
 
 The following settings apply to NDJSON files.
@@ -494,10 +524,12 @@ $$$ndjson-schema-sample-size$$$
 
     - **Default:** `20000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
+
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
     {applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
 
@@ -529,8 +561,18 @@ $$$ndjson-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails.
+    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
 
 ## Parquet settings
 
-Parquet is self-describing and has no format-specific dataset settings.
+Parquet is self-describing, so it has a single dataset setting.
+
+$$$parquet-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the file has more columns, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's inferred schema is held to the limit as well.

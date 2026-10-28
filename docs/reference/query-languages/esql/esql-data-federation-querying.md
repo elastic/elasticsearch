@@ -16,6 +16,11 @@ A dataset is a read source for the standard {{esql}} pipeline. You query it with
 FROM my_dataset
 ```
 
+:::{tip}
+:applies_to: stack: experimental 9.6+
+To query a dataset from the {{kib}} UI, click **Open in Discover** ({icon}`product_discover`) in the dataset's row on the [**Datasets** tab](esql-data-federation-manage-datasets-ui.md#view-datasets). **Discover** opens with a `FROM <dataset>` query.
+:::
+
 For a hands-on example, refer to [get started with {{esql}} Data Federation](esql-data-federation-quickstart.md).
 
 ## How external data is read
@@ -55,13 +60,22 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### Caching
 
-{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (5 minutes by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
+{{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
+
+- **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
+- **Inferred schemas** are invalidated when the underlying file changes. 
+  - {applies_to}`stack: experimental 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
+- {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are kept while queries keep reading them, and dropped 5 minutes after the last read by default. Footer entries are keyed by the object's version, so a file overwritten in place is read with its new footer. Objects without a version aren't footer-cached.
+
+The data in your files is not cached. Every query reads the rows it needs from object storage, so running the same query again or refreshing a dashboard reads the data again.
+
+To change cache sizes and TTLs, refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 ### File discovery limits
 
 A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. These cluster settings bound file discovery:
 
-- `esql.external.max_listed_objects` (default 1,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list. {applies_to}`stack: experimental 9.6+`
+- {applies_to}`stack: experimental 9.6+` `esql.external.max_listed_objects` (default 1,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
 - `esql.external.max_discovered_files` (default 25,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
@@ -71,19 +85,23 @@ If your dataset exceeds these limits, narrow the resource path or adjust the set
 
 Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently.
 
-{applies_to}`stack: experimental 9.6+` `_class` and `_name` are available from 9.6. On 9.5, use `METADATA _index`, which returns the dataset name for dataset rows in that version.
-
 ```esql
 FROM speedtest_data, network_incidents METADATA _class, _name
 | KEEP _class, _name, category, severity, avg_d_kbps, avg_lat_ms
 | LIMIT 10
 ```
 
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
+When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. To see which source each row came from, request a metadata column. For details, refer to [Use metadata columns](#use-metadata-columns).
 
-{applies_to}`stack: experimental 9.6+` `_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. In earlier versions it returned the dataset name.
+- {applies_to}`stack: experimental 9.6+` Use `METADATA _name` and `METADATA _class`. `_name` returns the dataset name for dataset rows and the index name for index rows. `_class` returns `index` or `dataset`, so a query can tell the two apart without knowing the names in advance. `_index` returns `null` for dataset rows, because a dataset is not an index.
+- {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows. `_class` and `_name` are not available.
 
-{applies_to}`stack: experimental 9.6+` By default, a wildcard does not match datasets. `FROM speedtest_data` reads the dataset, while `FROM speedtest*` resolves to indices, data streams, aliases, and views only. Registering a dataset therefore does not change what an existing wildcard query reads.
+### Match datasets with wildcards
+```{applies_to}
+stack: experimental 9.6+
+```
+
+By default, a wildcard does not match datasets. `FROM speedtest_data` reads the dataset, while `FROM speedtest*` resolves to indices, data streams, aliases, and views only. Registering a dataset therefore does not change what an existing wildcard query reads.
 
 To let wildcards discover datasets, enable the `wildcards_match_datasets` query setting:
 
@@ -105,17 +123,13 @@ You can also send it in the `_query` request body as `"settings": {"wildcards_ma
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
-| `_score` {applies_to}`stack: preview 9.6` | `0.0`, or a real per-row value under a scoring `MATCH`/`MATCH_PHRASE`. See [Use search functions](#use-search-functions). (Returns null in 9.5.) |
-| `_index` {applies_to}`stack: experimental 9.6+` | null |
-| `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
+| `_score` | {applies_to}`stack: experimental 9.6+` `0.0`, or a real per-row value under a scoring `MATCH` or `MATCH_PHRASE`. Refer to [Use search functions](#use-search-functions).<br>{applies_to}`stack: experimental =9.5` null |
+| `_index` | {applies_to}`stack: experimental 9.6+` null<br>{applies_to}`stack: experimental =9.5` The dataset name. |
+| `_id` | {applies_to}`stack: experimental 9.6+` null<br>{applies_to}`stack: experimental =9.5` A synthetic row ID. |
+| `_version` | {applies_to}`stack: experimental 9.6+` null<br>{applies_to}`stack: experimental =9.5` The file modification time. |
+| `_source` | {applies_to}`stack: experimental 9.6+` null<br>{applies_to}`stack: experimental =9.5` The row as JSON. |
 
-`_index`, `_id`, `_version` and `_source` return `null` on a dataset. A dataset is not an index, and
-files carry no document identity, version, or stored source. In 9.5, these fields returned synthetic
-values (dataset name, row ID, file modification time, row-as-JSON) instead of null.
-
-{applies_to}`stack: experimental 9.6+` `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
-the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds
-can separate the rows without knowing in advance which names resolve to which.
+{applies_to}`stack: experimental 9.6+` `_index`, `_id`, `_version`, and `_source` return `null` on a dataset. A dataset is not an index, and files carry no document identity, version, or stored source.
 
 For example, this query returns file-level metadata for each matching row:
 
@@ -125,23 +139,31 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 | LIMIT 10
 ```
 
-{applies_to}`stack: experimental 9.6` If a field named in the `METADATA` clause matches a file column, the engine-generated value takes precedence and the file column is dropped. A warning identifies the file column that was dropped. To keep both values, rename the file column in the dataset mapping. If the query omits `METADATA`, the file column remains available as a regular data column.
+{applies_to}`stack: experimental 9.6+` If a field named in the `METADATA` clause matches a file column, the engine-generated value takes precedence and the file column is dropped. A warning identifies the file column that was dropped. To keep both values, rename the file column in the dataset mapping. If the query omits `METADATA`, the file column remains available as a regular data column.
 
 ## Use search functions
 
-[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index. When using `METADATA _score`, `MATCH` and `MATCH_PHRASE` on dataset rows contribute to the relevance score based on the `boost` option and the query terms matched — not BM25, as there are no index statistics for a dataset. {applies_to}`stack: preview 9.6` In earlier versions, dataset rows do not contribute to `_score`.
+[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index.
 
 Because there is no inverted index, search functions on a dataset evaluate by scanning values row by row. For large datasets where search is the primary access pattern, consider ingesting the data into {{es}} for indexed search performance.
 
-Runtime `MATCH` on a dataset requires the query value's type to match the field's type. Text is analyzed with the standard analyzer unless a values analyzer is declared through [`TO_TEXT`](functions-operators/type-conversion-functions/to_text.md)'s `analyzer` option; `MATCH`'s own `analyzer` option applies to the query string only, defaulting to the values analyzer. {applies_to}`stack: preview 9.6`
+How dataset rows contribute to `METADATA _score` depends on the version:
+
+- {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` on dataset rows contribute to the relevance score based on the `boost` option and the query terms matched. Scoring does not use BM25, because a dataset has no index statistics.
+- {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
+
+Runtime `MATCH` on a dataset requires the query value's type to match the field's type. How it handles options and analyzers depends on the version:
+
+- {applies_to}`stack: experimental 9.6+` Text is analyzed with the standard analyzer unless a values analyzer is declared through [`TO_TEXT`](functions-operators/type-conversion-functions/to_text.md)'s `analyzer` option. `MATCH`'s own `analyzer` option applies to the query string only, and defaults to the values analyzer.
+- {applies_to}`stack: experimental =9.5` `MATCH` does not accept function options, and text is analyzed with a fixed standard analyzer.
 
 The following search functions are available for datasets:
 
 | Function | Stack |
 |---|---|
-| [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5` |
-| [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` |
-| `_score` for dataset rows | {applies_to}`stack: experimental 9.6` |
+| [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5+` |
+| [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6+` |
+| `_score` for dataset rows | {applies_to}`stack: experimental 9.6+` |
 
 ## Limitations
 
@@ -154,15 +176,19 @@ The limitations below include operations that require structures available only 
 |---|---|---|
 | `LOOKUP JOIN`, with a dataset as the lookup target | A dataset works as the left (source) side of the join. The lookup target must be an {{es}} index. | `LOOKUP JOIN against a dataset is not supported; dataset(s) requested: [...]` |
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
-| Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
+| Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| More than 8 sources in one `FROM` {applies_to}`stack: experimental =9.5` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| More sources in one `FROM` than `max_branch_count_per_merge` allows {applies_to}`stack: experimental 9.6+` | A `FROM` that includes datasets runs one execution branch per resolved source. The limit is the `esql.query.max_branch_count_per_merge` cluster setting (default 8). Query fewer sources together, or raise the limit. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
-| A file column whose name matches a requested `METADATA` name {applies_to}`stack: experimental 9.6` | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the dropped column. |
+| A file column whose name matches a requested `METADATA` name {applies_to}`stack: experimental 9.6+` | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the dropped column. |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
-| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |
-| Snapshot and restore | {applies_to}`stack: experimental 9.6` Data sources and datasets are included in snapshots when `include_global_state=true`. After a restore, data source configuration (non-credential settings) and datasets are recovered, but credentials must be re-entered because they are stripped from the snapshot blob. Data sources and datasets that were not present at snapshot time are removed when global state is restored. | |
-| Archived S3 storage classes | Objects in the S3 Glacier Flexible Retrieval or S3 Glacier Deep Archive storage classes cannot be read in real time. The same applies to objects that have transitioned to the Archive Access or Deep Archive Access tiers within S3 Intelligent-Tiering. Objects in other Intelligent-Tiering tiers are not affected. A `GetObject` call to archived objects returns `InvalidObjectState` until the object is restored. Restore the objects before querying. S3 Glacier Instant Retrieval is also not affected because it supports real-time access. | {applies_to}`stack: experimental 9.6` `External data object [<object>] is archived (HTTP 403 InvalidObjectState). It is in storage class [<class>]; restore it, or wait for a restore in progress to finish, before reading it.` |
+| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) {applies_to}`stack: experimental 9.6+` | Only local datasets can be queried. A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. | `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. |
+| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) {applies_to}`stack: experimental =9.5` | Only local datasets can be queried. A query that matches a remote dataset fails. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
+| Snapshot and restore {applies_to}`stack: experimental 9.6+` | Data sources and datasets are included in snapshots when `include_global_state=true`. After a restore, data source configuration (non-credential settings) and datasets are recovered, but credentials must be re-entered because they are stripped from the snapshot blob. Data sources and datasets that were not present at snapshot time are removed when global state is restored. | |
+| Snapshot and restore {applies_to}`stack: experimental =9.5` | Data sources and datasets cannot be snapshotted or restored. | |
+| Windows {applies_to}`stack: experimental 9.6+` | {{esql}} Data Federation isn't available on Windows. If `esql.federation.enabled` is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts. | |
+| Archived S3 storage classes | Objects in the S3 Glacier Flexible Retrieval or S3 Glacier Deep Archive storage classes cannot be read in real time. The same applies to objects that have transitioned to the Archive Access or Deep Archive Access tiers within S3 Intelligent-Tiering. Objects in other Intelligent-Tiering tiers are not affected. A `GetObject` call to archived objects returns `InvalidObjectState` until the object is restored. Restore the objects before querying. S3 Glacier Instant Retrieval is also not affected because it supports real-time access. | {applies_to}`stack: experimental 9.6+` `External data object [<object>] is archived (HTTP 403 InvalidObjectState). It is in storage class [<class>]; restore it, or wait for a restore in progress to finish, before reading it.` |
 | Parquet MAP, nested LIST, and VARIANT | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
 | `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
 
@@ -171,7 +197,9 @@ The limitations below include operations that require structures available only 
 If a query against a dataset returns unexpected results or errors, check the following common causes.
 
 Unexpected nulls in query results
-:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to check which source each row came from; on 9.5, use `METADATA _index`. Separately, complex Parquet types MAP, nested LIST, and VARIANT return null because they are not currently supported.
+:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. To check which source each row came from, refer to [Query across datasets and indices](#query-across-datasets-and-indices).
+
+    Complex Parquet types MAP, nested LIST, and VARIANT also return null, because they are not currently supported.
 
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.
@@ -179,14 +207,17 @@ Slow queries
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
+503 error while nodes join the cluster
+:   A node that has just joined the cluster, or that has not yet applied a recent dataset change, cannot run a query's external reads until it catches up. {{es}} sends the reads to another node when one is available; otherwise the node waits to catch up. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
+
 New files not appearing in query results
-:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. The default listing cache TTL is 5 minutes. Lower `esql.external.cache.listing.ttl` when new or removed files must be visible sooner. Refer to [cluster settings](esql-data-federation-cluster-settings.md).
+:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. Lower the listing cache TTL when new or removed files must be visible sooner. Refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 Columns with unexpected types or missing values
 :   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. [Declare the schema explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly) to control column types, or adjust the `datetime_format` setting for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-datetime-format) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-datetime-format). If some rows have null values for a column that exists in other files, review [schema inference and resolution](esql-data-federation-schema.md).
 
 Access denied or connection errors
-:   Credential and permission errors appear at query time, not when the data source is created. If a query returns an access denied error, verify that the credentials in the data source have the required permissions (such as `s3:ListBucket` and `s3:GetObject`) and that the region is correct.
+:   Credential and permission errors appear at query time, not when the data source or dataset is created. For each access denied message and the permission it needs, refer to [troubleshoot access errors](esql-data-federation-s3.md#s3-access-errors) for Amazon S3, and verify that the region is correct.
 
 ## Next steps
 

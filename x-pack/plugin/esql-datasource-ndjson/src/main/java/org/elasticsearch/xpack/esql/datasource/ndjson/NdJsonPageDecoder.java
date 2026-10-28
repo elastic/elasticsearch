@@ -994,7 +994,7 @@ public class NdJsonPageDecoder implements Closeable {
      * {@link #decodePage()}. Enforcement is gated on {@link #capEnforced}: on the byte-array path a
      * record can never exceed the buffer that fully contains it, so when the whole segment is within
      * the cap the loop skips offset tracking entirely (the streaming-parallel chunk hot path pays
-     * nothing — see issue 965). The {@link InputStream} path has no such bound, so it always enforces
+     * nothing). The {@link InputStream} path has no such bound, so it always enforces
      * when a finite cap is configured.
      */
     void setMaxRecordBytes(int maxRecordBytes) {
@@ -1464,13 +1464,13 @@ public class NdJsonPageDecoder implements Closeable {
         // do not warn). Only fires when at least one record was committed — guards against false positives
         // when all records were dropped by skip_row (totalRowCount > 0 but nothing committed). A column
         // absent from every committed record is effectively absent from the file, so we use
-        // absentDeclaredColumnMessage to deduplicate cleanly with Parquet/SAI warnings via InformationalWarningBudget.
+        // absentColumnMessage to deduplicate cleanly with Parquet/SAI warnings via InformationalWarningBudget.
         if (reportAbsentDeclaredColumns && absentColumnWarningSink != null && committedRowCount > 0) {
             for (int i = 0; i < projectedAttributes.size(); i++) {
                 if (columnEverPresent.get(i) == false) {
                     Attribute attr = projectedAttributes.get(i);
                     if (attr.dataType() != DataType.NULL && attr.dataType() != DataType.UNSUPPORTED) {
-                        absentColumnWarningSink.accept(SkipWarnings.absentDeclaredColumnMessage(attr.name()));
+                        absentColumnWarningSink.accept(SkipWarnings.absentColumnMessage(attr.name()));
                     }
                 }
             }

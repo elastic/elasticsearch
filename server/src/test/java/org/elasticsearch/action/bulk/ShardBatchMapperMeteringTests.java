@@ -81,7 +81,7 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
         .build();
 
-    /** Root subobjects:true, so dotted names expand; metrics does not expand, meta ignores its unmapped children. */
+    /** Root subobjects:true, so dotted names expand; metrics does not. */
     private static final String SUBOBJECTS_MAPPING = """
         {
           "_data_stream_timestamp": { "enabled": true },
@@ -91,8 +91,7 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
             "dim":     { "type": "keyword", "time_series_dimension": true },
             "title":   { "type": "keyword" },
             "obj":     { "properties": { "name": { "type": "keyword" } } },
-            "metrics": { "subobjects": false, "properties": { "time.max": { "type": "long" } } },
-            "meta":    { "type": "object", "dynamic": false }
+            "metrics": { "subobjects": false, "properties": { "time.max": { "type": "long" } } }
           }
         }""";
 
@@ -206,11 +205,6 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
                     case 1 -> b.field("metrics.time.max", max);
                     case 2 -> b.startObject("metrics").startObject("time").field("max", max).endObject().endObject();
                     default -> throw new AssertionError(metricsSpelling);
-                }
-                if (randomBoolean()) {
-                    b.startObject("meta").startObject("a").field("b.c", randomAlphaOfLengthBetween(1, 5)).endObject().endObject();
-                } else {
-                    b.startObject("meta.a").field("b.c", randomAlphaOfLengthBetween(1, 5)).endObject();
                 }
                 b.endObject();
                 sources.add(BytesReference.bytes(b));

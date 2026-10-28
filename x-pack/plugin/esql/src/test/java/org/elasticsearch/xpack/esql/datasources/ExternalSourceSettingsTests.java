@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -316,15 +317,32 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(19, ExternalSourceSettings.settings().size());
+        assertEquals(21, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.WORKER_READY_TIMEOUT));
+        assertEquals(TimeValue.timeValueSeconds(10), ExternalSourceSettings.WORKER_READY_TIMEOUT.get(Settings.EMPTY));
+        assertTrue(ExternalSourceSettings.WORKER_READY_TIMEOUT.isDynamic());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED));
+        assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.get(Settings.EMPTY));
+        assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.isDynamic());
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    public void testAdmissionRescueEnabledFollowsClusterSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED));
+        AtomicBoolean observed = new AtomicBoolean();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED, observed::set);
+        assertTrue(observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.getKey(), false).build());
+        assertFalse(observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.getKey(), true).build());
+        assertTrue(observed.get());
     }
 
     /** Entries are matched against {@code host:port}, so one naming no port is refused at startup. */

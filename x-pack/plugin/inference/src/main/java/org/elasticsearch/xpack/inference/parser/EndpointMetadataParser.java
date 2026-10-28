@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.CAPABILITIES_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.CONTEXT_WINDOW_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.REASONING_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.TEMPLATES_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_INPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_OUTPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
@@ -51,6 +52,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentit
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.DEFAULT_EFFORT_LEVEL_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.SUPPORTED_EFFORT_LEVELS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.TemplatesCapability.POLICY_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractInteger;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
@@ -226,14 +228,37 @@ public final class EndpointMetadataParser {
         }
         var reasoningMap = ServiceUtils.removeFromMap(map, REASONING_FIELD_NAME);
         var contextWindowMap = ServiceUtils.removeFromMap(map, CONTEXT_WINDOW_FIELD_NAME);
+        var templatesMap = ServiceUtils.removeFromMap(map, TEMPLATES_FIELD_NAME);
 
         var reasoning = reasoningCapabilityFromMap(reasoningMap, pathToKey(root, REASONING_FIELD_NAME));
         var contextWindow = contextWindowFromMap(contextWindowMap, pathToKey(root, CONTEXT_WINDOW_FIELD_NAME));
+        var templates = templatesCapabilityFromMap(templatesMap, pathToKey(root, TEMPLATES_FIELD_NAME));
 
-        if (reasoning == null && contextWindow == null) {
+        if (reasoning == null && contextWindow == null && templates == null) {
             return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
         }
-        return new EndpointMetadata.Capabilities(reasoning, contextWindow);
+        return new EndpointMetadata.Capabilities(reasoning, contextWindow, templates);
+    }
+
+    /**
+     * Parse {@link EndpointMetadata.TemplatesCapability} from the templates sub-map.
+     * Returns {@code null} if the map is null or empty, or if the policy is missing or unknown to this node, matching the lenient
+     * handling of unknown reasoning effort levels.
+     */
+    @Nullable
+    static EndpointMetadata.TemplatesCapability templatesCapabilityFromMap(@Nullable Map<String, Object> map, String root) {
+        if (isMapNullOrEmpty(map)) {
+            return null;
+        }
+        var policyString = ObjectParserUtils.removeAsType(map, POLICY_FIELD_NAME, root, String.class);
+        if (policyString == null) {
+            return null;
+        }
+        try {
+            return new EndpointMetadata.TemplatesCapability(EndpointMetadata.TemplatePolicy.fromString(policyString));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     /**

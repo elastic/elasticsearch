@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -81,6 +82,7 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -467,7 +469,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 assertEquals(3, page.getBlockCount());
                 assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
                 assertEquals(1, warnings.size());
-                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+                assertEquals(SkipWarnings.absentColumnMessage("department"), warnings.get(0));
             } finally {
                 page.releaseBlocks();
             }
@@ -3417,8 +3419,57 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * An object overwritten in place with a file of the same length keeps its {@code (path, length)} footer key. The second
+     * read must return the new file's rows, not the rows of the footer cached for the first file. See elastic/esql-planning#2094.
+     */
+    public void testSameLengthOverwriteReadsNewFileRows() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("s", TypeDescription.createString());
+        byte[] before = createOrcFile(schema, batch -> fillFixedWidthStrings(batch, "a"));
+        byte[] after = createOrcFile(schema, batch -> fillFixedWidthStrings(batch, "b"));
+        assertEquals("the overwrite must keep the file length", before.length, after.length);
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertEquals(new BytesRef("a00000"), firstStringValue(reader, createStorageObject(before, "v1")));
+        assertEquals(
+            "the second read must return the new file's rows",
+            new BytesRef("b00000"),
+            firstStringValue(reader, createStorageObject(after, "v2"))
+        );
+    }
+
+    private static void fillFixedWidthStrings(VectorizedRowBatch batch, String prefix) {
+        batch.size = 100;
+        BytesColumnVector column = (BytesColumnVector) batch.cols[0];
+        for (int i = 0; i < batch.size; i++) {
+            column.setVal(i, String.format(Locale.ROOT, "%s%05d", prefix, i).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private BytesRef firstStringValue(OrcFormatReader reader, StorageObject object) throws Exception {
+        BytesRef[] value = new BytesRef[1];
+        readFirstPage(reader, object, List.of("s"), page -> {
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            value[0] = BytesRef.deepCopyOf(block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()));
+            page.releaseBlocks();
+        });
+        return value[0];
+    }
+
     private StorageObject createStorageObject(byte[] data) {
+        return createStorageObject(data, "v1");
+    }
+
+    private StorageObject createStorageObject(byte[] data, String version) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return NOOP_IDENTITY;

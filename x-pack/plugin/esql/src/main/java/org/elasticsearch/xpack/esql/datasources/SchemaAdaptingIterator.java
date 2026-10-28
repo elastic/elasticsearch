@@ -260,6 +260,11 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
     public void revokeOvershootOnPark() {
         delegate.revokeOvershootOnPark();
     }
@@ -400,7 +405,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         String[] names = pendingAbsentColumnNames;
         pendingAbsentColumnNames = null;
         for (String name : names) {
-            sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            sink.accept(SkipWarnings.absentColumnMessage(name));
         }
     }
 

@@ -49,7 +49,9 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
-    public static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
+    // Retained for wire-format compatibility with nodes that send whether to retain the search contexts of the
+    // now-removed remote fetch prototype. Nothing retains them anymore, so the flag is always false.
+    private static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
         "esql_remote_fetch_retained_contexts"
     );
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
@@ -57,6 +59,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     );
 
     private static final TransportVersion SINGLE_NODE_OPTIMIZATION = TransportVersion.fromName("esql_single_node_optimization");
+    static final TransportVersion ESQL_EXTERNAL_WORKER_READINESS = TransportVersion.fromName("esql_external_worker_readiness");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
@@ -70,12 +73,24 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
     private final boolean reductionLateMaterialization;
-    private final boolean retainSearchContexts;
     private final boolean singleNodeOptimizations;
     private final List<ExternalSplit> externalSplits;
+    /**
+     * For an external-only request: whether a worker that has not yet applied the cluster state the coordinator planned from
+     * should refuse the splits at once, so the coordinator can hand them to another worker, rather than wait for that state.
+     * The coordinator sets it when it has another worker still to try after this one; the last worker of its walk, or a
+     * lone one, is asked to wait. {@code false} on the wire from an old coordinator, which cannot reroute, so such a worker
+     * waits.
+     */
+    private final boolean declineIfNotReady;
+    /**
+     * The cluster state version the coordinator planned from. A worker whose applied state is older and that cannot bind a
+     * dataset of the plan is behind the coordinator rather than missing the dataset. {@code 0} means unknown (old coordinator).
+     */
+    private final long requiredClusterStateVersion;
 
     /**
-     * Constructor with all parameters including externalSplits.
+     * Constructor with all parameters, including the external-worker readiness fields.
      */
     DataNodeRequest(
         String sessionId,
@@ -88,9 +103,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
-        boolean retainSearchContexts,
         boolean singleNodeOptimizations,
-        List<ExternalSplit> externalSplits
+        List<ExternalSplit> externalSplits,
+        boolean declineIfNotReady,
+        long requiredClusterStateVersion
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -102,9 +118,46 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.indicesOptions = indicesOptions;
         this.runNodeLevelReduction = runNodeLevelReduction;
         this.reductionLateMaterialization = reductionLateMaterialization;
-        this.retainSearchContexts = retainSearchContexts;
         this.singleNodeOptimizations = singleNodeOptimizations;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this.declineIfNotReady = declineIfNotReady;
+        this.requiredClusterStateVersion = requiredClusterStateVersion;
+    }
+
+    /**
+     * Constructor with externalSplits and the readiness fields at their "unknown" defaults: the worker waits for the state
+     * it lacks and consults no version.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits
+    ) {
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            singleNodeOptimizations,
+            externalSplits,
+            false,
+            0L
+        );
     }
 
     /**
@@ -121,7 +174,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
-        boolean retainSearchContexts,
         boolean singleNodeOptimizations
     ) {
         this(
@@ -135,7 +187,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            retainSearchContexts,
             singleNodeOptimizations,
             List.of()
         );
@@ -176,7 +227,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.reductionLateMaterialization = false;
         }
-        this.retainSearchContexts = in.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS) && in.readBoolean();
+        if (in.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
+            in.readBoolean(); // discarded: nothing retains search contexts anymore
+        }
         if (in.getTransportVersion().supports(SINGLE_NODE_OPTIMIZATION)) {
             this.singleNodeOptimizations = in.readBoolean();
         } else {
@@ -186,6 +239,14 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         } else {
             this.externalSplits = List.of();
+        }
+        if (in.getTransportVersion().supports(ESQL_EXTERNAL_WORKER_READINESS)) {
+            this.declineIfNotReady = in.readBoolean();
+            this.requiredClusterStateVersion = in.readVLong();
+        } else {
+            // An old coordinator cannot reroute, so a worker behind it waits; and it sends no version, so none is consulted.
+            this.declineIfNotReady = false;
+            this.requiredClusterStateVersion = 0L;
         }
     }
 
@@ -209,13 +270,17 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             out.writeBoolean(reductionLateMaterialization);
         }
         if (out.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
-            out.writeBoolean(retainSearchContexts);
+            out.writeBoolean(false);
         }
         if (out.getTransportVersion().supports(SINGLE_NODE_OPTIMIZATION)) {
             out.writeBoolean(singleNodeOptimizations);
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
+        }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_WORKER_READINESS)) {
+            out.writeBoolean(declineIfNotReady);
+            out.writeVLong(requiredClusterStateVersion);
         }
     }
 
@@ -297,10 +362,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return reductionLateMaterialization;
     }
 
-    boolean retainSearchContexts() {
-        return retainSearchContexts;
-    }
-
     boolean singleNodeOptimizations() {
         return singleNodeOptimizations;
     }
@@ -309,14 +370,26 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return externalSplits;
     }
 
+    /** Whether this request carries external splits and no shards: the shape the worker readiness checks apply to. */
+    boolean isExternalOnly() {
+        return externalSplits.isEmpty() == false && shards.isEmpty();
+    }
+
+    boolean declineIfNotReady() {
+        return declineIfNotReady;
+    }
+
+    long requiredClusterStateVersion() {
+        return requiredClusterStateVersion;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
         if (externalSplits.isEmpty() == false) {
             desc += " externalSplits=" + externalSplits.size();
-        }
-        if (retainSearchContexts) {
-            desc += " retainSearchContexts=true";
+            desc += " declineIfNotReady=" + declineIfNotReady;
+            desc += " requiredClusterStateVersion=" + requiredClusterStateVersion;
         }
         if (singleNodeOptimizations) {
             desc += " singleNodeOptimizations=true";
@@ -345,9 +418,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && indicesOptions.equals(request.indicesOptions)
             && runNodeLevelReduction == request.runNodeLevelReduction
             && reductionLateMaterialization == request.reductionLateMaterialization
-            && retainSearchContexts == request.retainSearchContexts
             && singleNodeOptimizations == request.singleNodeOptimizations
-            && externalSplits.equals(request.externalSplits);
+            && externalSplits.equals(request.externalSplits)
+            && declineIfNotReady == request.declineIfNotReady
+            && requiredClusterStateVersion == request.requiredClusterStateVersion;
     }
 
     @Override
@@ -363,9 +437,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            retainSearchContexts,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            declineIfNotReady,
+            requiredClusterStateVersion
         );
     }
 
@@ -381,9 +456,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            retainSearchContexts,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            declineIfNotReady,
+            requiredClusterStateVersion
         );
     }
 

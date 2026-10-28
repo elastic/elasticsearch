@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
  * <p>
  * Script fields do not charge the circuit breaker directly; bytes are charged by
  * {@code FetchPhase#nextDoc} after all sub-phases have run, via
- * {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateDocumentFields}.
+ * {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateSubPhaseOutput}.
  * Byte-level accounting is covered by {@code DocumentFieldAccountingTests}.
  */
 public class ScriptFieldsPhaseTests extends ESTestCase {

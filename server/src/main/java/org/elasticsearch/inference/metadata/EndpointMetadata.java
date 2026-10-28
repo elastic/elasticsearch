@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -47,8 +48,8 @@ import java.util.stream.Stream;
  * @param display              contains information for how to display the endpoint in user interfaces (descriptive name, etc).
  * @param regions              the availability regions for this endpoint.
  * @param deniedByRegionPolicy {@code true} when the caller's region policy prohibits access to this endpoint.
- * @param capabilities         model capability metadata (supported reasoning effort levels, context window) surfaced for Kibana and
- *                             other consumers. Omitted when {@link Capabilities#isEmpty()} is {@code true}.
+ * @param capabilities         model capability metadata (supported reasoning effort levels, context window, template policy) surfaced
+ *                             for Kibana and other consumers. Omitted when {@link Capabilities#isEmpty()} is {@code true}.
  */
 public record EndpointMetadata(
     ModelIdentity modelIdentity,
@@ -65,6 +66,12 @@ public record EndpointMetadata(
     );
     public static final TransportVersion REGIONS_ADDED = TransportVersion.fromName("inference_endpoint_metadata_regions_added");
     public static final TransportVersion CAPABILITIES_ADDED = TransportVersion.fromName("inference_endpoint_metadata_capabilities_added");
+    /**
+     * Shares the transport version of the chat completion {@code template} request field: both shipped in the same change.
+     */
+    public static final TransportVersion CAPABILITIES_TEMPLATES_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_template_added"
+    );
     public static final EndpointMetadata EMPTY_INSTANCE = new EndpointMetadata(
         ModelIdentity.EMPTY_INSTANCE,
         Heuristics.EMPTY_INSTANCE,
@@ -433,26 +440,35 @@ public record EndpointMetadata(
     }
 
     /**
-     * Model capability metadata: which reasoning effort levels the model supports and its context window limits.
+     * Model capability metadata: which reasoning effort levels the model supports, its context window limits and whether it
+     * requires a prompt template. Every chat completion endpoint accepts a {@code template}; the policy marks the ones that
+     * reject caller-authored {@code messages}.
      *
      * @param reasoning     reasoning effort capability; {@code null} when the endpoint does not support reasoning effort control
      * @param contextWindow context window limits; {@code null} when not advertised by the upstream service
+     * @param templates     template policy; {@code null} when the endpoint accepts either messages or a template
      */
-    public record Capabilities(@Nullable ReasoningCapability reasoning, @Nullable ContextWindow contextWindow)
-        implements
-            ToXContentObject,
-            Writeable {
+    public record Capabilities(
+        @Nullable ReasoningCapability reasoning,
+        @Nullable ContextWindow contextWindow,
+        @Nullable TemplatesCapability templates
+    ) implements ToXContentObject, Writeable {
 
-        public static final Capabilities EMPTY_INSTANCE = new Capabilities(null, null);
+        public static final Capabilities EMPTY_INSTANCE = new Capabilities(null, null, null);
 
         public static final String REASONING_FIELD_NAME = "reasoning";
         public static final String CONTEXT_WINDOW_FIELD_NAME = "context_window";
+        public static final String TEMPLATES_FIELD_NAME = "templates";
 
         private static final ConstructingObjectParser<Capabilities, Void> PARSER = new ConstructingObjectParser<>(
             "endpoint_metadata_capabilities",
             true,
-            args -> new Capabilities((ReasoningCapability) args[0], (ContextWindow) args[1])
+            args -> new Capabilities((ReasoningCapability) args[0], (ContextWindow) args[1], (TemplatesCapability) args[2])
         );
+
+        public Capabilities(@Nullable ReasoningCapability reasoning, @Nullable ContextWindow contextWindow) {
+            this(reasoning, contextWindow, null);
+        }
 
         static {
             PARSER.declareObject(
@@ -465,6 +481,11 @@ public record EndpointMetadata(
                 (p, c) -> ContextWindow.parse(p),
                 new ParseField(CONTEXT_WINDOW_FIELD_NAME)
             );
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> TemplatesCapability.parse(p),
+                new ParseField(TEMPLATES_FIELD_NAME)
+            );
         }
 
         public static Capabilities parse(XContentParser parser) throws IOException {
@@ -472,7 +493,11 @@ public record EndpointMetadata(
         }
 
         public Capabilities(StreamInput in) throws IOException {
-            this(in.readOptionalWriteable(ReasoningCapability::new), in.readOptionalWriteable(ContextWindow::new));
+            this(
+                in.readOptionalWriteable(ReasoningCapability::new),
+                in.readOptionalWriteable(ContextWindow::new),
+                in.getTransportVersion().supports(CAPABILITIES_TEMPLATES_ADDED) ? in.readOptionalWriteable(TemplatesCapability::new) : null
+            );
         }
 
         @Override
@@ -484,6 +509,9 @@ public record EndpointMetadata(
             if (contextWindow != null) {
                 builder.field(CONTEXT_WINDOW_FIELD_NAME, contextWindow);
             }
+            if (templates != null) {
+                builder.field(TEMPLATES_FIELD_NAME, templates);
+            }
             builder.endObject();
             return builder;
         }
@@ -492,6 +520,9 @@ public record EndpointMetadata(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(reasoning);
             out.writeOptionalWriteable(contextWindow);
+            if (out.getTransportVersion().supports(CAPABILITIES_TEMPLATES_ADDED)) {
+                out.writeOptionalWriteable(templates);
+            }
         }
 
         public boolean isEmpty() {
@@ -620,6 +651,85 @@ public record EndpointMetadata(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(maxInputTokens);
             out.writeOptionalVInt(maxOutputTokens);
+        }
+    }
+
+    /**
+     * Whether an endpoint requires chat completion requests to carry a prompt template instead of caller-authored messages.
+     * {@link #REQUIRED} is the only value: an endpoint that accepts either request shape omits the templates block altogether.
+     * It stays an enum so the upstream service can add values without a config migration. Elasticsearch stores and displays
+     * the policy so clients can choose the request shape; it never enforces it, because the upstream service may be ahead of
+     * the stored copy.
+     */
+    public enum TemplatePolicy {
+        REQUIRED;
+
+        public static TemplatePolicy fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * Template capability advertised by the upstream service. Any chat completion endpoint accepts a template, so the block is
+     * present only for endpoints that require one and reject caller-authored messages.
+     *
+     * @param policy the template policy, never {@code null}; an unknown policy value drops the whole block on parse
+     */
+    public record TemplatesCapability(TemplatePolicy policy) implements ToXContentObject, Writeable {
+
+        public static final String POLICY_FIELD_NAME = "policy";
+
+        private static final ConstructingObjectParser<TemplatesCapability, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_templates_capability",
+            true,
+            args -> {
+                if (args[0] instanceof String policyString) {
+                    try {
+                        return new TemplatesCapability(TemplatePolicy.fromString(policyString));
+                    } catch (Exception ignored) {
+                        // An unknown policy from a newer upstream service is ignored rather than failing the whole response
+                    }
+                }
+                return null;
+            }
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(POLICY_FIELD_NAME));
+        }
+
+        public TemplatesCapability {
+            Objects.requireNonNull(policy);
+        }
+
+        /**
+         * @return the parsed capability, or {@code null} when the policy is missing or unknown to this node
+         */
+        @Nullable
+        public static TemplatesCapability parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public TemplatesCapability(StreamInput in) throws IOException {
+            this(in.readEnum(TemplatePolicy.class));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(POLICY_FIELD_NAME, policy.toString());
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(policy);
         }
     }
 

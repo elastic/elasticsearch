@@ -68,6 +68,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
     private static final int SMALL_RANGE_LENGTH = 64;
 
     private static final long[] RANGE_OFFSETS = new long[] { 0, RANGE_LENGTH, 4L * RANGE_LENGTH, FILE_LENGTH - RANGE_LENGTH };
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     public void testZeroCopyFromLocalMmapFile() throws Exception {
         try (var node = newNode()) {
@@ -141,7 +142,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                 // declined despite the delegate being able to serve it
                 assertNoSegmentSlice(input, SMALL_RANGE_LENGTH);
 
-                // ... and the caller still gets the right bytes, via the heap-copy fallback
+                // ... and the caller still gets the right bytes, via the copying fallback
                 var scratch = new RecordingScratch();
                 input.seek(0L);
                 assertArrayEquals(
@@ -241,7 +242,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
     /**
      * Reads through the whole production wrapper chain that {@link org.elasticsearch.index.store.Store} builds, which is where the
-     * zero-copy access has to survive in order to reach the vector scorers, and checks that the heap-copy fallback is taken for a plain
+     * zero-copy access has to survive in order to reach the vector scorers, and checks that the copying fallback is taken for a plain
      * delegate and skipped for an mmap one.
      */
     public void testZeroCopyThroughStoreDirectory() throws Exception {
@@ -258,7 +259,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                     Arrays.copyOfRange(mmapBytes, 0, RANGE_LENGTH),
                     IndexInputUtils.withSlice(input, RANGE_LENGTH, scratch, ReopeningIndexInputDirectAccessTests::toByteArray)
                 );
-                assertThat("heap-copy fallback was taken for an mmap delegate", scratch.used.get(), equalTo(false));
+                assertThat("copying fallback was taken for an mmap delegate", scratch.used.get(), equalTo(false));
 
                 assertSliceAddressesThroughUtils(input, mmapBytes, true);
             }
@@ -269,22 +270,22 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                     Arrays.copyOfRange(plainBytes, 0, RANGE_LENGTH),
                     IndexInputUtils.withSlice(input, RANGE_LENGTH, scratch, ReopeningIndexInputDirectAccessTests::toByteArray)
                 );
-                assertThat("heap-copy fallback should be taken for a plain delegate", scratch.used.get(), equalTo(true));
+                assertThat("copying fallback should be taken for a plain delegate", scratch.used.get(), equalTo(true));
 
                 assertSliceAddressesThroughUtils(input, plainBytes, false);
             }
         }
     }
 
-    /** Records whether the heap-copy fallback of {@link IndexInputUtils#withSlice} was reached. */
-    private static class RecordingScratch implements IntFunction<byte[]> {
+    /** Records whether the copying fallback of {@link IndexInputUtils#withSlice} was reached. */
+    private static class RecordingScratch implements IntFunction<MemorySegment> {
 
         private final AtomicBoolean used = new AtomicBoolean();
 
         @Override
-        public byte[] apply(int length) {
+        public MemorySegment apply(int length) {
             used.set(true);
-            return new byte[length];
+            return Arena.ofAuto().allocate(length);
         }
     }
 
@@ -358,7 +359,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
     private static void assertSegmentSlice(DirectAccessInput input, byte[] expected, long offset, int length) throws IOException {
         var invoked = new AtomicBoolean();
-        var available = input.withMemorySegmentSlice(offset, length, segment -> {
+        var available = input.withMemorySegmentSlice(offset, length, NO_COPY, segment -> {
             invoked.set(true);
             assertArrayEquals(Arrays.copyOfRange(expected, (int) offset, (int) offset + length), toByteArray(segment.asSlice(0, length)));
         });
@@ -368,7 +369,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
     private static void assertNoSegmentSlice(DirectAccessInput input, int length) throws IOException {
         var invoked = new AtomicBoolean();
-        var available = input.withMemorySegmentSlice((long) 0, length, segment -> invoked.set(true));
+        var available = input.withMemorySegmentSlice((long) 0, length, NO_COPY, segment -> invoked.set(true));
         assertThat(available, equalTo(false));
         assertThat("action must not be invoked when no segment is available", invoked.get(), equalTo(false));
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
@@ -533,6 +534,29 @@ public class APMTracerTests extends ESTestCase {
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(tracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
         assertThat(tracer.getSpans(), not(hasKey(TRACEABLE3.getSpanId())));
+    }
+
+    /**
+     * With {@code max_spans=2} and a depth that allows children, the root and the first two of its three
+     * children are recorded; the third child is dropped because the local root reached its span budget.
+     */
+    public void test_onSdkPath_withMaxSpansTwo_dropsThirdChildSpan() {
+        Settings settings = Settings.builder()
+            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2)
+            .build();
+        APMTracer tracer = buildTracer(settings, 5);
+        Traceable child3 = new TestTraceable("id4");
+
+        ThreadContext traceContext = new ThreadContext(settings);
+        tracer.startTrace(traceContext, TRACEABLE1, "root", Map.of());
+        for (Traceable child : List.of(TRACEABLE2, TRACEABLE3, child3)) {
+            try (var ignored = traceContext.newTraceContext()) {
+                tracer.startTrace(traceContext, child, "child", Map.of());
+            }
+        }
+
+        assertThat(tracer.getSpans().keySet(), equalTo(Set.of(TRACEABLE1.getSpanId(), TRACEABLE2.getSpanId(), TRACEABLE3.getSpanId())));
     }
 
     public void test_onSdkPath_withMaxTraceDepthZero_recordsEntryAndDropsLocalChild() {

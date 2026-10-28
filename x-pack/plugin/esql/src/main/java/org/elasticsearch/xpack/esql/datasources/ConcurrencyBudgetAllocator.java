@@ -129,7 +129,7 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
     public int holders() {
         int held = 0;
         for (QueryConcurrencyBudget budget : activeBudgets) {
-            held += budget.inFlight();
+            held += budget.holders();
         }
         return held;
     }

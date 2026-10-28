@@ -187,7 +187,7 @@ public class StorageProviderRegistry implements Closeable {
      * an "SPI storage factory" -- a noun with no meaning outside this code. Follows the wording of
      * {@code ExternalSourceResolver}'s {@code UnsupportedSchemeException}, which states the same condition to
      * the same audience. {@code StorageManager} has a third wording for it, still divergent; collapsing all
-     * three onto one builder is esql-planning#1551.
+     * three onto one builder remains a follow-up.
      */
     private IllegalArgumentException unsupportedScheme(String scheme) {
         Set<String> known = new TreeSet<>(factories.keySet());
@@ -357,6 +357,22 @@ public class StorageProviderRegistry implements Closeable {
             scheme,
             k -> new ConcurrencyBudgetAllocator(concurrency.permits(), QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, admissionTracker, k)
         );
+    }
+
+    /**
+     * Live permit use per scheme that has created a limiter. Unlimited schemes are omitted.
+     * Values are {@code [available, max]}.
+     */
+    Map<String, int[]> permitSnapshots() {
+        Map<String, int[]> out = new java.util.TreeMap<>();
+        for (Map.Entry<String, ConcurrencyLimiter> entry : limiters.entrySet()) {
+            ConcurrencyLimiter limiter = entry.getValue();
+            if (limiter.isEnabled() == false) {
+                continue;
+            }
+            out.put(entry.getKey(), new int[] { limiter.availablePermits(), limiter.maxPermits() });
+        }
+        return out;
     }
 
     ConcurrencyLimiter limiterForScheme(String scheme) {

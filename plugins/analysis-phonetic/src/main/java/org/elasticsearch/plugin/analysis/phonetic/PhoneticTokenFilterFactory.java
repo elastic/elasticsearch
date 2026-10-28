@@ -29,6 +29,7 @@ import org.apache.lucene.analysis.phonetic.PhoneticFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
@@ -98,7 +99,9 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
                 this.encoder = new KoelnerPhonetik();
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik();
+                this.encoder = new HaasePhonetik(
+                    indexSettings.getIndexVersionCreated().before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS)
+                );
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {

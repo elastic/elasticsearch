@@ -42,6 +42,15 @@ public class HaasePhonetik extends KoelnerPhonetik {
         "ILLE" };
     private static final String[] HAASE_VARIATIONS_REPLACEMENTS = { "AUN", "RW", "RSK", "AR", "OW", "CH", "LI", "O", "SCH", "O", "O", "I" };
 
+    public HaasePhonetik() {
+        super(false, false);
+    }
+
+    /** @param legacyVariations keep the old {@code ^CH} behavior (drops the next letter) for indices created before the fix */
+    public HaasePhonetik(boolean legacyVariations) {
+        super(false, legacyVariations);
+    }
+
     @Override
     protected String[] getPatterns() {
         return HAASE_VARIATIONS_PATTERNS;

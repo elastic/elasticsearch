@@ -75,3 +75,7 @@ If the `beider_morse` encoder is used, then these additional settings are suppor
 `languageset`
 :   An array of languages to check. If not specified, then the language will be guessed. Accepts: `any`, `common`, `cyrillic`, `english`, `french`, `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`, `spanish`.
 
+
+::::{note}
+Indices created before the `haasephonetik` fix keep the previous behavior, in which a word starting with `CH` lost its third letter when encoded (for example `CHLOE` was coded as if it were `CHOE`). Indices created on or after the fix encode the full word. Reindex to adopt the fixed codes.
+::::

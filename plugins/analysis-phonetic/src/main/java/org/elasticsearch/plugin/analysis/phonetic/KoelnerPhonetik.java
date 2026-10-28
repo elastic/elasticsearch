@@ -39,6 +39,7 @@ public class KoelnerPhonetik implements StringEncoder {
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = { "OWN", "AUN", "RW", "RB", "RSK", "WSK" };
     private Pattern[] variationsPatterns;
     private boolean primary = false;
+    private final boolean legacyVariations;
     private final Set<Character> csz = new HashSet<>(Arrays.asList('C', 'S', 'Z'));
     private final Set<Character> ckq = new HashSet<>(Arrays.asList('C', 'K', 'Q'));
     private final Set<Character> aouhkxq = new HashSet<>(Arrays.asList('A', 'O', 'U', 'H', 'K', 'X', 'Q'));
@@ -47,14 +48,23 @@ public class KoelnerPhonetik implements StringEncoder {
     /**
      * Constructor for  Kölner Phonetik
      */
-    @SuppressWarnings("this-escape")
     public KoelnerPhonetik() {
-        init();
+        this(false, false);
     }
 
     public KoelnerPhonetik(boolean useOnlyPrimaryCode) {
-        this();
+        this(useOnlyPrimaryCode, false);
+    }
+
+    /**
+     * @param legacyVariations emit the rule text rather than the matched text for anchored rules like {@code ^CH}, as before the fix,
+     *                         so indices created earlier keep their indexed codes
+     */
+    @SuppressWarnings("this-escape")
+    protected KoelnerPhonetik(boolean useOnlyPrimaryCode, boolean legacyVariations) {
         this.primary = useOnlyPrimaryCode;
+        this.legacyVariations = legacyVariations;
+        init();
     }
 
     /**
@@ -158,10 +168,14 @@ public class KoelnerPhonetik implements StringEncoder {
         while (position < str.length()) {
             int i = 0;
             int substPos = -1;
+            String matched = null;
+            int matchEnd = -1;
             while (substPos < position && i < getPatterns().length) {
                 Matcher m = variationsPatterns[i].matcher(str);
                 while (substPos < position && m.find()) {
                     substPos = m.start();
+                    matched = m.group();
+                    matchEnd = m.end();
                 }
                 i++;
             }
@@ -172,10 +186,10 @@ public class KoelnerPhonetik implements StringEncoder {
                 for (int ii = 0; ii < variations.size(); ii++) {
                     String tmp = variations.get(ii);
                     varNew.add(tmp.concat(prevPart + getReplacements()[i]));
-                    variations.set(ii, variations.get(ii) + prevPart + getPatterns()[i]);
+                    variations.set(ii, variations.get(ii) + prevPart + (legacyVariations ? getPatterns()[i] : matched));
                 }
                 variations.addAll(varNew);
-                position = substPos + getPatterns()[i].length();
+                position = legacyVariations ? substPos + getPatterns()[i].length() : matchEnd;
             } else {
                 for (int ii = 0; ii < variations.size(); ii++) {
                     variations.set(ii, variations.get(ii) + str.substring(position, str.length()));

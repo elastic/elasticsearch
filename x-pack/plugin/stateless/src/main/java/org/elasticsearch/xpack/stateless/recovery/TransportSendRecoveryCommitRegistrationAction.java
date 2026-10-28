@@ -137,8 +137,17 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             // In this case `state` read from `ClusterService` is a state _before_ this search shard is assigned.
             // It doesn't make sense to send `TransportRegisterCommitForRecoveryAction` to the index shard
             // with this cluster state version since the action checks routing of the search shard and we know it is not present.
+            //
+            // TODO ideally we should use `RecoveryTarget#clusterStateVersion()` when creating `RegisterCommitRequest`
+            // and that would fix this problem without retries.
+            // But we need to plumb this information through somehow.
             if (isSearchShardAssigned(shardRoutingTable, request.getNodeId()) == false) {
-                throw new ShardNotFoundException(shardId, "search shard is not assigned in the cluster state");
+                throw new ShardNotFoundException(
+                    shardId,
+                    "search shard {} is not assigned in the cluster state version",
+                    shardId,
+                    state.version()
+                );
             }
             if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
                 // TODO: A search shard should be able to continue using the found commit despite not being able to register it.

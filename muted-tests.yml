@@ -311,7 +311,7 @@ tests:
 # query vectors. Exact 0f was Lucene 10.
 - class: org.elasticsearch.search.KnnSearchIT
   method: testQueryVectorBase64Parity
-  issue: https://github.com/elastic/elasticsearch/issues/XXXX
+  issue: https://github.com/elastic/elasticsearch/issues/163793
 # Maps match main (7/8/9) plus Lucene 11 .dvp. Mute until the blob-delete
 # await is confirmed without the extra wait+flush from 266fe044.
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT

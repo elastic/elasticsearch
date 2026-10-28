@@ -563,3 +563,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
+- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFallbackThatCannotBeSentTheSplitsFailsTheQuery
+  issue: https://github.com/elastic/elasticsearch/issues/163761

@@ -49,7 +49,9 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
 
         if (context.indexSettings().getMode().isTsdb() == false) {
-            throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
+            throw new IllegalStateException(
+                TimeSeriesMetadataFieldBlockLoader.class.getSimpleName() + " requires index mode: [ " + IndexMode.TIME_SERIES + " ]"
+            );
         }
 
         var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
@@ -116,8 +118,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
+        /** Already JSON, so {@link #toJson} would pass it through unchanged. */
+        private static final BytesReference EMPTY_JSON_OBJECT = Source.empty(XContentType.JSON).internalSourceRef();
+
         private final Set<String> metadataFields;
-        /** {@code null} when {@link #metadataFields} is empty, where there is nothing to narrow the source to. */
+        /** {@code null} when {@link #metadataFields} is empty, where the column is an empty object, see {@link #read}. */
         @Nullable
         private final SourceFilter sourceFilter;
         /** The paths of the source last read from, and whether it has to be narrowed, see {@link #read}. */
@@ -162,25 +167,28 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            if (sourceFilter == null) {
+                // Every dimension is excluded, so there is nothing left to identify the series by.
+                ((BytesRefBuilder) builder).appendBytesReference(EMPTY_JSON_OBJECT);
+                return;
+            }
             Source source = storedFields.source();
-            if (sourceFilter != null) {
-                // We expect that read() is called many times with the same sourcePaths() Set and we assume it is immutable
-                // So we cache it to avoid an expensive Set equality check on every read
-                // In general we check that we only apply the source filter if the paths don't match, as SourceFilter is expensive
-                if (storedFields.sourcePaths() != cachedSourcePaths) {
-                    cachedSourcePaths = storedFields.sourcePaths();
-                    cachedNarrowSource = metadataFields.equals(cachedSourcePaths) == false;
-                }
-                if (cachedNarrowSource) {
-                    source = sourceFilter.filterBytes(source);
-                }
+            // We expect that read() is called many times with the same sourcePaths() Set and we assume it is immutable
+            // So we cache it to avoid an expensive Set equality check on every read
+            // In general we check that we only apply the source filter if the paths don't match, as SourceFilter is expensive
+            if (storedFields.sourcePaths() != cachedSourcePaths) {
+                cachedSourcePaths = storedFields.sourcePaths();
+                cachedNarrowSource = metadataFields.equals(cachedSourcePaths) == false;
+            }
+            if (cachedNarrowSource) {
+                source = sourceFilter.filterBytes(source);
             }
             ((BytesRefBuilder) builder).appendBytesReference(toJson(source));
         }
 
         @Override
         public String toString() {
-            return "BlockStoredFieldsReader.TimeSeries";
+            return BlockStoredFieldsReader.class.getSimpleName() + ".TimeSeries";
         }
     }
 }

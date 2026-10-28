@@ -285,6 +285,41 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * Two {@code _timeseries} columns of one read — a PROMQL query with two differently excluding {@code without} clauses, say — share
+     * a source holding the union of the dimensions they asked for. Each column must still emit only its own, so the exclusions of one
+     * cannot leak into the other.
+     */
+    public void testWithoutProjectionFiltersSharedSource() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "region"),
+            false
+        );
+        assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
+    }
+
+    /**
+     * Excluding every dimension leaves nothing to identify the series by, so the column is an empty object rather than the document the
+     * shared source happens to hold.
+     */
+    public void testWithoutAllDimensionsEmitsEmptyObject() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "env", "region"),
+            randomBoolean()
+        );
+        assertThat(value.utf8ToString(), equalTo("{}"));
+    }
+
+    /**
      * A TSDB index modeled after the Prometheus remote-write component template, with a {@code labels} {@code passthrough} object marked as
      * a dimension and stored CBOR source. The emitted {@code _timeseries} JSON object must contain a nested {@code labels} object with
      * the indexed dimension key/value pairs.

@@ -158,7 +158,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         );
     }
 
-    void previewDatafeed(
+    private void previewDatafeed(
         TaskId parentTaskId,
         DatafeedConfig datafeedConfig,
         Job job,
@@ -204,7 +204,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential
             );
-            createDataExtractorFactory(
+            DataExtractorFactory.create(
                 previewClient,
                 cloudCredentialManager,
                 effectiveDatafeedConfig,
@@ -213,44 +213,18 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                responseHeaderPreservingListener.delegateFailure((l, dataExtractorFactory) -> {
-                    if (requiresDateNanosCheck(effectiveDatafeedConfig)) {
-                        isDateNanos(
-                            previewClient,
-                            effectiveDatafeedConfig,
-                            job.getDataDescription().getTimeField(),
-                            l.delegateFailure(
-                                (l2, isDateNanos) -> runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, isDateNanos, l2)
-                            )
-                        );
-                    } else {
-                        runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, true, l);
-                    }
-                })
+                responseHeaderPreservingListener.delegateFailure(
+                    (l, dataExtractorFactory) -> isDateNanos(
+                        previewClient,
+                        effectiveDatafeedConfig,
+                        job.getDataDescription().getTimeField(),
+                        l.delegateFailure(
+                            (l2, isDateNanos) -> runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, isDateNanos, l2)
+                        )
+                    )
+                )
             );
         });
-    }
-
-    void createDataExtractorFactory(
-        Client client,
-        CloudCredentialManager cloudCredentialManager,
-        DatafeedConfig datafeed,
-        QueryBuilder extraFilters,
-        Job job,
-        NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        ActionListener<DataExtractorFactory> listener
-    ) {
-        DataExtractorFactory.create(
-            client,
-            cloudCredentialManager,
-            datafeed,
-            extraFilters,
-            job,
-            xContentRegistry,
-            timingStatsReporter,
-            listener
-        );
     }
 
     private void runPreview(
@@ -269,16 +243,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     /**
      * Visible for testing
      */
-    static boolean requiresDateNanosCheck(DatafeedConfig datafeed) {
-        return datafeed.getEsqlQuery() == null;
-    }
-
-    /**
-     * Visible for testing
-     */
     static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos, DatafeedConfig datafeed) {
+        long cap = isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
         if (request.getEndTime().isPresent() == false) {
-            return isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
+            return cap;
         }
         long end = request.getEndTime().getAsLong();
         if (datafeed.getEsqlQuery() == null) {
@@ -289,8 +257,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         // diagnostic view of the requested range, so round the end up to keep the bucket containing it
         // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
         long alignedEnd = Intervals.alignToCeil(end, datafeed.getGroupingInterval().millis());
-        // alignToCeil overflows for ends within one interval of Long.MAX_VALUE; keep the requested end then.
-        return alignedEnd >= end ? alignedEnd : end;
+        // alignToCeil overflows (wraps negative) near Long.MAX_VALUE and may exceed the date_nanos max.
+        return (alignedEnd < end || alignedEnd > cap) ? cap : alignedEnd;
     }
 
     /**
@@ -331,6 +299,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+        if (datafeed.getEsqlQuery() != null) {
+            // ES|QL datafeeds have no backing index for field caps; treat time as date_nanos-capable so the
+            // default preview end is MAX_NANOSECOND_INSTANT.
+            listener.onResponse(true);
+            return;
+        }
         executeWithHeadersAsync(
             datafeed.getHeaders(),
             ML_ORIGIN,

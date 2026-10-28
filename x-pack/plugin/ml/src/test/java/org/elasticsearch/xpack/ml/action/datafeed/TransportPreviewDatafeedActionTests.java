@@ -14,45 +14,30 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -61,6 +46,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -73,10 +59,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -115,26 +99,6 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
     }
 
-    public void testPreviewDatafeedUsesFactorySeamForEsqlDatafeed() throws Exception {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-        MachineLearningExtensionHolder extensions = mock(MachineLearningExtensionHolder.class);
-        when(extensions.isEmpty()).thenReturn(true);
-        DataExtractor emptyExtractor = mock(DataExtractor.class);
-        when(emptyExtractor.hasNext()).thenReturn(false);
-        DataExtractorFactory mockedFactory = mock(DataExtractorFactory.class);
-        when(mockedFactory.newExtractor(anyLong(), anyLong())).thenReturn(emptyExtractor);
-        RecordingPreviewAction action = new RecordingPreviewAction(clusterService, extensions, mockedFactory);
-        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
-        PlainActionFuture<PreviewDatafeedAction.Response> future = new PlainActionFuture<>();
-
-        action.previewDatafeed(new TaskId("node", 1L), datafeed, mock(Job.class), mock(PreviewDatafeedAction.Request.class), future);
-
-        assertThat(future.get(10, TimeUnit.SECONDS), is(notNullValue()));
-        assertThat(action.factoryDatafeed, equalTo(datafeed));
-        verify(mockedFactory).newExtractor(anyLong(), anyLong());
-    }
-
     public void testPreviewShouldUseRequestWindowNotPersistedCheckpoint() {
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 7_200_000L);
@@ -143,21 +107,23 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedWithUnalignedEndShouldCoverBucketContainingEnd() {
-        long hour = TimeValue.timeValueHours(1).millis();
+        long nineHours = Duration.ofHours(9).toMillis();
+        long tenHours = Duration.ofHours(10).toMillis();
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         // 09:29:53: the bucket [09:00, 10:00) overlaps the requested range and must be part of the preview
-        long unalignedEnd = 9 * hour + 29 * 60_000L + 53_000L;
-        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 9 * hour, unalignedEnd);
+        long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, unalignedEnd);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(10 * hour));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(tenHours));
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedWithAlignedEndShouldKeepEnd() {
-        long hour = TimeValue.timeValueHours(1).millis();
+        long nineHours = Duration.ofHours(9).toMillis();
+        long tenHours = Duration.ofHours(10).toMillis();
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
-        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 9 * hour, 10 * hour);
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, tenHours);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(10 * hour));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(tenHours));
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedWithNoEndShouldStayUnbounded() {
@@ -174,46 +140,26 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(5_123L));
     }
 
+    public void testResolvePreviewEndTimeEsqlDatafeedNearLongMaxShouldCapAtLongMaxValue() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long endNearMax = Long.MAX_VALUE - 1_000L;
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, endNearMax);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedNearDateNanosMaxShouldCapAtNanosMax() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax - 1L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
+    }
+
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1));
-    }
-
-    private class RecordingPreviewAction extends TransportPreviewDatafeedAction {
-        private final DataExtractorFactory factory;
-        protected DatafeedConfig factoryDatafeed;
-
-        RecordingPreviewAction(ClusterService clusterService, MachineLearningExtensionHolder extensions, DataExtractorFactory factory) {
-            super(
-                Settings.EMPTY,
-                threadPool,
-                mock(TransportService.class),
-                mock(ActionFilters.class),
-                mock(Client.class),
-                clusterService,
-                mock(JobConfigProvider.class),
-                mock(DatafeedConfigProvider.class),
-                NamedXContentRegistry.EMPTY,
-                extensions
-            );
-            this.factory = factory;
-        }
-
-        @Override
-        void createDataExtractorFactory(
-            Client client,
-            CloudCredentialManager cloudCredentialManager,
-            DatafeedConfig datafeed,
-            QueryBuilder extraFilters,
-            Job job,
-            NamedXContentRegistry xContentRegistry,
-            DatafeedTimingStatsReporter timingStatsReporter,
-            ActionListener<DataExtractorFactory> listener
-        ) {
-            factoryDatafeed = datafeed;
-            listener.onResponse(factory);
-        }
     }
 
     private static ClusterState currentCompatibleClusterState() {
@@ -231,10 +177,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setUpTests() {
-        threadPool = new TestThreadPool(
-            getTestName(),
-            new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
-        );
+        threadPool = new TestThreadPool(getTestName());
         dataExtractor = mock(DataExtractor.class);
         actionListener = mock(ActionListener.class);
 

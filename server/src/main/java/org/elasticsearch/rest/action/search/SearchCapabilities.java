@@ -70,6 +70,8 @@ public final class SearchCapabilities {
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
+    /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
+    private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -107,6 +109,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_QUERY_VECTOR_BASE64);
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
+        capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

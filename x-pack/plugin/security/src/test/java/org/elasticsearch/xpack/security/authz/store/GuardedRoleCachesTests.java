@@ -51,6 +51,24 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.getRole(project, R2), notNullValue());
     }
 
+    public void testConcurrentBuildCompletionsRetainFirstCachedRole() {
+        final GuardedRoleCaches caches = new GuardedRoleCaches(UNBOUNDED, UNBOUNDED);
+        final ProjectId project = randomUniqueProjectId();
+        final Role firstRole = role("r1");
+        final Role secondRole = role("r1");
+
+        // Both resolutions miss before either finishes; their cache writes are serialized by the monitor.
+        assertThat(caches.getRole(project, R1), nullValue());
+        final GuardedRoleCaches.Generation firstGeneration = caches.generation(project);
+        assertThat(caches.getRole(project, R1), nullValue());
+        final GuardedRoleCaches.Generation secondGeneration = caches.generation(project);
+
+        assertThat(caches.putIfCurrent(firstGeneration, project, R1, firstRole, Set.of()), is(true));
+        assertThat(caches.getRole(project, R1), sameInstance(firstRole));
+        assertThat(caches.putIfCurrent(secondGeneration, project, roleKey("r1"), secondRole, Set.of()), is(true));
+        assertThat(caches.getRole(project, R1), sameInstance(firstRole));
+    }
+
     // Every kind of invalidation must move the generation of the project it affects. One case per kind so that a failure
     // names the kind. Each case starts from a fresh instance, so the project has never been invalidated before.
 

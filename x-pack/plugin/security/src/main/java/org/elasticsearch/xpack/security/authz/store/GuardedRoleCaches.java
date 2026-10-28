@@ -102,15 +102,15 @@ final class GuardedRoleCaches {
 
     /**
      * Caches the built role and records the role names that were not found, unless an invalidation has moved the generation
-     * since {@code observed} was captured.
+     * since {@code observed} was captured. If another resolution already cached a role, retains that instance and its warmed caches.
      *
-     * @return {@code true} if the entries were cached, {@code false} if they were discarded because of an invalidation
+     * @return {@code true} if the generation is still current, {@code false} if the entries were discarded because of an invalidation
      */
     synchronized boolean putIfCurrent(Generation observed, ProjectId projectId, RoleKey roleKey, Role role, Set<String> missing) {
         if (observed.equals(generation(projectId)) == false) {
             return false;
         }
-        roles.put(new ProjectScoped<>(projectId, roleKey), role);
+        roles.putIfAbsent(new ProjectScoped<>(projectId, roleKey), role);
         for (String name : missing) {
             negativeLookups.put(new ProjectScoped<>(projectId, name), Boolean.TRUE);
         }

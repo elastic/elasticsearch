@@ -70,7 +70,8 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // We enforce a standard order for imports
                 java.importOrderFile(new File(elasticsearchWorkspace, importOrderPath));
 
-                // Most formatting is done through the Eclipse formatter. Pin its version so Spotless upgrades do not reformat the repository.
+                // Eclipse 4.36 bundles JDT 3.42.0, which was previously force-constrained.
+                // Keep this pinned so Spotless upgrades do not reformat the repository.
                 java.eclipse("4.36").configFile(new File(elasticsearchWorkspace, formatterConfigPath));
 
                 // Ensure blank lines are actually empty. Since formatters are applied in

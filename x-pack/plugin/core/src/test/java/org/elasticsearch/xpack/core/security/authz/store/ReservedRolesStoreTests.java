@@ -351,13 +351,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Map.entry(
             "alertzero_endpoint_analysis",
             Map.ofEntries(
-                Map.entry(".adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("read")),
+                Map.entry(
+                    ".adhoc.alerts-security.attack.discovery.alerts-sample",
+                    Set.of("index", "maintenance", "read", "view_index_metadata")
+                ),
                 Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
-                Map.entry(".alerts-security.alerts-sample", Set.of("read")),
-                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("read")),
-                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
-                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
-                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
@@ -496,6 +499,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -516,6 +521,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -534,9 +541,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
+                "feature_securitySolutionAlertsV1.all",
                 "feature_siemV5.actions_log_management_read",
                 "feature_siemV5.host_isolation_all",
                 "feature_siemV5.minimal_read",
@@ -548,6 +558,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -562,6 +574,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -575,6 +589,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_fleet.read",
@@ -588,6 +604,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
     private static final Set<String> ALERTZERO_ALL_FEATURE_PRIVILEGES = Set.of(
         "feature_actions.read",
         "feature_agentBuilder.read",
+        "feature_agenticInvestigations.all",
+        "feature_agenticInvestigations.escalations_all",
+        "feature_agenticInvestigations.escalations_read",
+        "feature_agenticInvestigations.investigations_all",
+        "feature_agenticInvestigations.minimal_all",
+        "feature_agenticInvestigations.read",
         "feature_alertzero.all",
         "feature_alertzero.read",
         "feature_contextEngine.all",

@@ -2542,7 +2542,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
-        multiply(a, k, b, result, m, k, n, executor);
+        multiply(a, k, b, result, m, k, n, false, executor);
+    }
+
+    @Override
+    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        multiply(a, k, b, result, n, k, n, true, executor);
     }
 
     /*
@@ -2567,8 +2572,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * Once B no longer fits in L2, re-reading all the data in B requires lots of cache movement.
      * Instead, B is copied one column panel at a time into a contiguous buffer,
      * and all row blocks of A are multiplied against that panel while it is in cache.
+     * <p>
+     * With {@code upperOnly}, C is square and symmetric: the row blocks of a panel that lie wholly below the diagonal are
+     * skipped, and the panel's columns are then copied into the matching rows below the diagonal. The panels reach
+     * further down the further right they are, so they are submitted from the right, the most expensive first.
      */
-    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n, TaskExecutor executor) {
+    private static void multiply(
+        float[] a,
+        int aRowStride,
+        float[] b,
+        float[] c,
+        int cRows,
+        int inner,
+        int n,
+        boolean upperOnly,
+        TaskExecutor executor
+    ) {
+        assert upperOnly == false || cRows == n;
         final int rowLimit = limit(cRows, MATRIX_TILE_ROWS);
         final int panelLimit = limit(n, MATRIX_TILE_COLS);
 
@@ -2581,12 +2601,17 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                     // get all the b column data for this panel packed into a single array for cacheability in the row loop
                     packPanel(b, n, inner, p, panel);
 
-                    for (int i = 0; i < rowLimit; i += MATRIX_TILE_ROWS) {
+                    // the rows of an upper triangle that has columns [p, p + MATRIX_TILE_COLS) end at the last of those columns
+                    int panelRowLimit = upperOnly ? Math.min(rowLimit, p + MATRIX_TILE_COLS) : rowLimit;
+                    for (int i = 0; i < panelRowLimit; i += MATRIX_TILE_ROWS) {
                         switch (VECTOR_BITSIZE) {
                             case 128 -> multiplyPanel4x4(a, aRowStride, panel, c, i, p, inner, n);
                             case 512 -> multiplyPanel8x2(a, aRowStride, panel, c, i, p, inner, n);
                             default -> multiplyPanel4x2(a, aRowStride, panel, c, i, p, inner, n);
                         }
+                    }
+                    if (upperOnly) {
+                        mirrorColumns(c, n, p, p + MATRIX_TILE_COLS, rowLimit);
                     }
                 }
             } else {
@@ -2602,20 +2627,24 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                  */
                 Queue<float[]> buffers = new ConcurrentLinkedQueue<>();
 
-                for (int p = 0; p < panelLimit; p += MATRIX_TILE_COLS) {
-                    final int panelStart = p;
+                for (int t = 0; t < numRequiredTasks; t++) {
+                    final int panelStart = (upperOnly ? numRequiredTasks - 1 - t : t) * MATRIX_TILE_COLS;
+                    final int panelRowLimit = upperOnly ? Math.min(rowLimit, panelStart + MATRIX_TILE_COLS) : rowLimit;
                     tasks.add(() -> {
                         float[] panel = buffers.poll(); // acquire panel buffer if available
                         if (panel == null) panel = new float[inner * MATRIX_TILE_COLS];
 
                         packPanel(b, n, inner, panelStart, panel);
 
-                        for (int i = 0; i < rowLimit; i += MATRIX_TILE_ROWS) {
+                        for (int i = 0; i < panelRowLimit; i += MATRIX_TILE_ROWS) {
                             switch (VECTOR_BITSIZE) {
                                 case 128 -> multiplyPanel4x4(a, aRowStride, panel, c, i, panelStart, inner, n);
                                 case 512 -> multiplyPanel8x2(a, aRowStride, panel, c, i, panelStart, inner, n);
                                 default -> multiplyPanel4x2(a, aRowStride, panel, c, i, panelStart, inner, n);
                             }
+                        }
+                        if (upperOnly) {
+                            mirrorColumns(c, n, panelStart, panelStart + MATRIX_TILE_COLS, rowLimit);
                         }
                         buffers.add(panel); // release panel buffer
                         return null;
@@ -2671,9 +2700,29 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             }
         }
 
+        if (upperOnly) {
+            // the columns left over by the panels. The rows of the row tail below are computed in full, so need no copy
+            mirrorColumns(c, n, panelLimit, n, rowLimit);
+        }
+
         // row tail, max MATRIX_TILE_ROWS - 1 rows
         for (int i = rowLimit; i < cRows; i++) {
             multiplyTile1(a, aRowStride, b, c, i, inner, n);
+        }
+    }
+
+    /**
+     * Copies each of the columns {@code [colStart, colEnd)} of the square matrix {@code c}, above the diagonal, into the
+     * row of the same number, below it, for the rows before {@code rowLimit}. The rows from {@code rowLimit} are
+     * computed in full by the caller.
+     */
+    private static void mirrorColumns(float[] c, int n, int colStart, int colEnd, int rowLimit) {
+        for (int j = colStart; j < colEnd; j++) {
+            int end = Math.min(j, rowLimit);
+            int rowBase = j * n;
+            for (int i = 0; i < end; i++) {
+                c[rowBase + i] = c[i * n + j];
+            }
         }
     }
 
@@ -3044,6 +3093,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             }
             c[c0 + j] = s;
         }
+    }
+
+    @Override
+    public void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        // panama doesn't give us anything over scalar, as panama integer is rubbish
+        new DefaultESVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, result);
     }
 
     @Override

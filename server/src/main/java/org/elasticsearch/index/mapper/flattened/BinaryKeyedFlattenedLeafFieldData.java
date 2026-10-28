@@ -111,6 +111,13 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
         }
 
         @Override
+        public long maxDecodeBytes() {
+            // The key-filtered view decodes through the underlying binary doc values, so it retains whatever buffer
+            // that reader allocates. Surface the delegate's estimate so the script path can account for it.
+            return delegate.maxDecodeBytes();
+        }
+
+        @Override
         public boolean advanceExact(int target) throws IOException {
             this.seen = 0;
 

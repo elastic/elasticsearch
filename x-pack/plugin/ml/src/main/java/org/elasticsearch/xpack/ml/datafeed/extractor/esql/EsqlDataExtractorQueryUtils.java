@@ -41,7 +41,12 @@ final class EsqlDataExtractorQueryUtils {
      */
     static String buildOrderedQuery(String query) {
         String sorted = EsqlQueryClauseScanner.appendGeneratedPipeline(query, TIME_SORT);
-        return EsqlQueryClauseScanner.hasOuterLimit(query) ? sorted : sorted + DEFAULT_LIMIT;
+        return injectsRowLimit(query) ? sorted + DEFAULT_LIMIT : sorted;
+    }
+
+    /** Whether {@link #buildOrderedQuery} appends {@link #INJECTED_ROW_LIMIT}, i.e. the user query has no outer LIMIT. */
+    static boolean injectsRowLimit(String query) {
+        return EsqlQueryClauseScanner.hasOuterLimit(query) == false;
     }
 
     static String sourceRangeSummaryQuery(String esqlQuery) {

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.util.Objects;
 
@@ -52,7 +53,8 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             timeAligner,
             datafeedConfig.hasAggregations(),
             datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
-            datafeedConfig.getEsqlQuery() != null
+            datafeedConfig.getEsqlQuery() != null,
+            datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery())
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
     }

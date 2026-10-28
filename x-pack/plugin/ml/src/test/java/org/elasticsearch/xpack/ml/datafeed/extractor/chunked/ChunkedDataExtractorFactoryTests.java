@@ -129,7 +129,36 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(7_200_000L));
     }
 
+    public void testEsqlQueryWithoutOuterLimitShouldInjectRowLimit() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs");
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
+
+        assertThat(dataExtractor.getContext().hasEsqlQuery(), is(true));
+        assertThat(dataExtractor.getContext().esqlRowLimitInjected(), is(true));
+    }
+
+    public void testEsqlQueryWithOuterLimitShouldNotInjectRowLimit() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs | LIMIT 20000");
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
+
+        assertThat(dataExtractor.getContext().hasEsqlQuery(), is(true));
+        assertThat(dataExtractor.getContext().esqlRowLimitInjected(), is(false));
+    }
+
+    public void testDslDatafeedShouldNotInjectRowLimit() {
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) createFactory(1000L).newExtractor(2000, 5000);
+
+        assertThat(dataExtractor.getContext().hasEsqlQuery(), is(false));
+        assertThat(dataExtractor.getContext().esqlRowLimitInjected(), is(false));
+    }
+
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval) {
+        return createEsqlFactory(groupingInterval, "FROM logs");
+    }
+
+    private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Detector.Builder detectorBuilder = new Detector.Builder();
@@ -140,7 +169,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         jobBuilder.setAnalysisConfig(analysisConfig);
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
-        datafeedConfigBuilder.setEsqlQuery("FROM logs");
+        datafeedConfigBuilder.setEsqlQuery(esqlQuery);
         datafeedConfigBuilder.setSourceTimeField("@timestamp");
         datafeedConfigBuilder.setGroupingInterval(groupingInterval);
         return new ChunkedDataExtractorFactory(

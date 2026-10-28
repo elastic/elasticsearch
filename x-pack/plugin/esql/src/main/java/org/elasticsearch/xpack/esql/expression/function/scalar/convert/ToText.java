@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -212,7 +213,9 @@ public class ToText extends AbstractConvertFunction
                 }
             }
             if (resolvesToMappedFieldAttribute(plan, field())) {
-                failures.add(fail(field(), "{}", analyzerOnMappedFieldMessage(field().sourceText())));
+                // Name the field and point at this call rather than at the field's source: a column merged by a
+                // subquery UNION is sourced from the whole FROM clause.
+                failures.add(fail(this, "{}", analyzerOnMappedFieldMessage(Expressions.name(field()))));
             }
         };
     }

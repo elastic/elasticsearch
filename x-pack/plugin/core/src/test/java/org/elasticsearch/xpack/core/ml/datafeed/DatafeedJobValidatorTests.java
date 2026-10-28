@@ -50,4 +50,61 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN, "30m", "1h"))
         );
     }
+
+    public void testEsqlFrequencyNotMultipleOfGroupingIntervalShouldReject() {
+        Job job = new Job.Builder("esql-job").setAnalysisConfig(JobTests.createAnalysisConfig().setBucketSpan(TimeValue.timeValueHours(1)))
+            .setDataDescription(new DataDescription.Builder())
+            .build(new Date());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setFrequency(TimeValue.timeValueMinutes(10))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeed, job, xContentRegistry())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                Messages.getMessage(
+                    Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL,
+                    TimeValue.timeValueMinutes(10),
+                    TimeValue.timeValueHours(1).getStringRep()
+                )
+            )
+        );
+    }
+
+    public void testEsqlFrequencyMultipleOfGroupingIntervalShouldAccept() {
+        Job job = new Job.Builder("esql-job").setAnalysisConfig(JobTests.createAnalysisConfig().setBucketSpan(TimeValue.timeValueHours(1)))
+            .setDataDescription(new DataDescription.Builder())
+            .build(new Date());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setFrequency(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+
+        DatafeedJobValidator.validate(datafeed, job, xContentRegistry());
+    }
+
+    public void testEsqlNullFrequencyShouldNotRequireGroupingIntervalMultiple() {
+        Job job = new Job.Builder("esql-job").setAnalysisConfig(JobTests.createAnalysisConfig().setBucketSpan(TimeValue.timeValueHours(1)))
+            .setDataDescription(new DataDescription.Builder())
+            .build(new Date());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+
+        DatafeedJobValidator.validate(datafeed, job, xContentRegistry());
+    }
 }

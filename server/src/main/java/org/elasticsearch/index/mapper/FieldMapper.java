@@ -2074,7 +2074,10 @@ public abstract class FieldMapper extends Mapper {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     super.setValue(backingValue(true, getDefaultValue().cardinality));
                 } else {
-                    super.setValue(Values.DISABLED_LOW_CARDINALITY);
+                    // Cardinality has no meaning when doc values are disabled. If the default is itself disabled, an explicit
+                    // false must equal it so that it merges with an omitted doc_values and is not serialized.
+                    Values defaultValue = getDefaultValue();
+                    super.setValue(defaultValue.enabled ? Values.DISABLED_LOW_CARDINALITY : defaultValue);
                 }
             }
         }

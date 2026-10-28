@@ -428,6 +428,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /** How often the waiting of queued queries is charged to their shards, so it shows at most this late. */
+    static final TimeValue SEARCH_WAITING_CHARGE_INTERVAL = TimeValue.timeValueSeconds(1);
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
@@ -478,6 +481,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long memoryAccountingBufferSize;
 
     private final Cancellable keepAliveReaper;
+
+    /** Charges the waiting of queued queries, so it shows in the shard stats before their tasks start. */
+    private final Cancellable searchWaitingCharger;
 
     private final AtomicLong idGenerator = new AtomicLong();
 
@@ -532,6 +538,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, threadPool.executor(Names.SEARCH));
+        // not on the search pools, whose queues it measures
+        this.searchWaitingCharger = threadPool.scheduleWithFixedDelay(
+            queryScheduler::chargeWaiting,
+            SEARCH_WAITING_CHARGE_INTERVAL,
+            threadPool.generic()
+        );
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -774,6 +786,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     protected void doClose() {
         doStop();
         keepAliveReaper.cancel();
+        searchWaitingCharger.cancel();
     }
 
     /**

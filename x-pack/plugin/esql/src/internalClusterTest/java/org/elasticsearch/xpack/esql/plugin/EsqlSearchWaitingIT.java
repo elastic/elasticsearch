@@ -71,7 +71,8 @@ public class EsqlSearchWaitingIT extends AbstractEsqlIntegTestCase {
         try {
             // the drivers of the query are queued behind the blocked threads, as one query
             assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(1)));
-            safeSleep(between(10, 50));
+            // the waiting shows while the drivers are still queued
+            assertBusy(() -> assertThat(searchWaiting("test"), greaterThan(0.0)));
         } finally {
             release.countDown();
         }

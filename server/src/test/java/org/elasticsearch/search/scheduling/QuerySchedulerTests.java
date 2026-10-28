@@ -341,9 +341,44 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
+     * Charging the waiting while tasks are queued charges their shards up to now, and a task leaving the queue then
+     * charges only the rest, so a shard is charged the same in total, once even when several executors queue it.
+     */
+    public void testChargeWaitingWhileQueued() {
+        Waits first = new Waits();
+        Waits second = new Waits();
+        var alone = executor("q", pool, first);
+        var shared = executor("q", pool, first, second);
+        alone.execute(() -> {});
+        clock.set(10);
+        scheduler.chargeWaiting();
+        assertThat(first.values, contains(10L));
+        shared.execute(() -> {});
+        clock.set(25);
+        scheduler.chargeWaiting();
+        scheduler.chargeWaiting();
+        assertThat(first.values, contains(10L, 15L));
+        assertThat(second.values, contains(15L));
+        alone.close();
+        shared.close();
+        clock.set(30);
+        pool.runNext();
+        assertThat(first.values, contains(10L, 15L, 5L));
+        clock.set(40);
+        scheduler.chargeWaiting();
+        assertThat(first.values, contains(10L, 15L, 5L, 10L));
+        assertThat(second.values, contains(15L, 15L));
+        pool.runNext();
+        assertThat(first.total(), equalTo(40L));
+        assertThat(second.total(), equalTo(30L));
+        assertThat(scheduler.queries(), equalTo(0));
+    }
+
+    /**
      * Random tasks of executors sharing shards are queued, started in any order, run while others start, and complete. Each
      * shard accumulates in total the time the query waited while the shard had tasks queued, once however many executors
-     * queued it, as a reference that follows every step computes.
+     * queued it, as a reference that follows every step computes. After charging the waiting while tasks are queued, each
+     * shard has accumulated all of it.
      */
     public void testAccumulatesTheWaitingOfAReference() {
         List<Waits> shards = new ArrayList<>();
@@ -363,7 +398,7 @@ public class QuerySchedulerTests extends ESTestCase {
         Runnable[] step = new Runnable[1];
         step[0] = () -> {
             while (steps[0]-- > 0) {
-                switch (between(0, 3)) {
+                switch (between(0, 4)) {
                     case 0 -> {
                         int e = between(0, executors.size() - 1);
                         reference.queued[e]++;
@@ -385,6 +420,12 @@ public class QuerySchedulerTests extends ESTestCase {
                     case 2 -> reference.advance(between(0, 10), executorShards);
                     case 3 -> {
                         return;
+                    }
+                    case 4 -> {
+                        scheduler.chargeWaiting();
+                        for (Waits shard : shards) {
+                            assertThat(shard.total(), equalTo(reference.waited.get(shard)));
+                        }
                     }
                     default -> throw new AssertionError();
                 }

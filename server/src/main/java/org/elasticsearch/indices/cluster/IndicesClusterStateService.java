@@ -445,6 +445,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     getShardsClosedListener()
                 );
             }
+            // Every index is about to be torn down, so no pending allocation bookkeeping can still be valid.
+            logger.debug("clearing all [{}] pending allocation states: state persistence disabled", pendingAllocationStates.size());
+            pendingAllocationStates.clear();
             return;
         }
 
@@ -756,6 +759,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
+                // Closing/reopening an index doesn't change a shard's allocation id or initializing-ness, so the
+                // sweep in updatePendingAllocationStates wouldn't evict these on its own; removeIndex tears the
+                // shard down directly, without going through the per-shard branches below that pair shard removal
+                // with clearing this allocation's entry. Without this, a leftover CreatingShard/AwaitingRecoveryRetry
+                // ticket would block the shard from ever being recreated once the index reopens.
+                pendingAllocationStates.keySet().removeIf(key -> key.shardId().getIndex().equals(index));
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
                 if (cleanUpRemovedShards) {
                     deleteStoresOfShardsOutsideIndexRange(indexMetadata);
@@ -1578,12 +1587,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 }
 
                                 final var indexService = indicesService.indexService(key.shardId().getIndex());
-                                if (indexService == null) {
-                                    // Index not locally available yet (e.g. after disableStatePersistence).
-                                    // Keep the retry ticket so a later CS create can still apply localRecoveryRetries.
-                                    logger.debug("{} not retrying yet: index not locally available", key);
-                                    return;
-                                }
+                                assert indexService != null : "index service unexpectedly not found for " + key;
                                 assert indexService.getShardOrNull(key.shardId().id()) == null
                                     : "retry path found existing shard for " + key;
 

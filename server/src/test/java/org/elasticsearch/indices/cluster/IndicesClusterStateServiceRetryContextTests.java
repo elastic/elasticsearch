@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
@@ -324,6 +326,22 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
     }
 
+    public void testPendingAllocationStateClearedWhenIndexCloses() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        final var originalCreatingShard = currentCreatingShard(shardRouting);
+        int createsBefore = indicesService.createShardCalls.get();
+
+        // Closing the index doesn't change the shard's routing/allocation id, so without clearing
+        // pendingAllocationStates explicitly here, the old ticket would survive and block the shard
+        // from ever being recreated (see IndicesClusterStateService#removeIndicesAndShards).
+        applyState(stateWithIndexClosed(shardRouting.index()));
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
+        final var newTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting));
+        assertThat(newTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class));
+        assertNotSame(originalCreatingShard, newTicket);
+    }
+
     public void testPendingAllocationStateClearedWhenPrimaryTermBumped() {
         ShardRouting shardRouting = applyInitializingPrimary();
         final var originalCreatingShard = currentCreatingShard(shardRouting);
@@ -387,6 +405,21 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotSame(originalCreatingShard, newTicket);
     }
 
+    public void testPendingAllocationStatesClearedWhenStatePersistenceDisabled() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        currentCreatingShard(shardRouting); // sanity: a live ticket exists before the block is applied
+        assertFalse(indicesClusterStateService.pendingAllocationStates.isEmpty());
+
+        applyState(
+            ClusterState.builder(state)
+                .blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+                .build()
+        );
+
+        assertTrue(indicesClusterStateService.pendingAllocationStates.isEmpty());
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+    }
+
     public void testUpdateRetryContextClearsWhenNotInitializing() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
@@ -414,32 +447,6 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
     // FailureReported over a live AwaitingRecoveryRetry is FailedShardHandler (a separate, ticket-independent
     // caller -- see the "leave FailedShardHandler as is" decision). testRetryDoesNotClobberFailureReported
     // covers the mirror-image ordering (FailureReported already present, then a stale RETRY arrives).
-
-    public void testRetrySkipsWhenIndexServiceMissingKeepsMarker() {
-        ShardRouting shardRouting = applyInitializingPrimary();
-        handleRecoveryFailureWithRetry(shardRouting);
-        assertTrue(isAwaitingRecoveryRetry(shardRouting));
-        int createsBefore = indicesService.createShardCalls.get();
-
-        indicesService.removeIndex(
-            shardRouting.index(),
-            IndexRemovalReason.NO_LONGER_ASSIGNED,
-            "test",
-            Runnable::run,
-            ActionListener.noop()
-        );
-        assertNull(indicesService.indexService(shardRouting.index()));
-
-        drainApplierTasks();
-        assertTrue(isAwaitingRecoveryRetry(shardRouting));
-        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
-        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-
-        applyState(ClusterState.builder(state).version(state.version() + 1).build());
-        assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
-        assertFalse(isAwaitingRecoveryRetry(shardRouting));
-    }
 
     public void testRetryContextKeptWhenCreateGivesUpMissingPeerSource() {
         String indexName = randomIndexName();
@@ -847,6 +854,12 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotNull("index metadata must exist for " + index, indexMetadata);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
         return ClusterState.builder(state).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+    }
+
+    private ClusterState stateWithIndexClosed(Index index) {
+        IndexMetadata current = state.metadata().getProject().index(index);
+        IndexMetadata closed = IndexMetadata.builder(current).state(IndexMetadata.State.CLOSE).build();
+        return ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(closed, false)).build();
     }
 
     private ClusterState stateWithPrimaryTermBumped(ShardRouting shardRouting) {

@@ -123,6 +123,36 @@ public class ConstructingObjectParserTests extends ESTestCase {
         }
     }
 
+    public void testExplicitNullRequiredConstructorArgWithMissingOptionalArg() throws IOException {
+        ConstructingObjectParser<HasCtorArguments, Void> objectParser = new ConstructingObjectParser<>(
+            "has_explicit_null_required_argument",
+            args -> new HasCtorArguments((String) args[0], (Integer) args[1])
+        );
+        objectParser.declareObjectOrNull(constructorArg(), (p, c) -> "unused", null, new ParseField("animal"));
+        objectParser.declareInt(optionalConstructorArg(), new ParseField("vegetable"));
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"animal\": null }")) {
+            HasCtorArguments parsed = objectParser.apply(parser, null);
+            assertNull(parsed.animal);
+            assertNull(parsed.vegetable);
+        }
+    }
+
+    public void testExplicitNullRequiredConstructorArgIsNotReportedAsMissing() throws IOException {
+        ConstructingObjectParser<HasCtorArguments, Void> objectParser = new ConstructingObjectParser<>(
+            "has_explicit_null_required_argument",
+            args -> new HasCtorArguments((String) args[0], (Integer) args[1])
+        );
+        objectParser.declareObjectOrNull(constructorArg(), (p, c) -> "unused", null, new ParseField("animal"));
+        objectParser.declareInt(constructorArg(), new ParseField("vegetable"));
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"animal\": null }")) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+            // "animal" was provided, as null; only the absent "vegetable" is missing.
+            assertEquals("Required [vegetable]", e.getMessage());
+        }
+    }
+
     public void testMissingSecondConstructorArg() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1, \"animal\": \"cat\" }");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HasCtorArguments.PARSER.apply(parser, null));

@@ -760,7 +760,8 @@ public class SnapshotResiliencyTestHelper {
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP,
-                    OnlinePrewarmingService.NOOP
+                    OnlinePrewarmingService.NOOP,
+                    transportService.getTaskManager()
                 );
 
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);

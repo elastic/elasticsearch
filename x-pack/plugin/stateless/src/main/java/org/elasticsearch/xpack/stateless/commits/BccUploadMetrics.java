@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -23,6 +24,9 @@ import java.util.OptionalDouble;
 public class BccUploadMetrics {
 
     static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
+    static final String BCC_HEADERS_SIZE_HISTOGRAM_METRIC = "es.bcc.size.headers.histogram";
+    static final String BCC_REPLICATED_CONTENT_SIZE_HISTOGRAM_METRIC = "es.bcc.size.replicated_content.histogram";
+    static final String BCC_COPIED_GENERATIONAL_FILES_SIZE_HISTOGRAM_METRIC = "es.bcc.size.copied_generational_files.histogram";
     static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
@@ -30,6 +34,9 @@ public class BccUploadMetrics {
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final LongHistogram bccSizeInMegabytesHistogram;
+    private final LongHistogram bccHeadersSizeInBytesHistogram;
+    private final LongHistogram bccReplicatedContentSizeInBytesHistogram;
+    private final DoubleHistogram bccCopiedGenerationalFilesSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
@@ -40,6 +47,21 @@ public class BccUploadMetrics {
         this.bccSizeInMegabytesHistogram = meterRegistry.registerLongHistogram(
             BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
             "Histogram for total size in megabytes of batched compound commits",
+            "megabytes"
+        );
+        this.bccHeadersSizeInBytesHistogram = meterRegistry.registerLongHistogram(
+            BCC_HEADERS_SIZE_HISTOGRAM_METRIC,
+            "Histogram of total size in bytes of headers of commits in a batched compound commit",
+            "bytes"
+        );
+        this.bccReplicatedContentSizeInBytesHistogram = meterRegistry.registerLongHistogram(
+            BCC_REPLICATED_CONTENT_SIZE_HISTOGRAM_METRIC,
+            "Histogram of total size in megabytes of replicated content of commits in a batched compound commit",
+            "bytes"
+        );
+        this.bccCopiedGenerationalFilesSizeInMegabytesHistogram = meterRegistry.registerDoubleHistogram(
+            BCC_COPIED_GENERATIONAL_FILES_SIZE_HISTOGRAM_METRIC,
+            "Histogram of total size in megabytes of copied generational files in a batched compound commit",
             "megabytes"
         );
         this.bccNumberCommitsHistogram = meterRegistry.registerLongHistogram(
@@ -68,8 +90,19 @@ public class BccUploadMetrics {
     }
 
     /// Records all BCC upload metrics: size, number of commits, age before freeze, and timestamp range.
-    public void recordBccUpload(long totalSizeInBytes, int numCommits, long ageMillis, Iterator<TimestampFieldValueRange> timestampRanges) {
+    public void recordBccUpload(
+        long totalSizeInBytes,
+        long headersSizeBytes,
+        long replicatedContentSizeBytes,
+        long copiedGenerationalFilesSizeBytes,
+        int numCommits,
+        long ageMillis,
+        Iterator<TimestampFieldValueRange> timestampRanges
+    ) {
         bccSizeInMegabytesHistogram.record(ByteSizeUnit.BYTES.toMB(totalSizeInBytes));
+        bccHeadersSizeInBytesHistogram.record(headersSizeBytes);
+        bccReplicatedContentSizeInBytesHistogram.record(replicatedContentSizeBytes);
+        bccCopiedGenerationalFilesSizeInMegabytesHistogram.record(ByteSizeValue.ofBytes(copiedGenerationalFilesSizeBytes).getMbFrac());
         bccNumberCommitsHistogram.record(numCommits);
         bccAgeHistogram.record(ageMillis);
         bccTimestampSpanMinutes(timestampRanges).ifPresentOrElse(

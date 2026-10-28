@@ -160,6 +160,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
     public void testDelayedRequestWithNamedWriteablesIsDelivered() {
         internalCluster().setBootstrapMasterNodeIndex(0);
         List<String> nodes = internalCluster().startNodes(2);
+        internalCluster().validateClusterFormed();
         TransportService source = internalCluster().getInstance(TransportService.class, nodes.get(0));
         TransportService target = internalCluster().getInstance(TransportService.class, nodes.get(1));
 

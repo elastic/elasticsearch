@@ -58,7 +58,7 @@ public class StatsGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.agg(nonNull, previousCommands);
+            String expression = EsqlQueryGenerator.agg(nonNull, previousCommands, context);
             if (i > 0) {
                 cmd.append(",");
             }

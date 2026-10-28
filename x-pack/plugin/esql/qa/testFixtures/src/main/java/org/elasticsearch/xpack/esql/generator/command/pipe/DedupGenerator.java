@@ -30,7 +30,7 @@ public class DedupGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled() == false) {
+        if (context.clusterSupports(EsqlCapabilities.Cap.DEDUP_COMMAND) == false) {
             return EMPTY_DESCRIPTION;
         }
         // DEDUP runs over every column in scope, so any column with a type the runtime group-key

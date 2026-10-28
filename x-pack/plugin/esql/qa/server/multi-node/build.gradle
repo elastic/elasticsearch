@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -118,17 +120,37 @@ tasks.named('javaRestTest') {
 }
 
 // Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.
-tasks.register('generativeTests', StandaloneRestIntegTestTask) {
-  dependsOn generateParquetFixtures
-  usesDefaultDistribution("to be triaged")
-
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath
-  filter {
+def generativeTestsConfig = { StandaloneRestIntegTestTask task ->
+  task.dependsOn generateParquetFixtures
+  task.systemProperty 'tests.rest.client_timeout', '60'
+  task.systemProperty 'tests.rest.socket_timeout', '60'
+  task.testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  task.classpath = sourceSets.javaRestTest.runtimeClasspath
+  task.filter {
     includeTestsMatching 'org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT'
   }
+}
+
+tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  generativeTestsConfig(it)
+}
+
+// This branch's generator against the head of each maintained release branch, so generator fixes never need a backport.
+// GenerativeRestTest skips what the older cluster doesn't support. 9.4 is the first version to advertise the fn_<name>
+// capabilities GenerativeFunctionCatalog is restricted to; an older cluster would leave the generator with no functions.
+buildParams.bwcVersions.unreleasedWireCompatible
+  .findAll { it.onOrAfter(Version.fromString("9.4.0")) && it != VersionProperties.elasticsearchVersion }
+  .each { bwcVersion ->
+    tasks.register("v${bwcVersion}#generativeTests", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.old_cluster_version", bwcVersion)
+      generativeTestsConfig(it)
+    }
+  }
+
+tasks.register('bwcGenerativeTests') {
+  dependsOn tasks.matching { it.name ==~ /v.+#generativeTests/ }
 }
 
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {

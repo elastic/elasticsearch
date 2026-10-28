@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
@@ -15,6 +16,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.nio.file.Path;
 
@@ -32,6 +34,8 @@ public class Clusters {
      */
     public static final String SECURITY_ENABLED_PROPERTY = "tests.cluster.security.enabled";
 
+    public static final String OLD_CLUSTER_VERSION_PROPERTY = "tests.old_cluster_version";
+
     public static final String ADMIN_USER = System.getProperty("tests.rest.cluster.username", "test-admin");
     public static final String ADMIN_PASSWORD = System.getProperty("tests.rest.cluster.password", "x-pack-test-password");
 
@@ -44,7 +48,34 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
-        return testCluster(csvDataPath, configProvider, shared, true);
+        return testCluster(csvDataPath, configProvider, shared, true, true);
+    }
+
+    /**
+     * The cluster {@link GenerativeIT} runs against: the current build, or the version in {@value #OLD_CLUSTER_VERSION_PROPERTY}.
+     * The {@code v<version>#generativeTests} tasks set that property to test a release branch with this branch's query
+     * generator. A node refuses to start on a setting it doesn't know, so an older node gets only the settings its version
+     * has, and {@code currentVersionConfig} applies only to the current build.
+     */
+    public static ElasticsearchCluster generativeCluster(LocalClusterConfigProvider currentVersionConfig) {
+        String oldVersionString = System.getProperty(OLD_CLUSTER_VERSION_PROPERTY);
+        if (oldVersionString == null) {
+            return testCluster(currentVersionConfig);
+        }
+        Version oldVersion = EsqlDataSourceMixedClusterTestSupport.bwcVersion();
+        Path csvDataPath = CsvTestUtils.createCsvDataDirectory();
+        LocalClusterConfigProvider oldNode = spec -> spec.withNode(
+            node -> EsqlDataSourceMixedClusterTestSupport.configureOldNode(
+                node,
+                "old-node-0",
+                oldVersionString,
+                oldVersion,
+                EsqlDataSourceMixedClusterTestSupport.isDetachedBwcBuild(),
+                csvDataPath::toString,
+                (configuredNode, version, current) -> {}
+            )
+        );
+        return testCluster(csvDataPath, oldNode, false, false, oldVersion.onOrAfter(Version.V_9_5_0));
     }
 
     /**
@@ -55,7 +86,7 @@ public class Clusters {
      * as {@link FederationKillSwitchRestartRestIT} does for the phase before the feature is unregistered.
      */
     public static ElasticsearchCluster clusterWithFederationUnregistered(LocalClusterConfigProvider configProvider) {
-        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false, false);
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false, false, true);
     }
 
     /**
@@ -65,24 +96,27 @@ public class Clusters {
      * setting, or unregisters the feature, so that its outcome does not depend on how the distribution was built.
      */
     public static ElasticsearchCluster clusterWithoutFederationSettings() {
-        return testCluster(CsvTestUtils.createCsvDataDirectory(), config -> {}, false, false);
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), config -> {}, false, false, true);
     }
 
     private static ElasticsearchCluster testCluster(
         Path csvDataPath,
         LocalClusterConfigProvider configProvider,
         boolean shared,
-        boolean federationSettings
+        boolean federationSettings,
+        boolean encryptionKeystore
     ) {
         boolean securityEnabled = Booleans.parseBoolean(System.getProperty(SECURITY_ENABLED_PROPERTY, "false"));
         var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .setting("xpack.security.enabled", Boolean.toString(securityEnabled))
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("path.repo", csvDataPath::toString)
-            .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
-            .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
-            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
+            .setting("path.repo", csvDataPath::toString);
+        if (encryptionKeystore) {
+            builder.keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
+                .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
+        }
+        builder.configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))

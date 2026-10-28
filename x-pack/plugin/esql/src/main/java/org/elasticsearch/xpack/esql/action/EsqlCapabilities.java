@@ -4643,6 +4643,11 @@ public class EsqlCapabilities {
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
+        /**
+         * {@code LOOKUP JOIN _coordinator:<index>}, which runs the join on the coordinating node. Added in #153804.
+         */
+        LOOKUP_JOIN_ON_COORDINATOR,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

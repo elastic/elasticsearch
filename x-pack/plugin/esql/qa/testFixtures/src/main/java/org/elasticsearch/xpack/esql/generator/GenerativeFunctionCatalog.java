@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarFile;
 
 /**
@@ -104,13 +105,14 @@ public final class GenerativeFunctionCatalog {
 
     private static final String RESOURCE_DIR = "esql-functions";
 
-    private static final GenerativeFunctionCatalog INSTANCE = new GenerativeFunctionCatalog();
+    private static final List<GenerativeFunctionDefinition> ALL = loadAll();
+
+    private static volatile GenerativeFunctionCatalog instance = new GenerativeFunctionCatalog(ALL);
 
     /** All usable scalar functions indexed by the return type they can produce. */
     private final Map<String, List<GenerativeFunctionDefinition>> byReturnType;
 
-    private GenerativeFunctionCatalog() {
-        List<GenerativeFunctionDefinition> all = loadAll();
+    private GenerativeFunctionCatalog(List<GenerativeFunctionDefinition> all) {
         Map<String, List<GenerativeFunctionDefinition>> index = new HashMap<>();
         for (GenerativeFunctionDefinition fn : all) {
             for (GenerativeFunctionSignature sig : fn.signatures()) {
@@ -126,7 +128,32 @@ public final class GenerativeFunctionCatalog {
     }
 
     public static GenerativeFunctionCatalog getInstance() {
-        return INSTANCE;
+        return instance;
+    }
+
+    /**
+     * Limits the catalog to functions the cluster under test registers, which it advertises as {@code fn_<name>}
+     * capabilities. The function definitions come from the test's own build, so without this a cluster running an
+     * older version would be sent functions it doesn't have.
+     *
+     * @param clusterCapabilities tests whether the cluster under test supports an ES|QL capability, by name
+     */
+    public static void restrictToCluster(Predicate<String> clusterCapabilities) {
+        instance = new GenerativeFunctionCatalog(ALL.stream().filter(fn -> clusterCapabilities.test(capabilityName(fn))).toList());
+    }
+
+    /**
+     * The capability under which {@code EsqlFunctionRegistry} advertises {@code fn}.
+     */
+    static String capabilityName(GenerativeFunctionDefinition fn) {
+        return "fn_" + fn.name();
+    }
+
+    /**
+     * Every function the catalog can offer when not restricted to a cluster.
+     */
+    static List<GenerativeFunctionDefinition> all() {
+        return ALL;
     }
 
     /**

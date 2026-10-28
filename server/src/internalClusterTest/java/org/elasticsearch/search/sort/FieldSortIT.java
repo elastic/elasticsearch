@@ -2419,6 +2419,8 @@ public class FieldSortIT extends ESIntegTestCase {
         }
         refresh();
 
+        // smaller than the number of docs of each index, so that a page boundary falls inside the docs of the unmapped index
+        int pageSize = 2;
         for (SortOrder order : SortOrder.values()) {
             for (String missing : new String[] { "_first", "_last" }) {
                 List<String> mapped = new ArrayList<>(List.of("a0", "a1", "a2"));
@@ -2432,10 +2434,11 @@ public class FieldSortIT extends ESIntegTestCase {
 
                 List<String> paginated = new ArrayList<>();
                 Object[] searchAfter = null;
-                for (int page = 0; page <= expected.size(); page++) {
+                // the full pages, then an empty one; the bound only keeps a pagination bug from looping forever
+                for (int page = 0; page <= expected.size() / pageSize; page++) {
                     SearchRequestBuilder request = prepareSearch("index_mapped", "index_unmapped").addSort(
                         new FieldSortBuilder("field").unmappedType("keyword").order(order).missing(missing)
-                    ).addSort(new FieldSortBuilder("seq").order(SortOrder.ASC)).setSize(2);
+                    ).addSort(new FieldSortBuilder("seq").order(SortOrder.ASC)).setSize(pageSize);
                     if (searchAfter != null) {
                         request.searchAfter(searchAfter);
                     }

@@ -1512,8 +1512,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failureStrategy == FailureStrategy.ABORT) {
                 // We don't need to notify master of anything here because recovery abortion is a
                 // symptom of a shard that is closing and this is communicated to master through other
-                // means (or the master already knows because the master initiated it, e.g. by moving the shard)
-                logger.debug("{} recovery aborted; not notifying master or updating pending allocation state", shardRouting.shardId());
+                // means (or the master already knows because the master initiated it, e.g. by moving the shard).
+                final var key = ShardAllocationKey.fromRouting(shardRouting);
+                if (pendingAllocationStates.remove(key, creatingShard)) {
+                    logger.debug("{} recovery aborted; cleared creating-shard ticket", key);
+                } else {
+                    logger.debug("{} recovery aborted; ticket no longer the current attempt", key);
+                }
                 return;
             }
             RecoveryClusterStateDelay.ensureClusterStateVersion(
@@ -1636,7 +1641,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             }
                         }
                     }, ActionListener.noop());
-            } else if (finalStrategy == FailureStrategy.FAIL_SILENT || finalStrategy == FailureStrategy.ABORT) {
+            } else if (finalStrategy == FailureStrategy.FAIL_SILENT) {
                 logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
                 pendingAllocationStates.remove(key, creatingShard);
             }

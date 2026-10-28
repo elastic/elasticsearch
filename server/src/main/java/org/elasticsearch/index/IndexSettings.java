@@ -704,7 +704,7 @@ public final class IndexSettings {
     @Deprecated
     public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
         "index.time_series.batch_indexing",
-        false,
+        true,
         Property.Final,
         Property.IndexScope,
         Property.DeprecatedWarning
@@ -1156,21 +1156,12 @@ public final class IndexSettings {
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
      */
-    public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
-        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
-            return Boolean.FALSE.toString();
-        }
-        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
-            return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
-        }
-        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
-    }, value -> {
-        if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
-            );
-        }
-    }, Property.Final, Property.IndexScope);
+    public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting(
+        "index.batch_indexing",
+        true,
+        Property.Final,
+        Property.IndexScope
+    );
 
     /**
      * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and

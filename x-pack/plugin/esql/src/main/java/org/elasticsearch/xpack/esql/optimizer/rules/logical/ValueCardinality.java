@@ -58,7 +58,7 @@ import java.util.List;
  * sources answer {@code MAYBE_MULTI}; a hook can be added where their schema guarantees it.
  * <p>
  * "Single-valued" is what the ES|QL field loaders return. A field with {@code on_failure=ignore} keeps an extra value in {@code _source}
- * only, so it is still {@code SINGLE} here. See {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}
+ * and a side column, which the loaders do not read, so it is still {@code SINGLE} here. See {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}
  * for what that depends on.
  */
 enum ValueCardinality {

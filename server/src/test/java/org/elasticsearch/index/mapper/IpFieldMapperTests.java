@@ -768,10 +768,11 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * This class does not run the shared {@code multi_value} tests, so it pins the reader side of the single-value proof here: the
-     * block loader does not expose a value that {@code on_failure=ignore} diverted.
+     * This class does not run the shared {@code multi_value} tests, which {@code supportsMultiValueParameter} turns on, so it checks here
+     * what {@code MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} checks for the mappers that do run them:
+     * the block loader does not return a value that {@code on_failure=ignore} diverted.
      */
-    public void testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue() throws IOException {
+    public void testOnFailureIgnoreDivertedValueIsNotLoaded() throws IOException {
         assertDivertedValueIsNotLoaded(getSampleValueForDocument());
     }
 }

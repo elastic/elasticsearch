@@ -2658,9 +2658,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     /**
      * Indexes a document with the same value twice into a field with {@code multi_value=false} and {@code on_failure=ignore}, which
-     * diverts the second one, and checks that every way ES|QL reads the field returns it as a single value, like a document that holds
-     * the value once. A value that is diverted is still in {@code _source} and in the {@code ._on_failure} column, so this fails if a
-     * block loader starts to read either. It covers each source mode that allows {@code multi_value=false} and each field extract
+     * diverts the second one, and checks that the block loaders that ES|QL uses return it as a single value, like a document that
+     * holds the value once. A value that is diverted is still in {@code _source} and in the {@code ._on_failure} column, so this fails
+     * if a block loader starts to read either. It covers each source mode that allows {@code multi_value=false} and each field extract
      * preference, including {@code STORED}, and both the column-at-a-time and the row-stride readers. Mapper tests that do not run
      * {@link #testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} can call it with a sample value of their field.
      */

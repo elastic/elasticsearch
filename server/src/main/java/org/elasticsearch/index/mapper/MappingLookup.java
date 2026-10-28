@@ -796,8 +796,9 @@ public final class MappingLookup {
     }
 
     /**
-     * Whether the mapping guarantees that no document holds more than one value for {@code field}. {@code false} means "not
-     * guaranteed", including for unknown fields and fields whose mapper cannot enforce it.
+     * Whether the mapping guarantees that a block loader sees at most one value per document for {@code field}; see
+     * {@link FieldMapper#guaranteesSingleValue()}. {@code false} means "not guaranteed", including for unknown fields and fields whose
+     * mapper cannot enforce it.
      * <p>
      * An alias, explicit or from a passthrough object, has the guarantee of its target.
      */
@@ -807,8 +808,8 @@ public final class MappingLookup {
     }
 
     /**
-     * Whether the mapping guarantees that no document holds more than one value for the field that {@code fieldType} describes. The
-     * field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field, for example from
+     * Whether the mapping guarantees that a block loader sees at most one value per document for the field that {@code fieldType}
+     * describes. The field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field, for example from
      * the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper, so it has no
      * guarantee: the field type must be the one of the mapper.
      * <p>

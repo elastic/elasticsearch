@@ -72,6 +72,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -982,8 +983,8 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
 
     /**
      * Restores a snapshot that has as many shards as the split in progress would create (possible when the snapshot is of an earlier
-     * index of the same name), so the target shard still exists afterwards. The source's handoff is then not abandoned for lack of shards,
-     * and its permits must still be released: the restore advances the primary terms of the recreated shards, which the handoff observes.
+     * index of the same name), so the target shard still exists afterwards. The source's handoff has to be abandoned, and its permits
+     * released, by the restore having given the index a new history UUID, not by the target shard being gone.
      */
     public void testRestoreOverOpenIndexWhileHandoffInFlightToSnapshotWithTheTargetShards() throws Exception {
         startMasterOnlyNode();
@@ -1123,12 +1124,10 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     }
 
     /**
-     * A reshard requested while a restore over the index is still in progress. The restore has been applied, but cannot complete because
-     * the old shard cannot finish closing. Nothing rejects the reshard, so it is accepted. It then has to wait: shards are only created
-     * once the shards of earlier cluster states have closed, so neither the restored shard nor the split's target starts until the old
-     * one has closed. Both then run to completion, and the index ends up with all its documents and the shard count of the reshard.
+     * A reshard requested while a restore over the index is still in progress is rejected. The restore has been applied, but cannot
+     * complete because the old shard cannot finish closing. Once the restore is done the index can be resharded as usual.
      */
-    public void testReshardRequestedWhileRestoreIsInProgress() throws Exception {
+    public void testReshardRequestedWhileRestoreIsInProgressIsRejected() throws Exception {
         startMasterOnlyNode();
         var indexNode = startIndexNode();
         startSearchNode();
@@ -1168,25 +1167,21 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
             awaitClusterState(indexNode, state -> RestoreInProgress.get(state).isEmpty() == false);
             assertFalse(restore.isDone());
 
-            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
-            awaitClusterState(
-                indexNode,
-                state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null
-                    || state.metadata().projectFor(index).index(indexName).getNumberOfShards() == 2
+            var rejected = expectThrows(
+                IllegalStateException.class,
+                () -> client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet()
             );
-            safeSleep(TimeValue.timeValueMillis(500));
-            assertFalse("the restore cannot complete while the old shard cannot close", restore.isDone());
+            assertThat(rejected.getMessage(), containsString("while it is being restored"));
+            assertNull(clusterService().state().metadata().projectFor(index).index(indexName).getReshardingMetadata());
 
             releaseClose.countDown();
             var restoreResponse = restore.actionGet();
             assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
 
-            // The reshard runs to completion on the restored shard
-            awaitClusterState(
-                indexNode,
-                state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() == null
-                    && state.metadata().projectFor(index).index(indexName).getNumberOfShards() == 2
-            );
+            // Once the restore is done the index can be resharded
+            ensureGreen(indexName);
+            reshardAndAwaitCompletion(index, indexName);
+            assertEquals(2, clusterService().state().metadata().projectFor(index).index(indexName).getNumberOfShards());
             ensureGreen(indexName);
             assertResponse(
                 prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())

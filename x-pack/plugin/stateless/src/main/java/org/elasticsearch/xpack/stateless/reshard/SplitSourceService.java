@@ -342,7 +342,9 @@ public class SplitSourceService {
                 prepareForHandoff(l, sourceShard, targetShardId);
             })
             .addListener(
-                listener.<Releasable>safeMap(permits -> new HandoffPreparation(sourceShardId, permits)).delegateResponse((l, e) -> {
+                listener.<Releasable>safeMap(
+                    permits -> new HandoffPreparation(sourceShardId, historyUuid(sourceShard.indexSettings().getIndexMetadata()), permits)
+                ).delegateResponse((l, e) -> {
                     try {
                         commitService.markSplitEnding(sourceShardId, targetShardId, true);
                     } catch (AlreadyClosedException ignored) {
@@ -357,7 +359,15 @@ public class SplitSourceService {
             );
     }
 
-    record HandoffPreparation(ShardId sourceShardId, Releasable permits) {}
+    /**
+     * @param historyUuid the history UUID of the index that the source shard belongs to. It is taken from the metadata the shard was
+     *                    created with, not from the cluster state, so that a restore that has already been applied there is noticed.
+     */
+    record HandoffPreparation(ShardId sourceShardId, String historyUuid, Releasable permits) {}
+
+    private static String historyUuid(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+    }
 
     public void setPreHandoffHook(Runnable preHandoffHook) {
         assert this.preHandoffHook == null;
@@ -504,6 +514,7 @@ public class SplitSourceService {
         private final ShardId sourceShardId;
         private final long expectedTargetPrimaryTerm;
         private final long expectedSourcePrimaryTerm;
+        private final String expectedHistoryUuid;
         private final AtomicBoolean shouldRetry;
         private final Releasable permits;
         private final ActionListener<ActionResponse> listener;
@@ -514,6 +525,7 @@ public class SplitSourceService {
             ShardId sourceShardId,
             long expectedTargetPrimaryTerm,
             long expectedSourcePrimaryTerm,
+            String expectedHistoryUuid,
             AtomicBoolean shouldRetry,
             Releasable permits,
             ActionListener<ActionResponse> listener
@@ -522,6 +534,7 @@ public class SplitSourceService {
             this.sourceShardId = sourceShardId;
             this.expectedTargetPrimaryTerm = expectedTargetPrimaryTerm;
             this.expectedSourcePrimaryTerm = expectedSourcePrimaryTerm;
+            this.expectedHistoryUuid = expectedHistoryUuid;
             this.shouldRetry = shouldRetry;
             this.permits = permits;
             this.listener = listener;
@@ -606,11 +619,9 @@ public class SplitSourceService {
 
             IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
-            // A restore over the index can leave it with fewer shards than the split this handoff belongs to has (or another split could
-            // since have started on it), in which case the shards of this handoff are gone and their primary terms can't be looked up (and
-            // never advance). If the shards still exist, the restore recreates them and advances their primary terms, which is checked
-            // below.
-            if (targetShardId.getId() >= indexMetadata.getNumberOfShards() || sourceShardId.getId() >= indexMetadata.getNumberOfShards()) {
+            // A restore over the index gives it a new history UUID and recreates its shards, so the split this handoff belongs to is
+            // gone. Its shards may no longer exist, in which case their primary terms can't be looked up, and they could never advance.
+            if (historyUuid(indexMetadata).equals(expectedHistoryUuid) == false) {
                 decision.outcome = Outcome.SPLIT_ABANDONED;
                 return true;
             }
@@ -646,11 +657,14 @@ public class SplitSourceService {
      * - source primary term advanced   (indicates handoff unsuccessful)
      * - target primary term advanced   (indicates handoff unsuccessful)
      * - index deleted                  (indicates handoff unsuccessful)
+     * - index history UUID changed     (indicates the index was restored over, handoff unsuccessful)
      * - split no longer in progress    (indicates handoff unsuccessful, e.g. a restore over the index discarded the split)
      * @param targetShardId       target shard id
      * @param sourceShardId       source shard id
      * @param targetPrimaryTerm   target shard primary term
      * @param sourcePrimaryTerm   source shard primary term
+     * @param historyUuid         history UUID of the index the source shard was created for; a different one in the cluster state
+     *                            means the index was restored over and the handoff is abandoned
      * @param shouldRetry         set to false once cluster state converges
      * @param permits             indexing permits that were acquired before initiating handoff,
      *                            should be release once cluster state has converged
@@ -661,12 +675,21 @@ public class SplitSourceService {
         ShardId sourceShardId,
         long targetPrimaryTerm,
         long sourcePrimaryTerm,
+        String historyUuid,
         AtomicBoolean shouldRetry,
         Releasable permits,
         ActionListener<ActionResponse> listener
     ) {
-        new HandoffConvergenceObserver(targetShardId, sourceShardId, targetPrimaryTerm, sourcePrimaryTerm, shouldRetry, permits, listener)
-            .start();
+        new HandoffConvergenceObserver(
+            targetShardId,
+            sourceShardId,
+            targetPrimaryTerm,
+            sourcePrimaryTerm,
+            historyUuid,
+            shouldRetry,
+            permits,
+            listener
+        ).start();
     }
 
     private ShardId getSplitSource(ShardId targetShardId) {

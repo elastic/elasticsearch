@@ -59,6 +59,7 @@ public class SplitSourceServiceTests extends ESTestCase {
                 new ShardId(goneIndex, 0),
                 1L,
                 1L,
+                "history",
                 new AtomicBoolean(true),
                 permitsClosed::incrementAndGet,
                 handoff
@@ -75,6 +76,13 @@ public class SplitSourceServiceTests extends ESTestCase {
     /// (which would leave the observer registered and the permits held).
     public void testHandoffIsAbandonedWhenRestoreRemovedTheTargetShard() throws Exception {
         assertHandoffIsAbandonedByRestore(2, 3, null);
+    }
+
+    /// As above, but the restored index has as many shards as the split was going to create, so the target shard still exists. Its
+    /// primary term has not advanced yet, which only happens once the restored shard has been allocated, and the handoff is abandoned
+    /// regardless.
+    public void testHandoffIsAbandonedWhenRestoreRecreatedTheTargetShard() throws Exception {
+        assertHandoffIsAbandonedByRestore(4, 3, null);
     }
 
     /// A handoff that was stuck while a restore replaced the index and a new split was then started on it only looks at the cluster state
@@ -103,7 +111,7 @@ public class SplitSourceServiceTests extends ESTestCase {
                                         indexSettings(IndexVersion.current(), restoredShardCount, 0).put(
                                             IndexMetadata.SETTING_INDEX_UUID,
                                             index.getUUID()
-                                        )
+                                        ).put(IndexMetadata.SETTING_HISTORY_UUID, "restored-history")
                                     )
                                     .reshardingMetadata(newSplit)
                             )
@@ -117,6 +125,7 @@ public class SplitSourceServiceTests extends ESTestCase {
                 new ShardId(index, targetShardId / 2),
                 1L,
                 1L,
+                "history",
                 new AtomicBoolean(true),
                 permitsClosed::incrementAndGet,
                 handoff

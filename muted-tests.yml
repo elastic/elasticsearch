@@ -561,3 +561,8 @@ tests:
   - :server:test
   method: testBatchIndexingRejectedWithoutFeatureFlag
   issue: https://github.com/elastic/elasticsearch/issues/163668
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163670

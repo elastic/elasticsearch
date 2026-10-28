@@ -239,7 +239,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
     public Translog.Location add(final Translog.Serialized operation, final long seqNo) throws IOException {
-        return addRecord(operation, new long[] { seqNo }, null);
+        return addRecord(operation, seqNo, 1, null);
     }
 
     /**
@@ -247,17 +247,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public Translog.Location addBatch(final Translog.Serialized operation, final IndexOperationBatch.TranslogRecord batch)
         throws IOException {
-        return addRecord(operation, batch.operationSeqNos(), batch);
+        return addRecord(operation, batch.startSeqNo(), batch.operationCount(), batch);
     }
 
     /**
      * Shared implementation for {@link #add} and {@link #addBatch}: {@link IndexOperationBatch.TranslogRecord} is null for a
-     * single operation. {@code seqNos} holds one entry per operation the record carries, in row order; for a batch these are
-     * the rows that consumed a seqNo, and they need not be contiguous.
+     * single operation. The record's operations occupy the contiguous seqNo range
+     * {@code [startSeqNo, startSeqNo + operationCount)}.
      */
     private Translog.Location addRecord(
         final Translog.Serialized operation,
-        final long[] seqNos,
+        final long startSeqNo,
+        final int operationCount,
         @Nullable final IndexOperationBatch.TranslogRecord batch
     ) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
@@ -279,18 +280,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
-            for (long seqNo : seqNos) {
-                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-                nonFsyncedSequenceNumbers.add(seqNo);
+            final long endSeqNo = startSeqNo + operationCount - 1;
+            minSeqNo = SequenceNumbers.min(minSeqNo, startSeqNo);
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, endSeqNo);
+            // iterate by count: an inclusive bound would wrap when endSeqNo is Long.MAX_VALUE and never terminate
+            for (int k = 0; k < operationCount; k++) {
+                nonFsyncedSequenceNumbers.add(startSeqNo + k);
             }
 
-            operationCounter += seqNos.length;
+            operationCounter += operationCount;
 
-            assert batch == null ? assertNoSeqNumberConflict(seqNos[0], operation) : assertNoSeqNumberConflict(batch);
+            assert batch == null ? assertNoSeqNumberConflict(startSeqNo, operation) : assertNoSeqNumberConflict(batch);
 
             location = new Translog.Location(generation, offset, operation.length());
-            operationListener.recordAdded(operation, seqNos, location);
+            operationListener.recordAdded(operation, startSeqNo, endSeqNo, location);
             bufferedBytes = buffer.size();
         }
 

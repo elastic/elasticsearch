@@ -1458,6 +1458,10 @@ public class InternalEngine extends Engine {
         final IndexOperationBatch indexBatch = engineBatch.batch();
         try (var ignored = acquireEnsureOpenRef()) {
             final boolean isRecovery = indexBatch.origin().isRecovery();
+            // A translog record covers one contiguous seqNo range. The primary reserves one such range per sub-batch, but a
+            // non-primary batch carries the seqNos the primary assigned, possibly across several sub-batches with other
+            // operations reserving seqNos in between. Ending a sub-batch at a gap keeps every record contiguous.
+            final boolean cutAtSeqNoGaps = indexBatch.origin() != Operation.Origin.PRIMARY;
             final int batchSize = indexBatch.docCount();
             final IndexResult[] allResults = new IndexResult[batchSize];
 
@@ -1472,8 +1476,11 @@ public class InternalEngine extends Engine {
                     locks.add(versionMap.acquireLock(indexBatch.uid(idx)));
                     subBatchCount++;
 
-                    // Try-acquire later operations in order; stop at the first failure
+                    // Try-acquire later operations in order; stop at the first failure or seqNo gap
                     for (int i = idx + 1; i < batchSize; i++) {
+                        if (cutAtSeqNoGaps && indexBatch.seqNo(i) != indexBatch.seqNo(i - 1) + 1) {
+                            break;
+                        }
                         Releasable lock = versionMap.tryAcquireLock(indexBatch.uid(i));
                         if (lock == null) {
                             break;

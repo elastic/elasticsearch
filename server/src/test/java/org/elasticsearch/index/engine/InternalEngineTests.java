@@ -8710,6 +8710,12 @@ public class InternalEngineTests extends EngineTestCase {
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         }
+        // the replica ends a sub-batch at the gap, so the rows land in two translog records: [0, 1, 2] and [5, 6]
+        final Translog.Location firstRecord = results.get(0).getTranslogLocation();
+        assertThat(results.get(1).getTranslogLocation(), equalTo(firstRecord));
+        assertThat(results.get(2).getTranslogLocation(), equalTo(firstRecord));
+        assertThat(results.get(3).getTranslogLocation(), not(equalTo(firstRecord)));
+        assertThat(results.get(4).getTranslogLocation(), equalTo(results.get(3).getTranslogLocation()));
 
         engine.syncTranslog();
         // both checkpoints stop at the last seqNo before the gap; the translog holds every op that was written

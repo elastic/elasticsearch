@@ -51,8 +51,8 @@ import java.io.IOException;
  *
  * <p>The values are walked as few times as the layout allows. The caller has counted them, and normally
  * surveyed them in the same walk; a sparse column then walks its documents once more for its presence, reading
- * no value; and the values are read once more to be written, and once more again where a dictionary column
- * replays its staged ordinals. Only a caller that could not settle the terms —
+ * no value; and the values are read once more to be written, a dictionary column streaming its ordinals in
+ * that same walk. Only a caller that could not settle the terms —
  * a merge whose inputs recorded nothing it can use — has them surveyed here, and a sparse column folds that
  * survey into its presence walk.
  */

@@ -55,13 +55,13 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
  * <li>a column is counted and surveyed in one pass, which reads every payload once;</li>
  * <li>a sparse column then writes its presence from a cursor of its own, which moves through the documents
  * and reads no payload;</li>
- * <li>the values are then written in one more pass, dictionary or plain, which reads every payload once;</li>
- * <li>a dictionary column replays its staged ordinals in one more pass, which walks the documents through the
- * source cursor and reads each payload once more to learn how many slots it holds.</li>
+ * <li>the values are then written in one more pass, dictionary or plain, which reads every payload once.</li>
  * </ul>
- * So a plain column takes two cursors and two reads a document when dense, three cursors and still two reads
- * a document when sparse, whether or not the survey found anything; a dictionary column takes one cursor and
- * one read a document more than that.
+ * A dictionary column streams its ordinals as it writes them and stages only its escapes, which it replays
+ * from a temporary file rather than from the field, so it takes no pass more than a plain column does. So a
+ * column takes two cursors and two reads a document when dense, and three cursors and still two reads a
+ * document when sparse, whether it is written as a dictionary or plain and whether or not the survey found
+ * anything.
  */
 public class ColumnarStringWritePassesTests extends ESTestCase {
 
@@ -71,14 +71,14 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
     private static final int MAX_TERM_BYTES = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
 
     /**
-     * A few repeated terms over every document: the count-and-survey pass, the dictionary pass, then the
-     * replay of the staged ordinals, which still asks each document how many slots it holds.
+     * A few repeated terms over every document: the count-and-survey pass, then the dictionary pass, which
+     * streams the ordinals and needs no replay of them from the field.
      */
     public void testDenseDictionaryColumn() throws IOException {
         final BytesRef[][] docSlots = repeating(between(100, 400), false);
         final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, true);
-        assertEquals("cursors", 3, passes.cursors());
-        assertEquals("payloads read", 3L * docsWithField(docSlots), passes.values());
+        assertEquals("cursors", 2, passes.cursors());
+        assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
     }
 
     /**
@@ -88,8 +88,8 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
     public void testSparseDictionaryColumn() throws IOException {
         final BytesRef[][] docSlots = repeating(between(200, 600), true);
         final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, true);
-        assertEquals("cursors", 4, passes.cursors());
-        assertEquals("payloads read", 3L * docsWithField(docSlots), passes.values());
+        assertEquals("cursors", 3, passes.cursors());
+        assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
     }
 
     /** No dictionary allowed: a count-only pass, then the plain pass, each reading every payload once. */

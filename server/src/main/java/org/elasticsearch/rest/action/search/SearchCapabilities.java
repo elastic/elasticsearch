@@ -81,6 +81,8 @@ public final class SearchCapabilities {
 
     /** A text field that indexes no positions answers positional queries from the values it keeps. */
     private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+    /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
+    private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -123,6 +125,7 @@ public final class SearchCapabilities {
         capabilities.add(KEYED_FLATTENED_EXACT_KEY_QUERIES);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
+        capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

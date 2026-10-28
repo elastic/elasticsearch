@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.MetricsInfo.ESQL_METRICS_INFO_LIMIT;
 
 /**
  * Physical plan node for METRICS_INFO command.
@@ -43,7 +46,7 @@ public class MetricsInfoExec extends UnaryExec {
      * Execution mode, mirroring the three-phase pattern used by aggregations.
      */
     public enum Mode {
-        /** Data-node phase: full shard extraction → per-node metric rows. */
+        /** Data-node phase: extracts shard metadata, with sampling when a LIMIT hint is present. */
         INITIAL(false, true),
         /** Coordinator phase: merge rows from all data nodes by metric signature. */
         FINAL(true, false),
@@ -77,6 +80,8 @@ public class MetricsInfoExec extends UnaryExec {
     private final List<Attribute> intermediateAttributes;
     private final List<Attribute> outputAttrs;
     private final Mode mode;
+    @Nullable
+    private final Integer limit;
 
     public MetricsInfoExec(
         Source source,
@@ -85,10 +90,23 @@ public class MetricsInfoExec extends UnaryExec {
         List<Attribute> intermediateAttributes,
         Mode mode
     ) {
+        this(source, child, outputAttrs, intermediateAttributes, mode, null);
+    }
+
+    /** Retains the logical LIMIT hint across local planning and node-level reduction. */
+    public MetricsInfoExec(
+        Source source,
+        PhysicalPlan child,
+        List<Attribute> outputAttrs,
+        List<Attribute> intermediateAttributes,
+        Mode mode,
+        @Nullable Integer limit
+    ) {
         super(source, child);
         this.outputAttrs = outputAttrs;
         this.intermediateAttributes = intermediateAttributes;
         this.mode = mode;
+        this.limit = limit;
     }
 
     private MetricsInfoExec(StreamInput in) throws IOException {
@@ -97,7 +115,8 @@ public class MetricsInfoExec extends UnaryExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readEnum(Mode.class)
+            in.readEnum(Mode.class),
+            in.getTransportVersion().supports(ESQL_METRICS_INFO_LIMIT) ? in.readOptionalVInt() : null
         );
     }
 
@@ -108,6 +127,9 @@ public class MetricsInfoExec extends UnaryExec {
         out.writeNamedWriteableCollection(outputAttrs);
         out.writeNamedWriteableCollection(intermediateAttributes);
         out.writeEnum(mode);
+        if (out.getTransportVersion().supports(ESQL_METRICS_INFO_LIMIT)) {
+            out.writeOptionalVInt(limit);
+        }
     }
 
     @Override
@@ -117,6 +139,11 @@ public class MetricsInfoExec extends UnaryExec {
 
     public Mode mode() {
         return mode;
+    }
+
+    @Nullable
+    public Integer limit() {
+        return limit;
     }
 
     public List<Attribute> outputAttrs() {
@@ -129,12 +156,12 @@ public class MetricsInfoExec extends UnaryExec {
 
     @Override
     protected NodeInfo<MetricsInfoExec> info() {
-        return NodeInfo.create(this, MetricsInfoExec::new, child(), outputAttrs, intermediateAttributes, mode);
+        return NodeInfo.create(this, MetricsInfoExec::new, child(), outputAttrs, intermediateAttributes, mode, limit);
     }
 
     @Override
     public MetricsInfoExec replaceChild(PhysicalPlan newChild) {
-        return new MetricsInfoExec(source(), newChild, outputAttrs, intermediateAttributes, mode);
+        return new MetricsInfoExec(source(), newChild, outputAttrs, intermediateAttributes, mode, limit);
     }
 
     @Override
@@ -157,7 +184,7 @@ public class MetricsInfoExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), outputAttrs, intermediateAttributes, mode);
+        return Objects.hash(child(), outputAttrs, intermediateAttributes, mode, limit);
     }
 
     @Override
@@ -171,6 +198,7 @@ public class MetricsInfoExec extends UnaryExec {
 
         MetricsInfoExec other = (MetricsInfoExec) obj;
         return mode == other.mode
+            && Objects.equals(limit, other.limit)
             && Objects.equals(child(), other.child())
             && Objects.equals(outputAttrs, other.outputAttrs)
             && Objects.equals(intermediateAttributes, other.intermediateAttributes);

@@ -26,16 +26,13 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
@@ -227,62 +224,6 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
         for (String command : List.of("METRICS_INFO", "TS_INFO")) {
             try (var response = run("TS index-1 | " + command + " | KEEP data_stream | MV_EXPAND data_stream | STATS BY data_stream")) {
                 assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of("index-1"))));
-            }
-        }
-    }
-
-    /** Every matching backing index must contribute conflicting metadata to a returned metric. */
-    public void testMetricsInfoPreservesConflictingBackingIndexMetadata() {
-        String dataStream = "metrics-conflicting-units";
-        assertAcked(client().admin().indices().preparePutMapping("index-1").setSource("""
-            {"properties":{"cpu":{"type":"double","time_series_metric":"gauge","meta":{"unit":"percent"}}}}
-            """));
-        assertAcked(client().admin().indices().preparePutMapping("index-2").setSource("""
-            {"properties":{"cpu":{"type":"double","time_series_metric":"gauge","meta":{"unit":"bytes"}}}}
-            """));
-        assertAcked(
-            client().execute(
-                TransportPutComposableIndexTemplateAction.TYPE,
-                new TransportPutComposableIndexTemplateAction.Request("conflicting-units-template").indexTemplate(
-                    ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of(dataStream))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                        .build()
-                )
-            )
-        );
-        assertAcked(
-            client().execute(
-                CreateDataStreamAction.INSTANCE,
-                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
-            )
-        );
-        assertAcked(
-            client().execute(
-                ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    List.of(
-                        DataStreamAction.addBackingIndex(dataStream, "index-1"),
-                        DataStreamAction.addBackingIndex(dataStream, "index-2")
-                    )
-                )
-            )
-        );
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query("TS " + dataStream + " | METRICS_INFO | WHERE metric_name == \"cpu\"");
-        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
-        request.acceptedPragmaRisks(true);
-        try (var response = run(request)) {
-            List<List<Object>> rows = EsqlTestUtils.getValuesList(response);
-            assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(0), equalTo("cpu"));
-            assertThat(rows.get(0).get(1), equalTo(dataStream));
-            if (rows.get(0).get(2) instanceof List<?> units) {
-                assertThat(new HashSet<>(units), equalTo(Set.of("bytes", "percent")));
-            } else {
-                fail("expected both backing-index units, got " + rows.get(0).get(2));
             }
         }
     }

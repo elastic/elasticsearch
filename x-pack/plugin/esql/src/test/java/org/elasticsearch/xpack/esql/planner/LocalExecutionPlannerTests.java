@@ -920,7 +920,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
             PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold(),
             PlannerSettings.DEFAULTS.tsInfoSampleMinRows(),
-            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier()
+            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier(),
+            PlannerSettings.DEFAULTS.metricsInfoSampleMinRows(),
+            PlannerSettings.DEFAULTS.metricsInfoSampleLimitMultiplier()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -938,6 +940,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         } else {
             assertThat(factory.maxPageSize(), equalTo(2048));
         }
+    }
+
+    public void testMetricsInfoSampleRows() {
+        PlannerSettings plannerSettings = PlannerSettings.DEFAULTS.metricsInfoSampleMinRows(20).metricsInfoSampleLimitMultiplier(3);
+        assertEquals(20, LocalExecutionPlanner.metricsInfoSampleRows(1, plannerSettings));
+        assertEquals(30, LocalExecutionPlanner.metricsInfoSampleRows(10, plannerSettings));
+        assertEquals(Integer.MAX_VALUE, LocalExecutionPlanner.metricsInfoSampleRows(Integer.MAX_VALUE, plannerSettings));
+        assertEquals(Integer.MAX_VALUE, LocalExecutionPlanner.metricsInfoSampleRows(null, plannerSettings));
     }
 
     /**

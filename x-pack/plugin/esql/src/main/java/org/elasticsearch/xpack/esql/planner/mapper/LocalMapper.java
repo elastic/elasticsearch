@@ -132,7 +132,8 @@ public class LocalMapper {
                 mappedChild,
                 metricsInfo.output(),
                 metricsInfo.output(),
-                MetricsInfoExec.Mode.INITIAL
+                MetricsInfoExec.Mode.INITIAL,
+                metricsInfo.limit()
             );
         }
 

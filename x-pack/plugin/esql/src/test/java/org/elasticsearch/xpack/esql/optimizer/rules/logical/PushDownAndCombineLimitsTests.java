@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -251,6 +252,51 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         )
 
     );
+
+    public void testPassLimitHintToMetricsInfo() {
+        int rows = randomIntBetween(1, 10_000);
+        Limit limit = new Limit(EMPTY, new Literal(EMPTY, rows, INTEGER), new MetricsInfo(EMPTY, relation()));
+        Limit optimized = as(optimizePlan(limit), Limit.class);
+        assertThat(as(optimized.child(), MetricsInfo.class).limit(), equalTo(rows));
+        assertThat(optimizePlan(optimized), equalTo(optimized));
+    }
+
+    public void testPassLimitHintToMetricsInfoThroughProject() {
+        int rows = randomIntBetween(1, 10_000);
+        MetricsInfo metricsInfo = new MetricsInfo(EMPTY, relation());
+        Project project = new Project(EMPTY, metricsInfo, List.of(metricsInfo.output().get(0)));
+        Limit limit = new Limit(EMPTY, new Literal(EMPTY, rows, INTEGER), project);
+        Project optimized = as(optimizePlan(limit), Project.class);
+        Limit pushedLimit = as(optimized.child(), Limit.class);
+        assertThat(as(pushedLimit.child(), MetricsInfo.class).limit(), equalTo(rows));
+    }
+
+    public void testSmallerLimitWinsOnMetricsInfo() {
+        int existing = randomIntBetween(100, 10_000);
+        int smaller = randomIntBetween(1, existing - 1);
+        Limit smallerLimit = new Limit(EMPTY, new Literal(EMPTY, smaller, INTEGER), new MetricsInfo(EMPTY, relation(), existing));
+        assertThat(as(as(optimizePlan(smallerLimit), Limit.class).child(), MetricsInfo.class).limit(), equalTo(smaller));
+        int larger = randomIntBetween(existing + 1, 20_000);
+        Limit largerLimit = new Limit(EMPTY, new Literal(EMPTY, larger, INTEGER), new MetricsInfo(EMPTY, relation(), existing));
+        assertThat(as(as(optimizePlan(largerLimit), Limit.class).child(), MetricsInfo.class).limit(), equalTo(existing));
+    }
+
+    public void testMetricsInfoSamplingDoesNotCrossFilterOrSort() {
+        MetricsInfo metricsInfo = new MetricsInfo(EMPTY, relation());
+        List<UnaryPlan> barriers = List.of(
+            new Filter(
+                EMPTY,
+                metricsInfo,
+                new Equals(EMPTY, metricsInfo.output().get(0), new Literal(EMPTY, BytesRefs.toBytesRef("cpu"), KEYWORD))
+            ),
+            new OrderBy(EMPTY, metricsInfo, List.of(new Order(EMPTY, metricsInfo.output().get(0), Order.OrderDirection.ASC, null)))
+        );
+        for (UnaryPlan barrier : barriers) {
+            Limit limit = new Limit(EMPTY, new Literal(EMPTY, 1, INTEGER), barrier);
+            assertThat(optimizePlan(limit), equalTo(limit));
+            assertNull(as(barrier.child(), MetricsInfo.class).limit());
+        }
+    }
 
     public void testPassLimitHintToTsInfo() {
         int limitValue = randomIntBetween(1, 10_000);

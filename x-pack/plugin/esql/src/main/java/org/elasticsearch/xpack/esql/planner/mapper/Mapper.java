@@ -218,7 +218,8 @@ public class Mapper {
                 mappedChild,
                 metricsInfo.output(),
                 metricsInfo.output(),
-                MetricsInfoExec.Mode.FINAL
+                MetricsInfoExec.Mode.FINAL,
+                metricsInfo.limit()
             );
         }
 

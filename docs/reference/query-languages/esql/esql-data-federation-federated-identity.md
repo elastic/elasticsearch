@@ -3,7 +3,7 @@ navigation_title: "AWS federated identity"
 description: "Set up Amazon S3 federated identity for ES|QL Data Federation so Elasticsearch reads your bucket without stored credentials."
 applies_to:
   deployment:
-    ech: experimental
+    ech: preview
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -219,7 +219,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
 :::{note}
 If creating the data source fails with `federated authentication settings require the [<setting>] cluster setting to be enabled`, federated identity isn't available for your deployment. It isn't supported on self-managed, {{ece}}, or {{eck}} deployments, and it's off in some special {{ech}} environments such as AWS GovCloud. The error names one of these settings:
 
-- {applies_to}`stack: experimental 9.6+` `esql.external.federated_identity.enabled`
+- {applies_to}`stack: preview 9.6+` `esql.external.federated_identity.enabled`
 - {applies_to}`stack: experimental =9.5` `esql.datasource.federated_identity.enabled`
 :::
 

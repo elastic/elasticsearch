@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -516,6 +517,13 @@ public class EsqlCapabilities {
          * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
          */
         LOAD_FLATTENED_FIELD,
+
+        /**
+         * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
+         * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
+         * deduplicated. A field below a nested object is still read from {@code _source}.
+         */
+        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.

@@ -17,6 +17,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.recycler.Recycler;
@@ -29,6 +30,7 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -46,7 +48,8 @@ import java.util.function.BiConsumer;
  * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}.
  * Provided-batch mode maps pre-built {@link EscfBatch} rows to shards and scatters; x-content mode
  * delegates encoding and routing to {@link BulkBatchEncoders} (TODO: temporary — goes away once all
- * producers build ESCF at the index-abstraction level).
+ * producers build ESCF at the index-abstraction level). In x-content mode only indices with
+ * {@code index.batch_indexing} enabled are encoded; items of other indices keep their inline source.
  */
 final class BatchModeRouter implements Releasable {
 
@@ -90,6 +93,8 @@ final class BatchModeRouter implements Releasable {
     // x-content mode state (null in provided-batch mode)
     @Nullable
     private final BulkBatchEncoders encoders;
+    /** Per-bulk cache of the {@code index.batch_indexing} decision per concrete index (x-content mode only). */
+    private final Map<Index, Boolean> batchEnabledByIndex = new HashMap<>();
 
     private BatchModeRouter(String indexAbstractionName, EscfBatch source, Recycler<BytesRef> recycler) {
         this.indexAbstractionName = indexAbstractionName;
@@ -391,7 +396,10 @@ final class BatchModeRouter implements Releasable {
     ) {
         if (encoders != null) {
             request.preRoutingProcess(routing);
-            int shardId = encoders.tryEncodeAndRoute((IndexRequest) request, concreteIndex, routing);
+            int shardId = BulkBatchEncoders.NOT_BATCHABLE;
+            if (isBatchEnabledFor(concreteIndex, project)) {
+                shardId = encoders.tryEncodeAndRoute((IndexRequest) request, concreteIndex, routing);
+            }
             if (shardId == BulkBatchEncoders.NOT_BATCHABLE) {
                 shardId = request.route(routing);
             }
@@ -402,6 +410,19 @@ final class BatchModeRouter implements Releasable {
             int targetIdx = prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
             recordDeferredItem(bulkItem, batchItem.indexSource().rowIndex(), targetIdx);
         }
+    }
+
+    /**
+     * Whether {@code index.batch_indexing} is on for the index. Items of a disabled index keep their inline
+     * source without abandoning batching for the other indices of the bulk. The setting is {@code Final}, so
+     * the decision is cached for the lifetime of this router.
+     */
+    private boolean isBatchEnabledFor(Index concreteIndex, ProjectMetadata project) {
+        return batchEnabledByIndex.computeIfAbsent(concreteIndex, idx -> {
+            // An index missing from the project is not batchable; leave it on the inline-source path instead of failing the bulk.
+            IndexMetadata indexMetadata = project.index(idx);
+            return indexMetadata != null && IndexSettings.isBatchIndexingEnabled(indexMetadata.getSettings());
+        });
     }
 
     /**

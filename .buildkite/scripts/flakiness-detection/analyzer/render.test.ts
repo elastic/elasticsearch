@@ -1,8 +1,33 @@
 import { describe, expect, test } from "vitest";
 import type { TestSummary } from "./junit-reports-analyzer.ts";
-import { renderMarkdown, severity } from "./render.ts";
+import { CONTACT_NOTE, renderMarkdown, severity } from "./render.ts";
 
 describe("renderMarkdown / severity", () => {
+  test("a report with real failures tells the author who to contact, at the top, even when truncated", () => {
+    const failing = (className: string): TestSummary => ({
+      className,
+      method: "y",
+      passes: 0,
+      failures: 1,
+      failureKinds: ["assertion"],
+      exampleFailures: [{ name: "y", message: "boom" }],
+    });
+    const totals = { iterations: 1, realFailures: 1, suiteTimeoutMarkers: 0, successfulCases: 0 };
+
+    const md = renderMarkdown({ batches: [], perTest: [failing("X")], totals });
+    expect(md).toContain(CONTACT_NOTE);
+    expect(md.indexOf(CONTACT_NOTE)).toBeLessThan(md.indexOf("- Iterations attempted"));
+
+    const clean = { iterations: 1, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 1 };
+    expect(renderMarkdown({ batches: [], perTest: [], totals: clean })).not.toContain(CONTACT_NOTE);
+
+    // Class names are not shortened, so 100 rows of 10k-character names push the body past the limit.
+    const huge = Array.from({ length: 100 }, (_, i) => failing(`${i}`.padEnd(10_000, "C")));
+    const truncated = renderMarkdown({ batches: [], perTest: huge, totals: { ...totals, realFailures: 100 } });
+    expect(truncated).toContain("Annotation truncated");
+    expect(truncated).toContain(CONTACT_NOTE);
+  });
+
   test("renders the failures table when there are real failures", () => {
     const md = renderMarkdown({
       batches: [],
@@ -78,6 +103,31 @@ describe("renderMarkdown / severity", () => {
     // Without the gate signal the empty report would read as success.
     expect(severity(clean)).toBe("success");
     expect(severity(clean, true)).toBe("warning");
+  });
+
+  test("an incomplete report says so and is a warning, not a clean pass", () => {
+    const report = {
+      batches: [],
+      perTest: [],
+      totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 },
+    };
+    const problems = ["flakiness-skipped.json did not reach this step"];
+    expect(severity(report, false, problems)).toBe("warning");
+    expect(renderMarkdown(report, false, problems)).toContain("This report is incomplete");
+    expect(renderMarkdown(report, false, problems)).toContain("- flakiness-skipped.json did not reach this step");
+  });
+
+  test("a compile failure with an incomplete report shows both notices and stays a warning", () => {
+    const report = {
+      batches: [],
+      perTest: [],
+      totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 },
+    };
+    const problems = ["FLAKINESS_SKIPPED_COUNT is undefined"];
+    expect(severity(report, true, problems)).toBe("warning");
+    const md = renderMarkdown(report, true, problems);
+    expect(md).toContain("failed to compile");
+    expect(md).toContain("This report is incomplete");
   });
 
   test("renders the compile-gate notice and does not read as a clean pass when buildFailed", () => {

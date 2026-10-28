@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,11 +36,10 @@ final class DriverScheduler {
         }
     }
 
-    void scheduleOrRunTask(Executor executor, AbstractRunnable task) {
+    void scheduleOrRunTask(ComputeExecutor executor, AbstractRunnable task, boolean resumed) {
         final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
-        final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
-        executorToUse.execute(new AbstractRunnable() {
+        final AbstractRunnable scheduled = new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 assert e instanceof EsRejectedExecutionException : new AssertionError(e);
@@ -57,7 +55,14 @@ final class DriverScheduler {
                     task.run();
                 }
             }
-        });
+        };
+        if (completing.get()) {
+            EsExecutors.DIRECT_EXECUTOR_SERVICE.execute(scheduled);
+        } else if (resumed) {
+            executor.executeResumed(scheduled);
+        } else {
+            executor.execute(scheduled);
+        }
     }
 
     void runPendingTasks() {

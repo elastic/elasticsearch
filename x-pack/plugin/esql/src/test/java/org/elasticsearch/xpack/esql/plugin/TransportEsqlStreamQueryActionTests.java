@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -420,6 +424,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             Map.of(),
@@ -435,6 +440,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     public void testFooterWarningsFromCompletionInfoOnly() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         DriverCompletionInfo completionInfo = new DriverCompletionInfo(
+            0,
             0,
             0,
             0,
@@ -472,6 +478,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             Map.of(),
@@ -491,6 +498,56 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         List<String> result = TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
         assertEquals(1, result.size());
         assertEquals("escaped characters in header warning must be decoded", rawMessage, result.get(0));
+    }
+
+    public void testFailureFooterOmitsClustersEvenWhenMetadataIsReportable() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        executionInfo.swapCluster(
+            RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+            (k, v) -> new EsqlExecutionInfo.Cluster(
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                "test",
+                false
+            )
+        );
+        assertTrue("precondition: execution info must have metadata to report", executionInfo.hasMetadataToReport());
+        assertNotNull(
+            "precondition: a success footer would include _clusters",
+            TransportEsqlStreamQueryAction.footerClusters(executionInfo)
+        );
+
+        Exception ex = new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST);
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            ex,
+            executionInfo,
+            DriverCompletionInfo.EMPTY,
+            new ThreadContext(Settings.EMPTY)
+        );
+
+        assertNull("a failure footer must not report _clusters, as clusters may still look like they are running", footer.clusters());
+        assertSame(ex, footer.error());
+        assertEquals(RestStatus.BAD_REQUEST.getStatus(), footer.status());
+        assertNull(footer.completionInfo());
+        assertNull(footer.profile());
+    }
+
+    public void testFailureFooterCarriesWarningsAndPartial() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        executionInfo.markPartial();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("some warning"));
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            new RuntimeException("boom"),
+            executionInfo,
+            DriverCompletionInfo.EMPTY,
+            threadContext
+        );
+
+        assertTrue(footer.isPartial());
+        assertEquals(List.of("some warning"), footer.warnings());
+        assertNull(footer.clusters());
     }
 
     public void testMarkPartialFromCompletionInfoLeavesNonPartialUnchanged() {
@@ -568,5 +625,138 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         boolean[] failedResult = TransportEsqlStreamQueryAction.computeNullColumns(failedResponse, fieldNames);
         assertFalse("no column must be dropped on an incomplete probe", failedResult[0]);
         assertFalse("null fieldName must never be dropped on an incomplete probe", failedResult[1]);
+    }
+
+    public void testTookMillisUsesOverallTookWhenSet() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        executionInfo.markEndQuery();
+        long expected = executionInfo.overallTook().millis();
+        assertEquals(
+            "tookMillis must use overallTook() when it is set",
+            expected,
+            TransportEsqlStreamQueryAction.tookMillis(executionInfo)
+        );
+    }
+
+    public void testTookMillisFallsBackToTimeSinceStartedOnFailure() throws InterruptedException {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        assertNull("overallTook() must be null before markEndQuery()", executionInfo.overallTook());
+        Thread.sleep(10);
+        long took = TransportEsqlStreamQueryAction.tookMillis(executionInfo);
+        assertTrue("fallback took must reflect time elapsed since the query started, got [" + took + "]", took > 0);
+    }
+
+    public void testFailureFooterCarriesStatusTookAndError() throws InterruptedException {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ElasticsearchStatusException cause = new ElasticsearchStatusException("index missing", RestStatus.NOT_FOUND);
+        Thread.sleep(10);
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            cause,
+            executionInfo,
+            DriverCompletionInfo.EMPTY,
+            threadContext
+        );
+
+        assertEquals("status must come from the exception", RestStatus.NOT_FOUND.getStatus(), footer.status());
+        assertTrue("took must reflect time elapsed since the query started, got [" + footer.tookMillis() + "]", footer.tookMillis() > 0);
+        assertSame("error must be the supplied exception", cause, footer.error());
+        assertNull("stats must be omitted on failure", footer.completionInfo());
+    }
+
+    public void testFailureFooterOmitsStatsEvenWhenCompletedWorkHasData() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DriverCompletionInfo nonEmpty = new DriverCompletionInfo(
+            42,
+            10,
+            5,
+            1024,
+            100,
+            50,
+            200,
+            300,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            new RuntimeException("boom"),
+            executionInfo,
+            nonEmpty,
+            threadContext
+        );
+
+        assertNull("stats must always be omitted from failure footers", footer.completionInfo());
+    }
+
+    public void testFailureFooterMergesWarningsFromCompletedWorkAndThreadContext() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit warning"));
+
+        DriverCompletionInfo completedWork = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of("eval warning")
+        );
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            new RuntimeException("boom"),
+            executionInfo,
+            completedWork,
+            threadContext
+        );
+
+        List<String> warnings = footer.warnings();
+        assertTrue("warnings must contain the driver warning from completedWork", warnings.contains("eval warning"));
+        assertTrue("warnings must contain the thread-context header warning", warnings.contains("limit warning"));
+    }
+
+    public void testFailureFooterIsPartialOredWithCompletedWorkPartial() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        assertFalse(executionInfo.isPartial());
+
+        DriverCompletionInfo partialWork = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            true,
+            false,
+            Set.of()
+        );
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            new RuntimeException("boom"),
+            executionInfo,
+            partialWork,
+            new ThreadContext(Settings.EMPTY)
+        );
+
+        assertTrue("is_partial must be true when completedWork.partial() is true", footer.isPartial());
     }
 }

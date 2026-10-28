@@ -352,6 +352,7 @@ public class PainlessExecuteAction {
 
         private final Script script;
         private final ScriptContext<?> context;
+        @Nullable
         private final ContextSetup contextSetup;
         private transient IndicesOptions indicesOptions;
 
@@ -389,6 +390,7 @@ public class PainlessExecuteAction {
             return context;
         }
 
+        @Nullable
         public ContextSetup getContextSetup() {
             return contextSetup;
         }
@@ -408,11 +410,21 @@ public class PainlessExecuteAction {
                 validationException = addValidationError("only inline scripts are supported", validationException);
             }
             if (needDocumentAndIndex(context)) {
-                if (contextSetup.index == null) {
-                    validationException = addValidationError("index is a required parameter for current context", validationException);
-                }
-                if (contextSetup.document == null) {
-                    validationException = addValidationError("document is a required parameter for current context", validationException);
+                if (contextSetup == null) {
+                    validationException = addValidationError(
+                        "context_setup is a required parameter for current context",
+                        validationException
+                    );
+                } else {
+                    if (contextSetup.index == null) {
+                        validationException = addValidationError("index is a required parameter for current context", validationException);
+                    }
+                    if (contextSetup.document == null) {
+                        validationException = addValidationError(
+                            "document is a required parameter for current context",
+                            validationException
+                        );
+                    }
                 }
             }
             return validationException;
@@ -474,7 +486,7 @@ public class PainlessExecuteAction {
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
-            return scriptContext == FilterScript.CONTEXT || scriptContext == ScoreScript.CONTEXT;
+            return scriptContext != PainlessTestScript.CONTEXT;
         }
 
     }
@@ -566,9 +578,11 @@ public class PainlessExecuteAction {
             } else {
                 // forward to remote cluster after stripping off the clusterAlias from the index expression
                 removeClusterAliasFromIndexExpression(request);
+                final var contextSetup = request.getContextSetup();
+                assert contextSetup != null : "non-local indices must have context_setup";
                 transportService.getRemoteClusterService()
                     .getRemoteClusterClient(
-                        request.getContextSetup().getClusterAlias(),
+                        contextSetup.getClusterAlias(),
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     )
@@ -630,7 +644,6 @@ public class PainlessExecuteAction {
 
         @Override
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
-            IndexService indexService;
             if (request.contextSetup != null && request.contextSetup.getIndex() != null) {
                 ClusterState clusterState = clusterService.state();
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
@@ -640,20 +653,23 @@ public class PainlessExecuteAction {
                     throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
                 }
                 Index concreteIndex = concreteIndices[0];
-                indexService = indicesServices.indexServiceSafe(concreteIndex);
+                IndexService indexService = indicesServices.indexServiceSafe(concreteIndex);
+                return innerShardOperation(request, scriptService, indexService);
             } else {
-                indexService = null;
+                String errorMessage = "only painless_test scripts are allowed to have no context_setup";
+                if (request.context != PainlessTestScript.CONTEXT) {
+                    assert false : errorMessage;
+                    throw new IllegalStateException(errorMessage);
+                }
+
+                return painlessTestOperation(request, scriptService);
             }
-            return innerShardOperation(request, scriptService, indexService);
         }
 
         static Response innerShardOperation(Request request, ScriptService scriptService, IndexService indexService) throws IOException {
             final ScriptContext<?> scriptContext = request.context;
             if (scriptContext == PainlessTestScript.CONTEXT) {
-                PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
-                PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
-                String result = Objects.toString(painlessTestScript.execute());
-                return new Response(result);
+                return painlessTestOperation(request, scriptService);
             } else if (scriptContext == FilterScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
@@ -672,6 +688,7 @@ public class PainlessExecuteAction {
                     ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
+                    assert request.contextSetup != null : "context_setup must be present here, and was validated earlier";
                     if (request.contextSetup.query != null) {
                         Query luceneQuery = request.contextSetup.query.rewrite(context).toQuery(context);
                         IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
@@ -835,6 +852,13 @@ public class PainlessExecuteAction {
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
             }
+        }
+
+        private static Response painlessTestOperation(Request request, ScriptService scriptService) {
+            PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
+            PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
+            String result = Objects.toString(painlessTestScript.execute());
+            return new Response(result);
         }
 
         private static Response prepareRamIndex(

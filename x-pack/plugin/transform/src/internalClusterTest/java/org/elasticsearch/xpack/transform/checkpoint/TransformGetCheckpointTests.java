@@ -244,7 +244,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
                     DefaultProjectResolver.INSTANCE,
-                    mock(TransformCloudCredentialManager.class)
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
                 ),
                 DefaultProjectResolver.INSTANCE
             );

@@ -141,12 +141,12 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer(analyzer)
             .indexAnalyzerPositionIncrementGap(positionIncrementGap)
             .build();
-        return new FieldCapabilitiesIndexResponse(index, mappingHash, Map.of("title", title), true, IndexMode.STANDARD);
+        return new FieldCapabilitiesIndexResponse(index, mappingHash, Map.of("title", title), true, IndexMode.STANDARD, 1, 1L, 1L);
     }
 
     /** An index that analyzes {@code title} with an {@code index.analysis} name, so it reports no name at all. */
     private static FieldCapabilitiesIndexResponse indexLocal(String index) {
         var title = new IndexFieldCapabilitiesBuilder("title", "text").indexLocalAnalyzer(true).build();
-        return new FieldCapabilitiesIndexResponse(index, index, Map.of("title", title), true, IndexMode.STANDARD);
+        return new FieldCapabilitiesIndexResponse(index, index, Map.of("title", title), true, IndexMode.STANDARD, 1, 1L, 1L);
     }
 }

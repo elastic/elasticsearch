@@ -64,7 +64,7 @@ public class PreAnalyzer {
         boolean hasTimeSeriesAggregation,
         boolean requiresAllDimensionFields,
         boolean needsAnalyzerGroups,
-        List<String> icebergPaths,
+        List<String> externalSourcePaths,
         List<String> inferenceIds
     ) {
         public static final PreAnalysis EMPTY = new PreAnalysis(
@@ -100,7 +100,7 @@ public class PreAnalyzer {
                     IndexMode m1 = p.indexMode();
                     IndexMode m2 = indexes.get(p.indexPattern());
                     throw new IllegalStateException(
-                        "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                        "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
                     );
                 }
             }
@@ -113,8 +113,8 @@ public class PreAnalyzer {
         });
 
         // CPS: collect ViewShadowRelation and DatasetShadowRelation patterns into one linked-indices set.
-        // View shadows ride inside ViewUnionAll, dataset shadows inside the plain UnionAll DatasetRewriter
-        // builds; both drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices),
+        // Both shadow kinds ride inside BranchPlan branches (built by ViewResolver and DatasetRewriter
+        // respectively); both drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices),
         // keyed by the shadow's LinkedIndexPattern. A LinkedHashSet preserves emission order for deterministic
         // test output and deduplicates so two shadows with the same indexPattern only produce one lenient call.
         Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();

@@ -221,7 +221,8 @@ public record HighlightConfig(
             .collect(Collectors.joining(", ", ", per_index_analyzer=[", "]"));
     }
 
-    private static String describeIndices(SortedSet<String> indices) {
+    /** {@code [index, ...]} naming at most {@link #MAX_DESCRIBED_INDICES}, as there can be thousands. */
+    public static String describeIndices(SortedSet<String> indices) {
         String sample = indices.stream().limit(MAX_DESCRIBED_INDICES).collect(Collectors.joining(", "));
         int more = indices.size() - MAX_DESCRIBED_INDICES;
         return "[" + sample + (more > 0 ? ", ...and " + more + " more" : "") + "]";

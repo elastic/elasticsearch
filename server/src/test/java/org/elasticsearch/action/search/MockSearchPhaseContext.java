@@ -68,7 +68,7 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
-        this(numShards, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        this(numShards, NoopCircuitBreaker.INSTANCE);
     }
 
     public MockSearchPhaseContext(int numShards, CircuitBreaker circuitBreaker) {

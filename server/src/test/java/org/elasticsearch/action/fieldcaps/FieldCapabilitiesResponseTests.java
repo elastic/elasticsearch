@@ -50,7 +50,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
+            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode, 0, 0, 0));
         }
         randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
         return randomResponse;
@@ -167,9 +167,9 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         var response = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(
-                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD),
-                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD),
-                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD)
+                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD, 0, 0, 0),
+                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0),
+                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0)
                 )
             )
             .build();
@@ -231,6 +231,13 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         assumeTrue(
             "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
             hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
+        final boolean hasPassthrough = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.isPassthrough() != null);
+        assumeTrue(
+            "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
+            hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
         );
 
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);

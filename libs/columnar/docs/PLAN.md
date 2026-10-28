@@ -48,7 +48,8 @@ The direction, the decisions that constrain it, and the build order. Update as d
 ## Done
 
 - Binary surface: `addBinaryField`/`getBinary` only; typed shapes throw; no delegate.
-- `ColumnarFieldType` tag + generic field framing (fieldNumber, type id, metadata); dispatch on type.
+- `ColumnarFieldType` tag + generic field framing (fieldNumber, type id, metadata, plus a payload or raw
+  value byte for a string column); dispatch on type.
 - Numeric long column: adaptive `NumericBlockEncoder` (delta/offset/GCD/`ForUtil`), single + multi in
   one store, off-heap `DirectMonotonic` tables, presence (dense / `IndexedDISI` sparse).
 - `NumericBinaryPayload` seam (payload ↔ longs); `binaryValue()` re-emit.

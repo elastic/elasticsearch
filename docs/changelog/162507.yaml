@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 162507
+summary: Let the AlertZero Attack Discovery role tag and acknowledge detection alerts
+type: enhancement

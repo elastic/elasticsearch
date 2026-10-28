@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Factory for creating {@link FormatReader} instances.
@@ -26,4 +27,13 @@ public interface FormatReaderFactory {
      * @return a new format reader instance
      */
     FormatReader create(Settings settings, BlockFactory blockFactory);
+
+    /**
+     * Creates a reader with the node-wide byte budget. Default forwards to
+     * {@link #create(Settings, BlockFactory)}. Parquet uses {@code nodeByteBudget} so CRR tickets
+     * share the same cap as look-ahead {@code tryAdmit}.
+     */
+    default FormatReader create(Settings settings, BlockFactory blockFactory, @Nullable NodeByteBudget nodeByteBudget) {
+        return create(settings, blockFactory);
+    }
 }

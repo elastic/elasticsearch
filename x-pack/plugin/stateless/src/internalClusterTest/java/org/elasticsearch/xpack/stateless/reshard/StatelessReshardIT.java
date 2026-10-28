@@ -1779,7 +1779,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureStableCluster(3);
 
         final String indexName = "test-realtime-multiget";
-        createIndex(indexName, indexSettings(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
@@ -1805,16 +1805,17 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         final var mgetPrepared = new CountDownLatch(1);
         final var atSplit = new CountDownLatch(1);
+        final var docUpdated = new CountDownLatch(1);
 
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
 
         searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            // block ShardMultiGetFromTranslog until resharding reaches SPLIT
+            // block ShardMultiGetFromTranslog until resharding reaches SPLIT and the moved doc has been updated on the target
             if ((TransportShardMultiGetFomTranslogAction.NAME).equals(action)) {
                 // signal that multiget has been prepared so resharding can start
                 mgetPrepared.countDown();
-                safeAwait(atSplit);
+                safeAwait(docUpdated);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -1831,33 +1832,45 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        // expect item-level failures for docs that route to different shards after HANDOFF
-        final var mgetThread = new Thread(() -> {
-            MultiGetResponse mgetResponse = client(searchNode).prepareMultiGet()
-                .add(indexName, shard0docId)
-                .add(indexName, shard1docId)
-                .setRealtime(true)
-                .execute()
-                .actionGet(SAFE_AWAIT_TIMEOUT);
-
-            // Check that we have results for both documents
-            assertThat(mgetResponse.getResponses().length, equalTo(2));
-
-            MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
-            assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
-            assertThat(item0.getResponse().isExists(), is(true));
-
-            MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
-            assertThat("Document moved to target shard should succeed after retry", item1.isFailed(), is(false));
-            assertThat(item1.getResponse().isExists(), is(true));
-
-        });
+        final var mgetResponseRef = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(
+            () -> mgetResponseRef.set(
+                client(searchNode).prepareMultiGet()
+                    .add(indexName, shard0docId)
+                    .add(indexName, shard1docId)
+                    .setRealtime(true)
+                    .execute()
+                    .actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
         mgetThread.start();
 
         // don't start resharding until multiget is waiting on search shard
         safeAwait(mgetPrepared);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        safeAwait(atSplit);
+        indexDoc(indexName, shard1docId, "field", "shard1_v1");
+        docUpdated.countDown();
+        safeJoin(mgetThread);
+
+        final var mgetResponse = mgetResponseRef.get();
+        assertThat(mgetResponse.getResponses().length, equalTo(2));
+
+        MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
+        assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
+        assertThat(item0.getResponse().isExists(), is(true));
+        assertThat(item0.getResponse().getSource().get("field"), equalTo("shard0_v0"));
+
+        MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
+        assertThat("Document moved to target shard should succeed after retry", item1.isFailed(), is(false));
+        assertThat(item1.getResponse().isExists(), is(true));
+        assertThat(
+            "Stale source shard must not serve the moved document",
+            item1.getResponse().getSource().get("field"),
+            equalTo("shard1_v1")
+        );
+
         waitForReshardCompletion(indexName);
     }
 
@@ -3915,12 +3928,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Wait until old source shard is stuck copying
         safeAwait(relocateLatch);
 
-        var targetShardNodeId = new AtomicReference<String>();
-        awaitClusterState(state -> {
-            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
-            return targetShardNodeId.get() != null;
-        });
-        var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
+        var state = waitForClusterState(s -> s.routingTable().index(indexName).shard(1).primaryShard().currentNodeId() != null).actionGet(
+            SAFE_AWAIT_TIMEOUT
+        );
+        var targetShardNodeId = state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId();
+        var targetShardNode = nodeIdsToNames().get(targetShardNodeId);
         assertNotEquals(sourceShardOldNode, targetShardNode);
         var sourceShardNewNode = indexNodes.stream()
             .filter(node -> node.equals(sourceShardOldNode) == false && node.equals(targetShardNode) == false)

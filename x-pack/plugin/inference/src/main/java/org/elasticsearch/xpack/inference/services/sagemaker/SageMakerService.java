@@ -18,6 +18,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DecisionRequest;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -54,8 +56,11 @@ import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTemplateUnifiedCompletionException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDecisionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDocumentExtractionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
@@ -246,6 +251,12 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
+        if (request.body().containsTemplate()) {
+            // This service does not extend SenderService, so the template gate there does not apply and the body would otherwise
+            // be forwarded to SageMaker with no messages.
+            listener.onFailure(createUnsupportedTemplateUnifiedCompletionException(NAME));
+            return;
+        }
         timeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, TaskType.CHAT_COMPLETION);
 
         try {
@@ -271,6 +282,21 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         throwUnsupportedEmbeddingOperation(NAME);
+    }
+
+    @Override
+    public void decisionInfer(Model model, DecisionRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throwUnsupportedDecisionOperation(NAME);
+    }
+
+    @Override
+    public void documentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedDocumentExtractionOperation(NAME);
     }
 
     @Override

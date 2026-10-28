@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
  */
 public class GcsStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private final Storage mockStorage = mock(Storage.class);
 
@@ -361,6 +361,25 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         assertEquals(42L, obj.length());
         assertNull("exists()/length() must not pin the readers", obj.contentGeneration());
+    }
+
+    /**
+     * The probe reports the generation it saw, so an entry built from it is versioned, but it does not pin the readers: a
+     * pin from a probe would make reads conditional on a generation no read has returned.
+     */
+    public void testProbeReportsItsGenerationWithoutPinning() throws IOException {
+        Blob blob = mock(Blob.class);
+        when(blob.getGeneration()).thenReturn(3L);
+        when(blob.getSize()).thenReturn(42L);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(blob);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        assertTrue(obj.exists());
+        assertEquals("3", obj.probedVersion());
+        assertNull(obj.contentGeneration());
+        assertNull(obj.version());
     }
 
     public void testNewStreamClassifies503AsThrottling() {

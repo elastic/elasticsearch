@@ -123,6 +123,16 @@ public class ReadConfigFingerprintTests extends ESTestCase {
         assertEquals(ReadConfigFingerprint.of(schema, readSpec), ReadConfigFingerprint.of(schema, readSpec));
     }
 
+    public void testKnownAnswerPinsTheEncoding() {
+        // A known answer, so that any change to the pre-image -- including a DECODE_SEMANTICS_REVISION bump -- is a
+        // deliberate edit here. A bump is required when the same configuration starts decoding to different values,
+        // e.g. a bare number in a date_nanos column read as epoch millis rather than nanos.
+        assertEquals(1, ReadConfigFingerprint.DECODE_SEMANTICS_REVISION);
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("ts", DataType.DATE_NANOS));
+        DeclaredReadSpec readSpec = spec(Map.of("a", "a_file"), Map.of("ts", "epoch_second"), SchemaProvenance.DECLARED);
+        assertEquals("7a6e17198375603d7a02feec5b7daf65", ReadConfigFingerprint.of(schema, readSpec));
+    }
+
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }

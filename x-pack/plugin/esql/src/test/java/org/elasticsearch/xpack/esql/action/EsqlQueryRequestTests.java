@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
+import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -829,6 +829,28 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
     }
 
+    public void testSettingsBlockExemplarsBoolean() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": true
+                }
+            }""");
+        assertEquals(ExemplarsSettings.ENABLED, request.get(QuerySettings.EXEMPLARS));
+    }
+
+    public void testSettingsBlockExemplarsObject() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": {"limit": 1234}
+                }
+            }""");
+        assertEquals(new ExemplarsSettings(true, 1234), request.get(QuerySettings.EXEMPLARS));
+    }
+
     public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {
         // The same setting at the legacy top level AND under settings.{} with DIFFERENT values is a client bug,
         // not an override: reject with a 400 naming the setting rather than silently picking a winner.
@@ -1417,6 +1439,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 }

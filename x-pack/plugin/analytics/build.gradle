@@ -21,6 +21,7 @@ base {
 
 dependencies {
   clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:mapper-extras')
   clusterPlugins project(':x-pack:plugin:analytics')
 
   api "org.apache.commons:commons-math3:${versions.commons_math3}"

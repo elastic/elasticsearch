@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ParquetListCorruptionTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testDateNanosListDiscardsLeadingContinuation() {

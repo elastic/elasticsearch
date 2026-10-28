@@ -343,7 +343,8 @@ public final class CredentialTransitions {
         });
 
         // The hook is invoked by DatafeedConfigProvider after GET+apply, ensuring the probe
-        // and mint run against the single authoritative applied config (no duplicate apply).
+        // and mint run against the single authoritative applied config. The manager's earlier
+        // preflight update.apply only fails fast before this point; its result is discarded.
         Change.Mint mintChange = new Change.Mint(
             (applied, mintedListener) -> validateSearchBeforeMint(
                 applied,

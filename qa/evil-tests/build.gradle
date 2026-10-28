@@ -13,7 +13,6 @@
  * threads, etc.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {

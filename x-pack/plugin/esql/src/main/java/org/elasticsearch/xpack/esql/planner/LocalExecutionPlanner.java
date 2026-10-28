@@ -2089,6 +2089,10 @@ public class LocalExecutionPlanner {
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
         PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
+        int sampleRows = tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
+        if (sampleRows != TsInfoOperator.NO_LIMIT) {
+            dedupedSource = dedupedSource.with(new LimitOperator.Factory(sampleRows), dedupedSource.layout);
+        }
 
         // Step 3: Extract _timeseries metadata and _index
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -2140,6 +2144,14 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private static int tsInfoSampleRows(Integer limit, PlannerSettings plannerSettings) {
+        if (limit == null) {
+            return TsInfoOperator.NO_LIMIT;
+        }
+        long sampleRows = Math.max(plannerSettings.tsInfoSampleMinRows(), (long) limit * plannerSettings.tsInfoSampleLimitMultiplier());
+        return (int) Math.min(sampleRows, Integer.MAX_VALUE);
+    }
+
     /**
      * FINAL mode: runs on the coordinator. Reads the 7-column TsInfo output from the
      * exchange (produced by data-node INITIAL phases) and merges rows by ts signature.
@@ -2156,7 +2168,12 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(outputAttrs);
 
-        return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
+        int limit = switch (tsInfoExec.mode()) {
+            case FINAL -> tsInfoExec.limit() == null ? TsInfoOperator.NO_LIMIT : tsInfoExec.limit();
+            case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
+            case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
+        };
+        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
     }
 
     private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {
@@ -2420,24 +2437,6 @@ public class LocalExecutionPlanner {
             || (context.shardContexts.isEmpty() && scoresWithoutShards(filter.condition()) == false)) {
             return planFilterCondition(source, filter.condition(), context);
         }
-        // The filter adds its searches' scores only once it has filtered, so a predicate on _score runs after that, to see
-        // them, just as it sees the score of a search Lucene runs at the source.
-        boolean holdsSearch = FullTextFunction.containsScoringSearch(filter.condition());
-        List<Expression> scorePredicates = new ArrayList<>();
-        List<Expression> searchConditions = new ArrayList<>();
-        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
-            if (holdsSearch
-                && conjunct.anyMatch(MetadataAttribute::isScoreAttribute)
-                && FullTextFunction.containsScoringSearch(conjunct) == false) {
-                scorePredicates.add(conjunct);
-            } else {
-                searchConditions.add(conjunct);
-            }
-        }
-        Expression condition = scorePredicates.isEmpty() ? filter.condition() : Predicates.combineAnd(searchConditions);
-        PhysicalOperation filterOperation = planFilterCondition(source, condition, context);
-
-        // Add scorer operator to add the filter expression scores to the overall scores
         Attribute scoreAttribute = null;
 
         for (Attribute attribute : filter.output()) {
@@ -2447,8 +2446,58 @@ public class LocalExecutionPlanner {
         }
         assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
 
+        // A filter adds its searches' scores only once it has filtered. So that a predicate on _score sees the scores of the
+        // searches outside its own conjunct, as it sees the score of a search Lucene runs at the source, plan in stages: the
+        // conjuncts that don't read _score, then those that read it alongside a search, then those that only read it.
+        boolean holdsSearch = FullTextFunction.containsScoringSearch(filter.condition());
+        List<Expression> searchConditions = new ArrayList<>();
+        List<Expression> searchConditionsReadingScore = new ArrayList<>();
+        List<Expression> scorePredicates = new ArrayList<>();
+        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+            if (holdsSearch == false || conjunct.anyMatch(MetadataAttribute::isScoreAttribute) == false) {
+                searchConditions.add(conjunct);
+            } else if (FullTextFunction.containsScoringSearch(conjunct)) {
+                searchConditionsReadingScore.add(conjunct);
+            } else {
+                scorePredicates.add(conjunct);
+            }
+        }
+        if (searchConditionsReadingScore.isEmpty() && scorePredicates.isEmpty()) {
+            return planScoredFilter(source, filter.condition(), scoreAttribute, context);
+        }
+        PhysicalOperation filterOperation = source;
+        if (searchConditions.isEmpty() == false) {
+            Expression condition = Predicates.combineAnd(searchConditions);
+            filterOperation = FullTextFunction.containsScoringSearch(condition)
+                ? planScoredFilter(filterOperation, condition, scoreAttribute, context)
+                : planFilterCondition(filterOperation, condition, context);
+        }
+        if (searchConditionsReadingScore.isEmpty() == false) {
+            filterOperation = planScoredFilter(
+                filterOperation,
+                Predicates.combineAnd(searchConditionsReadingScore),
+                scoreAttribute,
+                context
+            );
+        }
+        if (scorePredicates.isEmpty() == false) {
+            filterOperation = planFilterCondition(filterOperation, Predicates.combineAnd(scorePredicates), context);
+        }
+        return filterOperation;
+    }
+
+    /**
+     * Filters on {@code condition}, then adds the scores of its searches to {@code _score} for the rows that pass.
+     */
+    private static PhysicalOperation planScoredFilter(
+        PhysicalOperation source,
+        Expression condition,
+        Attribute scoreAttribute,
+        LocalExecutionPlannerContext context
+    ) {
+        PhysicalOperation filterOperation = planFilterCondition(source, condition, context);
         int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
-        filterOperation = filterOperation.with(
+        return filterOperation.with(
             new ScoreOperator.ScoreOperatorFactory(
                 ScoreMapper.toScorer(
                     condition,
@@ -2464,10 +2513,6 @@ public class LocalExecutionPlanner {
             ),
             filterOperation.layout
         );
-        if (scorePredicates.isEmpty() == false) {
-            filterOperation = planFilterCondition(filterOperation, Predicates.combineAnd(scorePredicates), context);
-        }
-        return filterOperation;
     }
 
     private static PhysicalOperation planFilterCondition(

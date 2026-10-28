@@ -385,11 +385,17 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         signatures = {
             @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
             @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date"),
             @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
             @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
+            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date_nanos"),
             // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
             @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
             @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
+            @Signature(
+                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "object" },
+                returnType = "double"
+            ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
             @Signature(params = { "exponential_histogram|tdigest", "double|integer|long" }, returnType = "double_range"),
             @Signature(
@@ -486,6 +492,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
                 file = "bucket",
                 tag = "bucketWithOffset"
+            ),
+            @Example(
+                description = """
+                    By default, `BUCKET` only returns buckets that contain at least one row. Set the
+                    `include_empty_buckets` option to `true` to also return the empty buckets in the `from`..`to` range,
+                    filled with default aggregate values:""",
+                file = "bucket_include_empty_buckets",
+                tag = "docsBucketIncludeEmptyBuckets",
+                applies_to = "stack: ga 9.6.0"
             ),
             @Example(
                 description = """

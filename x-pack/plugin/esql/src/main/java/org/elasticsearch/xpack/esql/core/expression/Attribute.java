@@ -259,6 +259,10 @@ public abstract class Attribute extends NamedExpression {
      */
     public abstract boolean isMetric();
 
+    public boolean isInternal() {
+        return synthetic();
+    }
+
     protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
         if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
             out.writeOptionalCachedString(qualifier());

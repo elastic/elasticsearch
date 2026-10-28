@@ -15,11 +15,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
@@ -27,8 +31,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -43,8 +53,10 @@ import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Intent;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.TransitionContext;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +73,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -657,6 +670,287 @@ public class CredentialTransitionsTests extends ESTestCase {
 
         assertThat(persistedCred.get(), equalTo(persisted));
         assertThat(persistedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(mintedAuth.encode()));
+    }
+
+    @After
+    public void clearEsqlRequestBuilderAccess() {
+        SharedSecrets.setEsqlQueryRequestBuilderAccess(null);
+    }
+
+    /**
+     * Wires a {@link CredentialTransitions} with the real {@code EsqlDatafeedQueryValidator#validateAccessForMint}, recording the
+     * probe through a mock ES|QL request builder installed behind {@link SharedSecrets} (the ES|QL plugin is absent from the ML test
+     * classpath), plus ordered mint/persist event recording.
+     */
+    @SuppressWarnings("unchecked")
+    private final class EsqlProbeHarness {
+        final CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        final InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        final Client delegateClient = mock(Client.class);
+        final Client wrappedClient = mock(Client.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        final DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        final List<String> events = new ArrayList<>();
+        final List<String> probeQueries = new ArrayList<>();
+        final List<String> probeRouting = new ArrayList<>();
+        final List<String> probeAuthenticationHeaders = new ArrayList<>();
+        final List<ElasticsearchClient> probeClients = new ArrayList<>();
+        final PersistedCloudCredential minted = new PersistedCloudCredential("minted-id", randomCloudCredentialEncryptedData());
+        final CredentialTransitions transitions;
+        volatile Exception probeFailure;
+
+        EsqlProbeHarness() {
+            threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "caller-authentication");
+            when(threadPool.getThreadContext()).thenReturn(threadContext);
+            when(delegateClient.threadPool()).thenReturn(threadPool);
+            when(wrappedClient.threadPool()).thenReturn(threadPool);
+            when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+            when(credentialManager.wrapClient(same(delegateClient), eq(callerCredential))).thenReturn(wrappedClient);
+            Authentication mintedAuth = AuthenticationTestHelper.builder().build();
+            doAnswer(invocation -> {
+                events.add("mint");
+                ActionListener<InternalCloudApiKeyService.CloudGrantApiKeyResult> listener = invocation.getArgument(2);
+                listener.onResponse(new InternalCloudApiKeyService.CloudGrantApiKeyResult(minted, mintedAuth));
+                return null;
+            }).when(apiKeyService).grantCloudAuthentication(nullable(CloudCredential.class), anyString(), any());
+            doAnswer(invocation -> {
+                events.add("revoke");
+                ActionListener<Void> listener = invocation.getArgument(1);
+                listener.onResponse(null);
+                return null;
+            }).when(apiKeyService).revokeCloudAuthentication(any(PersistedCloudCredential.class), any());
+            EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = mock();
+            when(builder.query(any())).thenAnswer(invocation -> {
+                probeQueries.add(invocation.getArgument(0));
+                return builder;
+            });
+            when(builder.projectRouting(any())).thenAnswer(invocation -> {
+                probeRouting.add(invocation.getArgument(0));
+                return builder;
+            });
+            when(builder.params(any())).thenReturn(builder);
+            when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
+            doAnswer(invocation -> {
+                events.add("probe");
+                probeAuthenticationHeaders.add(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
+                ActionListener<EsqlQueryResponse> listener = invocation.getArgument(0);
+                if (probeFailure != null) {
+                    listener.onFailure(probeFailure);
+                } else {
+                    listener.onResponse(mock(EsqlQueryResponse.class));
+                }
+                return null;
+            }).when(builder).execute(any(ActionListener.class));
+            SharedSecrets.setEsqlQueryRequestBuilderAccess(client -> {
+                probeClients.add(client);
+                return builder;
+            });
+            transitions = new CredentialTransitions(
+                mock(AnomalyDetectionAuditor.class),
+                () -> apiKeyService,
+                () -> credentialManager,
+                delegateClient,
+                xContentRegistry(),
+                datafeedConfigProvider,
+                new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
+            );
+        }
+
+        ClusterState clusterState() {
+            ClusterState clusterState = mock(ClusterState.class);
+            when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
+            return clusterState;
+        }
+
+        /** Fresh stored/applied ES|QL config as the update hook would see it. */
+        void stubUpdateInvokingMintHook(DatafeedConfig applied) {
+            doAnswer(invocation -> {
+                Change.Mint mint = invocation.getArgument(3);
+                ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> listener = invocation.getArgument(5);
+                mint.mintHook().accept(applied, ActionListener.wrap(mintedCredential -> {
+                    events.add("persist");
+                    listener.onResponse(Tuple.tuple(applied, null));
+                }, listener::onFailure));
+                return null;
+            }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(Change.Mint.class), any(), any());
+        }
+    }
+
+    private static DatafeedConfig esqlDatafeed() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setEsqlQuery(ESQL_QUERY);
+        builder.setSourceTimeField("@timestamp");
+        builder.setGroupingInterval(TimeValue.timeValueHours(1));
+        builder.setProjectRouting("_alias:_origin");
+        return builder.build();
+    }
+
+    private static final String ESQL_QUERY = "FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h)";
+
+    public void testExecutePutWithEsqlDatafeedShouldRunEsqlProbeNotSearchProbe() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+
+        h.transitions.executePut(
+            Intent.REPLACE,
+            new PutDatafeedAction.Request(esqlDatafeed()),
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (req, headers, state, listener) -> {
+                h.events.add("persist");
+                listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
+            },
+            ActionTestUtils.assertNoFailureListener(response::set)
+        );
+
+        assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+        assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
+        assertThat(h.events, equalTo(List.of("probe", "mint", "persist")));
+        assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(h.minted));
+        verify(h.delegateClient, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        verify(h.wrappedClient, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+    }
+
+    public void testExecutePutWithEsqlDatafeedShouldProbeUnderCallerCredentialAndHeaders() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+
+        h.transitions.executePut(
+            Intent.REPLACE,
+            new PutDatafeedAction.Request(esqlDatafeed()),
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (req, headers, state, listener) -> listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed())),
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        assertThat(h.probeClients, equalTo(List.of(h.wrappedClient)));
+        assertThat(h.probeAuthenticationHeaders, equalTo(List.of("caller-authentication")));
+        verify(h.credentialManager).wrapClient(same(h.delegateClient), eq(h.callerCredential));
+    }
+
+    public void testExecutePutWithEsqlDatafeedWhenProbeFailsShouldNotMintOrPersist() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("action not permitted");
+        h.probeFailure = securityFailure;
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        h.transitions.executePut(
+            Intent.REPLACE,
+            new PutDatafeedAction.Request(esqlDatafeed()),
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (req, headers, state, listener) -> fail("persist must not run when the probe fails"),
+            ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
+        );
+
+        assertThat(failure.get(), sameInstance(securityFailure));
+        assertThat(h.events, equalTo(List.of("probe")));
+        verify(h.apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
+    }
+
+    public void testExecutePutWithEsqlDatafeedWhenProbeFindsNoMatchingProjectShouldDeferAndMint() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+        h.probeFailure = new NoMatchingProjectException("_alias:_origin");
+
+        h.transitions.executePut(
+            Intent.REPLACE,
+            new PutDatafeedAction.Request(esqlDatafeed()),
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (req, headers, state, listener) -> {
+                h.events.add("persist");
+                listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
+            },
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        assertThat(h.events, equalTo(List.of("probe", "mint", "persist")));
+    }
+
+    public void testExecuteUpdateRekeyWithEsqlDatafeedShouldRunEsqlProbeBeforeMint() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+        h.stubUpdateInvokingMintHook(esqlDatafeed());
+        Map<String, String> headers = h.threadContext.getHeaders();
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+
+        h.transitions.executeUpdate(
+            Intent.REPLACE,
+            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df").build()),
+            "job",
+            headers,
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (config, listener) -> listener.onResponse(Boolean.TRUE),
+            ActionTestUtils.assertNoFailureListener(response::set)
+        );
+
+        assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+        assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
+        assertThat(h.probeAuthenticationHeaders, equalTo(List.of("caller-authentication")));
+        assertThat(h.probeClients, equalTo(List.of(h.wrappedClient)));
+        assertThat(h.events, equalTo(List.of("probe", "mint", "persist")));
+        verify(h.delegateClient, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+    }
+
+    public void testExecuteUpdateRekeyWithEsqlDatafeedWhenProbeFailsShouldNotMint() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+        h.stubUpdateInvokingMintHook(esqlDatafeed());
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("action not permitted");
+        h.probeFailure = securityFailure;
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        h.transitions.executeUpdate(
+            Intent.REPLACE,
+            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df").build()),
+            "job",
+            h.threadContext.getHeaders(),
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (config, listener) -> listener.onResponse(Boolean.TRUE),
+            ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
+        );
+
+        assertThat(failure.get(), sameInstance(securityFailure));
+        assertThat(h.events, equalTo(List.of("probe")));
+        verify(h.apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
+    }
+
+    public void testExecutePutWithQualifiedEsqlSourceWhenProbeFindsNoMatchingProjectShouldFailBeforeMint() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlProbeHarness h = new EsqlProbeHarness();
+        h.probeFailure = new NoMatchingProjectException("_alias:_origin");
+        DatafeedConfig qualified = new DatafeedConfig.Builder(esqlDatafeed()).setEsqlQuery("FROM project-a:logs-* | LIMIT 10").build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        h.transitions.executePut(
+            Intent.REPLACE,
+            new PutDatafeedAction.Request(qualified),
+            h.clusterState(),
+            h.threadPool,
+            null,
+            (req, headers, state, listener) -> fail("persist must not run when the probe fails"),
+            ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(NoMatchingProjectException.class));
+        assertThat(failure.get().getMessage(), containsString("df"));
+        assertThat(failure.get().getCause(), sameInstance(h.probeFailure));
+        assertThat(h.events, equalTo(List.of("probe")));
+        verify(h.apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 
     public void testMintFailureLogThrottleShouldLogFirstFailureAndSuppressWithinInterval() {

@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
@@ -300,6 +301,130 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
+    }
+
+    public void testMintAccessSuccessShouldCloseResponse() {
+        EsqlQueryResponse response = mock(EsqlQueryResponse.class);
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
+                throw new AssertionError("expected success", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+        verify(response).close();
+    }
+
+    public void testMintAccessWithQualifiedSourceAndNoMatchingProjectShouldFail() {
+        NoMatchingProjectException noMatchingProject = new NoMatchingProjectException("_alias:*");
+        ValidatorHarness harness = new ValidatorHarness(noMatchingProject);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            "FROM project-a:logs | LIMIT 10",
+            "_alias:*",
+            ActionListener.wrap(ignored -> fail("a qualified project must not be deferred"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(noMatchingProject));
+    }
+
+    public void testMintAccessWithSourceQualificationShouldFailOrDeferNoMatchingProject() {
+        // Only plain comma-separated index names are deferred; anything the allow-list does not recognise fails closed.
+        List<String> failClosed = List.of(
+            "FROM (FROM project-a:logs-*) | LIMIT 10",
+            "FROM logs, (FROM project-a:logs-*) | LIMIT 10",
+            "FROM (FROM logs) | LIMIT 10",
+            "FROM project-a:logs-* | LIMIT 10",
+            "FROM logs, project-a:logs-* | LIMIT 10",
+            "FROM logs,project-a:logs-*,other | LIMIT 10",
+            "FROM logs, -project-a:logs-* | LIMIT 10",
+            "FROM _origin:logs-* | LIMIT 10",
+            "FROM project-a : logs-* | LIMIT 10",
+            "FROM project-a :logs-* | LIMIT 10",
+            "FROM project-a: logs-* | LIMIT 10",
+            "FROM project-a /* c */ : logs | LIMIT 10",
+            "FROM project-a // c\n : logs | LIMIT 10",
+            "FROM /* c */ project-a:logs // c\n | LIMIT 10",
+            "FROM /* c */ logs | LIMIT 10",
+            "FROM logs // c\n | LIMIT 10",
+            "FROM \"project-a\":logs | LIMIT 10",
+            "FROM \"logs\" | LIMIT 10",
+            "FROM `project-a:logs` | LIMIT 10",
+            "FROM logs, | LIMIT 10",
+            "FROM logs,| LIMIT 10",
+            "FROM , logs | LIMIT 10",
+            "FROM logs,,other | LIMIT 10",
+            "FROM | LIMIT 10",
+            "FROM logs other | LIMIT 10",
+            "FROM logs METADATA | LIMIT 10",
+            "FROM logs METADATA _id, | LIMIT 10",
+            "TS project-a:metrics-* | LIMIT 10",
+            "ROW a = 1 | LIMIT 10",
+            "FROM logs-*:other | LIMIT 10",
+            "FROM logs/other | LIMIT 10",
+            "FROM <logs-{now/d}> | LIMIT 10",
+            "FROM logs::data | LIMIT 10",
+            "FROM logs | WHERE id IN (FROM project-a:other | KEEP id)",
+            "FROM logs | WHERE id IN (FROM other | KEEP id)",
+            "FROM logs | WHERE id IN ( /* c */ TS other | KEEP id)",
+            "FROM logs | WHERE id NOT IN (\nfrom project-a:other | KEEP id)",
+            "FROM logs | LOOKUP JOIN project-a:idx ON k",
+            "FROM logs | LOOKUP JOIN idx ON k",
+            "FROM logs | lookup join idx ON k",
+            "FROM logs | ENRICH policy ON k",
+            "FROM logs | ENRICH _remote:policy ON k",
+            "FROM logs | WHERE msg == \"a:b\"",
+            "FROM logs | EVAL x = a:b",
+            "FROM logs | WHERE a > 1 :::"
+        );
+        for (String query : failClosed) {
+            assertThat(query, mintAccessOutcomeForNoMatchingProject(query), equalTo("failed"));
+        }
+
+        List<String> deferred = List.of(
+            "FROM logs | LIMIT 10",
+            "FROM logs-* | LIMIT 10",
+            "FROM a,b,c | LIMIT 10",
+            "FROM a , b ,\tc | LIMIT 10",
+            "FROM a,\n  b,\n  c | LIMIT 10",
+            "FROM\tlogs\n| LIMIT 10",
+            "FROM logs, -other-* | LIMIT 10",
+            "FROM logs, other-* METADATA _id, _index | LIMIT 10",
+            "from logs-* | LIMIT 10",
+            "FROM logs",
+            "TS metrics-* | LIMIT 10",
+            "FROM logs | EVAL n = bytes::long, s = host::keyword | KEEP n, s | LIMIT 5",
+            "FROM logs-* | WHERE @timestamp > NOW() - 1 hour | STATS c = COUNT(*), a = AVG(bytes) "
+                + "BY ts = BUCKET(@timestamp, 1h) | SORT ts | LIMIT 100",
+            "FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly\n | KEEP ts, c",
+            "TS metrics-* | STATS r = SUM(RATE(bytes)) BY ts = TBUCKET(1h)"
+        );
+        for (String query : deferred) {
+            assertThat(query, mintAccessOutcomeForNoMatchingProject(query), equalTo("deferred"));
+        }
+    }
+
+    private String mintAccessOutcomeForNoMatchingProject(String query) {
+        ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
+        AtomicReference<String> outcome = new AtomicReference<>();
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            query,
+            "_alias:*",
+            ActionListener.wrap(ignored -> outcome.set("deferred"), e -> outcome.set("failed"))
+        );
+        return outcome.get();
     }
 
     public void testMintAccessWithIndexNotFoundShouldDefer() {

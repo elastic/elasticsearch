@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
@@ -323,7 +324,11 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
-    /** {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}. */
+    /**
+     * {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}.
+     * Mirrors the DSL probe: a missing source or an unmatched project routing is deferred to runtime only when no source in the
+     * leading FROM/TS command is, or may be, project-qualified; an unmatched qualified project is an explicit error and fails the probe.
+     */
     public void validateAccessForMint(
         Client client,
         Map<String, String> headers,
@@ -332,10 +337,18 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Void> listener
     ) {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
+        boolean mayHaveQualifiedSource = mayHaveQualifiedSource(esqlQuery);
 
-        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            try {
+                listener.onResponse(null);
+            } finally {
+                response.close();
+            }
+        }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (isDeferredExistenceFailure(cause)) {
+            boolean unmatchedQualifiedProject = mayHaveQualifiedSource && cause instanceof NoMatchingProjectException;
+            if (unmatchedQualifiedProject == false && isDeferredExistenceFailure(cause)) {
                 // Source may not exist yet; defer to runtime (classic SearchRequest probe behaviour).
                 listener.onResponse(null);
             } else {
@@ -344,6 +357,42 @@ public class EsqlDatafeedQueryValidator {
         });
 
         executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
+    }
+
+    private static final String SOURCE_TOKEN = "-?[A-Za-z0-9_.*][A-Za-z0-9_.*-]*";
+    private static final String METADATA_FIELD = "[A-Za-z0-9_@.]+";
+    private static final Pattern PROVEN_UNQUALIFIED_SOURCE = Pattern.compile(
+        "\\s*(?:FROM|TS)\\s+"
+            + SOURCE_TOKEN
+            + "(?:\\s*,\\s*"
+            + SOURCE_TOKEN
+            + ")*(?:\\s+METADATA\\s+"
+            + METADATA_FIELD
+            + "(?:\\s*,\\s*"
+            + METADATA_FIELD
+            + ")*)?\\s*",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * Source-introducing constructs after the leading command (EsqlBaseParser.g4): a subquery {@code (FROM|TS ...)} in FROM or
+     * IN, JOIN/LOOKUP targets, ENRICH policies, PROMQL index params, and any single {@code :} (project/cluster qualifier).
+     * FROM/TS count only right after '(' so a field named {@code ts} still defers; the other words are matched anywhere, and a
+     * string literal containing them or a colon is over-rejected on purpose.
+     */
+    private static final Pattern SOURCE_INTRODUCING_TOKEN = Pattern.compile(
+        "\\(\\s*(?:(?://[^\\n]*\\n|/\\*.*?\\*/)\\s*)*(?:FROM|TS)\\b|\\b(?:JOIN|LOOKUP|ENRICH|PROMQL|EXTERNAL)\\b|(?<!:):(?!:)|:::",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
+
+    /** Fail-closed: {@code false} only when the leading command and the rest of the query are both proven free of qualified sources. */
+    private static boolean mayHaveQualifiedSource(String esqlQuery) {
+        int pipe = esqlQuery.indexOf('|');
+        String leadingSegment = pipe < 0 ? esqlQuery : esqlQuery.substring(0, pipe);
+        if (PROVEN_UNQUALIFIED_SOURCE.matcher(leadingSegment).matches() == false) {
+            return true;
+        }
+        return pipe >= 0 && SOURCE_INTRODUCING_TOKEN.matcher(esqlQuery.substring(pipe)).find();
     }
 
     static void validateEmittedTimesInSourceWindow(

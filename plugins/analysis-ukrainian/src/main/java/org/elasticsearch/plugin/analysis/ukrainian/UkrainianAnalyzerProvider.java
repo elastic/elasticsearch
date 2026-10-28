@@ -21,12 +21,14 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
 
     private final UkrainianMorfologikAnalyzer analyzer;
 
+    private final Object sharingKey;
+
     public UkrainianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new UkrainianMorfologikAnalyzer(
-            Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopwords()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopwords());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        analyzer = new UkrainianMorfologikAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
@@ -34,4 +36,10 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
         return this.analyzer;
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

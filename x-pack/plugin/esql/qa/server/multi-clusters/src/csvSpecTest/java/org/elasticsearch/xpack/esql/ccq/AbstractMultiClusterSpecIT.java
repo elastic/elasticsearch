@@ -295,6 +295,13 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             "DENSE_VECTOR command is not supported in CCS unless all nodes support it",
             bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_COMMAND.capabilityName())
         );
+        // PromQL deriv() on mixed-version CCS can disagree on a single time-bucket boundary even when
+        // both sides advertise the same time-bucket fix capabilities (#162491). Skip until the
+        // cross-version window semantics are aligned.
+        assumeFalse(
+            "prometheus-k8s.derivative_of_gauge_metric_promql is not stable across BWC CCS versions",
+            bothClustersAtCurrentVersion() == false && testName.contains("derivative_of_gauge_metric_promql")
+        );
 
     }
 

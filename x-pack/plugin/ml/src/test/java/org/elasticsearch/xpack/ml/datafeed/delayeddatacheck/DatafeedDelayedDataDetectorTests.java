@@ -11,12 +11,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -54,7 +54,7 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
 
     public void testDetectMissingDataWhenSearchResponseHasNoAggregations() {
         // A search that has no shard results to reduce returns a response with null aggregations, even though aggregations were requested
-        SearchResponse searchResponse = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+        SearchResponse searchResponse = searchResponse(null);
         assertNull(searchResponse.getAggregations());
 
         try {
@@ -65,9 +65,7 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
     }
 
     public void testDetectMissingDataWhenSearchResponseHasNoDateBuckets() {
-        SearchResponse searchResponse = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
-            .aggregations(InternalAggregations.EMPTY)
-            .build();
+        SearchResponse searchResponse = searchResponse(InternalAggregations.EMPTY);
 
         try {
             assertThat(detectorWithSearchResponse(searchResponse).detectMissingData(LATEST_FINALIZED_BUCKET_MS), empty());
@@ -111,5 +109,24 @@ public class DatafeedDelayedDataDetectorTests extends ESTestCase {
                 }
             }
         };
+    }
+
+    private static SearchResponse searchResponse(InternalAggregations aggregations) {
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            aggregations,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            42L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -312,7 +313,32 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
+            closeAll(CloseableTestClusterWrapper.wrap(clusters.values()));
+        }
+
+        /**
+         * Closes every cluster even if closing an earlier one fails, adding later failures as suppressed. Unlike
+         * {@link IOUtils#close(Iterable)} this also continues past an {@link AssertionError}, such as a node that did not close
+         * in time, so every cluster gets a close attempt before {@link AbstractMultiClustersTestCase#stopClusters()} clears the group.
+         */
+        static void closeAll(Iterable<? extends Closeable> closeables) throws IOException {
+            Throwable failure = null;
+            for (Closeable closeable : closeables) {
+                try {
+                    closeable.close();
+                } catch (IOException | RuntimeException | AssertionError e) {
+                    failure = ExceptionsHelper.useOrSuppress(failure, e);
+                }
+            }
+            if (failure instanceof IOException e) {
+                throw e;
+            }
+            if (failure instanceof RuntimeException e) {
+                throw e;
+            }
+            if (failure instanceof AssertionError e) {
+                throw e;
+            }
         }
     }
 

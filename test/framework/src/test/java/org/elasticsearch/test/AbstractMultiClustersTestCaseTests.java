@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.plugins.Plugin;
 
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,6 +71,30 @@ public class AbstractMultiClustersTestCaseTests extends AbstractMultiClustersTes
 
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         assertClustersRestartAndServeRequests();
+    }
+
+    public void testCloseAllClosesRemainingClustersAfterAssertionError() {
+        AtomicBoolean lastClosed = new AtomicBoolean();
+        List<Closeable> closeables = List.of(() -> { throw new AssertionError("node did not close"); }, () -> lastClosed.set(true));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> ClusterGroup.closeAll(closeables));
+        assertThat(e.getMessage(), equalTo("node did not close"));
+        assertThat(e.getSuppressed(), emptyArray());
+        assertTrue(lastClosed.get());
+    }
+
+    public void testCloseAllAddsLaterFailuresAsSuppressed() {
+        AtomicBoolean lastClosed = new AtomicBoolean();
+        List<Closeable> closeables = List.of(() -> { throw new IllegalStateException("shards still open"); }, () -> {
+            throw new AssertionError("node did not close");
+        }, () -> lastClosed.set(true));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> ClusterGroup.closeAll(closeables));
+        assertThat(e.getMessage(), equalTo("shards still open"));
+        assertThat(e.getSuppressed(), arrayWithSize(1));
+        assertThat(e.getSuppressed()[0], instanceOf(AssertionError.class));
+        assertThat(e.getSuppressed()[0].getMessage(), equalTo("node did not close"));
+        assertTrue(lastClosed.get());
     }
 
     private void assertClustersRestartAndServeRequests() throws Exception {

@@ -151,17 +151,6 @@ tests:
   - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testUpdateDeployment_GivenAllocationsAreIncreased
   issue: https://github.com/elastic/elasticsearch/issues/163323
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.13.4#oldToNew
-  - :x-pack:plugin:esql:qa:server:multi-clusters:v8.14.3#oldToNew
-  method: test {stats.SumExpressionWithConstantFoldableCastInConstantPosition}
-  issue: https://github.com/elastic/elasticsearch/issues/163481
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.14.3#javaRestTest
-  method: test {stats.SumExpressionWithConstantFoldableCastInConstantPosition SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/163483
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

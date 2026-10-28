@@ -197,7 +197,18 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
             new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("67%"),
             new MultiMatchQueryBuilder("quick brown nothing", "body").minimumShouldMatch("3"),
             new MatchBoolPrefixQueryBuilder("body", "quick brown nothi").minimumShouldMatch("3"),
-            new MatchBoolPrefixQueryBuilder("body", "quick brown nothi").minimumShouldMatch("2")
+            new MatchBoolPrefixQueryBuilder("body", "quick brown nothi").minimumShouldMatch("2"),
+            // query_string and simple_query_string apply minimum_should_match after the field has wrapped its query.
+            new QueryStringQueryBuilder("quick nothing").defaultField("body").minimumShouldMatch("2"),
+            new QueryStringQueryBuilder("quick nothing").defaultField("body").minimumShouldMatch("100%"),
+            new QueryStringQueryBuilder("quick brown").defaultField("body").defaultOperator(Operator.AND).minimumShouldMatch("1"),
+            new QueryStringQueryBuilder("body:(quick nothing)").minimumShouldMatch("2"),
+            new QueryStringQueryBuilder("body:(quick nothing)^2").minimumShouldMatch("2"),
+            new SimpleQueryStringBuilder("quick-nothing").field("body").minimumShouldMatch("2"),
+            new SimpleQueryStringBuilder("quick-nothing").field("body", 2f).minimumShouldMatch("2"),
+            new MultiMatchQueryBuilder("quick brown nothing", "body^2").minimumShouldMatch("3"),
+            new MultiMatchQueryBuilder("quick brown nothing", "body^2").type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+                .minimumShouldMatch("3")
         );
         final List<List<Integer>> indexed = matching(true, queries);
         final List<List<Integer>> notIndexed = matching(false, queries);

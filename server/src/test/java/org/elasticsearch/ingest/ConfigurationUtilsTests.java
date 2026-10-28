@@ -312,4 +312,20 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(result.newInstance(null).execute(), equalTo(compiledValue));
         verify(scriptService, times(1)).compile(any(), any());
     }
+
+    public void testReadProcessorConfigsRejectsNonObjectElements() {
+        Map<String, Processor.Factory> registry = Collections.singletonMap(
+            "test_processor",
+            (factories, tag, description, config, projectId) -> mock(Processor.class)
+        );
+        List<Object> config = new ArrayList<>();
+        config.add(Collections.singletonMap("test_processor", Collections.emptyMap()));
+        config.add(randomBoolean() ? "foo" : null);
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, projectId)
+        );
+        assertThat(e.getMessage(), containsString("processor configuration must be an object"));
+    }
 }

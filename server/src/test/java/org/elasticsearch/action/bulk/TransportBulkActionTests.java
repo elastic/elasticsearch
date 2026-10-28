@@ -740,6 +740,9 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testPreBuiltBatchReleasedWhenRouterRejects() {
+        // the kill switch defaults to the feature flag state, so turn it off to make batch indexing unsupported
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build());
         BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
         BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
 

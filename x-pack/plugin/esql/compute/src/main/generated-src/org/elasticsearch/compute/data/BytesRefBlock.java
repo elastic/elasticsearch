@@ -107,6 +107,13 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
      */
     OrdinalBytesRefBlock asOrdinals();
 
+    /**
+     * An estimate of the bytes this block's values spell, as opposed to the memory it holds, taken without
+     * reading the values one by one. Exact unless the values are read through a dictionary, where each one
+     * counts as the dictionary's average term.
+     */
+    long estimateTotalValueBytes();
+
     @Override
     default BytesRefBlock slice(int beginInclusive, int endExclusive) {
         if (beginInclusive == 0 && endExclusive == getPositionCount()) {

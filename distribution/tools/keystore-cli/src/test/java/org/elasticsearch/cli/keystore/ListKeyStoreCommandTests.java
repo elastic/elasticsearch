@@ -85,7 +85,6 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testListWithUnprotectedKeystore() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         createKeystore("", "foo", "bar");
         execute();
         // Not prompted for a password

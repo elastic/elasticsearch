@@ -543,16 +543,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163565
-- class: org.elasticsearch.index.IndexSettingsTests
-  tasks:
-  - :server:test
-  method: testBatchIndexingRejectedWithoutFeatureFlag
-  issue: https://github.com/elastic/elasticsearch/issues/163668
-- class: org.elasticsearch.index.IndexSettingsTests
-  tasks:
-  - :server:test
-  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
-  issue: https://github.com/elastic/elasticsearch/issues/163670
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest

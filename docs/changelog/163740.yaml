@@ -1,0 +1,15 @@
+pr: 163740
+summary: "ESQL:DS: Enable federation by default"
+area: ES|QL
+type: enhancement
+issues: []
+highlight:
+  notable: true
+  title: ES|QL Data Federation is enabled by default
+  body: |-
+    ES|QL Data Federation, which queries files in external object storage without
+    ingesting them, is now enabled by default on stateful deployments. The
+    `esql.federation.enabled` setting no longer has to be added to turn the
+    feature on; set it to `false` to turn it off. An Enterprise or trial license
+    is still required, and the Kibana UI is still turned on separately. The
+    feature remains unavailable on Windows.

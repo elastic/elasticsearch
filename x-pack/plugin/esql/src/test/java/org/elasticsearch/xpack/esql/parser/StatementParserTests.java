@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -1470,6 +1471,45 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSubquery() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
+    }
+
+    private static final int DEFAULT_MAX_COMMAND_COUNT = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+
+    public void testDeepSubqueryFailsMaxCommandCount() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT);
+        query("from foo, (from bar" + pipes + ")");
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + " | where a > 0)")
+        );
+    }
+
+    public void testMaxCommandCountIsSharedAcrossSubqueries() {
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT / 2);
+        query("from foo, (from bar" + pipes + "), (from baz" + pipes + ")");
+        query("from foo, (from bar" + pipes + ")" + pipes);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + "), (from baz" + pipes + "), (from qux | where a > 0)")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + ")" + pipes + " | where a > 0")
+        );
+    }
+
+    public void testMaxCommandCountIsConfigurable() {
+        String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
+        TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
+            () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
+        );
     }
 
     public void testBlockComments() {

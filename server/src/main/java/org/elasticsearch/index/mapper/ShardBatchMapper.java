@@ -139,6 +139,9 @@ public final class ShardBatchMapper {
             }
         }
 
+        // Most mappings have no keep: all object, and then no leaf needs the walk up its parents.
+        final boolean anyKeepAllObject = hasKeepAllObject(lookup, indexSettings);
+
         final int leafCount = schema.leafCount();
         final FieldMapper[] columnMappers = new FieldMapper[leafCount];
         ColumnGroupResolver.Builder groupBuilder = null;
@@ -150,6 +153,11 @@ public final class ShardBatchMapper {
             final String fullPath = schema.getFullPath(leaf);
             if (hasBlankPathSegment(fullPath)) {
                 logger.debug("batch indexing disabled: malformed field name [{}]", fullPath);
+                return null;
+            }
+            // Checked for every leaf, whatever it resolves to, before any of the branches below that can accept it.
+            if (anyKeepAllObject && isUnderKeepAllObject(fullPath, lookup, indexSettings)) {
+                logger.debug("batch indexing disabled: leaf [{}] is under an object with synthetic_source_keep: all", fullPath);
                 return null;
             }
             final Mapper resolved = lookup.getMapper(fullPath);
@@ -219,14 +227,14 @@ public final class ShardBatchMapper {
                     continue;
                 }
                 if (parentDynamic == ObjectMapper.Dynamic.FLATTENED) {
-                    final FieldMapper sink = unmappedSink(lookup, indexSettings);
+                    final FieldMapper sink = unmappedSink(lookup);
                     if (sink == null) {
                         return null;
                     }
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();
                     }
-                    // The sink is keyed by the leaf's full dotted path, matching DynamicFieldsBuilder.FlattenedSink,
+                    // The sink is keyed by the leaf's full dotted path, matching UnmappedSinkFieldMapper.absorb,
                     // which calls indexValueAtPath with context.path().pathAsText(name).
                     groupBuilder.add(new ColumnGroupLookup.Owned(sink, FlattenedFieldMapper.UNMAPPED_SINK_NAME, fullPath), leaf);
                     columnMappers[leaf] = null;
@@ -325,7 +333,7 @@ public final class ShardBatchMapper {
      * Returns the implicit flattened {@code _unmapped} sink that absorbs unmapped leaves under
      * {@link ObjectMapper.Dynamic#FLATTENED}, or {@code null} if the batch cannot use it and must fall back.
      */
-    private static FieldMapper unmappedSink(MappingLookup lookup, IndexSettings indexSettings) {
+    private static FieldMapper unmappedSink(MappingLookup lookup) {
         // Dynamic templates are tried before the sink on the sequential path
         // (DynamicFieldsBuilder#createDynamicFieldFromValue), and a match creates a concrete field instead of
         // absorbing the value. The batch path cannot evaluate templates, so it cannot tell which leaves would
@@ -334,16 +342,49 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             return null;
         }
-        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe.
-        final FlattenedFieldMapper sink = (FlattenedFieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-        if (sink.supportsColumnarParse(indexSettings) == false) {
-            logger.debug(
-                "columnar batch mapping disabled: [{}] sink does not support columnar parsing",
-                FlattenedFieldMapper.UNMAPPED_SINK_NAME
-            );
-            return null;
+        // The sink's columnar support was already checked with every other metadata mapper above, so a sink that cannot batch never
+        // reaches this point.
+        return lookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+    }
+
+    /**
+     * Whether any object in the mapping has {@code synthetic_source_keep: all}, which {@link #isUnderKeepAllObject} then has to look
+     * for above each leaf. Strict-columnar modes reject the setting, and there the sequential path never writes
+     * {@code _ignored_source} either, so no object counts.
+     */
+    private static boolean hasKeepAllObject(MappingLookup lookup, IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar()) {
+            return false;
         }
-        return sink;
+        for (ObjectMapper object : lookup.objectMappers().values()) {
+            if (keepsWholeObject(object, indexSettings)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether an enclosing object has {@code synthetic_source_keep: all}. The sequential path then copies the whole object into
+     * {@code _ignored_source}, whatever its leaves' own mappers do, and the batch path writes no such entry. Call only when
+     * {@link #hasKeepAllObject} is {@code true}.
+     */
+    private static boolean isUnderKeepAllObject(String leafPath, MappingLookup lookup, IndexSettings indexSettings) {
+        String current = leafPath;
+        int dot;
+        while ((dot = current.lastIndexOf('.')) > 0) {
+            current = current.substring(0, dot);
+            final ObjectMapper parent = lookup.objectMappers().get(current);
+            // The root mapping and the index setting both reject synthetic_source_keep: all, so only named objects can carry it.
+            if (parent != null && keepsWholeObject(parent, indexSettings)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean keepsWholeObject(ObjectMapper object, IndexSettings indexSettings) {
+        return FallbackPostMapper.capturesWholeObject(FallbackPostMapper.effectiveKeepMode(object.sourceKeepMode(), indexSettings));
     }
 
     /**

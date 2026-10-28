@@ -107,7 +107,12 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
      * Returns the pre-built statement directly, without invoking the parser, after validating its settings.
      */
     @Override
-    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        int maxCommandCount
+    ) {
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }

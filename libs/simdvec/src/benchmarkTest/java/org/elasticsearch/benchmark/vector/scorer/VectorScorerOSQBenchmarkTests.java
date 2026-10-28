@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -103,8 +104,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             data,
             VectorScorerOSQBenchmark::controlScoreBulkFilteredOne,
             VectorScorerOSQBenchmark::scoreIndividualFilteredOne,
-            VectorScorerOSQBenchmark.SINGLE_OFFSET,
-            1
+            VectorScorerOSQBenchmark.SINGLE_MASK
         );
     }
 
@@ -114,8 +114,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             data,
             VectorScorerOSQBenchmark::scoreBulkFilteredDense,
             VectorScorerOSQBenchmark::controlScoreIndividualFilteredDense,
-            data.denseOffsets(),
-            data.denseOffsetsCount()
+            data.denseMask()
         );
     }
 
@@ -125,15 +124,15 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             data,
             VectorScorerOSQBenchmark::scoreBulkFilteredSparse,
             VectorScorerOSQBenchmark::controlScoreIndividualFilteredSparse,
-            data.sparseOffsets(),
-            data.sparseOffsetsCount()
+            data.sparseMask()
         );
     }
 
     /**
      * Runs the bulk and per-vector variants of a filtered scoring benchmark across all
      * {@link VectorScorerOSQBenchmark.VectorImplementation}s on the same input data, asserting per-implementation that the two paths agree
-     * at the selected offsets within each {@link VectorScorerOSQBenchmark#BULK_SIZE} chunk, and that all implementations agree.
+     * at the positions selected by {@code mask} within each {@link VectorScorerOSQBenchmark#BULK_SIZE} chunk, and that all
+     * implementations agree.
      *
      * <p>Non-selected scratch slots hold implementation-defined leftover values that differ between scoring paths and are intentionally
      * ignored.
@@ -142,35 +141,26 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         VectorScorerOSQBenchmark.VectorData data,
         CheckedFunction<VectorScorerOSQBenchmark, float[], IOException> bulkBenchmark,
         CheckedFunction<VectorScorerOSQBenchmark, float[], IOException> individualBenchmark,
-        int[] offsets,
-        int offsetsCount
+        int mask
     ) throws Exception {
         var implementations = VectorScorerOSQBenchmark.VectorImplementation.values();
-        float[] firstImplBulkResult = runIndividualVsBulk(
-            data,
-            implementations[0],
-            bulkBenchmark,
-            individualBenchmark,
-            offsets,
-            offsetsCount
-        );
+        float[] firstImplBulkResult = runIndividualVsBulk(data, implementations[0], bulkBenchmark, individualBenchmark, mask);
         for (int i = 1; i < implementations.length; i++) {
-            float[] result = runIndividualVsBulk(data, implementations[i], bulkBenchmark, individualBenchmark, offsets, offsetsCount);
-            assertEqualAtOffsets(implementations[i] + " cross-impl", firstImplBulkResult, result, offsets, offsetsCount);
+            float[] result = runIndividualVsBulk(data, implementations[i], bulkBenchmark, individualBenchmark, mask);
+            assertEqualAtSelected(implementations[i] + " cross-impl", firstImplBulkResult, result, mask);
         }
     }
 
     /**
-     * Runs both benchmark variants once for the given implementation, asserts they agree at the selected offsets, and returns the bulk
-     * result for cross-implementation comparison by the caller.
+     * Runs both benchmark variants once for the given implementation, asserts they agree at the selected positions, and returns the
+     * bulk result for cross-implementation comparison by the caller.
      */
     private float[] runIndividualVsBulk(
         VectorScorerOSQBenchmark.VectorData data,
         VectorScorerOSQBenchmark.VectorImplementation impl,
         CheckedFunction<VectorScorerOSQBenchmark, float[], IOException> bulkBenchmark,
         CheckedFunction<VectorScorerOSQBenchmark, float[], IOException> individualBenchmark,
-        int[] offsets,
-        int offsetsCount
+        int mask
     ) throws Exception {
         VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
         bench.implementation = impl;
@@ -183,18 +173,18 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         try {
             float[] bulkResult = bulkBenchmark.apply(bench);
             float[] individualResult = individualBenchmark.apply(bench);
-            assertEqualAtOffsets(impl + " bulk vs individual", bulkResult, individualResult, offsets, offsetsCount);
+            assertEqualAtSelected(impl + " bulk vs individual", bulkResult, individualResult, mask);
             return bulkResult;
         } finally {
             bench.teardown();
         }
     }
 
-    private void assertEqualAtOffsets(String message, float[] expected, float[] actual, int[] offsets, int offsetsCount) {
+    private void assertEqualAtSelected(String message, float[] expected, float[] actual, int mask) {
         assertEquals(message + " length", expected.length, actual.length);
         for (int chunkStart = 0; chunkStart < expected.length; chunkStart += VectorScorerOSQBenchmark.BULK_SIZE) {
-            for (int o = 0; o < offsetsCount; o++) {
-                int idx = chunkStart + offsets[o];
+            for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                int idx = chunkStart + BulkMask.first(m);
                 float delta = Math.max(Math.abs(expected[idx] * deltaPercent), DEFAULT_DELTA);
                 assertEquals(message + " at " + idx, expected[idx], actual[idx], delta);
             }

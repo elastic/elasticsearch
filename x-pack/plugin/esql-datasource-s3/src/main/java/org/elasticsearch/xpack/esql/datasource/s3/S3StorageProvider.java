@@ -767,6 +767,24 @@ public class S3StorageProvider implements StorageProvider {
         return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified);
     }
 
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        Target t = resolve(path);
+        S3StorageObject object = new S3StorageObject(
+            t.sync,
+            t.async,
+            asyncReadRetryStrategy,
+            storageIdentity,
+            t.bucket,
+            t.key,
+            path,
+            length,
+            lastModified
+        );
+        object.seedVersion(version);
+        return object;
+    }
+
     /** The bucket, the key and the clients that serve them, which the four single-path entry points all need. */
     private record Target(S3Client sync, S3AsyncClient async, String bucket, String key) {}
 
@@ -880,7 +898,12 @@ public class S3StorageProvider implements StorageProvider {
     /** One conversion from an SDK listing entry to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
         Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
-        return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+        return new StorageEntry(
+            StoragePath.of(pathPrefix + s3Object.key()),
+            s3Object.size(),
+            lastModified,
+            S3StorageObject.strongEtag(s3Object.eTag())
+        );
     }
 
     @Override

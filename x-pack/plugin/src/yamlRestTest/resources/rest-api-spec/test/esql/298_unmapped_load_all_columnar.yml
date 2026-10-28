@@ -9,7 +9,7 @@ setup:
           capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         Columnar index mode (index.mode=columnar) is a 9.5+ tech preview feature.
-        optional_fields_load_all_v2 (snapshot-only) post-dates 9.5. In strict columnar mode the generic
+        optional_fields_load_all_v2 post-dates 9.5. In strict columnar mode the generic
         _ignored_source is disabled, so unmapped fields are dropped at ingest and cannot
         be recovered by LOAD_ALL at query time.
 

@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -32,10 +31,7 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -281,7 +277,6 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
             .build();
     }
@@ -314,6 +309,40 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
                 doc(idB, TS_ROUTING, TS_TSID, 2L, "{\"@timestamp\":" + TS_B + "}")
             )
         );
+    }
+
+    /**
+     * Under {@code index.mapping.synthetic_source_keep: arrays} the row path keeps an array in {@code _ignored_source} so it
+     * round-trips in its original order; a version field has no offsets, and the columnar path writes none, so it must fall back.
+     */
+    public void testTsdbKeepArraysArrayBailsOut() throws IOException {
+        final var mapperService = createMapperService(
+            Settings.builder().put(tsdbSettings()).put("index.mapping.synthetic_source_keep", "arrays").build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "version").endObject();
+            })
+        );
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0\",\"2.0.0\"]}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
+    }
+
+    /** Under field-level {@code synthetic_source_keep: all} the row path keeps every value, so an array must fall back. */
+    public void testTsdbFieldKeepAllArrayBailsOut() throws IOException {
+        final var mapperService = createMapperService(tsdbSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "version").field("synthetic_source_keep", "all").endObject();
+        }));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0\"]}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /**

@@ -127,7 +127,7 @@ public class PayloadColumnMergeTests extends ESTestCase {
         byte[] other;
         do {
             other = randomByteArrayOfLength(between(1, 64));
-        } while (Arrays.equals(other, a));
+        } while (other.length == a.length);
         final byte[] b = other;
         // Two segments; neither is in order, and the first value of the second repeats the last of the first.
         final byte[][] first = { b, a, a, a };
@@ -309,7 +309,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
             options.summary(),
             randomFrom(ChunkCodec.values()),
             options.sizes(),
-            options.singleValued()
+            options.singleValued(),
+            options.enableSkipIndex()
         );
     }
 

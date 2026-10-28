@@ -361,7 +361,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 return super.newStream(position, length);
             }
         };
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
+        CsvFormatReader csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("multiline_fields", true));
 
         expectThrows(
             TaskCancelledException.class,

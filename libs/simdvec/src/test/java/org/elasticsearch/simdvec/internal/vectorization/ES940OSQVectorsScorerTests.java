@@ -23,6 +23,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
@@ -459,48 +460,41 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
         }
     }
 
-    public void testScoreBulkOffsets() throws Exception {
+    public void testScoreBulkMasked() throws Exception {
         final int bulkSize = ES940OSQVectorsScorer.BULK_SIZE;
         int filtered = random().nextInt(0, bulkSize);
-        final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
-        var offsetsCount = bulkSize - filtered;
-        doTestScoreBulkOffsets(offsets, offsetsCount, bulkSize);
+        doTestScoreBulkMasked(VectorScorerTestUtils.generateFilteredMask(random(), bulkSize, filtered), bulkSize);
     }
 
-    public void testScoreBulkOffsetsOneVector() throws Exception {
+    public void testScoreBulkMaskedOneVector() throws Exception {
         final int bulkSize = ES940OSQVectorsScorer.BULK_SIZE;
-        int filtered = bulkSize - 1;
-        final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
-        assert offsets.length == 1;
-        doTestScoreBulkOffsets(offsets, 1, bulkSize);
+        final int mask = VectorScorerTestUtils.generateFilteredMask(random(), bulkSize, bulkSize - 1);
+        assert Integer.bitCount(mask) == 1;
+        doTestScoreBulkMasked(mask, bulkSize);
     }
 
-    public void testScoreBulkOffsetsAllVectors() throws Exception {
+    public void testScoreBulkMaskedAllVectors() throws Exception {
         final int bulkSize = ES940OSQVectorsScorer.BULK_SIZE;
-        int filtered = 0;
-        final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
-        assert offsets.length == bulkSize;
-        doTestScoreBulkOffsets(offsets, bulkSize, bulkSize);
+        final int mask = VectorScorerTestUtils.generateFilteredMask(random(), bulkSize, 0);
+        assert Integer.bitCount(mask) == bulkSize;
+        doTestScoreBulkMasked(mask, bulkSize);
     }
 
-    public void testScoreBulkOffsetsAllVectorsButOne() throws Exception {
+    public void testScoreBulkMaskedAllVectorsButOne() throws Exception {
         final int bulkSize = ES940OSQVectorsScorer.BULK_SIZE;
-        int filtered = 1;
-        final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
-        assert offsets.length == bulkSize - 1;
-        doTestScoreBulkOffsets(offsets, bulkSize - 1, bulkSize);
+        final int mask = VectorScorerTestUtils.generateFilteredMask(random(), bulkSize, 1);
+        assert Integer.bitCount(mask) == bulkSize - 1;
+        doTestScoreBulkMasked(mask, bulkSize);
     }
 
-    public void testScoreBulkOffsetsTail() throws Exception {
+    public void testScoreBulkMaskedTail() throws Exception {
         final int bulkSize = ES940OSQVectorsScorer.BULK_SIZE;
         int tailSize = random().nextInt(1, bulkSize);
         int filtered = random().nextInt(0, tailSize);
-        final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), tailSize, filtered);
-        var offsetsCount = tailSize - filtered;
-        doTestScoreBulkOffsets(offsets, offsetsCount, tailSize);
+        doTestScoreBulkMasked(VectorScorerTestUtils.generateFilteredMask(random(), tailSize, filtered), tailSize);
     }
 
-    private void doTestScoreBulkOffsets(int[] offsets, int offsetsCount, int count) throws Exception {
+    private void doTestScoreBulkMasked(int mask, int count) throws Exception {
         final int bulkSize = ES940OSQVectorsScorer.BULK_SIZE;
         final int maxDims = random().nextInt(1, 1000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
@@ -597,7 +591,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                             bulkSize,
                             bitEncoding()
                         );
-                    float defaultMaxScore = defaultScorer.scoreBulkOffsets(
+                    float defaultMaxScore = defaultScorer.scoreBulkMasked(
                         queryData.quantizedVector(),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
@@ -605,12 +599,11 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        offsets,
-                        offsetsCount,
+                        mask,
                         scoresDefault,
                         count
                     );
-                    float panamaMaxScore = panamaScorer.scoreBulkOffsets(
+                    float panamaMaxScore = panamaScorer.scoreBulkMasked(
                         queryData.quantizedVector(),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
@@ -618,14 +611,13 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        offsets,
-                        offsetsCount,
+                        mask,
                         scoresPanama,
                         count
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
                     assertArrayEqualsPercent(Arrays.copyOf(scoresDefault, count), Arrays.copyOf(scoresPanama, count), 0.05f, 1e-2f);
-                    float nativeMaxScore = nativeScorer.scoreBulkOffsets(
+                    float nativeMaxScore = nativeScorer.scoreBulkMasked(
                         queryData.quantizedVector(),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
@@ -633,8 +625,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        offsets,
-                        offsetsCount,
+                        mask,
                         scoresNative,
                         count
                     );
@@ -657,15 +648,15 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     assertEquals(((long) count * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + count) * perVectorBytes), in.getFilePointer());
 
-                    assertFilteredNotScored(count, offsets, scoresDefault);
+                    assertFilteredNotScored(count, mask, scoresDefault);
                 }
             }
         }
     }
 
-    private static void assertFilteredNotScored(int count, int[] offsets, float[] scoresDefault) {
+    private static void assertFilteredNotScored(int count, int mask, float[] scoresDefault) {
         for (int j = 0; j < count; j++) {
-            if (Arrays.binarySearch(offsets, j) < 0) {
+            if (BulkMask.isSelected(mask, j) == false) {
                 assertEquals(0.0f, scoresDefault[j], 0.0f);
             }
         }

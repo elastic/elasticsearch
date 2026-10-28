@@ -25,6 +25,7 @@ import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
@@ -90,6 +91,8 @@ public final class StringColumnWriter {
      * @param context                   IO context for those staged files
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
      *                                  and per-chunk tables to its navigation
+     * @param skipIndex                 where a dictionary column without escapes writes the ordinal bounds of
+     *                                  its intervals
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -99,7 +102,8 @@ public final class StringColumnWriter {
         Vocabulary.Terms precomputedVocabulary,
         Directory directory,
         IOContext context,
-        ColumnOutputs outputs
+        ColumnOutputs outputs,
+        IndexOutput skipIndex
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -157,7 +161,8 @@ public final class StringColumnWriter {
                         sizes,
                         directory,
                         context,
-                        outputs
+                        outputs,
+                        options.enableSkipIndex() ? skipIndex : null
                     ),
                     vocabulary,
                     summaryPolicy,
@@ -341,7 +346,8 @@ public final class StringColumnWriter {
         StringColumnOptions.Sizes sizes,
         Directory directory,
         IOContext context,
-        ColumnOutputs outputs
+        ColumnOutputs outputs,
+        IndexOutput skipIndex
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -520,6 +526,8 @@ public final class StringColumnWriter {
             final int ordinalBlockSize = compressOrdinals ? sizes.compressedOrdinalBlockSize() : sizes.packedOrdinalBlockSize();
             // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
             // belongs to, and the string column already tables that, so they table nothing themselves.
+            // NOTE: a value that escapes has no ordinal to bound, and a column the reader bisects never scans its ordinals.
+            final boolean skipOrdinals = skipIndex != null && escapes == 0 && (sorted && SlotAddressing.NONE.equals(addressing)) == false;
             final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
                 final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
@@ -529,10 +537,9 @@ public final class StringColumnWriter {
                     ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
                     : NumericPipeline.runsAndOutliersPipeline(ordinalBlockSize),
                 BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
-                // The ordinals build no skip index, so nothing is ever written to one.
-                null,
+                skipOrdinals ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
                 outputs,
-                null
+                skipOrdinals ? skipIndex : null
             );
             return StringColumnMetadata.dictionary(
                 iterator,

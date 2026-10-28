@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -57,7 +56,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -370,8 +368,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
-                transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 Result result = versionedResult.inner();
+                TransportEsqlQueryAction.failIfCancelled(task, result);
+                transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 markPartialFromCompletionInfo(result);
                 resultRef.set(result);
                 if (streamStarted.get() == false) {
@@ -462,8 +461,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     static List<ColumnInfoImpl> buildColumns(List<Attribute> output, Map<NameId, Map<String, Object>> columnMetadata) {
-        assert output.stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the stream header unnamed: " + Expressions.names(output);
         return output.stream().map(c -> {
             List<String> originalTypes = null;
             if (c instanceof UnsupportedAttribute ua) {

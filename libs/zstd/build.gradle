@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'elasticsearch.native-library-build'
 
 dependencies {
   api project(':libs:core')
@@ -28,4 +29,31 @@ dependencies {
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'ZSTD_NATIVE_BUILD'
+  workingDir = layout.projectDirectory.dir('native')
+  sources = ['native/build_zstd.sh', 'native/zstd-inputs.sh']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:9@sha256:bd00afb913710e45020adfd7ca4e5b4ccbaeae373b470dd63e3c7232b8f0f0e1'
+  supportedPlatforms = ['darwin-aarch64', 'darwin-x64', 'linux-aarch64', 'linux-x64', 'windows-x64']
+  artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
+  artifactName = 'libzstd'
+  publishCredentialEnvironmentVariable = 'ARTIFACTORY_API_KEY'
+
+  dockerCommand = ['bash', 'build_zstd.sh', 'all']
+  collect = [
+    'build/zstd-staged/darwin-aarch64/libzstd.dylib' : 'darwin-aarch64/libzstd.dylib',
+    'build/zstd-staged/darwin-aarch64/LICENSE'       : 'darwin-aarch64/LICENSE',
+    'build/zstd-staged/darwin-x64/libzstd.dylib'     : 'darwin-x64/libzstd.dylib',
+    'build/zstd-staged/darwin-x64/LICENSE'           : 'darwin-x64/LICENSE',
+    'build/zstd-staged/linux-aarch64/libzstd.so'     : 'linux-aarch64/libzstd.so',
+    'build/zstd-staged/linux-aarch64/LICENSE'        : 'linux-aarch64/LICENSE',
+    'build/zstd-staged/linux-x64/libzstd.so'         : 'linux-x64/libzstd.so',
+    'build/zstd-staged/linux-x64/LICENSE'            : 'linux-x64/LICENSE',
+    'build/zstd-staged/windows-x64/zstd.dll'         : 'windows-x64/zstd.dll',
+    'build/zstd-staged/windows-x64/LICENSE'          : 'windows-x64/LICENSE',
+  ]
+
+  hostCommand { outputDir -> ['bash', 'build_zstd.sh', 'host', outputDir.asFile.toString()] }
 }

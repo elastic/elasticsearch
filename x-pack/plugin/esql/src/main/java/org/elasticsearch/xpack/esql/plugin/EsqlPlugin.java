@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -523,6 +524,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
             managedIdentityEnabled::get,
+            federatedIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
@@ -664,6 +666,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ThreadPool.Names.SEARCH,
                 blockFactoryProvider.blockFactory()
             ),
+            new ComputeExecutor(services.threadPool().executor(ESQL_WORKER_THREAD_POOL_NAME), services.threadPool().getThreadContext()),
             blockFactoryProvider,
             dataSourceModule,
             dataSourceCredentials,
@@ -729,6 +732,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
+                EsqlFlags.ESQL_MAX_COMMAND_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,

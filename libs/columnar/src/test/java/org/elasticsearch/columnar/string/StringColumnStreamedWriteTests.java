@@ -36,7 +36,8 @@ public class StringColumnStreamedWriteTests extends ColumnarStringTestCase {
                 options.summary(),
                 randomFrom(ChunkCodec.values()),
                 options.sizes(),
-                options.singleValued()
+                options.singleValued(),
+                options.enableSkipIndex()
             );
             final int chunk = withCodec.sizes().plainChunks().targetBytes();
             final BytesRef[][] docSlots = randomSlots(between(1, 400), chunk);

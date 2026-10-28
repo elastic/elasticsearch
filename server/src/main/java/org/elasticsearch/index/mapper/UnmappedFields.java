@@ -18,8 +18,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,6 +31,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,14 +70,17 @@ public final class UnmappedFields {
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
-     * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still
-     * hold no unmapped field.
+     * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
+     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
      */
     public boolean mayExist() {
         if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
             return false;
         }
         if (existsInSegments == null) {
+            return true;
+        }
+        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {
@@ -121,17 +127,13 @@ public final class UnmappedFields {
      */
     @Nullable
     BytesRef extract(BytesReference source, XContentType sourceType, Filter filter) throws IOException {
-        BytesRef written = extract(source, sourceType, filter, false);
-        return written == SPELLED_IN_TWO_WAYS ? extract(source, sourceType, filter, true) : written;
+        return walk(source, sourceType, new Walk(Set.of(), filter, 0)).written();
     }
 
     @Nullable
     BytesRef extract(BytesReference source, XContentType sourceType, boolean holdAll) throws IOException {
         return extract(source, sourceType, Filter.ALL, holdAll);
     }
-
-    /** What {@link #extract(BytesReference, XContentType, boolean)} returns for a document it has to hold the values of. */
-    static final BytesRef SPELLED_IN_TWO_WAYS = new BytesRef();
 
     /**
      * @param holdAll whether to hold the values of the document until it is read, which a document that spells a field
@@ -140,29 +142,96 @@ public final class UnmappedFields {
      */
     @Nullable
     BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, boolean holdAll) throws IOException {
+        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll);
+        return found == null ? SPELLED_IN_TWO_WAYS : found.written();
+    }
+
+    /** What {@link #extract(BytesReference, XContentType, Filter, boolean)} returns for a document it has to hold the values of. */
+    static final BytesRef SPELLED_IN_TWO_WAYS = new BytesRef();
+
+    /**
+     * What one walk of a document reads: the unmapped fields {@code names}, each loaded on its own, and the unmapped
+     * fields that {@code filter} includes, loaded as one object, unless it is {@code null}. The loaders made with one
+     * {@code Walk} share the walk of a document.
+     */
+    public static final class Walk {
+        private final Set<String> names;
+        /** The paths of the objects that the names are below. */
+        private final Set<String> aboveNames;
+        @Nullable
+        private final Filter filter;
+        private final double sourceReservationFactor;
+
+        /**
+         * @param sourceReservationFactor how many times the size of a serialized {@code _source} to reserve while a document
+         *                                is walked for the fields that {@code filter} includes
+         */
+        public Walk(Set<String> names, @Nullable Filter filter, double sourceReservationFactor) {
+            this.names = Set.copyOf(names);
+            this.aboveNames = new HashSet<>();
+            for (String name : names) {
+                for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                    aboveNames.add(name.substring(0, dot));
+                }
+            }
+            this.filter = filter;
+            this.sourceReservationFactor = sourceReservationFactor;
+        }
+
+        private boolean mayIncludeBelow(String path) {
+            return aboveNames.contains(path) || (filter != null && filter.mayIncludeBelow(path));
+        }
+    }
+
+    /**
+     * What a walk found in a document: the unmapped fields its filter includes, as {@link #extract(BytesReference,
+     * XContentType)} writes them, and the values of each of its names, as text. The values of a name are in the order a
+     * lookup in {@code _source} parsed into a map finds them: where an object has several keys that lead to the name, those
+     * of the keys with fewer dots come first, and the values of one key are in the order they are found.
+     */
+    record Found(@Nullable BytesRef written, Map<String, NamedValues> named) {
+        /** The values found of {@code name}, in order. */
+        List<BytesRef> valuesOf(String name) {
+            NamedValues values = named.get(name);
+            return values == null ? List.of() : values.ordered();
+        }
+    }
+
+    Found walk(BytesReference source, XContentType sourceType, Walk walk) throws IOException {
+        Found found = walk(source, sourceType, walk, false);
+        return found == null ? walk(source, sourceType, walk, true) : found;
+    }
+
+    /**
+     * @param holdAll whether to hold the values of the document until it is read, which a document that spells a field
+     *                in two ways needs
+     * @return {@code null} if {@code holdAll} is {@code false} and the document may spell a field in two ways
+     */
+    @Nullable
+    private Found walk(BytesReference source, XContentType sourceType, Walk walk, boolean holdAll) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, sourceType);
-            XContentBuilder out = XContentFactory.jsonBuilder()
+            XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder()
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalStateException("expected an object but was [" + parser.currentToken() + "]");
             }
-            Extraction extraction = new Extraction(parser, out, filter);
-            if (holdAll) {
+            Extraction extraction = new Extraction(parser, out, walk);
+            if (holdAll && out != null) {
                 extraction.held = new LinkedHashMap<>();
             }
             boolean walked = extraction.object("");
             assert walked || holdAll == false;
-            if (walked && holdAll) {
+            if (walked && extraction.held != null) {
                 extraction.writeHeld();
             }
             if (extraction.wrote) {
                 out.endObject();
             }
             if (walked == false) {
-                return SPELLED_IN_TWO_WAYS;
+                return null;
             }
-            return extraction.wrote ? BytesReference.bytes(out).toBytesRef() : null;
+            return new Found(extraction.wrote ? BytesReference.bytes(out).toBytesRef() : null, extraction.named);
         }
     }
 
@@ -213,12 +282,30 @@ public final class UnmappedFields {
     }
 
     /**
-     * One walk of a document, which writes the values of its unmapped fields.
+     * One walk of a document, which writes the values of the unmapped fields its filter includes and collects those of its
+     * names.
      */
     private final class Extraction {
+        /** What {@link #reads} returns when the walk reads the field at a path as one of its names. */
+        private static final int NAMED = 1;
+        /** What {@link #reads} returns when the walk writes the field at a path. */
+        private static final int WRITTEN = 2;
+        /** What {@link #reads} returns when the walk reads fields below a path. */
+        private static final int BELOW = 4;
+
         private final XContentParser parser;
+        /** Where the fields the filter includes are written, or {@code null} if the walk has no filter. */
+        @Nullable
         private final XContentBuilder out;
-        private final Filter filter;
+        private final Walk walk;
+        /** The values found of each name of the walk. */
+        private Map<String, NamedValues> named = Map.of();
+        /**
+         * How the path to the value the parser is on is spelled, while the walk has names: the number of dots of the key of
+         * each object it is in and the position in each array it is in, outermost first, in the first {@code depth} slots.
+         */
+        private int[] spelling;
+        private int depth;
         /**
          * The value of each field found since values are held, or the list of them once it has more than one, and
          * {@code null} while values are written as they are found.
@@ -227,10 +314,40 @@ public final class UnmappedFields {
         private Map<String, Object> held;
         private boolean wrote;
 
-        Extraction(XContentParser parser, XContentBuilder out, Filter filter) {
+        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk) {
             this.parser = parser;
             this.out = out;
-            this.filter = filter;
+            this.walk = walk;
+            this.spelling = walk.names.isEmpty() ? null : new int[8];
+        }
+
+        private void enterKey(String key) {
+            if (spelling != null) {
+                int dots = 0;
+                for (int dot = key.indexOf('.'); dot >= 0; dot = key.indexOf('.', dot + 1)) {
+                    dots++;
+                }
+                enter(dots);
+            }
+        }
+
+        private void enterPosition(int position) {
+            if (spelling != null) {
+                enter(position);
+            }
+        }
+
+        private void enter(int step) {
+            if (depth == spelling.length) {
+                spelling = Arrays.copyOf(spelling, depth * 2);
+            }
+            spelling[depth++] = step;
+        }
+
+        private void leave() {
+            if (spelling != null) {
+                depth--;
+            }
         }
 
         /**
@@ -247,11 +364,13 @@ public final class UnmappedFields {
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String key = parser.currentName();
                 XContentParser.Token token = parser.nextToken();
-                if (skipped(prefix, key)) {
+                String path = prefix.isEmpty() ? key : prefix + key;
+                int reads = reads(token, path);
+                if (reads == 0 || skipped(prefix, key)) {
                     parser.skipChildren();
                     continue;
                 }
-                if (held == null) {
+                if (out != null && held == null) {
                     for (int dot = key.indexOf('.'); dot >= 0; dot = key.indexOf('.', dot + 1)) {
                         String preceding = key.substring(0, dot);
                         if (holdingFields != null && holdingFields.contains(preceding)) {
@@ -272,7 +391,10 @@ public final class UnmappedFields {
                         holdingFields.add(key);
                     }
                 }
-                if (value(prefix + key) == false) {
+                enterKey(key);
+                boolean walked = value(path, reads);
+                leave();
+                if (walked == false) {
                     return false;
                 }
             }
@@ -280,31 +402,52 @@ public final class UnmappedFields {
         }
 
         /**
-         * Takes the value the parser is positioned on, found at {@code path}: an object is walked down to the fields below
-         * it, each element of an array is a value of {@code path}, and anything else is a value of the field {@code path}.
+         * What the walk reads of the value at {@code path} that starts with {@code token}: the field {@code path} as one of
+         * its names ({@link #NAMED}) or to write it ({@link #WRITTEN}), and fields below it ({@link #BELOW}). The filter is
+         * asked once for a key, and its answer holds for each element of an array.
+         */
+        private int reads(XContentParser.Token token, String path) {
+            return switch (token) {
+                case START_OBJECT -> walk.mayIncludeBelow(path) ? BELOW : 0;
+                case START_ARRAY -> {
+                    int field = readsField(path);
+                    yield walk.mayIncludeBelow(path) ? field | BELOW : field;
+                }
+                case VALUE_NULL -> 0;
+                default -> readsField(path);
+            };
+        }
+
+        private int readsField(String path) {
+            int reads = walk.names.contains(path) ? NAMED : 0;
+            return out != null && walk.filter.includes(path) ? reads | WRITTEN : reads;
+        }
+
+        /**
+         * Takes the value the parser is positioned on, found at {@code path}, of which the walk reads {@code reads}: an
+         * object is walked down to the fields below it, each element of an array is a value of {@code path}, and anything
+         * else is a value of the field {@code path}.
          *
          * @return what {@link #object} returns for an object below
          */
-        private boolean value(String path) throws IOException {
+        private boolean value(String path, int reads) throws IOException {
             switch (parser.currentToken()) {
                 case START_OBJECT -> {
-                    if (filter.mayIncludeBelow(path) == false) {
+                    if ((reads & BELOW) == 0) {
                         parser.skipChildren();
                         return true;
                     }
                     return object(path + ".");
                 }
                 case START_ARRAY -> {
-                    if (filter.includes(path) == false && filter.mayIncludeBelow(path) == false) {
-                        parser.skipChildren();
-                        return true;
-                    }
-                    boolean outermost = held == null;
+                    boolean outermost = out != null && held == null;
                     if (outermost) {
                         held = new LinkedHashMap<>();
                     }
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        boolean walked = value(path);
+                    for (int position = 0; parser.nextToken() != XContentParser.Token.END_ARRAY; position++) {
+                        enterPosition(position);
+                        boolean walked = value(path, reads);
+                        leave();
                         assert walked : "values are held in an array";
                     }
                     if (outermost) {
@@ -315,13 +458,25 @@ public final class UnmappedFields {
                 case VALUE_NULL -> {
                 }
                 case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_EMBEDDED_OBJECT -> {
+                    boolean isNamed = (reads & NAMED) != 0;
+                    boolean written = (reads & WRITTEN) != 0;
                     // A name that resolves without a mapper of its own, such as a runtime field, is a field of the shard all the same.
-                    if (mappingLookup.getFieldType(path) == null && filter.includes(path)) {
-                        if (held == null) {
-                            field(path);
-                            out.copyCurrentStructure(parser);
-                        } else {
-                            hold(path);
+                    if ((isNamed || written) && mappingLookup.getFieldType(path) == null) {
+                        Object value = isNamed || held != null ? parsedValue(path) : null;
+                        if (isNamed) {
+                            if (named.isEmpty()) {
+                                named = new HashMap<>();
+                            }
+                            named.computeIfAbsent(path, k -> new NamedValues())
+                                .add(new BytesRef(value.toString()), Arrays.copyOf(spelling, depth));
+                        }
+                        if (written) {
+                            if (held == null) {
+                                field(path);
+                                out.copyCurrentStructure(parser);
+                            } else {
+                                hold(path, value);
+                            }
                         }
                     }
                 }
@@ -330,14 +485,18 @@ public final class UnmappedFields {
             return true;
         }
 
-        private void hold(String path) throws IOException {
-            Object value = switch (parser.currentToken()) {
+        /** The value the parser is positioned on, as parsing {@code _source} into a map reads it. */
+        private Object parsedValue(String path) throws IOException {
+            return switch (parser.currentToken()) {
                 case VALUE_STRING -> parser.text();
                 case VALUE_NUMBER -> parser.numberValue();
                 case VALUE_BOOLEAN -> parser.booleanValue();
                 case VALUE_EMBEDDED_OBJECT -> parser.binaryValue();
                 default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "] at [" + path + "]");
             };
+        }
+
+        private void hold(String path, Object value) {
             Object existing = held.putIfAbsent(path, value);
             if (existing instanceof Values values) {
                 values.add(value);
@@ -365,52 +524,137 @@ public final class UnmappedFields {
         }
     }
 
+    /** The values found of a name, each with the spelling of its path. Most names have one, which is held without a list. */
+    static final class NamedValues {
+        private BytesRef first;
+        private int[] firstSpelling;
+        @Nullable
+        private List<BytesRef> values;
+        @Nullable
+        private List<int[]> spellings;
+        private boolean inOrder = true;
+
+        void add(BytesRef value, int[] spelling) {
+            if (first == null) {
+                first = value;
+                firstSpelling = spelling;
+                return;
+            }
+            if (values == null) {
+                values = new ArrayList<>();
+                spellings = new ArrayList<>();
+                values.add(first);
+                spellings.add(firstSpelling);
+            }
+            if (Arrays.compare(spelling, spellings.getLast()) < 0) {
+                inOrder = false;
+            }
+            values.add(value);
+            spellings.add(spelling);
+        }
+
+        /** The values ordered by the spelling of their paths: the order they are found, unless a key with fewer dots comes later. */
+        List<BytesRef> ordered() {
+            if (values == null) {
+                return List.of(first);
+            }
+            if (inOrder) {
+                return values;
+            }
+            List<Integer> order = new ArrayList<>(values.size());
+            for (int i = 0; i < values.size(); i++) {
+                order.add(i);
+            }
+            order.sort((a, b) -> Arrays.compare(spellings.get(a), spellings.get(b)));
+            List<BytesRef> ordered = new ArrayList<>(values.size());
+            for (int i : order) {
+                ordered.add(values.get(i));
+            }
+            return ordered;
+        }
+
+        void appendTo(BlockLoader.BytesRefBuilder builder) {
+            if (values == null) {
+                builder.appendBytesRef(first);
+                return;
+            }
+            builder.beginPositionEntry();
+            for (BytesRef value : ordered()) {
+                builder.appendBytesRef(value);
+            }
+            builder.endPositionEntry();
+        }
+    }
+
     /** The values of a field that has more than one, in the order they were found. */
     private static final class Values extends ArrayList<Object> {}
 
     /**
-     * Appends to {@code out} the keyword values that a value read from {@code _source} for an unmapped field stands for: an
-     * object has none, an array has those of each of its elements, and anything else is one value, rendered as text.
+     * Loads the unmapped field {@code name} as keywords, with a walk of its own. Loads nothing where {@link #mayExist(String)}
+     * rules it out.
      */
-    public static void collectKeywords(@Nullable Object value, List<BytesRef> out) {
-        if (value == null || value instanceof Map) {
-            return;
-        }
-        if (value instanceof List<?> list) {
-            for (Object element : list) {
-                collectKeywords(element, out);
-            }
-            return;
-        }
-        out.add(new BytesRef(value.toString()));
+    public BlockLoader blockLoader(String name) {
+        return blockLoader(name, new Walk(Set.of(name), null, 0));
     }
 
     /**
-     * Loads the unmapped field {@code name} as keywords, looked up in the parsed {@code _source} that the loaders of a
-     * document share. Loads nothing where {@link #mayExist(String)} rules it out.
+     * Loads the unmapped field {@code name}, one of the names of {@code walk}, as keywords, read by the walk of each
+     * document that the loaders made with {@code walk} share. Loads nothing where {@link #mayExist(String)} rules it out.
+     * Where the {@code _unmapped} sink absorbs unmapped fields, a field that is not below a nested object is read from the sink's doc
+     * values instead (see {@link UnmappedSinkFieldMapper#blockLoader(String)}).
      */
-    public BlockLoader blockLoader(String name) {
+    public BlockLoader blockLoader(String name, Walk walk) {
+        assert walk.names.contains(name) : name + " is not read by the walk";
         if (mayExist(name) == false) {
             return ConstantNull.INSTANCE;
         }
+
+        // A field absorbed below a nested object is in the sink of the nested doc, which is never loaded by ESQL (ESQL doesn't currently
+        // support nested docs), so must be read from _source.
+        UnmappedSinkFieldMapper sink = mappingLookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
+        if (sink != null && mappingLookup.nestedLookup().getNestedParent(name) == null) {
+            return sink.blockLoader(name);
+        }
+
         // Naming the paths restricts the read to them; without any, the whole of _source is loaded.
         Set<String> sourcePaths = mappingLookup.isSourceEnabled() ? mappingLookup.sourcePaths(name) : Set.of();
-        return new NamedFieldBlockLoader(name, sourcePaths, indexSettings.getIgnoredSourceFormat());
+        return new NamedFieldBlockLoader(
+            this,
+            name,
+            walk,
+            StoredFieldsSpec.withSourcePaths(indexSettings.getIgnoredSourceFormat(), sourcePaths)
+        );
     }
 
     /**
-     * Loads, for each document, the unmapped fields that {@code filter} includes as one JSON object, as {@link #extract}
-     * writes it. The serialized {@code _source} is read as a stream and never parsed as a whole. A document without any
-     * loads as {@code null}. Loads nothing where {@link #mayExist()} rules it out.
-     *
-     * @param sourceReservationFactor how many times the size of a serialized {@code _source} to reserve while it is read
-     * @param filter                  which of the unmapped fields to load
+     * Loads, for each document, the unmapped fields that the filter of {@code walk} includes as one JSON object, as
+     * {@link #extract} writes it, read by the walk of each document that the loaders made with {@code walk} share. The
+     * serialized {@code _source} is read as a stream and never parsed as a whole. A document without any loads as
+     * {@code null}. Loads nothing where {@link #mayExist()} rules it out.
      */
-    public BlockLoader allFieldsBlockLoader(double sourceReservationFactor, Filter filter) {
+    public BlockLoader allFieldsBlockLoader(Walk walk) {
+        assert walk.filter != null : "the walk writes no fields";
         if (mayExist() == false) {
             return ConstantNull.INSTANCE;
         }
-        return new AllFieldsBlockLoader(this, sourceReservationFactor, filter);
+        return new AllFieldsBlockLoader(this, walk);
+    }
+
+    /** What {@code walk} finds in the current document of {@code storedFields}, walked once for all the loaders of {@code walk}. */
+    private Found walk(BlockLoader.StoredFields storedFields, Walk walk, CircuitBreaker breaker) throws IOException {
+        return storedFields.shared(walk, fields -> {
+            Source source = fields.source();
+            BytesReference sourceBytes = source.internalSourceRef();
+            // Covers the JSON that is built and the values held to build it, which are at most proportional to the serialized size.
+            // It is released before a loader appends to its builder, which accounts for what it holds.
+            long reservation = walk.filter == null ? 0 : (long) (sourceBytes.length() * walk.sourceReservationFactor);
+            breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
+            try {
+                return walk(sourceBytes, source.sourceContentType(), walk);
+            } finally {
+                breaker.addWithoutBreaking(-reservation);
+            }
+        });
     }
 
     private abstract static class SourceBlockLoader implements BlockLoader {
@@ -436,26 +680,29 @@ public final class UnmappedFields {
     }
 
     private static final class NamedFieldBlockLoader extends SourceBlockLoader {
+        private final UnmappedFields unmappedFields;
         private final String name;
-        private final Set<String> sourcePaths;
-        private final IgnoredSourceFormat ignoredSourceFormat;
+        private final Walk walk;
+        private final StoredFieldsSpec storedFieldsSpec;
 
-        NamedFieldBlockLoader(String name, Set<String> sourcePaths, IgnoredSourceFormat ignoredSourceFormat) {
+        NamedFieldBlockLoader(UnmappedFields unmappedFields, String name, Walk walk, StoredFieldsSpec storedFieldsSpec) {
+            this.unmappedFields = unmappedFields;
             this.name = name;
-            this.sourcePaths = sourcePaths;
-            this.ignoredSourceFormat = ignoredSourceFormat;
+            this.walk = walk;
+            this.storedFieldsSpec = storedFieldsSpec;
         }
 
         @Override
         public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
             return new BlockStoredFieldsReader(breaker) {
-                private final List<BytesRef> values = new ArrayList<>();
-
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    values.clear();
-                    collectKeywords(storedFields.source().extractValue(name, null), values);
-                    appendKeywords(values, (BytesRefBuilder) builder);
+                    NamedValues values = unmappedFields.walk(storedFields, walk, breaker).named().get(name);
+                    if (values == null) {
+                        builder.appendNull();
+                    } else {
+                        values.appendTo((BytesRefBuilder) builder);
+                    }
                 }
 
                 @Override
@@ -467,7 +714,7 @@ public final class UnmappedFields {
 
         @Override
         public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
+            return storedFieldsSpec;
         }
 
         @Override
@@ -476,29 +723,13 @@ public final class UnmappedFields {
         }
     }
 
-    private static void appendKeywords(List<BytesRef> values, BlockLoader.BytesRefBuilder builder) {
-        if (values.isEmpty()) {
-            builder.appendNull();
-        } else if (values.size() == 1) {
-            builder.appendBytesRef(values.get(0));
-        } else {
-            builder.beginPositionEntry();
-            for (BytesRef value : values) {
-                builder.appendBytesRef(value);
-            }
-            builder.endPositionEntry();
-        }
-    }
-
     private static final class AllFieldsBlockLoader extends SourceBlockLoader {
         private final UnmappedFields unmappedFields;
-        private final double sourceReservationFactor;
-        private final Filter filter;
+        private final Walk walk;
 
-        AllFieldsBlockLoader(UnmappedFields unmappedFields, double sourceReservationFactor, Filter filter) {
+        AllFieldsBlockLoader(UnmappedFields unmappedFields, Walk walk) {
             this.unmappedFields = unmappedFields;
-            this.sourceReservationFactor = sourceReservationFactor;
-            this.filter = filter;
+            this.walk = walk;
         }
 
         @Override
@@ -506,18 +737,7 @@ public final class UnmappedFields {
             return new BlockStoredFieldsReader(breaker) {
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    Source source = storedFields.source();
-                    BytesReference sourceBytes = source.internalSourceRef();
-                    // Covers the JSON that is built and the values held to build it, which are at most proportional to the serialized size.
-                    long reservation = (long) (sourceBytes.length() * sourceReservationFactor);
-                    breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
-                    BytesRef fields;
-                    try {
-                        fields = unmappedFields.extract(sourceBytes, source.sourceContentType(), filter);
-                    } finally {
-                        breaker.addWithoutBreaking(-reservation);
-                    }
-                    // The builder accounts for what it holds, so the reservation is released before it grows.
+                    BytesRef fields = unmappedFields.walk(storedFields, walk, breaker).written();
                     if (fields == null) {
                         builder.appendNull();
                     } else {

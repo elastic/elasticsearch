@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -17,10 +18,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,8 +32,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -398,7 +403,7 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
             b.startObject("properties").startObject("mapped").field("type", "keyword").endObject().endObject();
         }));
         BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
-            .allFieldsBlockLoader(2.0, UnmappedFields.Filter.ALL);
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 2.0));
         assertThat(loader, hasToString("UnmappedFields.All"));
         assertTrue(loader.rowStrideStoredFieldSpec().requiresSource());
         assertFalse(loader.supportsOrdinals());
@@ -438,7 +443,7 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
     public void testAllFieldsLoaderReleasesItsReservationWhenItFails() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
         BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
-            .allFieldsBlockLoader(2.0, UnmappedFields.Filter.ALL);
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 2.0));
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
             long inherited = breaker.getUsed();
@@ -473,7 +478,7 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
         int read = 0;
         for (int i = 0; i < 200; i++) {
             BlockLoader loader = randomBoolean()
-                ? unmappedFields.allFieldsBlockLoader(2.0, UnmappedFields.Filter.ALL)
+                ? unmappedFields.allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 2.0))
                 : unmappedFields.blockLoader("b.c.d");
             CircuitBreaker breaker = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
             try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
@@ -538,18 +543,94 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
             "span.gte",
             "labels.x"
         );
+        assertNamingFindsWhatAWalkFinds(mapperService, keys);
+    }
+
+    /** As {@link #testNamingAFieldFindsWhatAWalkFinds}, with keys that have empty or stray dots. */
+    public void testNamingAFieldWithStrayDots() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties").startObject("a").startObject("properties");
+            b.startObject("kw").field("type", "keyword").endObject();
+            b.endObject().endObject().endObject();
+        }));
+        assertNamingFindsWhatAWalkFinds(mapperService, List.of("a", "b", "kw", "a.b", "a.kw", ".a", "a.", "a..b", ".", ""));
+    }
+
+    /**
+     * A name that ends with a dot is read as it is spelled, as the column writes it, and not as the name without the dot
+     * that a lookup in {@code _source} parsed into a map reads.
+     */
+    public void testNameEndingWithADot() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        Source source = json("""
+            { "a": { "b": 1 }, "c": 2 }""");
+        assertThat(readFromMap(source, "a.b."), equalTo(List.of("1")));
+        assertThat(readFromMap(source, "c.."), equalTo(List.of("2")));
+        UnmappedFields unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
+        for (String name : List.of("a.b.", "c..", ".")) {
+            BlockLoader loader = unmappedFields.blockLoader(name);
+            try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                reader.read(0, storedFields(source), builder);
+                assertThat(name, ((TestBlock) builder.build()).get(0), nullValue());
+            }
+        }
+    }
+
+    /** As {@link #testNamingAFieldFindsWhatAWalkFinds}, below objects that do not have subobjects. */
+    public void testNamingAFieldWithoutSubobjects() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            b.startObject("flat").field("type", "object").field("subobjects", false).startObject("properties");
+            b.startObject("a.b").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.endObject();
+        }));
+        assertNamingFindsWhatAWalkFinds(mapperService, List.of("flat", "a", "b", "c", "a.b", "a.c", "flat.a", "flat.a.b"));
+    }
+
+    /** As {@link #testNamingAFieldFindsWhatAWalkFinds}, beside a pass-through object whose fields are also mapped at the root. */
+    public void testNamingAFieldBesideAPassThroughObject() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            b.startObject("attrs").field("type", "passthrough").field("priority", 10).startObject("properties");
+            b.startObject("host").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.endObject();
+        }));
+        assertNamingFindsWhatAWalkFinds(mapperService, List.of("attrs", "host", "x", "attrs.host", "attrs.x", "host.x"));
+    }
+
+    /**
+     * Over random documents built from {@code keys}, loading a field by name gives what the lookup in {@code _source}
+     * parsed into a map gives, in the same order, and naming fields in a walk changes nothing of what it writes.
+     */
+    private void assertNamingFindsWhatAWalkFinds(MapperService mapperService, List<String> keys) throws IOException {
         UnmappedFields unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
         for (int iteration = 0; iteration < 200; iteration++) {
             Map<String, Object> source = randomObject(keys, 0);
-            Source parsed = Source.fromMap(source, XContentType.JSON);
+            Source parsed = Source.fromBytes(Source.fromMap(source, XContentType.JSON).internalSourceRef(), XContentType.JSON);
+            String json = parsed.internalSourceRef().utf8ToString();
             Map<String, List<String>> walked = new HashMap<>();
-            leaves(extract(unmappedFields, parsed.internalSourceRef().utf8ToString())).forEach(
+            leaves(extract(unmappedFields, json)).forEach(
                 (path, values) -> walked.put(path, values.stream().map(Object::toString).toList())
             );
             Set<String> names = new HashSet<>(walked.keySet());
             for (int i = 0; i < 20; i++) {
                 names.add(String.join(".", randomList(1, 3, () -> randomFrom(keys))));
             }
+            // Naming fields in a walk changes nothing of what it writes, and each name finds what it finds on its own.
+            Set<String> unmappedNames = new HashSet<>(names);
+            unmappedNames.removeIf(name -> mapperService.mappingLookup().getFieldType(name) != null);
+            UnmappedFields.Found found = unmappedFields.walk(
+                parsed.internalSourceRef(),
+                XContentType.JSON,
+                new UnmappedFields.Walk(unmappedNames, UnmappedFields.Filter.ALL, 0)
+            );
+            assertThat(json, found.written(), equalTo(unmappedFields.extract(parsed.internalSourceRef(), XContentType.JSON)));
             for (String name : names) {
                 if (mapperService.mappingLookup().getFieldType(name) != null) {
                     assertThat(name + " in " + source, walked.get(name), nullValue());
@@ -574,7 +655,169 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
                     }
                 }
                 assertThat(name + " in " + source, named, containsInAnyOrder(expected.toArray()));
+                if (name.endsWith(".") == false) {
+                    // The lookup drops the dots a name ends with, see testNameEndingWithADot.
+                    assertThat(name + " in " + source, named, equalTo(readFromMap(parsed, name)));
+                }
+                List<BytesRef> foundByName = found.valuesOf(name);
+                assertThat(name + " in " + source, foundByName.stream().map(BytesRef::utf8ToString).toList(), equalTo(named));
             }
+        }
+    }
+
+    /**
+     * A value is read by name as text exactly as a lookup in {@code _source} parsed into a map reads it, whatever the
+     * serialization of {@code _source}.
+     */
+    public void testNamedValuesAreTheTextOfTheParsedValues() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        UnmappedFields unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
+        Map<String, Object> document = XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            { "float": 1.10, "exp": 1e3, "negative": -0.0, "long": 9223372036854775807, "big": 123456789012345678901234567890,
+              "bool": false, "str": "x", "empty": "", "nested": [ 1, [ 2.5, [ "three" ] ], null, { "skipped": 4 } ] }""", true);
+        for (XContentType type : List.of(XContentType.JSON, XContentType.SMILE, XContentType.CBOR, XContentType.YAML)) {
+            Source source;
+            try (XContentBuilder builder = XContentBuilder.builder(type.xContent())) {
+                // Rendered from the JSON text, so that each serialization keeps the numbers as the JSON parser read them.
+                builder.map(document);
+                source = Source.fromBytes(BytesReference.bytes(builder), type);
+            }
+            for (String name : document.keySet()) {
+                BlockLoader loader = unmappedFields.blockLoader(name);
+                try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
+                    BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                    reader.read(0, storedFields(source), builder);
+                    Object value = asValue(((TestBlock) builder.build()).get(0));
+                    List<String> fromMap = readFromMap(source, name);
+                    Object expected = fromMap.isEmpty() ? null : fromMap.size() == 1 ? fromMap.get(0) : fromMap;
+                    assertThat(type + " " + name, value, equalTo(expected));
+                }
+            }
+        }
+    }
+
+    /** The values of {@code name} as a lookup in {@code _source} parsed into a map reads them, as text. */
+    private static List<String> readFromMap(Source source, String name) {
+        List<String> values = new ArrayList<>();
+        flatten(XContentMapValues.extractValue(name, source.source()), values);
+        return values;
+    }
+
+    private static void flatten(Object value, List<String> out) {
+        if (value instanceof List<?> list) {
+            list.forEach(v -> flatten(v, out));
+        } else if (value != null && value instanceof Map<?, ?> == false) {
+            out.add(value.toString());
+        }
+    }
+
+    /**
+     * The loaders made with one walk read a document once between them: the named fields get their own values and the
+     * column gets the fields the filter includes, whatever the order the loaders read in.
+     */
+    public void testLoadersOfOneWalkReadADocumentOnce() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties").startObject("mapped").field("type", "keyword").endObject().endObject();
+        }));
+        UnmappedFields unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
+        UnmappedFields.Filter onlyA = new UnmappedFields.Filter() {
+            @Override
+            public boolean includes(String path) {
+                return path.startsWith("a");
+            }
+
+            @Override
+            public boolean mayIncludeBelow(String path) {
+                return path.startsWith("a");
+            }
+        };
+        UnmappedFields.Walk walk = new UnmappedFields.Walk(Set.of("a.b", "c", "mapped", "missing"), onlyA, 2.0);
+        List<BlockLoader> loaders = new ArrayList<>(
+            List.of(
+                unmappedFields.allFieldsBlockLoader(walk),
+                unmappedFields.blockLoader("a.b", walk),
+                unmappedFields.blockLoader("c", walk),
+                unmappedFields.blockLoader("missing", walk)
+            )
+        );
+        Collections.shuffle(loaders, random());
+        CountingSource source = new CountingSource(json("""
+            { "mapped": "m", "a": { "b": [ 1, 2 ], "x": true }, "c": "y", "d": { "e": 3 } }"""));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        BlockLoader.StoredFields storedFields = storedFields(source);
+        Map<String, Object> loaded = new HashMap<>();
+        for (BlockLoader loader : loaders) {
+            try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                reader.read(0, storedFields, builder);
+                loaded.put(loader.toString(), asValue(((TestBlock) builder.build()).get(0)));
+            }
+        }
+        assertThat(source.reads, equalTo(1));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(loaded.get("UnmappedFields.All"), equalTo("{\"a.b\":[1,2],\"a.x\":true}"));
+        assertThat(loaded.get("UnmappedFields.Named[a.b]"), equalTo(List.of("1", "2")));
+        assertThat(loaded.get("UnmappedFields.Named[c]"), equalTo("y"));
+        assertThat(loaded.get("UnmappedFields.Named[missing]"), nullValue());
+    }
+
+    /**
+     * A field spelled in several ways in a document has the values of all of them, in the order a lookup in {@code _source}
+     * parsed into a map finds them, whether or not the walk also writes the column.
+     */
+    public void testFieldSpelledInSeveralWaysByName() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        UnmappedFields unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
+        Source source = json("""
+            { "a.b": 1, "a": { "b": [ 2, 3 ] }, "a.b.c": 4,
+              "x": [ { "y.z": 5, "y": { "z": 6 } }, { "y": { "z": 7 } } ] }""");
+        Map<String, Object> expected = Map.of("a.b", List.of("2", "3", "1"), "a.b.c", "4", "x.y.z", List.of("6", "5", "7"));
+        for (UnmappedFields.Filter filter : Arrays.asList(null, UnmappedFields.Filter.ALL)) {
+            UnmappedFields.Walk walk = new UnmappedFields.Walk(expected.keySet(), filter, 2.0);
+            BlockLoader.StoredFields storedFields = storedFields(source);
+            for (String name : expected.keySet()) {
+                BlockLoader loader = unmappedFields.blockLoader(name, walk);
+                try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
+                    BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                    reader.read(0, storedFields, builder);
+                    Object value = asValue(((TestBlock) builder.build()).get(0));
+                    assertThat(name, value, equalTo(expected.get(name)));
+                    assertThat(name, value instanceof List<?> ? value : List.of(value), equalTo(readFromMap(source, name)));
+                }
+            }
+        }
+    }
+
+    /** A {@link Source} that counts how many times its serialized form is read. */
+    private static final class CountingSource implements Source {
+        private final Source delegate;
+        private int reads;
+
+        CountingSource(Source delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public XContentType sourceContentType() {
+            return delegate.sourceContentType();
+        }
+
+        @Override
+        public Map<String, Object> source() {
+            reads++;
+            return delegate.source();
+        }
+
+        @Override
+        public BytesReference internalSourceRef() {
+            reads++;
+            return delegate.internalSourceRef();
+        }
+
+        @Override
+        public Source filter(SourceFilter sourceFilter) {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -678,8 +921,20 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
         return blockValue == null ? null : ((BytesRef) blockValue).utf8ToString();
     }
 
+    /** The stored fields of one document, which share what is read from it like {@link BlockLoaderStoredFieldsFromLeafLoader}. */
     private static BlockLoader.StoredFields storedFields(Source source) {
         return new BlockLoader.StoredFields() {
+            private final Map<Object, Object> shared = new IdentityHashMap<>();
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> T shared(Object key, IOFunction<BlockLoader.StoredFields, T> compute) throws IOException {
+                if (shared.containsKey(key) == false) {
+                    shared.put(key, compute.apply(this));
+                }
+                return (T) shared.get(key);
+            }
+
             @Override
             public Source source() {
                 return source;

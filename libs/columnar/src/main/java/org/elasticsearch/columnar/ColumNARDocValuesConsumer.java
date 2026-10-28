@@ -742,7 +742,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument);
         }
 
-        StringColumnMetadata metadata = StringColumnWriter.write(maxDoc, totals, cursors, options, known, directory, context, outputs);
+        StringColumnMetadata metadata = StringColumnWriter.write(
+            maxDoc,
+            totals,
+            cursors,
+            options,
+            known,
+            directory,
+            context,
+            outputs,
+            skipIndex
+        );
         fields.add(new FieldEntry(field.number, type, options.singleValued(), metadata));
     }
 

@@ -689,6 +689,8 @@ public abstract sealed class IndexRouting {
         public static final class ForIndexDimensions extends ExtractFromSource {
 
             private final Predicate<String> isDimensionField;
+            /** Resolved once from the index metadata; every tsid of the index is built with it. */
+            final TsidLayout tsidLayout;
 
             ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
                 super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
@@ -699,6 +701,7 @@ public abstract sealed class IndexRouting {
                         + " for ForIndexDimensions routing but was "
                         + metadata.getCreationVersion();
                 this.isDimensionField = Regex.simpleMatcher(metadata.getTimeSeriesDimensions().toArray(String[]::new));
+                this.tsidLayout = TsidLayout.forIndex(metadata);
             }
 
             @Override
@@ -727,7 +730,7 @@ public abstract sealed class IndexRouting {
                 } catch (IOException | ParsingException e) {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
                 }
-                return b.buildTsid(creationVersion);
+                return b.buildTsid(tsidLayout);
             }
 
             /**
@@ -780,7 +783,7 @@ public abstract sealed class IndexRouting {
                 }
 
                 if (allPreSet == false) {
-                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion, rows);
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, tsidLayout, rows);
                     for (int i = 0; i < requests.length; i++) {
                         requests[i].tsid(tsids[i]);
                         int h = hash(tsids[i]);

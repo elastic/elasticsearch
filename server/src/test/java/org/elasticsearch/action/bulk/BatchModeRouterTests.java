@@ -89,6 +89,16 @@ public class BatchModeRouterTests extends ESTestCase {
         return IndexMetadata.builder(name).settings(indexSettings(name).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)).build();
     }
 
+    /** Like {@link #plainMetadata} but with {@code index.batch_indexing} explicitly set, as x-content batch encoding is per-index. */
+    private static IndexMetadata plainMetadata(String name, int shards, boolean batchIndexing) {
+        return IndexMetadata.builder(name)
+            .settings(
+                indexSettings(name).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+                    .put(IndexSettings.BATCH_INDEXING.getKey(), batchIndexing)
+            )
+            .build();
+    }
+
     /**
      * Builds a TSDB backing index whose routing strategy is
      * {@link IndexRouting.ExtractFromSource.ForIndexDimensions}: time_series mode plus a non-empty

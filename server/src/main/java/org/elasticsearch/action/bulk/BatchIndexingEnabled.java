@@ -21,6 +21,9 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
  * class subscribes to updates via {@link ClusterSettings#initializeAndWatch} and exposes the
  * current value through {@link #isEnabled()}.
  *
+ * <p>The cluster setting is a kill switch: it defaults to the feature-flag state, and the real
+ * per-index decision is made by {@link org.elasticsearch.index.IndexSettings#BATCH_INDEXING}.
+ *
  * <p>This class is the single source of truth for both the setting and the feature flag gate.
  * Inject it wherever the batch-indexing eligibility check is needed rather than reading the
  * setting directly.
@@ -29,7 +32,7 @@ public final class BatchIndexingEnabled {
 
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("batch_indexing");
 
-    public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", true, value -> {
+    public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", FEATURE_FLAG.isEnabled(), value -> {
         if (value && FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException(
                 "[indices.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"

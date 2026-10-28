@@ -674,6 +674,22 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
      * be able to read the geometry from doc-values for indexes that support it.
      */
     public void testStSimplifyWithAndWithoutDocValues() {
+        assertGeometryTransformWithAndWithoutDocValues("ST_SIMPLIFY(location, 1.0)");
+    }
+
+    /** Like {@link #testStSimplifyWithAndWithoutDocValues} for ST_SIMPLIFYPRESERVETOPOLOGY. */
+    public void testStSimplifyPreserveTopologyWithAndWithoutDocValues() {
+        assertGeometryTransformWithAndWithoutDocValues("ST_SIMPLIFYPRESERVETOPOLOGY(location, 1.0)");
+    }
+
+    /** Like {@link #testStSimplifyWithAndWithoutDocValues} for ST_BUFFER, with and without options. */
+    public void testStBufferWithAndWithoutDocValues() {
+        assertGeometryTransformWithAndWithoutDocValues(
+            randomFrom("ST_BUFFER(location, 1.0)", "ST_BUFFER(location, -0.5)", "ST_BUFFER(location, 1.0, {\"endcap\": \"flat\"})")
+        );
+    }
+
+    private void assertGeometryTransformWithAndWithoutDocValues(String transform) {
         assumeTrue("Test for shapes only", fieldType().contains("shape"));
         initIndexes();
 
@@ -688,15 +704,15 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
 
         // Query that drops the original field and only keeps the simplified result.
         // This allows the optimizer to read from doc-values when available.
-        List<String> queries = getQueries("""
-            FROM index | EVAL simplified = ST_SIMPLIFY(location, 1.0) | KEEP simplified | STATS c = COUNT(*)
-            """);
+        List<String> queries = getQueries(String.format(Locale.ROOT, """
+            FROM index | EVAL simplified = %s | KEEP simplified | STATS c = COUNT(*)
+            """, transform));
         try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
             long indexedCount = (long) responses.getResponse(0, 0);
             assertThat("Expected 3 results from indexed", indexedCount, equalTo(3L));
             for (int i = 1; i < ALL_INDEXES.length; i++) {
                 long otherCount = (long) responses.getResponse(i, 0);
-                assertEquals("ST_SIMPLIFY count mismatch for " + ALL_INDEXES[i], indexedCount, otherCount);
+                assertEquals(transform + " count mismatch for " + ALL_INDEXES[i], indexedCount, otherCount);
             }
         }
 
@@ -704,8 +720,8 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         // We use METADATA _id for deterministic per-document comparison.
         for (String indexName : ALL_INDEXES) {
             String query = String.format(Locale.ROOT, """
-                FROM %s METADATA _id | EVAL simplified = ST_SIMPLIFY(location, 1.0) | KEEP _id, simplified
-                """, indexName);
+                FROM %s METADATA _id | EVAL simplified = %s | KEEP _id, simplified
+                """, indexName, transform);
             try (EsqlQueryResponse response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                 long rows = 0;
                 var idCol = response.response().column(0).iterator();
@@ -713,7 +729,7 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
                 while (idCol.hasNext()) {
                     Object id = idCol.next();
                     Object simplified = simplifiedCol.next();
-                    assertNotNull("ST_SIMPLIFY result should not be null for id=" + id + " in " + indexName, simplified);
+                    assertNotNull(transform + " result should not be null for id=" + id + " in " + indexName, simplified);
                     rows++;
                 }
                 assertThat("Expected 3 rows from " + indexName, rows, equalTo(3L));

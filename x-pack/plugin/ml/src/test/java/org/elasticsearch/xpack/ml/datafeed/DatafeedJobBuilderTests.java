@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,9 @@ import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -262,6 +265,29 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
         assertBusy(() -> wasHandlerCalled.get());
+    }
+
+    public void testCheckRemoteIndicesAreAvailableGivenNullIndicesShouldNotThrow() {
+        datafeedJobBuilder = new DatafeedJobBuilder(
+            client,
+            xContentRegistry(),
+            auditor,
+            annotationPersister,
+            System::currentTimeMillis,
+            jobResultsPersister,
+            nonRemoteClusterClientNode(),
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
+        );
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        DatafeedConfig datafeedWithoutIndices = spy(datafeed);
+        doReturn(null).when(datafeedWithoutIndices).getIndices();
+
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(datafeedWithoutIndices);
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {

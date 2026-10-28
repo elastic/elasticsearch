@@ -57,7 +57,10 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
     }
 
-    /** ES|QL start rounds down so the bucket containing it is kept; DSL aggregations round up to skip a partial first bucket. */
+    /**
+     * ES|QL floors start so the bucket containing an unaligned job start is kept (row time = bucket floor). DSL ceils start to skip
+     * the partial first histogram bucket. Example: 10:30 start, 1h interval — ES|QL from 10:00, DSL from 11:00.
+     */
     private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
         return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
     }

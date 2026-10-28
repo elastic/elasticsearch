@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -517,80 +518,9 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertFalse(summary.hasData());
     }
 
-    private ChunkedDataExtractorContext createContext(long start, long end) {
-        return createContext(start, end, false, null, false);
-    }
-
-    private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
-        return createContext(start, end, hasAggregations, histogramInterval, false);
-    }
-
-    private ChunkedDataExtractorContext createEsqlContext(long start, long end) {
-        return createEsqlContext(start, end, ESQL_GROUPING_INTERVAL_MILLIS);
-    }
-
-    private ChunkedDataExtractorContext createEsqlContext(long start, long end, long groupingIntervalMillis) {
-        ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(groupingIntervalMillis);
-        return new ChunkedDataExtractorContext(
-            jobId,
-            scrollSize,
-            timeAligner.alignToFloor(start),
-            timeAligner.alignToFloor(end),
-            chunkSpan,
-            timeAligner,
-            false,
-            null,
-            true
-        );
-    }
-
-    private ChunkedDataExtractorContext createContext(
-        long start,
-        long end,
-        boolean hasAggregations,
-        Long histogramInterval,
-        boolean hasEsqlQuery
-    ) {
-        return new ChunkedDataExtractorContext(
-            jobId,
-            scrollSize,
-            start,
-            end,
-            chunkSpan,
-            ChunkedDataExtractorFactory.newIdentityTimeAligner(),
-            hasAggregations,
-            histogramInterval,
-            hasEsqlQuery
-        );
-    }
-
-    private void stubSummary(long start, long end, DataSummary summary) {
-        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(new StubSubExtractor(new SearchInterval(start, end), summary));
-    }
-
-    private void stubChunk(long start, long end, InputStream... streams) {
-        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(new StubSubExtractor(new SearchInterval(start, end), streams));
-    }
-
-    private void stubChunkWithSummary(long start, long end, DataSummary summary, InputStream... streams) {
-        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(
-            new StubSubExtractor(new SearchInterval(start, end), summary, streams)
-        );
-    }
-
-    private void assertNextStream(DataExtractor extractor, InputStream expected) throws IOException {
-        assertThat(extractor.hasNext(), is(true));
-        assertEquals(expected, extractor.next().data().get());
-    }
-
-    private void assertNoMoreData(DataExtractor extractor) throws IOException {
-        assertThat(extractor.next().data().isPresent(), is(false));
-        assertThat(extractor.hasNext(), is(false));
-    }
-
     public void testExtractionGivenEsqlQueryAndAutoChunk() throws IOException {
         chunkSpan = null;
-        stubSummary(100_000L, 450_000L, new DataSummary(100_000L, 400_000L, 750L));
+        stubSummary(100_000L, 450_000L, new DataSummary(100_000L, 400_000L, 3_000L));
 
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 450_000L));
 
@@ -606,6 +536,23 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(100_000L, 450_000L);
         verify(dataExtractorFactory).newExtractor(100_000L, 300_000L);
         verify(dataExtractorFactory).newExtractor(300_000L, 450_000L);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testExtractionGivenEsqlQueryAndAutoChunkAtTargetRowCountShouldCoverDataSpread() throws IOException {
+        chunkSpan = null;
+        long targetRows = EsqlDataExtractor.INJECTED_ROW_LIMIT / 5;
+        stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, targetRows));
+
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 400_000L));
+
+        stubChunkWithSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, targetRows), mock(InputStream.class));
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+        assertNoMoreData(extractor);
+
+        verify(dataExtractorFactory, times(2)).newExtractor(100_000L, 400_000L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
@@ -719,14 +666,14 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
 
-        // timeSpread=500_000, totalHits=750 -> raw span=333_333 -> ceil to 360_000 (6 * 60_000)
+        // timeSpread=500_000, totalHits=750 -> raw span=1_333_333, capped by context.end()=600_000
         stubSummary(start, end, new DataSummary(start, 500_000L, 750L));
-        stubChunk(start, 360_000L, mock(InputStream.class));
+        stubChunkWithSummary(start, end, new DataSummary(start, 500_000L, 750L), mock(InputStream.class));
 
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        verify(dataExtractorFactory).newExtractor(start, 360_000L);
+        verify(dataExtractorFactory, times(2)).newExtractor(start, end);
     }
 
     public void testSummaryEarliestAheadOfWindowStartShouldAdvanceCurrentStart() throws IOException {
@@ -756,7 +703,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
 
         // earliest=60_000 behind start=180_000; chunkSpan=120_000 (grouping-interval multiple).
-        stubSummary(start, end, new DataSummary(60_000L, 180_000L, 500L));
+        stubSummary(start, end, new DataSummary(60_000L, 180_000L, 2_000L));
         stubChunk(start, 300_000L, mock(InputStream.class));
 
         assertThat(extractor.hasNext(), is(true));
@@ -808,7 +755,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 400_000L));
 
-        stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, 1_500L));
+        stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, 6_000L));
         InputStream inputStream1 = mock(InputStream.class);
         stubChunk(100_000L, 200_000L, inputStream1);
         stubChunk(200_000L, 300_000L);
@@ -817,7 +764,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
 
         InputStream inputStream2 = mock(InputStream.class);
-        stubChunkWithSummary(300_000L, 400_000L, new DataSummary(300_000L, 400_000L, 500L), inputStream2);
+        stubChunkWithSummary(300_000L, 400_000L, new DataSummary(300_000L, 400_000L, 2_000L), inputStream2);
 
         assertNextStream(extractor, inputStream2);
         assertNoMoreData(extractor);
@@ -827,6 +774,77 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(200_000L, 300_000L);
         verify(dataExtractorFactory, times(2)).newExtractor(300_000L, 400_000L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    private ChunkedDataExtractorContext createContext(long start, long end) {
+        return createContext(start, end, false, null, false);
+    }
+
+    private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
+        return createContext(start, end, hasAggregations, histogramInterval, false);
+    }
+
+    private ChunkedDataExtractorContext createEsqlContext(long start, long end) {
+        return createEsqlContext(start, end, ESQL_GROUPING_INTERVAL_MILLIS);
+    }
+
+    private ChunkedDataExtractorContext createEsqlContext(long start, long end, long groupingIntervalMillis) {
+        ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(groupingIntervalMillis);
+        return new ChunkedDataExtractorContext(
+            jobId,
+            scrollSize,
+            timeAligner.alignToFloor(start),
+            timeAligner.alignToFloor(end),
+            chunkSpan,
+            timeAligner,
+            false,
+            null,
+            true
+        );
+    }
+
+    private ChunkedDataExtractorContext createContext(
+        long start,
+        long end,
+        boolean hasAggregations,
+        Long histogramInterval,
+        boolean hasEsqlQuery
+    ) {
+        return new ChunkedDataExtractorContext(
+            jobId,
+            scrollSize,
+            start,
+            end,
+            chunkSpan,
+            ChunkedDataExtractorFactory.newIdentityTimeAligner(),
+            hasAggregations,
+            histogramInterval,
+            hasEsqlQuery
+        );
+    }
+
+    private void stubSummary(long start, long end, DataSummary summary) {
+        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(new StubSubExtractor(new SearchInterval(start, end), summary));
+    }
+
+    private void stubChunk(long start, long end, InputStream... streams) {
+        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(new StubSubExtractor(new SearchInterval(start, end), streams));
+    }
+
+    private void stubChunkWithSummary(long start, long end, DataSummary summary, InputStream... streams) {
+        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(
+            new StubSubExtractor(new SearchInterval(start, end), summary, streams)
+        );
+    }
+
+    private void assertNextStream(DataExtractor extractor, InputStream expected) throws IOException {
+        assertThat(extractor.hasNext(), is(true));
+        assertEquals(expected, extractor.next().data().get());
+    }
+
+    private void assertNoMoreData(DataExtractor extractor) throws IOException {
+        assertThat(extractor.next().data().isPresent(), is(false));
+        assertThat(extractor.hasNext(), is(false));
     }
 
     private static class StubSubExtractor implements DataExtractor {

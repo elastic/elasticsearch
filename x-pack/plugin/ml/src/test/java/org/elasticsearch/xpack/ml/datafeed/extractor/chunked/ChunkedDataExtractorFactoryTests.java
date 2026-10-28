@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -100,7 +101,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
 
         // start 09:14:53 inside the [09:00, 10:00) bucket: that bucket (emitted with time 09:00) must not be dropped
-        long start = 9 * hour + 14 * 60_000L + 53_000L;
+        long start = Duration.ofHours(9).plusMinutes(14).plusSeconds(53).toMillis();
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(start, 10 * hour);
 
         assertThat(dataExtractor.getContext().start(), equalTo(9 * hour));
@@ -119,7 +120,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(false));
     }
 
-    public void testRawEsqlQueryShouldUseSameGroupingIntervalAlignment() {
+    public void testEsqlWindowShouldAlignToOneMinuteGroupingInterval() {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueMinutes(1));
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3_650_000L, 7_250_000L);

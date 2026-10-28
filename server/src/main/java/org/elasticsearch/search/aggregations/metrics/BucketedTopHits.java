@@ -179,8 +179,9 @@ final class BucketedTopHits implements Releasable {
             RawValues raw = rawValues(sort);
             if (raw == null || raw.type() != SortFieldValidation.getType(subSearchContext.sort().sort.getSort()[0])) {
                 // The shard results are merged using the type each sort field declares, and the values have to be of that type. They
-                // are not always: int, short and byte fields in indices created before 9.28 declare a long sort, which the Lucene
-                // collectors fill with longs, while the sort built here is an int one and reports integers. Merging the two fails
+                // are not always: int, short and byte fields in indices created before IndexVersions.INDEX_INT_SORT_INT_TYPE
+                // declare a long sort, which the Lucene collectors fill with longs, while the sort built here is an int one and reports
+                // integers. Merging the two fails
                 // with a ClassCastException, so the Lucene collectors keep those.
                 return null;
             }

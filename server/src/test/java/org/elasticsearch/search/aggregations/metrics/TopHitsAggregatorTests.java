@@ -51,7 +51,9 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -65,6 +67,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -261,7 +265,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
                 indexer.accept(iw);
             }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
+            try (DirectoryReader reader = wrapDirectoryReader(DirectoryReader.open(directory))) {
                 test.accept(reader);
             }
         }
@@ -665,6 +669,70 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 );
             }
         });
+
+        // A sort on a field of nested documents is only valid in the nested scope that the nested aggregation enters while it builds
+        // its sub-aggregations, so the sort of a top_hits under it has to be built from there. Only the decision is checked, because
+        // fetching nested documents would need more of the search context than these tests set up.
+        objectMappers = List.of(NestedAggregatorTests.nestedObject(NESTED_PATH));
+        withUnmergedIndex(iw -> {
+            for (int parent = 0; parent < 3; parent++) {
+                List<LuceneDocument> block = new ArrayList<>();
+                for (int comment = 0; comment < 2; comment++) {
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(new StringField(NestedPathFieldMapper.NAME, NESTED_PATH, Store.NO));
+                    document.add(new Field("string", new BytesRef("t" + comment), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                    NumberFieldMapper.NumberType.LONG.addFields(
+                        document,
+                        NESTED_NUMBER_FIELD,
+                        (long) parent + comment,
+                        IndexType.points(false, true),
+                        false
+                    );
+                    block.add(document);
+                }
+                LuceneDocument root = new LuceneDocument();
+                root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(parent)), Store.YES));
+                root.add(new StringField(NestedPathFieldMapper.NAME, "_doc", Store.NO));
+                block.add(root);
+                iw.addDocuments(block);
+            }
+        },
+            reader -> collect(
+                reader,
+                Queries.ALL_DOCS_INSTANCE,
+                new NestedAggregationBuilder("nested", NESTED_PATH).subAggregation(
+                    terms("term").field("string").size(10).subAggregation(topHits("top").sort(NESTED_NUMBER_FIELD, SortOrder.DESC))
+                ),
+                requestBreakers("1gb"),
+                false,
+                true,
+                built -> {},
+                STRING_FIELD_TYPE,
+                new NumberFieldMapper.NumberFieldType(NESTED_NUMBER_FIELD, NumberFieldMapper.NumberType.LONG)
+            )
+        );
+    }
+
+    private static final String NESTED_PATH = "comments";
+    private static final String NESTED_NUMBER_FIELD = NESTED_PATH + ".stars";
+
+    /**
+     * Left empty except for the test that needs a nested mapping, because the fetch phase of every other test would then expect
+     * nested documents in its index.
+     */
+    private List<ObjectMapper> objectMappers = List.of();
+
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return objectMappers;
+    }
+
+    /**
+     * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
+     */
+    @Override
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return wrapInMockESDirectoryReader(reader);
     }
 
     private static HierarchyCircuitBreakerService requestBreakers(String requestLimit) {
@@ -957,8 +1025,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Int, short and byte fields declare a long sort, and not an int one, in indices created before 9.28, except for the ones
-     * created from 8.19 to before 9.0. The Lucene collectors fill that sort with longs. The sort values of the shard results are
+     * Int, short and byte fields declare a long sort, and not an int one, in indices created before
+     * {@link IndexVersions#INDEX_INT_SORT_INT_TYPE}, except for the ones created from
+     * {@link IndexVersions#INDEX_INT_SORT_INT_TYPE_8_19} to before {@link IndexVersions#UPGRADE_TO_LUCENE_10_0_0}. The Lucene collectors fill that sort with longs. The sort values of the shard results are
      * merged using the type the sort field declares, so a {@code BucketedSort} that reports integers for such a field would break
      * the merge with the shards of newer indices. Those fields keep the Lucene collectors, and the other types are not affected.
      */

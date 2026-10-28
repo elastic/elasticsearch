@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -48,6 +49,14 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
      */
     @Nullable
     private final List<SortBuilder<?>> sortBuilders;
+    /**
+     * The nested level this factory was built in, or {@code null} for the root. A {@code nested} aggregation only enters its level
+     * while it builds its sub-factories, which is when the Lucene sort is resolved, but aggregators are created after it has left.
+     * A {@code BucketedSort} resolves its sort when the aggregator is created, so it needs the level entered again to accept a
+     * sort on a field of nested documents.
+     */
+    @Nullable
+    private final NestedObjectMapper nestedLevel;
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<FieldAndFormat> docValueFields;
@@ -88,6 +97,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         this.trackScores = trackScores;
         this.sort = sort;
         this.sortBuilders = sortBuilders;
+        this.nestedLevel = context.nestedScope().getObjectMapper();
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
@@ -132,7 +142,17 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(subSearchContext.getSearchExecutionContext()));
         }
-        BucketedTopHits bucketedTopHits = BucketedTopHits.tryCreate(context, subSearchContext, sortBuilders);
+        BucketedTopHits bucketedTopHits;
+        if (nestedLevel == null) {
+            bucketedTopHits = BucketedTopHits.tryCreate(context, subSearchContext, sortBuilders);
+        } else {
+            context.nestedScope().nextLevel(nestedLevel);
+            try {
+                bucketedTopHits = BucketedTopHits.tryCreate(context, subSearchContext, sortBuilders);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
+        }
         boolean success = false;
         try {
             TopHitsAggregator aggregator = new TopHitsAggregator(subSearchContext, name, context, parent, metadata, bucketedTopHits);

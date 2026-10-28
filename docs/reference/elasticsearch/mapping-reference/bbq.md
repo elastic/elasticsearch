@@ -597,9 +597,9 @@ The following abbreviated response shows two segments of the same shard:
 3. `type` identifies the kind of calibration parameters returned. It is currently always `osq` (optimized scalar quantization).
 4. `number_of_vectors` is the total number of vectors in the segment.
 5. `size_in_bytes` is the on-disk size of this field's vector data in the segment.
-5. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
+6. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
    Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
-6. An uncalibrated `dense_vector` field in a segment.
+7. An uncalibrated `dense_vector` field in a segment.
    No `parameters` are returned.
    The segment is searched using the mapping settings.
    A query-time [`rescore_vector.oversample`](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) on the kNN query or retriever overrides the oversampling factor, as described in [Interaction with other parameters](#interaction-with-other-parameters).

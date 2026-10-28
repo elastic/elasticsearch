@@ -1,1 +1,0 @@
-FROM (TS k8s-downsampled), sample_data | STATS count(*)

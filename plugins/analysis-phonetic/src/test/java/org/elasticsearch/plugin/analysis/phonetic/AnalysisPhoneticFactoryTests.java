@@ -40,7 +40,8 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, FactorySettings> tokenFilterSettings() {
-        // max_code_len is only read by double_metaphone; testDoubleMetaphoneMaxCodeLenIsKeyed covers it.
+        // max_code_len and max_variations are each read by only some encoders, so they are probed against
+        // those encoders' own bases rather than the beider_morse one.
         return Map.of(
             "phonetic",
             settings(Map.of("encoder", "beider_morse")).ignored("encoder", "bm", "BeiderMorse")
@@ -62,6 +63,9 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
                 .affects("rule_type", "exact")
                 .affects("name_type", "ashkenazi")
                 .affects("replace", "false")
+                .alsoWith(settings(Map.of("encoder", "double_metaphone")).affects("max_code_len", 6))
+                .alsoWith(settings(Map.of("encoder", "koelnerphonetik")).affects("max_variations", 8))
+                .alsoWith(settings(Map.of("encoder", "haasephonetik")).affects("max_variations", 8))
         );
     }
 

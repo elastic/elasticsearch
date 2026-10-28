@@ -1,0 +1,208 @@
+// DENSE_VECTOR over an external relation. Each case runs a FROM books query from dense_vector_command.csv-spec
+// against books_ds, a dataset built from the same books data. A dataset has no mapping, so its string columns are
+// keyword rather than text; DENSE_VECTOR embeds both. The test_dense_inference mock derives each vector from the
+// input string alone, so a string that reads the same in both sources gets the vector from
+// dense_vector_command.csv-spec.
+//
+// The dataset is named books_ds because books is the name of the index loaded from the same data. Its author
+// column holds multi-valued cells written as [a, b], which the Parquet, ORC and NDJSON readers decode; those are
+// the suites that read this file.
+
+denseVectorOnExternalField
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, publisher, publisher_dense_vector
+;
+
+book_no:keyword | publisher:keyword   | publisher_dense_vector:dense_vector
+2924            | Oxford Paperbacks   | [45.0, 56.0, 48.0]
+7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
+7670            | Courier Corporation | [45.0, 49.0, 55.0]
+;
+
+
+denseVectorOnMultipleExternalFields
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title, publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:keyword | publisher:keyword | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit    | Mariner Books     | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls    | Vintage           | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
+// DENSE_VECTOR embeds a column computed by an earlier EVAL.
+denseVectorOnComputedColumnOverExternal
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no IN ("7480", "8605")
+| EVAL description = CONCAT(title, " (", publisher, ")")
+| DENSE_VECTOR description WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, description, description_dense_vector
+;
+
+book_no:keyword | description:keyword        | description_dense_vector:dense_vector
+7480            | The Hobbit (Mariner Books) | [45.0, 49.0, 49.0]
+8605            | Dead Souls (Vintage)       | [53.0, 48.0, 53.0]
+;
+
+
+// The generated column is a dense_vector that vector functions such as v_cosine accept as input.
+denseVectorConsumedByVCosineOverExternal
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no == "2924"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| EVAL sim = v_cosine(publisher_dense_vector, publisher_dense_vector)
+| KEEP book_no, sim
+;
+
+book_no:keyword | sim:double
+2924            | 1.0
+;
+
+
+// author is multi-valued in books_ds. DENSE_VECTOR embeds only the first value and emits a warning; MV_SORT makes
+// the first value deterministic.
+denseVectorOnMultiValuedExternalField
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| WHERE book_no == "2924"
+| EVAL sorted_author = MV_SORT(author)
+| DENSE_VECTOR sorted_author WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, sorted_author, sorted_author_dense_vector
+;
+warningRegex:embedding input is multi-valued; only the first value is embedded\. Reduce the field first, for example with MV_FIRST, to choose the value explicitly\.
+
+book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
+2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
+;
+
+
+// All 79 books span several batched inference requests (InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE).
+// Every row must carry the vector of its own publisher, however the external reader splits rows into pages.
+// In books_ds the publisher of book 4636 is "Random House Digital\, Inc.", backslash included, so its vector
+// differs from the one in dense_vector_command.csv-spec.
+denseVectorAlignsEveryRowOverExternal
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: dataset_in_from_command
+dataset: books_ds: "{{books}}"
+
+FROM books_ds
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, publisher_dense_vector
+;
+
+book_no:keyword | publisher_dense_vector:dense_vector
+1211            | [45.0, 54.0, 48.0]
+1463            | [45.0, 49.0, 49.0]
+1502            | [49.0, 55.0, 49.0]
+1937            | [50.0, 53.0, 54.0]
+1985            | [45.0, 49.0, 48.0]
+2130            | [45.0, 49.0, 49.0]
+2236            | [45.0, 53.0, 56.0]
+2301            | [45.0, 49.0, 48.0]
+2378            | [49.0, 53.0, 52.0]
+2382            | [45.0, 57.0, 51.0]
+2464            | [45.0, 49.0, 50.0]
+2540            | [49.0, 49.0, 54.0]
+2675            | [45.0, 49.0, 57.0]
+2713            | [50.0, 49.0, 50.0]
+2714            | [45.0, 49.0, 57.0]
+2776            | [49.0, 48.0, 52.0]
+2847            | [53.0, 57.0, 49.0]
+2883            | [49.0, 48.0, 52.0]
+2924            | [45.0, 56.0, 48.0]
+2936            | [45.0, 54.0, 54.0]
+2951            | [45.0, 49.0, 51.0]
+3254            | [45.0, 49.0, 55.0]
+3293            | [49.0, 53.0, 48.0]
+3535            | [49.0, 56.0, 49.0]
+3677            | [55.0, 54.0, 52.0]
+3870            | [45.0, 55.0, 50.0]
+3950            | [57.0, 56.0, 50.0]
+4023            | [49.0, 53.0, 53.0]
+4231            | [54.0, 53.0, 52.0]
+4289            | [45.0, 49.0, 49.0]
+4382            | [45.0, 49.0, 48.0]
+4502            | [53.0, 57.0, 49.0]
+4536            | [56.0, 49.0, 49.0]
+4636            | [45.0, 50.0, 54.0]
+4724            | [50.0, 49.0, 50.0]
+4814            | [49.0, 57.0, 56.0]
+4917            | [45.0, 49.0, 56.0]
+4977            | [50.0, 49.0, 50.0]
+5119            | [50.0, 49.0, 50.0]
+5127            | [45.0, 49.0, 55.0]
+5327            | [45.0, 49.0, 48.0]
+5335            | [45.0, 49.0, 57.0]
+5404            | [50.0, 49.0, 50.0]
+5469            | [45.0, 49.0, 55.0]
+5578            | [50.0, 49.0, 50.0]
+5948            | [49.0, 48.0, 52.0]
+5996            | [45.0, 49.0, 48.0]
+6151            | [54.0, 50.0, 54.0]
+6323            | [57.0, 56.0, 50.0]
+6380            | [49.0, 57.0, 56.0]
+6405            | [45.0, 49.0, 53.0]
+6478            | [45.0, 49.0, 55.0]
+6760            | [45.0, 49.0, 53.0]
+6818            | [45.0, 49.0, 53.0]
+6970            | [45.0, 49.0, 53.0]
+7140            | [45.0, 49.0, 56.0]
+7350            | [45.0, 49.0, 53.0]
+7381            | [45.0, 53.0, 56.0]
+7400            | [50.0, 55.0, 51.0]
+7480            | [45.0, 49.0, 53.0]
+7541            | [49.0, 56.0, 48.0]
+7635            | [52.0, 53.0, 55.0]
+7670            | [45.0, 49.0, 55.0]
+7912            | [50.0, 49.0, 48.0]
+8077            | [50.0, 49.0, 50.0]
+8086            | [53.0, 57.0, 53.0]
+8423            | [49.0, 57.0, 52.0]
+8480            | [45.0, 49.0, 57.0]
+8534            | [54.0, 48.0, 57.0]
+8605            | [50.0, 49.0, 50.0]
+8615            | [51.0, 51.0, 54.0]
+8678            | [50.0, 49.0, 49.0]
+8873            | [53.0, 48.0, 51.0]
+8875            | [45.0, 54.0, 54.0]
+8956            | [49.0, 57.0, 54.0]
+9032            | [50.0, 51.0, 51.0]
+9607            | [45.0, 54.0, 54.0]
+9801            | [54.0, 48.0, 57.0]
+9896            | [51.0, 56.0, 55.0]
+;

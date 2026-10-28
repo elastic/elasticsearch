@@ -1505,10 +1505,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (EsqlDataSourceMixedClusterTestSupport.isBwcTest()) {
             return;
         }
-        // Register only RERANK: external-basic.csv-spec uses test_reranker; full INFERENCE_CONFIGS includes task types
-        // not supported on these minimal clusters (e.g. SPARSE_EMBEDDING). Current-version test clusters load
-        // inference-service-test; BWC clusters omit it and capability-skip tests that require an endpoint.
-        CsvTestsDataLoader.createInferenceEndpoints(adminClient(), List.of("test_reranker"));
+        // The external specs use test_reranker (RERANK) and test_dense_inference (DENSE_VECTOR), so only those are
+        // created: the full INFERENCE_CONFIGS includes task types these minimal clusters do not support, such as
+        // SPARSE_EMBEDDING. Current-version test clusters load inference-service-test. BWC clusters do not, and skip
+        // tests that need an endpoint through their required capabilities.
+        CsvTestsDataLoader.createInferenceEndpoints(adminClient(), List.of("test_reranker", "test_dense_inference"));
     }
 
     @Override

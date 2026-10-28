@@ -206,7 +206,8 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext leafReaderContext) {
-            return query.isCacheable(leafReaderContext) && (filterWeight == null || filterWeight.isCacheable(leafReaderContext));
+            // Filters are not exposed through QueryVisitor, so OptOutQueryCache cannot check if caching with a filter is safe.
+            return filterWeight != null ? false : query.isCacheable(leafReaderContext);
         }
     }
 

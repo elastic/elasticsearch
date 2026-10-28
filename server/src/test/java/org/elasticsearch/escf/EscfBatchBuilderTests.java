@@ -28,6 +28,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class EscfBatchBuilderTests extends ESTestCase {
@@ -200,6 +205,66 @@ public class EscfBatchBuilderTests extends ESTestCase {
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(1, batch.docCount());
                 assertEquals(asMap("{\"a\":1,\"b\":2}"), reconstruct(batch, 0));
+            }
+        }
+    }
+
+    /**
+     * Rows that repeat a shape, drop fields, reorder fields, or reuse a field name under another parent must all come
+     * back as written: the row buffer's guess at which schema field comes next may be wrong, but never changes the result.
+     */
+    public void testRowsWithChangingShapesRoundTrip() throws IOException {
+        String[] top = { "a", "b", "c", "d", "name", "id" };
+        String[] nested = { "name", "id", "x" };
+        int rows = randomIntBetween(50, 200);
+        List<Map<String, Object>> expected = new ArrayList<>();
+        try (EscfBatchBuilder builder = newBuilder()) {
+            for (int r = 0; r < rows; r++) {
+                // Per row: whether to keep the usual order, drop some fields, or shuffle.
+                int mode = randomIntBetween(0, 3);
+                List<String> topNames = new ArrayList<>(Arrays.asList(top));
+                List<String> nestedNames = new ArrayList<>(Arrays.asList(nested));
+                if (mode == 1) {
+                    topNames.removeIf(n -> randomBoolean());
+                    nestedNames.removeIf(n -> randomBoolean());
+                } else if (mode == 2) {
+                    Collections.shuffle(topNames, random());
+                    Collections.shuffle(nestedNames, random());
+                } else if (mode == 3) {
+                    Collections.reverse(topNames);
+                }
+                boolean withNested = mode != 1 || randomBoolean();
+                Map<String, Object> doc = new LinkedHashMap<>();
+                EscfRowBuffer row = builder.beginRow();
+                int insertNestedAt = randomIntBetween(0, topNames.size());
+                for (int i = 0; i <= topNames.size(); i++) {
+                    if (i == insertNestedAt && withNested && nestedNames.isEmpty() == false) {
+                        Map<String, Object> inner = new LinkedHashMap<>();
+                        row.startObject("obj");
+                        for (String n : nestedNames) {
+                            long v = randomLong();
+                            row.longField(n, v);
+                            inner.put(n, v);
+                        }
+                        row.endObject();
+                        doc.put("obj", inner);
+                    }
+                    if (i < topNames.size()) {
+                        String n = topNames.get(i);
+                        long v = randomLong();
+                        row.longField(n, v);
+                        doc.put(n, v);
+                    }
+                }
+                row.finishRow();
+                builder.commit(0);
+                expected.add(doc);
+            }
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(rows, batch.docCount());
+                for (int r = 0; r < rows; r++) {
+                    assertEquals("row " + r, expected.get(r), reconstruct(batch, r));
+                }
             }
         }
     }

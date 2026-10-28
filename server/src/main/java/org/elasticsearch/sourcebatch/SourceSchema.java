@@ -89,6 +89,14 @@ public final class SourceSchema {
     }
 
     /**
+     * Like {@link #appendNonLeaf(String, int)}, but first checks whether the field is {@code predictedIdx}, which skips the
+     * lookup by name. A wrong prediction only costs the lookup. See {@link #appendLeaf(String, int, int)}.
+     */
+    public int appendNonLeaf(String name, int parentIdx, int predictedIdx) {
+        return nonLeaves.append(name, parentIdx, predictedIdx);
+    }
+
+    /**
      * Returns the number of leaf fields (columns).
      */
     public int leafCount() {
@@ -115,6 +123,20 @@ public final class SourceSchema {
      */
     public int appendLeaf(String name, int parentIdx) {
         return leaves.append(name, parentIdx);
+    }
+
+    /**
+     * Like {@link #appendLeaf(String, int)}, but first checks whether the field is {@code predictedIdx}, which skips the
+     * lookup by name. A wrong prediction only costs the lookup, and the result is the same either way.
+     *
+     * <p>Rows of the same shape add their fields in the same order, and a schema lists its fields in the order they
+     * were first added, so the field after the previous one is the likely next one. The caller passes that index, as
+     * the successor of the field it resolved last. This is the same idea as the field name predictor in the simdjson
+     * walker, guess the successor, check it, fall back to the lookup, except that no successor has to be learned
+     * because the schema already stores the order.
+     */
+    public int appendLeaf(String name, int parentIdx, int predictedIdx) {
+        return leaves.append(name, parentIdx, predictedIdx);
     }
 
     /**
@@ -212,6 +234,14 @@ public final class SourceSchema {
 
         int find(String name, int parentIdx) {
             return lookup.getOrDefault(new FieldKey(parentIdx, name), MISSING);
+        }
+
+        int append(String name, int parentIdx, int predictedIdx) {
+            assert predictedIdx >= 0;
+            if (predictedIdx < names.size() && parents[predictedIdx] == parentIdx && names.get(predictedIdx).equals(name)) {
+                return predictedIdx;
+            }
+            return append(name, parentIdx);
         }
 
         int append(String name, int parentIdx) {

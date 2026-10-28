@@ -111,4 +111,53 @@ public class SourceSchemaTests extends ESTestCase {
         chain = schema.getNonLeafChain(b);
         assertArrayEquals(new int[] { a, b }, chain);
     }
+
+    public void testAppendLeafWithPredictionAgreesWithoutPrediction() {
+        SourceSchema withPrediction = new SourceSchema();
+        SourceSchema plain = new SourceSchema();
+        int user = withPrediction.appendNonLeaf("user", 0);
+        assertEquals(user, plain.appendNonLeaf("user", 0));
+        String[] names = { "a", "b", "c", "a", "b", "d", "c" };
+        int[] parents = { 0, 0, user, user, 0, user, 0 };
+        for (int round = 0; round < 3; round++) {
+            for (int i = 0; i < names.length; i++) {
+                // Any prediction is allowed, including ones that are out of range or point at another field.
+                int prediction = randomIntBetween(0, withPrediction.leafCount() + 3);
+                assertEquals(plain.appendLeaf(names[i], parents[i]), withPrediction.appendLeaf(names[i], parents[i], prediction));
+            }
+        }
+        assertEquals(plain.leafCount(), withPrediction.leafCount());
+    }
+
+    public void testAppendLeafWithPredictionChecksNameAndParent() {
+        SourceSchema schema = new SourceSchema();
+        int user = schema.appendNonLeaf("user", 0);
+        int topName = schema.appendLeaf("name", 0);
+        int userName = schema.appendLeaf("name", user);
+        // Right prediction.
+        assertEquals(topName, schema.appendLeaf("name", 0, topName));
+        assertEquals(userName, schema.appendLeaf("name", user, userName));
+        // Same name under another parent: the prediction must not be taken.
+        assertEquals(userName, schema.appendLeaf("name", user, topName));
+        assertEquals(topName, schema.appendLeaf("name", 0, userName));
+        // A new field is appended even when the prediction points at an existing field.
+        int added = schema.appendLeaf("other", 0, topName);
+        assertEquals(2, added);
+        assertEquals(3, schema.leafCount());
+        // Prediction past the end.
+        assertEquals(added, schema.appendLeaf("other", 0, 100));
+        assertEquals(3, schema.leafCount());
+    }
+
+    public void testAppendNonLeafWithPrediction() {
+        SourceSchema schema = new SourceSchema();
+        int a = schema.appendNonLeaf("a", 0, 1);
+        assertEquals(1, a);
+        int b = schema.appendNonLeaf("b", a, a + 1);
+        assertEquals(2, b);
+        assertEquals(a, schema.appendNonLeaf("a", 0, 1));
+        assertEquals(b, schema.appendNonLeaf("b", a, 1));
+        assertEquals(b, schema.appendNonLeaf("b", a, 2));
+        assertEquals(3, schema.nonLeafCount());
+    }
 }

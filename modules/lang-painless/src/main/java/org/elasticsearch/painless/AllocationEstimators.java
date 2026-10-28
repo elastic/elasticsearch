@@ -277,12 +277,12 @@ public final class AllocationEstimators {
 
     /** {@code Iterable.asCollection()}: a collection is returned as is, anything else is copied. */
     public static long asCollectionBytes(Iterable<?> receiver) {
-        return AllocSizes.addSat(decodeBytes(receiver), receiver instanceof Collection ? 0 : listBuiltByAddBytes(UNKNOWN_ELEMENT_COUNT));
+        return receiver instanceof Collection ? 0 : AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(UNKNOWN_ELEMENT_COUNT));
     }
 
     /** {@code Iterable.asList()}: a list is returned as is, anything else is copied. */
     public static long asListBytes(Iterable<?> receiver) {
-        return AllocSizes.addSat(decodeBytes(receiver), receiver instanceof List ? 0 : listBuiltByAddBytes(iterableCount(receiver)));
+        return receiver instanceof List ? 0 : AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(iterableCount(receiver)));
     }
 
     /** {@code Iterable.findResults(function)}: a list with room for every element. */
@@ -927,12 +927,12 @@ public final class AllocationEstimators {
         return AllocSizes.arrayBytes(receiver.getDims(), Float.BYTES);
     }
 
-    /** {@code DenseVectorScriptDocValues.getVectorValue()}: the same copy, sized from the field's dimensions. */
+    /** {@code DenseVectorScriptDocValues.getVectorValue()}: the same copy, of the vector the supplier holds. */
     public static long denseVectorCopyBytes(DenseVectorScriptDocValues receiver) {
-        if (receiver == null || receiver.size() == 0) {
-            return 0;
+        if (receiver != null && receiver.getSupplier() instanceof DenseVectorScriptDocValues.DenseVectorSupplier supplier) {
+            return denseVectorCopyBytes(supplier.getInternal());
         }
-        return AllocSizes.arrayBytes(receiver.dims(), Float.BYTES);
+        return 0;
     }
 
     /** {@code RankVectorsScriptDocValues.getVectorValues()}: two iterators and one {@code float[]} of the field's dimensions. */

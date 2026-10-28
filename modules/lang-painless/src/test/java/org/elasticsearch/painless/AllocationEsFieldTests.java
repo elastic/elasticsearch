@@ -238,8 +238,6 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         String[] calls = new String[] {
             "r.forEach(x -> x.length())",
             "r.any(x -> x == 'z')",
-            "r.asCollection()",
-            "r.asList()",
             "r.count(x -> true)",
             "r.each(x -> x.length())",
             "r.eachWithIndex((x, i) -> x.length())",
@@ -262,6 +260,14 @@ public class AllocationEsFieldTests extends AllocationTestCase {
             String script = "def r = params.r; " + call + (call.endsWith("}") ? " " : "; ") + "return 'x';";
             assertEquals(call, decode, allocatedBytes(script, docValues) - allocatedBytes(script, list));
         }
+
+        // asCollection() and asList() hand a list back as it is, so over doc values they decode nothing.
+        assertEquals(0L, allocatedBytes("def r = params.r; r.asCollection(); return 'x';", docValues));
+        assertEquals(0L, allocatedBytes("def r = params.r; r.asList(); return 'x';", docValues));
+        // The field is not a list, so there they copy, and the copy decodes every element.
+        Iterable<String> plain = () -> List.of("hello", "world!").iterator();
+        assertEquals(decode, AllocationEstimators.asListBytes(field) - AllocationEstimators.asListBytes(plain));
+        assertEquals(decode, AllocationEstimators.asCollectionBytes(field) - AllocationEstimators.asCollectionBytes(plain));
     }
 
     /** {@code getVector()} copies the vector out of the index. The stored float form hands out its decoded array instead. */
@@ -279,23 +285,30 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(copy, allocatedBytes("params.vec.getVector(); return 'x';", params));
         assertEquals(copy, allocatedBytes("DenseVector v = (DenseVector) params.vec; v.getVector(); return 'x';", params));
 
-        // The doc values read makes the same copy, sized from the field's dimensions.
-        DenseVectorScriptDocValues docValues = new DenseVectorScriptDocValues(new DenseVectorScriptDocValues.DenseVectorSupplier() {
+        // The doc values read makes the same copy of whatever vector the supplier holds, so the stored float form is free there too.
+        DenseVectorScriptDocValues docValues = denseVectorDocValues(new KnnDenseVector(vector));
+        assertEquals(copy, AllocationEstimators.denseVectorCopyBytes(docValues));
+        assertEquals(copy, allocatedBytes("params.dv.getVectorValue(); return 'x';", Map.of("dv", docValues)));
+        DenseVectorScriptDocValues stored = denseVectorDocValues(new BinaryDenseVector(vector, new BytesRef(), 3, IndexVersion.current()));
+        assertEquals(0L, AllocationEstimators.denseVectorCopyBytes(stored));
+        assertEquals(0L, allocatedBytes("params.dv.getVectorValue(); return 'x';", Map.of("dv", stored)));
+    }
+
+    private static DenseVectorScriptDocValues denseVectorDocValues(DenseVector vector) {
+        return new DenseVectorScriptDocValues(new DenseVectorScriptDocValues.DenseVectorSupplier() {
             @Override
             public void setNextDocId(int docId) {}
 
             @Override
             public DenseVector getInternal() {
-                return new KnnDenseVector(vector);
+                return vector;
             }
 
             @Override
             public int size() {
                 return 1;
             }
-        }, 3);
-        assertEquals(copy, AllocationEstimators.denseVectorCopyBytes(docValues));
-        assertEquals(copy, allocatedBytes("params.dv.getVectorValue(); return 'x';", Map.of("dv", docValues)));
+        }, vector.getDims());
     }
 
     /** {@code asDoubles()}: a list of boxed doubles, 40 + 40 + 3 * 24 = 152. */

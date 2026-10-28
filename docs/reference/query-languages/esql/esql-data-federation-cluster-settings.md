@@ -29,8 +29,12 @@ $$$esql-federation-enabled$$$
 `esql.federation.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables {{esql}} Data Federation, including the data source and dataset APIs, on the node. On {{ech}}, add this setting to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
 
-    - **Default:** `false`
+    - **Default:**
+      - {applies_to}`stack: preview 9.6+` `true`
+      - {applies_to}`stack: experimental =9.5` `false`
     - **Valid values:** `true`, `false`
+
+    Configure the same value on every node and restart each node after changing it. This setting can't be updated with the cluster settings API. The {{kib}} UI setting is separate and doesn't change this setting. Refer to [](esql-data-federation.md#enable-the-feature).
 
     {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 

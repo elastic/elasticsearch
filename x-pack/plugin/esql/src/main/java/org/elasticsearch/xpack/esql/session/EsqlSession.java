@@ -167,8 +167,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1044,7 +1046,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method

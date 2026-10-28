@@ -49,7 +49,7 @@ public class DriverTaskRunner {
         );
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, ComputeExecutor workerExecutor, ActionListener<Void> listener) {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor workerExecutor, ActionListener<Void> listener) {
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
@@ -74,9 +74,9 @@ public class DriverTaskRunner {
 
     private static class DriverRequest extends UntypedActionRequest implements CompositeIndicesRequest {
         private final Driver driver;
-        private final ComputeExecutor executor;
+        private final Executor executor;
 
-        DriverRequest(Driver driver, ComputeExecutor executor) {
+        DriverRequest(Driver driver, Executor executor) {
             this.driver = driver;
             this.executor = executor;
         }

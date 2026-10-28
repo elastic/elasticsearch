@@ -40,7 +40,7 @@ public class DriverSchedulerTests extends ESTestCase {
                     break;
                 }
             }
-            scheduler.scheduleOrRunTask(new ComputeExecutor(executor, threadPool.getThreadContext()), new AbstractRunnable() {
+            scheduler.scheduleOrRunTask(executor, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     counter.incrementAndGet();
@@ -50,7 +50,7 @@ public class DriverSchedulerTests extends ESTestCase {
                 protected void doRun() {
                     counter.incrementAndGet();
                 }
-            }, randomBoolean());
+            });
             scheduler.runPendingTasks();
             assertThat(counter.get(), equalTo(1));
         } finally {

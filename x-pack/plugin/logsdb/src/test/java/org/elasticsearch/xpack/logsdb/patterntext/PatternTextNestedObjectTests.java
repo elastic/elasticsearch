@@ -25,8 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.elasticsearch.xpack.logsdb.LogsDBLocalStateXPackPlugin;
 import org.junit.After;
 
 import java.util.Collection;
@@ -47,7 +46,7 @@ public class PatternTextNestedObjectTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MapperExtrasPlugin.class, XPackPlugin.class, LogsDBPlugin.class);
+        return List.of(MapperExtrasPlugin.class, LogsDBLocalStateXPackPlugin.class);
     }
 
     private static final String INDEX = "test_index";

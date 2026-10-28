@@ -13,6 +13,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -130,6 +131,14 @@ public class Verifier {
     }
 
     /**
+     * A copy of this verifier that runs every check but records no feature or function telemetry. Diagnostic analyses —
+     * such as the analyze-only pass that validates a view definition — must not count the plans they walk as feature usage.
+     */
+    public Verifier withoutMetrics() {
+        return new Verifier(null, licenseState, extraCheckers);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -203,7 +212,7 @@ public class Verifier {
         }
 
         // gather metrics
-        if (failures.hasFailures() == false) {
+        if (metrics != null && failures.hasFailures() == false) {
             gatherMetrics(plan, partialMetrics);
         }
 
@@ -250,8 +259,8 @@ public class Verifier {
         for (LogicalPlan child : plan.children()) {
             countFillNullFields(child, failures, maxFields, total, overflowing);
         }
-        if (plan instanceof FillNull fillNull && fillNull.fields() != null) {
-            total.set(total.get() + fillNull.fields().size());
+        if (plan instanceof FillNull fillNull) {
+            total.set(total.get() + fillNull.fillAliases().size());
             if (total.get() > maxFields) {
                 overflowing.setIfAbsent(fillNull);
             }
@@ -713,21 +722,23 @@ public class Verifier {
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
             if (supportedInLoadAllMode(p) == false) {
-                failures.add(
-                    fail(
-                        p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-                            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
-                            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
-                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof BranchPlan ? "BranchPlan"
-                            : p instanceof NamedSubquery ? "NamedSubquery"
-                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
-                            : p.nodeName()
-                    )
-                );
+                String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                    : p instanceof BranchPlan ? "BranchPlan"
+                    : p instanceof NamedSubquery ? "NamedSubquery"
+                    : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                    : p.nodeName();
+                failures.add(fail(p, loadAllUnsupportedCommandMessage(command)));
             }
         });
+    }
+
+    static String loadAllUnsupportedCommandMessage(String command) {
+        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+            + command
+            + "] is not supported yet";
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
@@ -737,6 +748,7 @@ public class Verifier {
             || plan instanceof Drop
             || plan instanceof Rename
             || plan instanceof Eval
+            || plan instanceof FillNull
             || plan instanceof Grok
             || plan instanceof Dissect
             || plan instanceof MvExpand

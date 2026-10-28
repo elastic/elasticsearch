@@ -161,8 +161,16 @@ setup:
   - contains: { hits.hits: { _id: "3" } }
   - contains: { hits.hits: { _id: "4" } }
 ---
-"ASH KNN search with _all":
+"ASH KNN search with _all is rejected":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_requires_slice_selection ]
+      test_runner_features: [ capabilities ]
+      reason: "knn search requires the slices to be selected by name on a slice-enabled index"
   - do:
+      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
       search:
         index: ash_disk_slice
         _slice: _all
@@ -180,15 +188,17 @@ setup:
             k: 4
             num_candidates: 10
 
-  - match: { hits.total.value: 4 }
-  - length: { hits.hits: 4 }
-  - contains: { hits.hits: { _id: "1" } }
-  - contains: { hits.hits: { _id: "2" } }
-  - contains: { hits.hits: { _id: "3" } }
-  - contains: { hits.hits: { _id: "4" } }
 ---
-"ASH KNN search without slice defaults to _all on slice-enabled index":
+"ASH KNN search without slice is rejected on slice-enabled index":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_requires_slice_selection ]
+      test_runner_features: [ capabilities ]
+      reason: "knn search requires the slices to be selected by name on a slice-enabled index"
   - do:
+      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
       search:
         index: ash_disk_slice
         body:
@@ -204,6 +214,3 @@ setup:
                            -0.7, 1.3, 0.2, -0.2, -0.1, -0.3, -0.1, -0.2]
             k: 4
             num_candidates: 10
-
-  - match: { hits.total.value: 4 }
-  - length: { hits.hits: 4 }

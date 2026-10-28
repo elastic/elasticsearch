@@ -46,7 +46,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -646,7 +645,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
      * columns around it are written in.
      */
     public void testVectorDbColumnarIdDocValuesFormat() throws IOException {
-        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion()
@@ -662,11 +660,10 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     /**
      * A vectordb index reads its keyword and text columns a few documents at a time, so their chunks are cut at
-     * one block of values rather than the thousands a scanned column is written in. Each field keeps its own
+     * one block of values and 32KB rather than the thousands a scanned column is written in. Each field keeps its own
      * policies: text still has no dictionary, keyword still has one.
      */
     public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
-        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion()
@@ -674,7 +671,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         for (String field : List.of("category", "body")) {
             assertThat(field, supplier.getDocValuesFormatForField(field), instanceOf(ColumNARDocValuesFormat.class));
             final StringColumnOptions.Sizes sizes = supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING).sizes();
-            assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(128 * 1024, 128)));
+            assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
             assertThat(field, sizes.escapeChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
             assertThat(field, sizes.compressedOrdinalBlockSize(), equalTo(512));
             assertThat(field, sizes.valuesPerBlock(), equalTo(StringColumnOptions.DEFAULT_VALUES_PER_BLOCK));
@@ -685,14 +682,11 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
         );
         final StringColumnOptions.Sizes payload = supplier.resolveStringColumnOptions("payload", ColumnarFieldType.STRING).sizes();
-        assertThat("a payload column keeps its smaller chunks", payload.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+        assertThat("a payload column is never given larger chunks", payload.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
     }
 
     public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
-        final List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.add(IndexMode.VECTORDB_COLUMNAR);
-        }
+        final List<IndexMode> modes = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
         final String mapping = """
             {
                 "properties": {

@@ -946,6 +946,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return false;
     }
 
+    /**
+     * Must match the {@code dense_vector} mapper's default: strict columnar modes leave it unindexed unless they're search optimized.
+     */
+    private static boolean denseVectorIndexedByDefault(IndexMode mode) {
+        return mode.isStrictColumnar() == false || mode.isSearchOptimizedColumnar();
+    }
+
     private static String fieldName(DataType type) {
         return type == DataType.DATETIME ? "@timestamp" : "f_" + type.esType();
     }
@@ -963,6 +970,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 config.field("type", type.esType());
                 if (indexMode.isTsdb()) {
                     config.field("time_series_dimension", true);
+                }
+            }
+            case DENSE_VECTOR -> {
+                config.field("type", type.esType());
+                if (denseVectorIndexedByDefault(indexMode)) {
+                    // On stateless nodes the default index type is bbq_disk, and snapshot builds store it in an ESNext format with
+                    // no on-disk compatibility across builds, so in a mixed cluster one version can't open segments the other wrote.
+                    // int8_hnsw is the stateful default for these dims.
+                    config.startObject("index_options").field("type", "int8_hnsw").endObject();
                 }
             }
             default -> config.field("type", type.esType());
@@ -1637,7 +1653,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : matchesList().item("column_at_a_time:");
             // vectordb_columnar keeps dense_vector indexed, so it loads from the normalized vector values like non-columnar
             // modes; the other strict-columnar modes store the vector as binary doc values.
-            case DENSE_VECTOR -> indexMode.isStrictColumnar() && indexMode.isSearchOptimizedColumnar() == false
+            case DENSE_VECTOR -> denseVectorIndexedByDefault(indexMode) == false
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false

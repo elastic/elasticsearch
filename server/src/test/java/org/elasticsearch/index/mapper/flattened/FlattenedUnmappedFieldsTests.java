@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -460,5 +463,43 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("does not support [flattened]"));
+    }
+
+    /**
+     * An absorbed field is loaded from the sink's doc values, as a key of a mapped flattened field is, unless it is below a nested object:
+     * its values are then in the documents of the object's elements, not in the root document that ES|QL reads, so it is read from
+     * {@code _source}.
+     */
+    public void testSinkFieldBlockLoader() throws IOException {
+        MapperService mapperService = columnarService(b -> b.startObject("n").field("type", "nested").endObject());
+        var unmappedFields = createSearchExecutionContext(mapperService).unmappedFields();
+        assertThat(
+            unmappedFields.blockLoader(randomFrom("absorbed", "obj.absorbed")),
+            instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
+        );
+        assertThat(unmappedFields.blockLoader("n.u"), hasToString("UnmappedFields.Named[n.u]"));
+    }
+
+    /**
+     * A columnar_stored root is written from the {@code _source} precomputed at index time, which holds the absorbed fields, so it doesn't
+     * load the sink: with no mapped field, nothing reads doc values. The absorbed fields still come back from the precomputed
+     * {@code _source}.
+     */
+    public void testColumnarStoredRootSkipsSink() throws IOException {
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "columnar_stored")
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        String bare = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("bare", bare)));
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            LeafReader leaf = getOnlyLeafReader(reader);
+            assertNull(mapperService.mappingLookup().getMapping().syntheticFieldLoader(null, true).docValuesLoader(leaf, null));
+            assertEquals(
+                "{\"bare\":\"" + bare + "\"}",
+                syntheticSource(mapperService.documentMapper(), new SourceFilter(new String[] { "bare" }, null), reader, 0)
+            );
+        });
     }
 }

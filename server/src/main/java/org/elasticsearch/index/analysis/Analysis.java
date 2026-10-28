@@ -51,6 +51,7 @@ import org.apache.lucene.analysis.util.CSVUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
@@ -65,6 +66,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -183,6 +185,37 @@ public class Analysis {
      */
     public static StableCharArraySet stableStopWords(Settings settings, CharArraySet stopWords) {
         return new StableCharArraySet(stopWords, settings.getAsBoolean("stopwords_case", false));
+    }
+
+    /**
+     * A SHA-256 of {@code text}, as hex, to stand in for large text in a {@code sharingKey()}. Hashes UTF-16 code units, not an
+     * encoding, so unpaired surrogates stay distinct.
+     */
+    public static String sha256Hex(CharSequence text) {
+        MessageDigest digest = MessageDigests.sha256();
+        byte[] buf = new byte[8192];
+        int n = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            buf[n++] = (byte) (c >>> 8);
+            buf[n++] = (byte) c;
+            if (n == buf.length) {
+                digest.update(buf, 0, n);
+                n = 0;
+            }
+        }
+        digest.update(buf, 0, n);
+        return MessageDigests.toHexString(digest.digest());
+    }
+
+    /**
+     * A parsed user dictionary with a SHA-256 of its rules. Dictionaries have no value equality and their rules can be large, so the
+     * hash stands in for them in sharing keys. Both are null when there are no rules.
+     */
+    public record LoadedUserDictionary<T>(T dictionary, String rulesSha256) {
+        public static <T> LoadedUserDictionary<T> none() {
+            return new LoadedUserDictionary<>(null, null);
+        }
     }
 
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {

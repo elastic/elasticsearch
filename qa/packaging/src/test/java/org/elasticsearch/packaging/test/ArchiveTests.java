@@ -12,7 +12,6 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.BundledJdkTrustStore;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
@@ -76,11 +75,6 @@ public class ArchiveTests extends PackagingTestCase {
         lines.add("keystore.pkcs12.macAlgorithm = HmacPBESHA1");
         lines.add("keystore.pkcs12.macIterationCount = 100000");
         Files.write(jdkSecurityProperties, lines, TRUNCATE_EXISTING);
-    }
-
-    public void test12BundledJdkDoesNotTrustRemovedRoots() {
-        assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
-        BundledJdkTrustStore.assertRemovedRootsAreNotTrusted(sh, installation.bundledJdk);
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {

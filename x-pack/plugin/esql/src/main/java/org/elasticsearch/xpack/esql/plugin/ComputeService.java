@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -217,6 +218,7 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
@@ -228,6 +230,7 @@ public class ComputeService {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
+        ComputeExecutor computeExecutor,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
@@ -240,6 +243,7 @@ public class ComputeService {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
@@ -1958,7 +1962,6 @@ public class ComputeService {
 
         try {
             var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
@@ -1986,7 +1989,7 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
-                parallelWorkerExecutor,
+                computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion()
@@ -2125,19 +2128,14 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                ActionListener.releaseAfter(driverListener, () -> {
-                    if (hookExecInfo != null) {
-                        for (BooleanSupplier hook : registeredStopHooks) {
-                            hookExecInfo.removeStopHook(hook);
-                        }
+            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
+                if (hookExecInfo != null) {
+                    for (BooleanSupplier hook : registeredStopHooks) {
+                        hookExecInfo.removeStopHook(hook);
                     }
-                    Releasables.close(drivers);
-                })
-            );
+                }
+                Releasables.close(drivers);
+            }));
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());

@@ -1,0 +1,143 @@
+---
+# [n.x] is a plain keyword in [obj], and a sub-field of a nested [n] in [nin] (include_in_root) and [nnp].
+# Field caps and field extraction treat it as missing in [nin] and [nnp], so pushed-down predicates must not
+# match there, even though include_in_root copies [n.x] into the root document of [nin].
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ fix_nested_subfield_pushdown ]
+      reason: "Predicates on a dotted field must treat a nested sub-field with the same name as missing"
+  - do:
+      indices.create:
+        index: obj
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              n:
+                properties:
+                  x:
+                    type: keyword
+  - do:
+      indices.create:
+        index: nin
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              n:
+                type: nested
+                include_in_root: true
+                properties:
+                  x:
+                    type: keyword
+  - do:
+      indices.create:
+        index: nnp
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              n:
+                type: nested
+                properties:
+                  x:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "obj" } }
+          - { "n": { "x": "alpha" } }
+          - { "index": { "_index": "nin" } }
+          - { "n": [ { "x": "alpha" } ] }
+          - { "index": { "_index": "nnp" } }
+          - { "n": [ { "x": "alpha" } ] }
+
+---
+'no filter':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "nin", null ], [ "nnp", null ], [ "obj", "alpha" ] ] }
+
+---
+'equals':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x == "alpha" | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "obj", "alpha" ] ] }
+
+---
+'not equals':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x != "zzz" | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "obj", "alpha" ] ] }
+
+---
+'like':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x LIKE "*lph*" | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "obj", "alpha" ] ] }
+
+---
+'in':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x IN ("alpha", "beta") | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "obj", "alpha" ] ] }
+
+---
+'range':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x >= "a" | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "obj", "alpha" ] ] }
+
+---
+'is not null':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x IS NOT NULL | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "obj", "alpha" ] ] }
+
+---
+'is null':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp METADATA _index | WHERE n.x IS NULL | KEEP _index, n.x | SORT _index | LIMIT 10'
+  - match: { values: [ [ "nin", null ], [ "nnp", null ] ] }
+
+---
+'count':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM obj,nin,nnp | STATS c = COUNT(n.x) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }

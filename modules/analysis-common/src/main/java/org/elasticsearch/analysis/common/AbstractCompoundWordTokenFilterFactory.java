@@ -28,6 +28,8 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
     protected final int maxSubwordSize;
     protected final boolean onlyLongestMatch;
     protected final CharArraySet wordList;
+    /** {@link #wordList} for subclasses to fold into their sharing key, along with its {@code word_list_case} mode. */
+    protected final Analysis.StableCharArraySet wordListKey;
     // TODO expose this parameter?
     protected final boolean reuseChars;
 
@@ -44,6 +46,7 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         if (wordList == null) {
             throw new IllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
         }
+        wordListKey = new Analysis.StableCharArraySet(wordList, settings.getAsBoolean("word_list_case", false));
     }
 
     @Override

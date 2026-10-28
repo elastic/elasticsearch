@@ -35,6 +35,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     public static final String TYPE = "restore";
 
+    private static final TransportVersion RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING = TransportVersion.fromName(
+        "restore_in_progress_report_shard_restoring"
+    );
+
     public static final RestoreInProgress EMPTY = new RestoreInProgress(Map.of());
 
     private final Map<String, Entry> entries;
@@ -152,8 +156,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @param shards               map of shards being restored to their current restore status
          * @param reportShardRestoring {@code true} if requests that hit a shard of this restore should fail with a
          *                             {@code ShardRestoringException} rather than the generic shard-unavailable errors. Chosen explicitly
-         *                             by the caller that starts the restore. It is not part of the wire format yet, so it is only
-         *                             visible on the node that created the entry.
+         *                             by the caller that starts the restore. Nodes that do not support it read it as {@code false}.
          */
         public Entry(
             String uuid,
@@ -314,11 +317,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             boolean quiet;
             quiet = in.readBoolean();
             List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
-            // reportShardRestoring is not part of the wire format yet, so an entry read from the wire never reports shard restoring
-            entriesBuilder.put(
-                uuid,
-                new Entry(uuid, snapshot, state, quiet, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom))
-            );
+            final Map<ShardId, ShardRestoreStatus> shards = in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom);
+            // nodes that do not know about the flag never send it, which is the same as the restore not reporting shard restoring
+            final boolean reportShardRestoring = in.getTransportVersion().supports(RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING)
+                && in.readBoolean();
+            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, quiet, indices, shards, reportShardRestoring));
         }
         this.entries = Collections.unmodifiableMap(entriesBuilder);
     }
@@ -332,6 +335,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeBoolean(entry.quiet());
             o.writeStringCollection(entry.indices);
             o.writeMap(entry.shards);
+            if (o.getTransportVersion().supports(RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING)) {
+                o.writeBoolean(entry.reportShardRestoring());
+            }
         });
     }
 

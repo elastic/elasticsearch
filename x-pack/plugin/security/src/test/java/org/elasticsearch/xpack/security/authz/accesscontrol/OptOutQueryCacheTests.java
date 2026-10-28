@@ -47,7 +47,6 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.lucene.queries.MinDocQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -345,16 +344,9 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 false
             );
             // DenseVectorQuery and VectorSimilarityQuery don't report their field yet, so they are never cacheable
-            case DENSE_VECTOR -> new RandomQuery(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), false);
+            case DENSE_VECTOR -> new RandomQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field), false);
             case VECTOR_SIMILARITY -> new RandomQuery(
-                new VectorSimilarityQuery(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), 0.5f, 1f),
-                false
-            );
-            case FILTERED_DENSE_VECTOR -> new RandomQuery(
-                new FilteredDenseVectorQuery(
-                    DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field),
-                    new TermQuery(new Term(randomFrom(randomBoolean() ? allowedFields : disallowedFields), "x"))
-                ),
+                new VectorSimilarityQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field), 0.5f, 1f),
                 false
             );
             case COVERING -> {
@@ -429,7 +421,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         ES_TO_PARENT_BLOCK_JOIN(true),
         DENSE_VECTOR(false),
         VECTOR_SIMILARITY(false),
-        FILTERED_DENSE_VECTOR(false),
         COVERING(true);
 
         private final boolean wraps;

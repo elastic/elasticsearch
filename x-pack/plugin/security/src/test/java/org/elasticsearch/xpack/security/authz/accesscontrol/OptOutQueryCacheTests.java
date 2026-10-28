@@ -47,10 +47,8 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.lucene.queries.MinDocQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -226,10 +224,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 unfilteredReader = writer.getReader();
             }
 
-            try (
-                DirectoryReader flsReader = permissions.getFieldPermissions()
-                    .filter(unfilteredReader, IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), field -> true)
-            ) {
+            try (DirectoryReader flsReader = permissions.getFieldPermissions().filter(unfilteredReader, field -> true)) {
                 IndexSearcher flsSearcher = newSearcher(flsReader);
                 for (int i = 0; i < 100; i++) {
                     // production rewrites before the query cache is consulted
@@ -318,8 +313,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
             case WILDCARD -> new RandomQuery(new WildcardQuery(new Term(field, "a*b")), cacheable);
             case REGEXP -> new RandomQuery(new RegexpQuery(new Term(field, "a.*b")), cacheable);
             case TERM_IN_SET -> new RandomQuery(new TermInSetQuery(field, List.of(new BytesRef("a"), new BytesRef("b"))), cacheable);
-            case MATCH_ALL -> new RandomQuery(MatchAllDocsQuery.INSTANCE, true);
-            case MATCH_NONE -> new RandomQuery(MatchNoDocsQuery.INSTANCE, true);
+            case MATCH_ALL -> new RandomQuery(new MatchAllDocsQuery(), true);
+            case MATCH_NONE -> new RandomQuery(new MatchNoDocsQuery(), true);
             case MIN_DOC -> new RandomQuery(new MinDocQuery(randomNonNegativeInt()), false); // MinDocQuery doesn't report a field
             case TO_PARENT_BLOCK_JOIN -> new RandomQuery(
                 // Lucene's block join queries don't visit the query they wrap
@@ -345,16 +340,9 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 false
             );
             // DenseVectorQuery and VectorSimilarityQuery don't report their field yet, so they are never cacheable
-            case DENSE_VECTOR -> new RandomQuery(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), false);
+            case DENSE_VECTOR -> new RandomQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field), false);
             case VECTOR_SIMILARITY -> new RandomQuery(
-                new VectorSimilarityQuery(DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field), 0.5f, 1f),
-                false
-            );
-            case FILTERED_DENSE_VECTOR -> new RandomQuery(
-                new FilteredDenseVectorQuery(
-                    DenseVectorQuery.Floats.codecScored(new float[] { 1f }, field),
-                    new TermQuery(new Term(randomFrom(randomBoolean() ? allowedFields : disallowedFields), "x"))
-                ),
+                new VectorSimilarityQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field), 0.5f, 1f),
                 false
             );
             case COVERING -> {
@@ -403,7 +391,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
             case 0 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST).build();
             case 1 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD).build();
             case 2 -> new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER).build();
-            case 3 -> new BooleanQuery.Builder().add(MatchAllDocsQuery.INSTANCE, BooleanClause.Occur.MUST)
+            case 3 -> new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
                 .add(query, BooleanClause.Occur.MUST_NOT)
                 .build();
             case 4 -> new DisjunctionMaxQuery(List.of(query), randomFloat());
@@ -429,7 +417,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         ES_TO_PARENT_BLOCK_JOIN(true),
         DENSE_VECTOR(false),
         VECTOR_SIMILARITY(false),
-        FILTERED_DENSE_VECTOR(false),
         COVERING(true);
 
         private final boolean wraps;

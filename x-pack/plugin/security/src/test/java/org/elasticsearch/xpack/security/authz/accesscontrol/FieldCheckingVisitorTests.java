@@ -91,8 +91,8 @@ public class FieldCheckingVisitorTests extends ESTestCase {
     public void testVisitLeaf() {
         FieldCheckingVisitor visitor = new FieldCheckingVisitor(PERMISSIONS);
 
-        visitor.visitLeaf(MatchAllDocsQuery.INSTANCE);
-        visitor.visitLeaf(MatchNoDocsQuery.INSTANCE);
+        visitor.visitLeaf(new MatchAllDocsQuery());
+        visitor.visitLeaf(new MatchNoDocsQuery());
         assertTrue(visitor.isCacheable());
 
         // visitLeaf checks both that the query reports a field and that the field is cacheable

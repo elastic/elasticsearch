@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.NonDeterministic;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -44,6 +45,10 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryName
  *     ... | INLINE STATS first_seen = MIN(@timestamp) BY host | WHERE @timestamp == first_seen AND first_seen &gt;= "2026-01-01"
  * </pre>
  * Only conjuncts that are false or null on a null aggregate value are copied: a left row whose group was dropped joins with nulls.
+ * <p>
+ * The copy evaluates the condition, including the aliases it references on the right-hand side, a second time. Nothing is copied
+ * when that condition contains a {@link NonDeterministic} expression: the two evaluations could disagree, and dropping a group
+ * would then also drop rows that the filter above the join keeps.
  * <p>
  * A row with a multi-valued key joins every group of its key values, and gets one aggregate value per group. Dropping one of those
  * groups changes the row's values, so groups that contain such a row are always kept. A group contains one exactly when
@@ -102,16 +107,17 @@ public final class PushDownFilterIntoInlineJoinAggregate extends OptimizerRules.
         Aggregate aggregate = (Aggregate) plan;
         if (aggregate.getClass() != Aggregate.class
             || readsEveryRow(aggregate.child()) == false
-            || condition.references().subsetOf(aggregate.outputSet()) == false) {
+            || condition.references().subsetOf(aggregate.outputSet()) == false
+            || condition.anyMatch(NonDeterministic.class::isInstance)) {
             return null;
         }
 
         Source source = aggregate.source();
-        Count countRows = new Count(source, Literal.keyword(source, StringUtils.WILDCARD));
-        Alias countAll = findAggregate(aggregate, countRows);
+        Count countStar = new Count(source, Literal.keyword(source, StringUtils.WILDCARD));
+        Alias countAll = findAggregate(aggregate, countStar);
         List<NamedExpression> aggregates = new ArrayList<>();
         if (countAll == null) {
-            countAll = new Alias(source, locallyUniqueTemporaryName("count"), countRows);
+            countAll = new Alias(source, locallyUniqueTemporaryName("count"), countStar);
             aggregates.add(countAll);
         }
         List<Expression> keepGroup = new ArrayList<>();

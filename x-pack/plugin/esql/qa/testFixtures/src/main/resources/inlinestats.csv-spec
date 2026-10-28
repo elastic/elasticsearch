@@ -5279,6 +5279,152 @@ emp_no:integer | salary:integer | max_salary:integer
 10007          |74572           |74999
 ;
 
+aggFilter_NoGroupMatches_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:integer
+;
+
+aggFilter_NoGroupMatches_ThenStats_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| STATS n = COUNT(*)
+;
+
+n:long
+0
+;
+
+aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: join_lookup_v12
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+;
+
+aggFilter_ThenLookupJoin_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: join_lookup_v12
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 70000
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS n = COUNT(*) BY language_name
+| SORT language_name
+;
+
+n:long | language_name:keyword
+15     |English
+19     |French
+18     |German
+17     |Spanish
+10     |null
+;
+
+aggFilter_WithCountStar_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*), m = MAX(salary) BY languages
+| WHERE m > 70000
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_WithCountStarAndKeyCount_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*), k = COUNT(languages), m = MAX(salary) BY languages
+| WHERE m > 70000
+| KEEP emp_no, m
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_OnInnerOfTwoInlineJoins
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| INLINE STATS g = MIN(salary) BY gender
+| WHERE m > 70000
+| DROP g
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_OnOuterOfTwoInlineJoins
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS g = MIN(salary) BY gender
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 70000
+| DROP g
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_InForkBranches_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: fork_v9
+
+FROM employees
+| INLINE STATS m = MAX(salary), c = COUNT(*) BY languages
+| FORK (WHERE m > 74000 | KEEP emp_no, languages)
+       (WHERE c > 20 | KEEP emp_no, languages)
+| STATS n = COUNT(*) BY _fork, languages
+| SORT _fork, languages
+;
+
+n:long | _fork:keyword | languages:integer
+17     |fork1          |3
+18     |fork1          |4
+10     |fork1          |null
+21     |fork2          |5
+;
+
 doubleInlineStatsPrunning_With_MV_Functions
 required_capability: fix_inline_stats_incorrect_prunning
 

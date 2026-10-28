@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -2587,6 +2588,37 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertThat(ij.config().leftFields(), is(emptyList()));
         var aggregate = as(ij.right(), Aggregate.class);
         as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * {@link Random} is internal and cannot be written in a query, so the filters above the {@link InlineJoin} are built by hand.
+     */
+    public void testDontPushDown_RandomAggFilter_IntoInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS max_salary = MAX(salary) BY languages
+            | KEEP emp_no, languages, max_salary
+            """);
+        var ij = as(as(as(plan, Project.class).child(), Limit.class).child(), InlineJoin.class);
+        var aggregate = as(ij.right(), Aggregate.class);
+        var maxSalary = aggregate.output().getFirst();
+        assertEquals("max_salary", maxSalary.name());
+        var rule = new PushDownFilterIntoInlineJoinAggregate();
+        var random = new Random(EMPTY, Literal.integer(EMPTY, 100000));
+
+        var deterministic = new Filter(EMPTY, ij, new GreaterThan(EMPTY, maxSalary, Literal.integer(EMPTY, 70000)));
+        assertNotEquals(deterministic, rule.apply(deterministic, optimizerContext));
+
+        var randomInCondition = new Filter(EMPTY, ij, new GreaterThan(EMPTY, maxSalary, random));
+        assertEquals(randomInCondition, rule.apply(randomInCondition, optimizerContext));
+
+        var randomAlias = new Alias(EMPTY, "r", random);
+        var randomInAlias = new Filter(
+            EMPTY,
+            ij.replaceRight(new Eval(EMPTY, aggregate, List.of(randomAlias))),
+            new GreaterThan(EMPTY, maxSalary, randomAlias.toAttribute())
+        );
+        assertEquals(randomInAlias, rule.apply(randomInAlias, optimizerContext));
     }
 
     public void testPushDownFilterPastUriParts() {

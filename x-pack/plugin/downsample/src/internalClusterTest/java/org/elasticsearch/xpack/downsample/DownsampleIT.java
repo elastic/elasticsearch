@@ -611,13 +611,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         RangeQueryBuilder timeRange = new RangeQueryBuilder("@timestamp").gte(now.minusSeconds(60 * 60).toEpochMilli())
             .lte(now.plusSeconds(60 * 60 * 2).toEpochMilli());
         for (String target : List.of(dataStreamName, rawIndex, downsampledIndex)) {
-            // documents_found counts what the Lucene source emitted: with the null filter pushed down as exists, that is only the
-            // documents carrying the metric; otherwise every document in range, including the host3 series without it.
             long allDocs = countDocs(target, timeRange);
             long docsWithMetric = countDocs(target, boolQuery().filter(timeRange).filter(existsQuery("auth_helper_build_info")));
             assertThat(target, docsWithMetric, greaterThan(0L));
             assertThat(target, docsWithMetric, lessThan(allDocs));
-
             EsqlQueryRequest request = new EsqlQueryRequest().query(
                 "TS " + target + " | STATS AVG(AVG_OVER_TIME(`auth_helper_build_info`)) BY TBUCKET(100)"
             );

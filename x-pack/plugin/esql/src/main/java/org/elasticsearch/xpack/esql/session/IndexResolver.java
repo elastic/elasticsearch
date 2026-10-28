@@ -792,12 +792,6 @@ public class IndexResolver {
         return new UnsupportedEsField(name, List.of(originalType));
     }
 
-    /**
-     * Builds the conflict field for a name mapped with different types across indices. The time series role merged over those
-     * indices is kept: a metric that is {@code double} in raw indices and {@code aggregate_metric_double} in downsampled ones is
-     * still a metric, and the union-typed attribute the analyzer builds over it relies on that to get the same null filtering as
-     * a plainly mapped metric.
-     */
     private static EsField conflictingTypes(
         String name,
         String fullName,

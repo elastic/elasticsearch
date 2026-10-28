@@ -170,11 +170,6 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         as(eval.child(), EsRelation.class);
     }
 
-    /**
-     * A metric mapped as {@code double} in raw indices and {@code aggregate_metric_double} in downsampled ones is implicitly cast
-     * through union-typed attributes. Those keep the metric role of the conflicting field, so the null filter is still added, on the
-     * union-typed attributes, all naming the mapped field.
-     */
     public void testFilterMixedAggregateMetricDoubleAndDoubleMetric() {
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
         Map<String, EsField> mapping = Map.of(
@@ -212,10 +207,6 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         }
     }
 
-    /**
-     * The implicit {@code aggregate_metric_double} cast is extracted into an {@code EVAL} below the aggregation; the filter is still
-     * added, on the metric field behind it.
-     */
     public void testFilterAggregateMetricDoubleMetric() {
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
         LogicalPlan actual = ts().localPlan("""

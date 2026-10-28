@@ -138,34 +138,30 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (field() instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
-            // Values are converted on load; only the null-in/null-out metric cast makes exists on the mapped field sufficient. Where
-            // the field isn't mapped, exists matches nothing, which is what IS NOT NULL on an all-null column does too.
-            return union.getUnmappedConversionExpression() == null && isNullPreservingMetricCast(union)
+            // The implicit aggregate_metric_double conversions preserve missing fields as null, so IS NOT NULL can use exists.
+            return union.getUnmappedConversionExpression() == null && aggregateMetricDoubleImplicitCast(union)
                 ? Translatable.YES
                 : Translatable.NO;
         }
         return IsNull.isTranslatable(field(), pushdownPredicates);
     }
 
-    /**
-     * Whether every converter is one the analyzer installs for the implicit {@code aggregate_metric_double}/numeric metric cast.
-     */
-    private static boolean isNullPreservingMetricCast(UnionTypeEsField union) {
-        return union.getConversionExpressions().stream().allMatch(e -> switch (e) {
-            case FromAggregateMetricDouble ignored -> true;
-            case ToDouble toDouble -> toDouble.field().dataType().isNumeric();
-            case MvCount mvCount -> mvCount.field().dataType().isNumeric();
-            default -> false;
-        });
+    private static boolean aggregateMetricDoubleImplicitCast(UnionTypeEsField union) {
+        for (Expression e : union.getConversionExpressions()) {
+            if (e instanceof FromAggregateMetricDouble == false && e instanceof ToDouble == false && e instanceof MvCount == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        // Union-typed attributes have synthetic names; query the mapped field.
-        String name = field() instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField
-            ? fa.fieldName().string()
-            : handler.nameOf(field());
-        return new ExistsQuery(source(), name);
+        Expression field = field();
+        if (field instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+            return new ExistsQuery(source(), fa.fieldName().string());
+        }
+        return new ExistsQuery(source(), handler.nameOf(field()));
     }
 
     record IsNotNullEvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {

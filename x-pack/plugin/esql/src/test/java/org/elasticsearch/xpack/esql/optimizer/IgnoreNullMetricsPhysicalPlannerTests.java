@@ -105,10 +105,6 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         assertThat(queryExec.query().toString(), is(expected.toString()));
     }
 
-    /**
-     * A metric mapped as {@code double} in raw indices and {@code aggregate_metric_double} in downsampled ones is read through
-     * union-typed attributes. Their converters are null-in/null-out, so the null filter is pushed as {@code exists} on the mapped field.
-     */
     public void testPushdownOfMixedAggregateMetricDoubleAndDoubleMetric() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
@@ -119,17 +115,11 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
             """;
         PhysicalPlan actualPlan = mixedDownsampledPlanner().plan(query);
         EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
-
-        // avg_over_time is split into sum_over_time and count_over_time, each reading its own union-typed attribute over the field
         QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.rx"))).should(unscore(existsQuery("network.eth0.rx")));
         assertThat(queryExec.query().toString(), is(expected.toString()));
         assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
     }
 
-    /**
-     * The implicit {@code aggregate_metric_double} cast is extracted into an {@code EVAL} below the aggregation. The null filter
-     * on the metric field behind it is pushed as {@code exists}.
-     */
     public void testPushdownOfAggregateMetricDoubleMetric() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
@@ -151,10 +141,6 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
     }
 
-    /**
-     * Planner over {@code k8s,k8s-downsampled}, where {@code network.eth0.rx} is a gauge mapped as {@code double} in {@code k8s} and
-     * as {@code aggregate_metric_double} in {@code k8s-downsampled}, the way {@code IndexResolver} reports such a conflict.
-     */
     private TestPlannerOptimizer mixedDownsampledPlanner() {
         Map<String, EsField> mapping = Map.of(
             "@timestamp",

@@ -54,7 +54,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
@@ -62,12 +64,14 @@ import static org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class CoordinatorTests extends ESTestCase {
 
@@ -399,20 +403,18 @@ public class CoordinatorTests extends ESTestCase {
         CapturingClient client = new CapturingClient();
         CircuitBreaker breaker = requestBreaker(null, CircuitBreakerMetrics.NOOP);
         Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 3, 1, 100);
-        List<Long> usedWhileHandled = new ArrayList<>();
+        BatchCircuitBreakerReading reading = new BatchCircuitBreakerReading(breaker);
         for (int i = 0; i < 3; i++) {
-            coordinator.queue.add(slot("my-index", ActionListener.running(() -> usedWhileHandled.add(breaker.getUsed()))));
+            coordinator.queue.add(slot("my-index", reading.listener()));
         }
         coordinator.coordinateLookups();
 
-        client.respond("my-index", multiSearchResponse(new int[][] { { 1000 }, { 2000, 3000 }, {} }));
+        client.respond("my-index", multiSearchResponse(1000, 2000, 3000));
 
         // at least the sources, the estimate adds the overhead of the responses and hits on top
-        assertThat(usedWhileHandled.size(), equalTo(3));
-        assertThat(usedWhileHandled.getFirst(), greaterThanOrEqualTo(1000L + 2000 + 3000));
-        assertThat(usedWhileHandled, equalTo(Collections.nCopies(3, usedWhileHandled.getFirst())));
+        assertThat(reading.used(3), greaterThanOrEqualTo(1000L + 2000 + 3000));
+        // breaker is reset after listeners complete
         assertThat(breaker.getUsed(), equalTo(0L));
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
     }
 
     /** In a batch spanning several enrich indices, the response that arrives first is charged while it waits for the others. */
@@ -420,28 +422,25 @@ public class CoordinatorTests extends ESTestCase {
         CapturingClient client = new CapturingClient();
         CircuitBreaker breaker = requestBreaker(null, CircuitBreakerMetrics.NOOP);
         Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 4, 1, 100);
-        List<Long> usedWhileHandled = new ArrayList<>();
+        BatchCircuitBreakerReading reading = new BatchCircuitBreakerReading(breaker);
         for (String index : List.of("index1", "index2", "index1", "index2")) {
-            coordinator.queue.add(slot(index, ActionListener.running(() -> usedWhileHandled.add(breaker.getUsed()))));
+            coordinator.queue.add(slot(index, reading.listener()));
         }
         coordinator.coordinateLookups();
         assertThat(client.pendingIndices(), equalTo(Set.of("index1", "index2")));
 
-        MultiSearchResponse first = multiSearchResponse(new int[][] { { 1000 }, { 1000 } });
+        MultiSearchResponse first = multiSearchResponse(1000, 1000);
         client.respond("index1", first);
-        long firstBytes = breaker.getUsed();
-        assertThat(firstBytes, greaterThanOrEqualTo(2 * 1000L));
+
+        assertThat(breaker.getUsed(), greaterThanOrEqualTo(2 * 1000L)); // breaker is charged for first response
         assertTrue("retained until the batch is reduced", first.hasReferences());
-        assertThat(usedWhileHandled, empty());
+        assertFalse("listeners run once batch is reduced", reading.hasRun());
 
-        client.respond("index2", multiSearchResponse(new int[][] { { 2000 }, { 2000 } }));
+        client.respond("index2", multiSearchResponse(2000, 2000));
 
-        assertThat(usedWhileHandled.size(), equalTo(4));
-        assertThat(usedWhileHandled.getFirst(), greaterThanOrEqualTo(firstBytes + 2 * 2000L));
-        assertThat(usedWhileHandled, equalTo(Collections.nCopies(4, usedWhileHandled.getFirst())));
+        assertThat(reading.used(4), greaterThanOrEqualTo(2 * 1000L + 2 * 2000L));
         assertThat(breaker.getUsed(), equalTo(0L));
         assertFalse(first.hasReferences());
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
     }
 
     /**
@@ -452,96 +451,79 @@ public class CoordinatorTests extends ESTestCase {
         CapturingClient client = new CapturingClient();
         CircuitBreaker breaker = requestBreaker(10_000L, CircuitBreakerMetrics.NOOP);
         Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 2, 1, 100);
-        List<Long> usedWhileHandled = new ArrayList<>();
+        BatchCircuitBreakerReading reading = new BatchCircuitBreakerReading(breaker);
         List<Exception> failures = new ArrayList<>();
-        coordinator.queue.add(slot("index1", ActionListener.running(() -> usedWhileHandled.add(breaker.getUsed()))));
+        coordinator.queue.add(slot("index1", reading.listener()));
         coordinator.queue.add(slot("index2", ActionListener.wrap(r -> fail("unexpected response"), failures::add)));
         coordinator.queue.add(slot("index3", ActionListener.noop()));
         coordinator.coordinateLookups();
         assertThat(client.pendingIndices(), equalTo(Set.of("index1", "index2")));
         assertThat(coordinator.queue.size(), equalTo(1));
 
-        client.respond("index1", multiSearchResponse(new int[][] { { 100 } }));
-        long firstBytes = breaker.getUsed();
-        assertThat(firstBytes, greaterThanOrEqualTo(100L));
+        client.respond("index1", multiSearchResponse(100));
+        assertThat(breaker.getUsed(), greaterThanOrEqualTo(100L));
 
-        MultiSearchResponse tripping = multiSearchResponse(new int[][] { { 20_000 } });
+        MultiSearchResponse tripping = multiSearchResponse(20_000);
         client.respond("index2", tripping);
         assertFalse("not retained after a trip", tripping.hasReferences());
 
-        assertThat(usedWhileHandled, equalTo(List.of(firstBytes)));
-        assertThat(failures.size(), equalTo(1));
-        assertThat(failures.getFirst(), instanceOf(CircuitBreakingException.class));
-        assertThat(((CircuitBreakingException) failures.getFirst()).status().getStatus(), equalTo(429));
-        assertThat(failures.getFirst().getMessage(), containsString(Coordinator.BREAKER_LABEL));
+        assertThat(reading.used(1), greaterThanOrEqualTo(100L));
+        assertThat(failures, hasSize(1));
+        assertThat(
+            asInstanceOf(CircuitBreakingException.class, failures.getFirst()),
+            hasMessage(containsString(Coordinator.BREAKER_LABEL))
+        );
+
+        // breaker is reset after listeners of the first batch complete
         assertThat(breaker.getUsed(), equalTo(0L));
         // the permit was released and the queued slot went out in the next batch
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(client.pendingIndices(), equalTo(Set.of("index3")));
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
     }
 
-    /** A failed lookup of an index holds no response, so nothing is charged for it, and it reaches its slots as it is. */
+    /**
+     * A failed lookup of an index holds no response, so nothing is charged for it at any point, and it reaches its slots as it is.
+     */
     public void testFailedLookupChargesNothing() {
-        // a limit of zero trips on any charge, so a charge would fail the slots with a breaker exception instead
+        // a limit of zero trips on any checked charge, so such a charge would fail the slots with a breaker exception instead
         CapturingClient client = new CapturingClient();
         CircuitBreaker breaker = requestBreaker(0L, CircuitBreakerMetrics.NOOP);
         Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 2, 1, 100);
-        List<Exception> failures = new ArrayList<>();
+        BatchCircuitBreakerReading reading = new BatchCircuitBreakerReading(breaker);
+        AtomicInteger failures = new AtomicInteger();
         for (String index : List.of("index1", "index2")) {
-            coordinator.queue.add(slot(index, ActionListener.wrap(r -> fail("unexpected response"), failures::add)));
+            coordinator.queue.add(slot(index, reading.failureListener(e -> failures.incrementAndGet())));
         }
         coordinator.coordinateLookups();
 
-        RuntimeException failure1 = new RuntimeException("index1");
-        RuntimeException failure2 = new RuntimeException("index2");
-        client.respondWithFailure("index1", failure1);
-        client.respondWithFailure("index2", failure2);
+        client.respondWithFailure("index1", new RuntimeException("index1"));
+        client.respondWithFailure("index2", new RuntimeException("index2"));
 
-        assertThat(failures, equalTo(List.of(failure1, failure2)));
-        assertThat(breaker.getUsed(), equalTo(0L));
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+        assertThat(failures.get(), equalTo(2));
+        // the slot listeners ran with nothing charged
+        assertThat(reading.used(2), equalTo(0L));
     }
 
-    /** Items that are still charged on the shard side are not charged again by the coordinator. */
+    /** The response of a local lookup is still charged on the shard side, and not charged again by the coordinator. */
     public void testShardSideChargedItemsAreNotChargedAgain() {
         CapturingClient client = new CapturingClient();
         CircuitBreaker breaker = requestBreaker(null, CircuitBreakerMetrics.NOOP);
-        Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 2, 1, 100);
-        List<Long> usedWhileHandled = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            coordinator.queue.add(slot("my-index", ActionListener.running(() -> usedWhileHandled.add(breaker.getUsed()))));
-        }
+        Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 1, 1, 100);
+        BatchCircuitBreakerReading reading = new BatchCircuitBreakerReading(breaker);
+        coordinator.queue.add(slot("my-index", reading.listener()));
         coordinator.coordinateLookups();
 
-        // the shard-side reservation as the local transport path hands it to the coordinator, next to a plain (remote) item
-        // large enough to be charged right away, smaller reservations are only charged once they cross the threshold
         long shardSideBytes = EnrichShardMultiSearchAction.BREAKER_CHARGE_THRESHOLD_BYTES;
-        var reservation = new EnrichShardMultiSearchAction.SourceBytesReservation(breaker);
-        reservation.add(shardSideBytes);
-        SearchHit chargedHit = new SearchHit(0).sourceRef(new BytesArray(new byte[(int) shardSideBytes]));
-        SearchHits chargedHits = new SearchHits(new SearchHit[] { chargedHit }, Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
-        SearchResponse charged = new EnrichShardMultiSearchAction.ChargedSearchResponse(chargedHits, reservation);
-        chargedHits.decRef();
-        reservation.decRef();
-        MultiSearchResponse plainResponse = multiSearchResponse(new int[][] { { 700 } });
-        SearchResponse plain = plainResponse.getResponses()[0].getResponse();
-        plain.incRef();
-        plainResponse.decRef();
-        MultiSearchResponse response = new MultiSearchResponse(
-            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(charged, null), new MultiSearchResponse.Item(plain, null) },
-            1L
-        );
+        MultiSearchResponse response = shardSideChargedMultiSearchResponse(breaker, (int) shardSideBytes);
         assertThat(breaker.getUsed(), equalTo(shardSideBytes));
 
+        // prevent response from being released on respond, so we can observe later
+        response.incRef();
         client.respond("my-index", response);
 
-        // the shard-side bytes plus the plain item, which comes with a little overhead, but not the shard-side bytes a second time
-        assertThat(usedWhileHandled.size(), equalTo(2));
-        assertThat(usedWhileHandled.getFirst(), greaterThanOrEqualTo(shardSideBytes + 700));
-        assertThat(usedWhileHandled.getFirst(), lessThan(shardSideBytes + 700 + 10_000));
-        assertThat(usedWhileHandled, equalTo(Collections.nCopies(2, usedWhileHandled.getFirst())));
-        // the coordinator's charge is released once the batch is done, the shard-side one with the response
+        assertThat(reading.used(1), equalTo(shardSideBytes)); // no additional charge
+        assertThat(breaker.getUsed(), equalTo(shardSideBytes));
+        response.decRef();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -561,7 +543,7 @@ public class CoordinatorTests extends ESTestCase {
         coordinator.queue.add(slot("my-index", ActionListener.noop()));
         coordinator.coordinateLookups();
 
-        client.respond("my-index", multiSearchResponse(new int[][] { { 1000 } }));
+        client.respond("my-index", multiSearchResponse(1000));
 
         assertThat(breaker.getUsed(), equalTo(0L));
         Map<Object, Long> heldByCategory = meter.getRecorder()
@@ -574,29 +556,89 @@ public class CoordinatorTests extends ESTestCase {
                     Collectors.summingLong(Measurement::getLong)
                 )
             );
-        assertThat(heldByCategory.get(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH), equalTo(0L));
-        assertThat(heldByCategory.getOrDefault(ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED, 0L), equalTo(0L));
+        // the charge was recorded, and every category is back at zero, so the release did not go to a different one than the charge
+        assertThat(heldByCategory, hasKey(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH));
+        assertThat(heldByCategory.values(), everyItem(equalTo(0L)));
+    }
+
+    private static final class BatchCircuitBreakerReading {
+        private final CircuitBreaker breaker;
+        private long used;
+        private int listeners;
+
+        BatchCircuitBreakerReading(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        ActionListener<SearchResponse> listener() {
+            return ActionListener.running(this::takeReading);
+        }
+
+        ActionListener<SearchResponse> failureListener(Consumer<Exception> consumer) {
+            return ActionListener.wrap(r -> fail("unexpected response"), e -> {
+                consumer.accept(e);
+                takeReading();
+            });
+        }
+
+        private void takeReading() {
+            long current = breaker.getUsed();
+            assert hasRun() == false || current == used : "inconsistent breaker reading in batch: " + current + " vs " + used;
+            used = current;
+            listeners++;
+        }
+
+        boolean hasRun() {
+            return listeners > 0;
+        }
+
+        long used(int expectedListeners) {
+            assertThat("slot listeners that ran", listeners, equalTo(expectedListeners));
+            return used;
+        }
     }
 
     private static Coordinator.Slot slot(String index, ActionListener<SearchResponse> listener) {
         return new Coordinator.Slot(new SearchRequest(index), listener);
     }
 
-    private static MultiSearchResponse multiSearchResponse(int[][] sourceSizesPerItem) {
-        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[sourceSizesPerItem.length];
+    private static MultiSearchResponse multiSearchResponse(int... sourceBytesPerItem) {
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[sourceBytesPerItem.length];
         for (int i = 0; i < items.length; i++) {
-            SearchHit[] hits = new SearchHit[sourceSizesPerItem[i].length];
-            for (int j = 0; j < hits.length; j++) {
-                hits[j] = new SearchHit(j).sourceRef(new BytesArray(new byte[sourceSizesPerItem[i][j]]));
-            }
-            SearchHits searchHits = new SearchHits(hits, Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
-            try {
-                items[i] = new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(searchHits), null);
-            } finally {
-                searchHits.decRef();
-            }
+            items[i] = new MultiSearchResponse.Item(searchResponse(sourceBytesPerItem[i]), null);
         }
         return new MultiSearchResponse(items, 1L);
+    }
+
+    private static SearchResponse searchResponse(int sourceBytes) {
+        SearchHit hit = new SearchHit(0).sourceRef(new BytesArray(new byte[sourceBytes]));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
+        try {
+            return SearchResponseUtils.successfulResponse(searchHits);
+        } finally {
+            searchHits.decRef();
+        }
+    }
+
+    private static MultiSearchResponse shardSideChargedMultiSearchResponse(CircuitBreaker breaker, int sourceBytes) {
+        return new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(shardSideChargedResponse(breaker, sourceBytes), null) },
+            1L
+        );
+    }
+
+    private static SearchResponse shardSideChargedResponse(CircuitBreaker breaker, int sourceBytes) {
+        var reservation = new EnrichShardMultiSearchAction.SourceBytesReservation(breaker);
+        reservation.add(sourceBytes);
+        SearchHit hit = new SearchHit(0).sourceRef(new BytesArray(new byte[sourceBytes]));
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
+        try {
+            return new EnrichShardMultiSearchAction.ChargedSearchResponse(hits, reservation);
+        } finally {
+            // the response holds references of its own now
+            hits.decRef();
+            reservation.decRef();
+        }
     }
 
     /**

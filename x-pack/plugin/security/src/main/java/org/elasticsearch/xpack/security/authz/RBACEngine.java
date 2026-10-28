@@ -113,6 +113,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -156,17 +157,20 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final BooleanSupplier mandatoryTimestamp;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
+        BooleanSupplier mandatoryTimestamp
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        this.mandatoryTimestamp = mandatoryTimestamp;
     }
 
     @Override
@@ -1058,7 +1062,8 @@ public class RBACEngine implements AuthorizationEngine {
             action,
             Sets.newHashSet(resolvedIndices.getLocal()),
             metadata,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            role.hasFieldOrDocumentLevelSecurity() && mandatoryTimestamp.getAsBoolean()
         );
         return new IndexAuthorizationResult(accessControl);
     }

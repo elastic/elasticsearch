@@ -35,6 +35,13 @@ public class SecurityFeatures implements FeatureSpecification {
      */
     public static final NodeFeature USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION = new NodeFeature("user_managed_service_account_attribution");
 
+    /**
+     * Gates treating {@code @timestamp} as mandatory visible metadata under field level security on data stream backing indices and
+     * on indices in a timestamp-based index mode. Each node authorizes the requests it receives, so the rule applies only once every
+     * node applies it; until then every node keeps the previous field level security behavior.
+     */
+    public static final NodeFeature FLS_MANDATORY_TIMESTAMP = new NodeFeature("fls_mandatory_timestamp");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -42,7 +49,8 @@ public class SecurityFeatures implements FeatureSpecification {
             CERTIFICATE_IDENTITY_FIELD_FEATURE,
             SECURITY_STATS_ENDPOINT,
             USER_MANAGED_SERVICE_ACCOUNTS,
-            USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION
+            USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION,
+            FLS_MANDATORY_TIMESTAMP
         );
     }
 }

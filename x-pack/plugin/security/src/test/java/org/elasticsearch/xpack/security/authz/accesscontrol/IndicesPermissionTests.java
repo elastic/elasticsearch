@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -27,8 +28,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1632,6 +1636,274 @@ public class IndicesPermissionTests extends ESTestCase {
             .numberOfReplicas(1);
 
         return indexBuilder.build();
+    }
+
+    public void testMandatoryTimestampGrantedOnlyOnQualifyingIndices() {
+        MandatoryTimestampIndices indices = mandatoryTimestampIndices();
+        Role role = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { randomFrom("host", "h*") }, null)),
+                null,
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "*"
+            )
+            .build();
+
+        IndicesAccessControl enabled = authorizeSearch(role, indices, true);
+        assertThat(enabled.isGranted(), is(true));
+        for (String qualifying : List.of(indices.timestampModeIndex(), indices.backingIndex())) {
+            assertThat(qualifying, enabled.getIndexPermissions(qualifying).getFieldPermissions().grantsAccessTo("@timestamp"), is(true));
+            assertThat(qualifying, enabled.getIndexPermissions(qualifying).getFieldPermissions().grantsAccessTo("host"), is(true));
+            assertThat(qualifying, enabled.getIndexPermissions(qualifying).getFieldPermissions().grantsAccessTo("message"), is(false));
+        }
+        for (String other : List.of(indices.otherModeIndex(), indices.failureIndex())) {
+            assertThat(other, enabled.getIndexPermissions(other).getFieldPermissions().grantsAccessTo("@timestamp"), is(false));
+        }
+        assertThat(enabled.getTimestampExcludedIndices(), equalTo(Set.of()));
+
+        IndicesAccessControl disabled = authorizeSearch(role, indices, false);
+        for (String index : indices.all()) {
+            assertThat(index, disabled.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(false));
+        }
+    }
+
+    public void testMandatoryTimestampExplicitExclusion() {
+        MandatoryTimestampIndices indices = mandatoryTimestampIndices();
+        String excluded = randomFrom("@timestamp", "@*", "*stamp", "*");
+        Role excluding = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { excluded })),
+                null,
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "*"
+            )
+            .build();
+
+        IndicesAccessControl accessControl = authorizeSearch(excluding, indices, true);
+        assertThat(accessControl.isGranted(), is(false));
+        assertThat(accessControl.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex())));
+        IndicesAccessControl disabled = authorizeSearch(excluding, indices, false);
+        assertThat(disabled.isGranted(), is(true));
+        assertThat(disabled.getTimestampExcludedIndices(), equalTo(Set.of()));
+
+        IndicesAccessControl nonQualifyingOnly = authorize(
+            excluding,
+            TransportSearchAction.TYPE.name(),
+            indices,
+            List.of(indices.otherModeIndex(), indices.failureIndex())
+        );
+        assertThat(nonQualifyingOnly.isGranted(), is(true));
+        assertThat(nonQualifyingOnly.getTimestampExcludedIndices(), equalTo(Set.of()));
+
+        Role excludingWithMetadata = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { excluded })),
+                null,
+                IndexPrivilege.VIEW_METADATA,
+                false,
+                "*"
+            )
+            .build();
+        IndicesAccessControl mappings = authorize(excludingWithMetadata, GetMappingsAction.NAME, indices, indices.all());
+        assertThat(mappings.isGranted(), is(true));
+        assertThat(mappings.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex())));
+        for (String index : indices.all()) {
+            assertThat(index, mappings.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(false));
+        }
+
+        Role excludingOtherField = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { "@time" })),
+                null,
+                IndexPrivilege.READ,
+                false,
+                "*"
+            )
+            .build();
+        IndicesAccessControl otherField = authorizeSearch(excludingOtherField, indices, true);
+        assertThat(otherField.isGranted(), is(true));
+        assertThat(otherField.getTimestampExcludedIndices(), equalTo(Set.of()));
+
+        Role excludingAndGranting = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { excluded })),
+                null,
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "*"
+            )
+            .add(new FieldPermissions(fieldPermissionDef(new String[] { "@timestamp" }, null)), null, IndexPrivilege.READ, false, "*")
+            .build();
+        Role excludingAndOmitting = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { excluded })),
+                null,
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "*"
+            )
+            .add(new FieldPermissions(fieldPermissionDef(new String[] { "host" }, null)), null, IndexPrivilege.READ, false, "*")
+            .build();
+        IndicesAccessControl omitted = authorizeSearch(excludingAndOmitting, indices, true);
+        assertThat(omitted.isGranted(), is(false));
+        assertThat(omitted.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex())));
+
+        IndicesAccessControl union = authorizeSearch(excludingAndGranting, indices, true);
+        assertThat(union.isGranted(), is(true));
+        assertThat(union.getTimestampExcludedIndices(), equalTo(Set.of()));
+        for (String index : indices.all()) {
+            assertThat(index, union.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(true));
+        }
+    }
+
+    public void testMandatoryTimestampKeepsHiddenMetadataFieldsAndDocumentPermissions() {
+        MandatoryTimestampIndices indices = mandatoryTimestampIndices();
+        Set<BytesReference> query = Collections.singleton(new BytesArray("{\"term\":{\"host\":\"a\"}}"));
+        Role role = Role.builder(RESTRICTED_INDICES, "_role")
+            .add(
+                new FieldPermissions(fieldPermissionDef(new String[] { "host" }, new String[] { "_ignored" })),
+                query,
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "*"
+            )
+            .build();
+
+        IndicesAccessControl enabled = authorizeSearch(role, indices, true);
+        IndicesAccessControl disabled = authorizeSearch(role, indices, false);
+        for (String index : List.of(indices.timestampModeIndex(), indices.backingIndex())) {
+            FieldPermissions fieldPermissions = enabled.getIndexPermissions(index).getFieldPermissions();
+            assertThat(index, fieldPermissions.grantsAccessTo("@timestamp"), is(true));
+            assertThat(index, fieldPermissions.grantsAccessTo("_ignored"), is(false));
+            assertThat(index, fieldPermissions.grantsAccessTo("_id"), is(true));
+            assertThat(
+                index,
+                enabled.getIndexPermissions(index).getDocumentPermissions(),
+                equalTo(disabled.getIndexPermissions(index).getDocumentPermissions())
+            );
+        }
+    }
+
+    public void testMandatoryTimestampWithApiKeyLimitedBy() {
+        MandatoryTimestampIndices indices = mandatoryTimestampIndices();
+        for (boolean ownerExcludes : new boolean[] { false, true }) {
+            for (boolean keyExcludes : new boolean[] { false, true }) {
+                Role limited = timestampRole(ownerExcludes).limitedBy(timestampRole(keyExcludes));
+                IndicesAccessControl accessControl = authorizeSearch(limited, indices, true);
+                String scenario = "owner excludes [" + ownerExcludes + "], key excludes [" + keyExcludes + "]";
+                assertThat(scenario, accessControl.isGranted(), is(ownerExcludes == false && keyExcludes == false));
+                if (ownerExcludes || keyExcludes) {
+                    assertThat(
+                        scenario,
+                        accessControl.getTimestampExcludedIndices(),
+                        equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex()))
+                    );
+                } else {
+                    assertThat(scenario, accessControl.getTimestampExcludedIndices(), equalTo(Set.of()));
+                }
+                boolean visible = ownerExcludes == false && keyExcludes == false;
+                for (String index : List.of(indices.timestampModeIndex(), indices.backingIndex())) {
+                    assertThat(
+                        scenario + " on " + index,
+                        accessControl.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"),
+                        is(visible)
+                    );
+                    assertThat(
+                        scenario + " on " + index,
+                        accessControl.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("host"),
+                        is(true)
+                    );
+                }
+            }
+        }
+    }
+
+    private static Role timestampRole(boolean excludesTimestamp) {
+        FieldPermissionsDefinition definition = excludesTimestamp
+            ? fieldPermissionDef(new String[] { "*" }, new String[] { "@timestamp" })
+            : fieldPermissionDef(new String[] { "host" }, null);
+        return Role.builder(RESTRICTED_INDICES, "_role")
+            .add(new FieldPermissions(definition), null, IndexPrivilege.READ, false, "*")
+            .build();
+    }
+
+    private static IndicesAccessControl authorizeSearch(Role role, MandatoryTimestampIndices indices, boolean mandatoryTimestamp) {
+        return role.authorize(
+            TransportSearchAction.TYPE.name(),
+            Set.copyOf(indices.all()),
+            indices.metadata(),
+            new FieldPermissionsCache(Settings.EMPTY),
+            mandatoryTimestamp
+        );
+    }
+
+    private static IndicesAccessControl authorize(Role role, String action, MandatoryTimestampIndices indices, List<String> names) {
+        return role.authorize(action, Set.copyOf(names), indices.metadata(), new FieldPermissionsCache(Settings.EMPTY), true);
+    }
+
+    private record MandatoryTimestampIndices(
+        ProjectMetadata metadata,
+        String timestampModeIndex,
+        String backingIndex,
+        String failureIndex,
+        String otherModeIndex
+    ) {
+        List<String> all() {
+            return List.of(timestampModeIndex, backingIndex, failureIndex, otherModeIndex);
+        }
+    }
+
+    private static MandatoryTimestampIndices mandatoryTimestampIndices() {
+        IndexMode timestampMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
+        // NOTE: an index created without index.mode has no index mode in its metadata
+        IndexMode otherMode = randomBoolean()
+            ? null
+            : randomValueOtherThanMany(IndexMode::requiresTimestamp, () -> randomFrom(IndexMode.values()));
+        IndexMetadata timestampModeIndex = indexMetadataWithMode("timestamp-mode", timestampMode, false);
+        IndexMetadata otherModeIndex = indexMetadataWithMode("other-mode", otherMode, false);
+        String dataStreamName = "logs-standard";
+        IndexMetadata backingIndex = indexMetadataWithMode(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            randomFrom(IndexMode.STANDARD, IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR),
+            true
+        );
+        IndexMetadata failureIndex = createBackingIndexMetadata(
+            DataStream.getDefaultFailureStoreName(dataStreamName, 1, randomNonNegativeLong())
+        );
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            dataStreamName,
+            List.of(backingIndex.getIndex()),
+            List.of(failureIndex.getIndex())
+        );
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(timestampModeIndex, false)
+            .put(otherModeIndex, false)
+            .put(backingIndex, false)
+            .put(failureIndex, false)
+            .put(dataStream)
+            .build();
+        return new MandatoryTimestampIndices(
+            metadata,
+            timestampModeIndex.getIndex().getName(),
+            backingIndex.getIndex().getName(),
+            failureIndex.getIndex().getName(),
+            otherModeIndex.getIndex().getName()
+        );
+    }
+
+    private static IndexMetadata indexMetadataWithMode(String name, @Nullable IndexMode mode, boolean hidden) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, hidden);
+        if (mode != null) {
+            settings.put(IndexSettings.MODE.getKey(), mode.getName());
+        }
+        if (mode == IndexMode.TIME_SERIES) {
+            settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host");
+        }
+        return IndexMetadata.builder(name).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

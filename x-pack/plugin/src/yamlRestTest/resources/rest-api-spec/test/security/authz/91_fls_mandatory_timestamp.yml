@@ -1,0 +1,364 @@
+setup:
+  - requires:
+      test_runner_features: [ "headers" ]
+      cluster_features: [ "fls_mandatory_timestamp" ]
+      reason: "@timestamp is mandatory visible metadata under field level security on data streams and time series indices"
+
+  - do:
+      indices.create:
+        index: fls-tsdb
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2026-01-01T00:00:00Z
+                end_time: 2026-01-02T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: double
+
+  - do:
+      indices.create:
+        index: fls-plain
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+              cpu:
+                type: double
+
+  - do:
+      indices.put_index_template:
+        name: fls-logs
+        body:
+          index_patterns: [ "fls-logs" ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host:
+                  type: keyword
+                cpu:
+                  type: double
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "fls-tsdb"}}'
+          - '{"@timestamp": "2026-01-01T00:00:00Z", "host": "h1", "cpu": 0.5}'
+          - '{"index": {"_index": "fls-plain"}}'
+          - '{"@timestamp": "2026-01-01T00:00:00Z", "host": "h1", "cpu": 0.5}'
+          - '{"create": {"_index": "fls-logs"}}'
+          - '{"@timestamp": "2026-01-01T00:00:00Z", "host": "h1", "cpu": 0.5}'
+
+  - do:
+      security.put_role:
+        name: "fls_omit_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["fls-*"], "privileges": ["read"], "field_security": { "grant": ["host", "cpu"] } }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "fls_exclude_role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["fls-*"],
+                "privileges": ["read", "view_index_metadata", "write"],
+                "field_security": { "grant": ["*"], "except": ["@timestamp"] }
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "fls_pattern_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["fls-*"], "privileges": ["read"], "field_security": { "grant": ["*"], "except": ["@*"] } }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "fls_grant_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["fls-*"], "privileges": ["read"], "field_security": { "grant": ["@timestamp"] } }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "fls_omit_user"
+        body: >
+          { "password": "x-pack-test-password", "roles": [ "fls_omit_role" ] }
+
+  - do:
+      security.put_user:
+        username: "fls_exclude_user"
+        body: >
+          { "password": "x-pack-test-password", "roles": [ "fls_exclude_role" ] }
+
+  - do:
+      security.put_user:
+        username: "fls_pattern_user"
+        body: >
+          { "password": "x-pack-test-password", "roles": [ "fls_pattern_role" ] }
+
+  - do:
+      security.put_user:
+        username: "fls_omit_exclude_user"
+        body: >
+          { "password": "x-pack-test-password", "roles": [ "fls_omit_role", "fls_exclude_role" ] }
+
+  - do:
+      security.put_user:
+        username: "fls_grant_exclude_user"
+        body: >
+          { "password": "x-pack-test-password", "roles": [ "fls_grant_role", "fls_exclude_role" ] }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "fls_omit_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "fls_exclude_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "fls_pattern_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "fls_omit_exclude_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "fls_grant_exclude_user"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "fls_omit_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "fls_exclude_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "fls_pattern_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "fls_grant_role"
+        ignore: 404
+  - do:
+      indices.delete_data_stream:
+        name: fls-logs
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: fls-logs
+        ignore: 404
+
+---
+"Grant list without @timestamp shows it on a time series index":
+  - do:
+      headers: { Authorization: "Basic ZmxzX29taXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_omit_user
+      search:
+        index: fls-tsdb
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.@timestamp: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.host: "h1" }
+
+---
+"Grant list without @timestamp shows it on a data stream":
+  - do:
+      headers: { Authorization: "Basic ZmxzX29taXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_omit_user
+      search:
+        index: fls-logs
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.@timestamp: "2026-01-01T00:00:00Z" }
+  - match: { hits.hits.0._source.host: "h1" }
+
+---
+"Grant list without @timestamp keeps it hidden on a standard index":
+  - do:
+      headers: { Authorization: "Basic ZmxzX29taXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_omit_user
+      search:
+        index: fls-plain
+  - length: { hits.hits: 1 }
+  - is_false: hits.hits.0._source.@timestamp
+  - match: { hits.hits.0._source.host: "h1" }
+
+---
+"Excluding @timestamp fails reads of a time series index":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      search:
+        index: fls-tsdb
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "/on\\ indices\\ \\[fls-tsdb\\]\\ because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
+
+---
+"Excluding @timestamp fails reads of a data stream":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      search:
+        index: fls-logs
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "/on\\ indices\\ \\[\\.ds-fls-logs-.*\\]\\ because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
+
+---
+"An exclusion pattern that matches @timestamp fails reads":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZmxzX3BhdHRlcm5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_pattern_user
+      search:
+        index: fls-tsdb
+  - match: { error.type: "security_exception" }
+
+---
+"Excluding @timestamp keeps a standard index readable":
+  - do:
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      search:
+        index: fls-plain
+  - length: { hits.hits: 1 }
+  - is_false: hits.hits.0._source.@timestamp
+  - match: { hits.hits.0._source.host: "h1" }
+
+---
+"Excluding @timestamp fails a search across a time series and a standard index":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      search:
+        index: fls-tsdb,fls-plain
+        allow_partial_search_results: true
+  - match: { error.type: "security_exception" }
+
+---
+"Excluding @timestamp fails only the matching items of a multi search":
+  - do:
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      msearch:
+        body:
+          - index: fls-tsdb
+          - query: { match_all: { } }
+          - index: fls-plain
+          - query: { match_all: { } }
+  - match: { responses.0.status: 403 }
+  - match: { responses.0.error.type: "security_exception" }
+  - match: { responses.1.hits.total.value: 1 }
+
+---
+"Excluding @timestamp does not fail non-read actions":
+  - do:
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      indices.get_mapping:
+        index: fls-tsdb
+  - is_true: fls-tsdb.mappings.properties.host
+  - is_false: fls-tsdb.mappings.properties.@timestamp
+
+  - do:
+      headers: { Authorization: "Basic ZmxzX2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_exclude_user
+      index:
+        index: fls-tsdb
+        refresh: true
+        body: { "@timestamp": "2026-01-01T00:00:01Z", "host": "h2", "cpu": 0.7 }
+  - match: { result: created }
+
+---
+"A role that omits @timestamp does not cancel another role's exclusion":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZmxzX29taXRfZXhjbHVkZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # fls_omit_exclude_user
+      search:
+        index: fls-tsdb
+  - match: { error.type: "security_exception" }
+
+---
+"A role that grants @timestamp cancels another role's exclusion":
+  - do:
+      headers: { Authorization: "Basic ZmxzX2dyYW50X2V4Y2x1ZGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # fls_grant_exclude_user
+      search:
+        index: fls-tsdb
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.@timestamp: "2026-01-01T00:00:00.000Z" }
+
+---
+"API keys follow the same rule":
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-omit-key"
+          role_descriptors:
+            omit:
+              indices:
+                - names: [ "fls-*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "host", "cpu" ]
+  - set: { encoded: omit_credentials }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "fls-exclude-key"
+          role_descriptors:
+            exclude:
+              indices:
+                - names: [ "fls-*" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "@timestamp" ]
+  - set: { encoded: exclude_credentials }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${omit_credentials}"
+      search:
+        index: fls-tsdb
+  - match: { hits.hits.0._source.@timestamp: "2026-01-01T00:00:00.000Z" }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${exclude_credentials}"
+      search:
+        index: fls-tsdb
+  - match: { error.type: "security_exception" }

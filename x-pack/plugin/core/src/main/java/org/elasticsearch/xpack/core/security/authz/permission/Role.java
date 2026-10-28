@@ -177,11 +177,26 @@ public interface Role {
      * specified action with the requested indices/aliases. At the same time if field and/or document level security
      * is configured for any group also the allowed fields and role queries are resolved.
      */
-    IndicesAccessControl authorize(
+    default IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
         ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
+    ) {
+        return authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache, false);
+    }
+
+    /**
+     * Like {@link #authorize(String, Set, ProjectMetadata, FieldPermissionsCache)}. When {@code mandatoryTimestamp} is {@code true},
+     * {@code @timestamp} is mandatory visible metadata under field level security on data stream backing indices and on indices in a
+     * timestamp-based index mode, see {@link IndicesPermission#authorize(String, Set, ProjectMetadata, FieldPermissionsCache, boolean)}.
+     */
+    IndicesAccessControl authorize(
+        String action,
+        Set<String> requestedIndicesOrAliases,
+        ProjectMetadata metadata,
+        FieldPermissionsCache fieldPermissionsCache,
+        boolean mandatoryTimestamp
     );
 
     /**

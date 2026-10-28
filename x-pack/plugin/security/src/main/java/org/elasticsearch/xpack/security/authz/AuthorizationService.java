@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -102,6 +103,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -177,6 +179,7 @@ public class AuthorizationService {
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
         ClusterService clusterService,
+        FeatureService featureService,
         AuditTrailService auditTrailService,
         AuthenticationFailureHandler authcFailureHandler,
         ThreadPool threadPool,
@@ -215,7 +218,8 @@ public class AuthorizationService {
             settings,
             rolesStore,
             fieldPermissionsCache,
-            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings()),
+            () -> featureService.clusterHasFeature(clusterService.state(), SecurityFeatures.FLS_MANDATORY_TIMESTAMP)
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;

@@ -42,18 +42,28 @@ public class IndicesAccessControl {
 
     private final boolean granted;
     private final CachedSupplier<Map<String, IndexAccessControl>> indexPermissionsSupplier;
+    private final CachedSupplier<Set<String>> timestampExcludedIndicesSupplier;
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
         this(granted, () -> Objects.requireNonNull(indexPermissions));
     }
 
     public IndicesAccessControl(boolean granted, Supplier<Map<String, IndexAccessControl>> indexPermissionsSupplier) {
+        this(granted, indexPermissionsSupplier, Set::of);
+    }
+
+    public IndicesAccessControl(
+        boolean granted,
+        Supplier<Map<String, IndexAccessControl>> indexPermissionsSupplier,
+        Supplier<Set<String>> timestampExcludedIndicesSupplier
+    ) {
         this.granted = granted;
         this.indexPermissionsSupplier = CachedSupplier.wrap(Objects.requireNonNull(indexPermissionsSupplier));
+        this.timestampExcludedIndicesSupplier = CachedSupplier.wrap(Objects.requireNonNull(timestampExcludedIndicesSupplier));
     }
 
     protected IndicesAccessControl(IndicesAccessControl copy) {
-        this(copy.granted, copy.indexPermissionsSupplier);
+        this(copy.granted, copy.indexPermissionsSupplier, copy.timestampExcludedIndicesSupplier);
     }
 
     /**
@@ -70,6 +80,15 @@ public class IndicesAccessControl {
 
     public boolean hasIndexPermissions(String index) {
         return getIndexPermissions(index) != null;
+    }
+
+    /**
+     * The indices on which {@code @timestamp} is mandatory visible metadata but the field level security of a role explicitly
+     * excludes it. A request whose authorization boundary reaches any of these indices must fail as a whole; on these indices
+     * {@code @timestamp} stays hidden in {@link #getIndexPermissions(String)}.
+     */
+    public Set<String> getTimestampExcludedIndices() {
+        return timestampExcludedIndicesSupplier.get();
     }
 
     /**
@@ -365,7 +384,11 @@ public class IndicesAccessControl {
             }
             return indexPermissionsMap;
         };
-        return new IndicesAccessControl(isGranted, limitedIndexPermissions);
+        return new IndicesAccessControl(
+            isGranted,
+            limitedIndexPermissions,
+            () -> Sets.union(getTimestampExcludedIndices(), limitedByIndicesAccessControl.getTimestampExcludedIndices())
+        );
     }
 
     /**

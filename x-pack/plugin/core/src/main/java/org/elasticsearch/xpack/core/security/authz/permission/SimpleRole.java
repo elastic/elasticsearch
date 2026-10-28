@@ -196,9 +196,10 @@ public class SimpleRole implements Role {
         String action,
         Set<String> requestedIndicesOrAliases,
         ProjectMetadata metadata,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        boolean mandatoryTimestamp
     ) {
-        return indices.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);
+        return indices.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache, mandatoryTimestamp);
     }
 
     @Override

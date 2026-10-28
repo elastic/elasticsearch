@@ -1,0 +1,6 @@
+area: Analysis
+issues:
+ - 160854
+pr: 163675
+summary: "Thai analysis uses the Lucene 10.6 behavior for new indices only; existing indices keep their previous Thai analysis until reindexed"
+type: upgrade

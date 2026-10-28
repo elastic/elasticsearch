@@ -1,8 +1,4 @@
 ---
-# bbq_hnsw requires at least 64 dims. Vectors are well separated, and k * oversample (3x by default)
-# covers all docs, so rescoring with the raw vectors makes the results exact despite 1-bit quantization.
-# Single shard avoids tiny per-shard segments where CAGRA graph parameters get
-# clamped to near-trivial values.
 "Test GPU vector operations":
 
   - requires:

@@ -100,7 +100,6 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         return randomFrom("hnsw", "int8_hnsw", "bbq_hnsw");
     }
 
-    /** bbq_hnsw requires at least {@link DenseVectorFieldMapper#BBQ_MIN_DIMS} dimensions */
     protected static int randomDims(String type) {
         int minDims = "bbq_hnsw".equals(type) ? DenseVectorFieldMapper.BBQ_MIN_DIMS : 4;
         return randomIntBetween(minDims, 128);

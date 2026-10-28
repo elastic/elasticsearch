@@ -124,7 +124,6 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
      */
     private void doTestForceMergeWithFileFallback(String type) {
         String indexName = "gpu_merge_fallback_" + type.replace("_", "");
-        // bbq_hnsw requires at least 64 dims
         int dims = randomIntBetween("bbq_hnsw".equals(type) ? 64 : 32, 128);
         String similarity = randomFrom("dot_product", "l2_norm", "cosine");
 

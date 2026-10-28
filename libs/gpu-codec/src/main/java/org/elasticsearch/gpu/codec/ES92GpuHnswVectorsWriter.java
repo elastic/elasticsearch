@@ -110,7 +110,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
-            // BBQ codes can't be used as a CAGRA dataset, so for bbq_hnsw the graph is built from the raw float vectors
+            // for float32 (hnsw) and bbq (bbq_hnsw) types, we send raw float vectors to GPU
             assert flatVectorWriter instanceof Lucene99FlatVectorsWriter || flatVectorsFormat instanceof ES93BinaryQuantizedVectorsFormat;
             dataType = CuVSMatrix.DataType.FLOAT;
         }
@@ -643,8 +643,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                     // we just build a mock graph where every node is connected to every other node
                     generateMockGraphAndWriteMeta(fieldInfo, numVectors);
                 } else if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    // For bbq_hnsw, floatVectorValues wraps the merged raw vectors and exposes their slice,
-                    // so the graph is built from raw floats rather than from the 1-bit codes.
+                    // for float32 (hnsw) and bbq (bbq_hnsw) types, we send raw float vectors to GPU
                     mergeFloatVectorField(fieldInfo, mergeState, floatVectorValues, numVectors);
                 } else {
                     // During merging, we use quantized data, so we need to support byte[] too.

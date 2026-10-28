@@ -78,6 +78,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SearchColdSegmentsMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -511,7 +512,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchColdSegmentsMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {
@@ -685,7 +687,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchColdSegmentsMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {
@@ -879,7 +882,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
                 uploadedBlobLocations.putAll(scc.commitFiles());
 
-                notifications.add(new NewCommitNotification(scc, scc.generation(), scc.primaryTermAndGeneration(), 1L, "_node_id"));
+                notifications.add(
+                    new NewCommitNotification(scc, scc.generation(), scc.primaryTermAndGeneration(), 1L, "_node_id", Map.of())
+                );
             } catch (Exception e) {
                 throw new AssertionError(e);
             } finally {

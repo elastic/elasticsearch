@@ -13,12 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -85,11 +85,14 @@ public class StatelessCommitServiceTestUtils {
         }
 
         @Override
-        protected @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRange(
+        IndexEngine.AdditionalSegmentsInfos readAdditionalSegmentsInfos(
             ShardCommitState commitState,
-            StatelessCommitRef reference
+            StatelessCommitRef reference,
+            boolean includeMergeProducedSegments
         ) {
-            return hasTimestamps.get() ? super.readTimestampFieldValueRange(commitState, reference) : null;
+            var infos = super.readAdditionalSegmentsInfos(commitState, reference, includeMergeProducedSegments);
+            // Simulate legacy compound commits that lack a timestamp range, while preserving the merge-produced segment sizes.
+            return hasTimestamps.get() ? infos : new IndexEngine.AdditionalSegmentsInfos(null, infos.newMergedSegmentsSizes());
         }
 
         public void disableTimestamps() {

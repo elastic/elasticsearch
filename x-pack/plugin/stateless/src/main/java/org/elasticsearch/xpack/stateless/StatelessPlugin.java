@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurren
 import org.elasticsearch.xpack.stateless.cache.DefaultEvictionPolicyFactory;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.EvictionPolicyFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchColdSegmentsMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
@@ -524,6 +525,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
     private final SetOnce<StatelessReaderHeapMetrics> readerHeapMetrics = new SetOnce<>();
+    private final SetOnce<SearchColdSegmentsMetrics> coldSegmentsMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
@@ -935,6 +937,7 @@ public class StatelessPlugin extends Plugin
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(meterRegistry));
         setAndGet(hollowShardMetrics, HollowShardsMetrics.from(meterRegistry, this::amountOfHollowableShards));
         setAndGet(readerHeapMetrics, StatelessReaderHeapMetrics.register(meterRegistry, readerHeapBreaker.get()));
+        setAndGet(coldSegmentsMetrics, SearchColdSegmentsMetrics.register(meterRegistry));
         StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
@@ -1450,6 +1453,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            StatelessCommitService.STATELESS_COMMIT_NOTIFICATION_INCLUDE_MERGE_PRODUCED_SEGMENTS,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
@@ -1817,7 +1821,8 @@ public class StatelessPlugin extends Plugin
                     prefetchingDynamicSettings.get(),
                     readerHeapBreaker.get(),
                     readerHeapMetrics.get(),
-                    reshardSearchFilters.get()
+                    reshardSearchFilters.get(),
+                    coldSegmentsMetrics.get()
                 );
             }
         });

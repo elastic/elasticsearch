@@ -279,6 +279,23 @@ public record StatelessCompoundCommit(
     }
 
     /**
+     * Calculates and returns the total size of this commit's additional internal files, i.e. the files physically embedded in this
+     * compound commit. Unlike {@link #sizeInBytes()}, this excludes the header, codec, checksums, replicated content and extra content,
+     * and unlike {@link #getAllFilesSizeInBytes()} it excludes files only referenced from previous commits.
+     *
+     * @return the summed size in bytes of this commit's internal files
+     */
+    public long getInternalFilesSizeInBytes() {
+        long internalFilesSizeInBytes = 0;
+        for (String internalFile : internalFiles) {
+            var location = commitFiles.get(internalFile);
+            assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
+            internalFilesSizeInBytes += location.fileLength();
+        }
+        return internalFilesSizeInBytes;
+    }
+
+    /**
      * Returns the blob location of the internal files with the minimum offset within the current term and generation.
      */
     public BlobLocation getMinInternalFilesOffsetInCurrentGeneration() {

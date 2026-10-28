@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -25,6 +27,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request sent from an index node to a search node with information about the latest commit for a particular index shard.
  */
 public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
+
+    /**
+     * Transport version that adds {@link #newMergedSegmentsSizes} to the request.
+     */
+    static final TransportVersion MERGE_PRODUCED_FILES_IN_COMMIT_NOTIFICATION = TransportVersion.fromName(
+        "merge_produced_files_in_commit_notification"
+    );
 
     /**
      * The new compound commit
@@ -55,6 +64,14 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     private final String nodeId;
 
     /**
+     * The commit's new segments produced by a merge (as opposed to a flush), mapped from segment name (the shared file prefix, e.g.
+     * {@code _5}) to segment size in bytes. {@code null} when not computed: the feature is disabled on the indexing node, or the request
+     * was received from an older node that does not send this information.
+     */
+    @Nullable
+    private final Map<String, Long> newMergedSegmentsSizes;
+
+    /**
      * Constructs a request to broadcast a new shard commit to all the unpromotable shards in the index shard routing table.
      */
     public NewCommitNotificationRequest(
@@ -63,7 +80,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         final long batchedCompoundCommitGeneration,
         @Nullable final PrimaryTermAndGeneration latestUploadedBatchedCompoundCommitTermAndGen,
         final long clusterStateVersion,
-        final String nodeId
+        final String nodeId,
+        @Nullable final Map<String, Long> newMergedSegmentsSizes
     ) {
         super(indexShardRoutingTable);
         this.compoundCommit = compoundCommit;
@@ -71,6 +89,7 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         this.latestUploadedBatchedCompoundCommitTermAndGen = latestUploadedBatchedCompoundCommitTermAndGen;
         this.clusterStateVersion = clusterStateVersion;
         this.nodeId = nodeId;
+        this.newMergedSegmentsSizes = newMergedSegmentsSizes;
     }
 
     /**
@@ -83,6 +102,11 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         latestUploadedBatchedCompoundCommitTermAndGen = in.readOptionalWriteable(PrimaryTermAndGeneration::new);
         clusterStateVersion = in.readVLong();
         nodeId = in.readString();
+        if (in.getTransportVersion().supports(MERGE_PRODUCED_FILES_IN_COMMIT_NOTIFICATION)) {
+            newMergedSegmentsSizes = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readVLong);
+        } else {
+            newMergedSegmentsSizes = null;
+        }
     }
 
     public long getTerm() {
@@ -119,6 +143,14 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     @Nullable
     public String getNodeId() {
         return nodeId;
+    }
+
+    /**
+     * The commit's new merge-produced segments mapped from segment name (file prefix) to size in bytes. {@code null} when not computed.
+     */
+    @Nullable
+    public Map<String, Long> getNewMergedSegmentsSizes() {
+        return newMergedSegmentsSizes;
     }
 
     /**
@@ -177,6 +209,9 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         out.writeOptionalWriteable(latestUploadedBatchedCompoundCommitTermAndGen);
         out.writeVLong(clusterStateVersion);
         out.writeString(nodeId);
+        if (out.getTransportVersion().supports(MERGE_PRODUCED_FILES_IN_COMMIT_NOTIFICATION)) {
+            out.writeOptionalMap(newMergedSegmentsSizes, StreamOutput::writeString, StreamOutput::writeVLong);
+        }
     }
 
     @Override
@@ -188,7 +223,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
             && Objects.equals(compoundCommit, request.compoundCommit)
             && Objects.equals(latestUploadedBatchedCompoundCommitTermAndGen, request.latestUploadedBatchedCompoundCommitTermAndGen)
             && Objects.equals(clusterStateVersion, request.clusterStateVersion)
-            && Objects.equals(nodeId, request.nodeId);
+            && Objects.equals(nodeId, request.nodeId)
+            && Objects.equals(newMergedSegmentsSizes, request.newMergedSegmentsSizes);
     }
 
     @Override
@@ -198,7 +234,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
             batchedCompoundCommitGeneration,
             latestUploadedBatchedCompoundCommitTermAndGen,
             clusterStateVersion,
-            nodeId
+            nodeId,
+            newMergedSegmentsSizes
         );
     }
 
@@ -215,6 +252,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
             + clusterStateVersion
             + ", nodeId="
             + nodeId
+            + ", newMergedSegmentsSizes="
+            + newMergedSegmentsSizes
             + '}';
     }
 }

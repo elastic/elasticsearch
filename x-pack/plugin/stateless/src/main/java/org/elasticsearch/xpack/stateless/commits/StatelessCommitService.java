@@ -194,6 +194,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     /**
+     * Controls whether the indexing shard computes and attaches the sizes of segments produced by merges to new-commit notifications, so
+     * search shards can measure cold merge segments. When disabled, the notification carries a {@code null} map (and the indexing shard
+     * skips the extra segment-infos read). Dynamic, so it can be toggled for investigations.
+     */
+    public static final Setting<Boolean> STATELESS_COMMIT_NOTIFICATION_INCLUDE_MERGE_PRODUCED_SEGMENTS = Setting.boolSetting(
+        "stateless.commit.notification.include_merge_produced_segments",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * How long to wait for a global checkpoint listener to be notified before triggering a translog sync and retrying (without timeout).
      */
     public static final Setting<TimeValue> STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT = Setting.positiveTimeSetting(
@@ -269,6 +281,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final long bccUploadSlowLogThresholdMillis;
     private final TimeValue releaseFilesAfterNotificationTimeout;
     private final boolean useInternalFilesReplicatedContent;
+    private volatile boolean includeMergeProducedSegments;
     private final int cacheRegionSizeInBytes;
     private final BccUploadMetrics metrics;
     private final LongHistogram bccNotificationTimeHistogram;
@@ -353,6 +366,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccUploadSlowLogThresholdMillis = STATELESS_UPLOAD_SLOW_LOG_THRESHOLD.get(settings).millis();
         this.releaseFilesAfterNotificationTimeout = STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.get(settings);
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
+        this.includeMergeProducedSegments = STATELESS_COMMIT_NOTIFICATION_INCLUDE_MERGE_PRODUCED_SEGMENTS.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                STATELESS_COMMIT_NOTIFICATION_INCLUDE_MERGE_PRODUCED_SEGMENTS,
+                value -> this.includeMergeProducedSegments = value
+            );
         this.cacheRegionSizeInBytes = cacheService.getRegionSize();
         this.estimatedMaxHeaderSizeInBytes = BlobCacheUtils.toIntBytes(Math.max(0L, cacheRegionSizeInBytes - bccUploadMaxSizeInBytes));
         logger.info(
@@ -699,12 +718,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Reads the {@code @timestamp} field value range for the additional segments in the given commit.
+     * Reads the {@code @timestamp} field value range and, when {@code includeMergeProducedSegments} is true, the merge-produced segment
+     * sizes for the additional segments in the given commit.
      * Package protected so that tests can override this to simulate legacy compound commits that lack a timestamp range.
      */
-    @Nullable
-    TimestampFieldValueRange readTimestampFieldValueRange(ShardCommitState commitState, StatelessCommitRef reference) {
-        return commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
+    IndexEngine.AdditionalSegmentsInfos readAdditionalSegmentsInfos(
+        ShardCommitState commitState,
+        StatelessCommitRef reference,
+        boolean includeMergeProducedSegments
+    ) {
+        return commitState.readAdditionalSegmentsInfos(reference, includeMergeProducedSegments);
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
@@ -734,8 +757,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             final VirtualBatchedCompoundCommit virtualBcc;
             final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
-            // reads the timestamp field value range outside the commit state synchronized block (because this does blocking IO)
-            var timestampFieldValueRange = readTimestampFieldValueRange(commitState, reference);
+            // Reads the timestamp field value range and, when enabled, the merge-produced segment sizes in a single pass over the new
+            // segments, outside the commit state synchronized block (because this does blocking IO). The merge-produced segment sizes let
+            // the search node measure cold merge segments when this commit is notified before its BCC is uploaded; when disabled, that
+            // part is left null.
+            final IndexEngine.AdditionalSegmentsInfos additionalSegmentsInfos = readAdditionalSegmentsInfos(
+                commitState,
+                reference,
+                includeMergeProducedSegments
+            );
+            var timestampFieldValueRange = additionalSegmentsInfos.timestampFieldValueRange();
+            final Map<String, Long> newMergedSegmentsSizes = additionalSegmentsInfos.newMergedSegmentsSizes();
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -795,6 +827,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     batchedCompoundCommitGeneration,
                     maxUploadedBccTermAndGen,
                     maxSeqNo,
+                    newMergedSegmentsSizes,
                     Long.MAX_VALUE
                 );
             } else {
@@ -812,6 +845,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             batchedCompoundCommitGeneration,
                             maxUploadedBccTermAndGen,
                             maxSeqNo,
+                            newMergedSegmentsSizes,
                             maxGenerationToUpload
                         );
                     }
@@ -835,6 +869,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             batchedCompoundCommitGeneration,
                             maxUploadedBccTermAndGen,
                             maxSeqNo,
+                            newMergedSegmentsSizes,
                             Long.MAX_VALUE
                         );
                     }
@@ -868,6 +903,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         long batchedCompoundCommitGeneration,
         PrimaryTermAndGeneration maxUploadedBccTermAndGen,
         long maxSeqNo,
+        @Nullable Map<String, Long> newMergedSegmentsSizes,
         long maxGenerationToUpload
     ) {
         final long generation = lastCompoundCommit.generation();
@@ -892,7 +928,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     shardRoutingTable,
                     lastCompoundCommit,
                     batchedCompoundCommitGeneration,
-                    maxUploadedBccTermAndGen
+                    maxUploadedBccTermAndGen,
+                    newMergedSegmentsSizes
                 ),
                 ex -> {
                     if (ex instanceof IndexShardClosedException) {
@@ -1380,6 +1417,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public VirtualBatchedCompoundCommit getCurrentVirtualBcc(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.getCurrentVirtualBcc();
+    }
+
+    // Visible for testing: looks up a VBCC by primary term and generation across the current, pending-upload and recently-uploaded states.
+    @Nullable
+    public VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit(
+        ShardId shardId,
+        PrimaryTermAndGeneration primaryTermAndGeneration
+    ) {
+        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.getVirtualBatchedCompoundCommit(primaryTermAndGeneration);
     }
 
     /**
@@ -2002,10 +2049,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Reads the value range for the `@timestamp` field, for the commit's new additional segments,
-         * from the underlying lucene directory of the passed-in commit.
+         * Reads, in a single pass over the commit's new additional segments, the value range for the `@timestamp` field and (when
+         * {@code includeMergeProducedSegments} is true) the merge-produced segment sizes, so the search node can measure cold merge
+         * segments. Does blocking file IO, so it must not be called while holding this lock.
          */
-        private @Nullable TimestampFieldValueRange readTimestampFieldValueRangeAcrossAdditionalSegments(StatelessCommitRef reference) {
+        private IndexEngine.AdditionalSegmentsInfos readAdditionalSegmentsInfos(
+            StatelessCommitRef reference,
+            boolean includeMergeProducedSegments
+        ) {
             assert Thread.holdsLock(this) == false : "This method does file IO so better avoid holding locks";
             var additionalSegmentNames = reference.getAdditionalFiles()
                 .stream()
@@ -2013,10 +2064,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(IndexFileNames::stripExtension)
                 .collect(Collectors.toUnmodifiableSet());
             try {
-                return IndexEngine.readTimestampFieldValueRangeAcrossSegments(
+                return IndexEngine.readAdditionalSegmentsInfos(
                     reference.getIndexCommit(),
                     additionalSegmentNames,
-                    mappingLookupSupplier.get().getTimestampFieldType()
+                    mappingLookupSupplier.get().getTimestampFieldType(),
+                    includeMergeProducedSegments
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -2580,7 +2632,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             IndexShardRoutingTable shardRoutingTable,
             StatelessCompoundCommit lastCompoundCommit,
             long batchedCompoundCommitGeneration,
-            PrimaryTermAndGeneration maxUploadedBccTermAndGen
+            PrimaryTermAndGeneration maxUploadedBccTermAndGen,
+            @Nullable Map<String, Long> newMergedSegmentsSizes
         ) {
             assert isRelocating() == false || lastCompoundCommit.generation() <= maxGenerationToUpload
                 : "Request generation="
@@ -2598,6 +2651,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxUploadedBccTermAndGen,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
+                newMergedSegmentsSizes,
                 ActionListener.wrap(Void -> {
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload

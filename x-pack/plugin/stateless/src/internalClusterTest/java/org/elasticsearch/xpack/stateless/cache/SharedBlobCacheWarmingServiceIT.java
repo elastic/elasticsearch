@@ -1016,7 +1016,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     notificationRequest.getBatchedCompoundCommitGeneration(),
                     null,
                     notificationRequest.getClusterStateVersion(),
-                    notificationRequest.getNodeId()
+                    notificationRequest.getNodeId(),
+                    notificationRequest.getNewMergedSegmentsSizes()
                 );
                 handler.messageReceived(alteredRequest, channel, task);
             });

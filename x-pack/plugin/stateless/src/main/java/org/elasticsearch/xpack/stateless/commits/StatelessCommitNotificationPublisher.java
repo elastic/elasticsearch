@@ -17,12 +17,14 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -103,7 +105,9 @@ public class StatelessCommitNotificationPublisher {
                 uploadedBcc.primaryTermAndGeneration().generation(),
                 uploadedBcc.primaryTermAndGeneration(),
                 clusterStateVersion,
-                localNodeId
+                localNodeId,
+                // This is the uploaded-BCC notification: the commit is already uploaded, so there are no cold merge segments to report.
+                null
             );
             assert notificationRequest.isUploaded();
 
@@ -147,6 +151,7 @@ public class StatelessCommitNotificationPublisher {
         PrimaryTermAndGeneration maxUploadedBccTermAndGen,
         long clusterStateVersion,
         String localNodeId,
+        @Nullable Map<String, Long> newMergedSegmentsSizes,
         ActionListener<Void> listener
     ) {
         final var request = new NewCommitNotificationRequest(
@@ -155,7 +160,8 @@ public class StatelessCommitNotificationPublisher {
             batchedCompoundCommitGeneration,
             maxUploadedBccTermAndGen,
             clusterStateVersion,
-            localNodeId
+            localNodeId,
+            newMergedSegmentsSizes
         );
 
         client.execute(TransportNewCommitNotificationAction.TYPE, request, listener.map(response -> null));

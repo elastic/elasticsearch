@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.xpack.stateless.cache.SearchColdSegmentsMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -73,7 +74,8 @@ public class SearchEngineHeapBudgetLeakInvariantTests extends AbstractEngineTest
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchColdSegmentsMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {

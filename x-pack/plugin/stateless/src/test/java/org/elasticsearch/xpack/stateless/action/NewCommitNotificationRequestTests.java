@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,7 +53,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
     protected NewCommitNotificationRequest mutateInstance(NewCommitNotificationRequest instance) throws IOException {
         final StatelessCompoundCommit compoundCommit = instance.getCompoundCommit();
 
-        final var i = between(0, 3);
+        final var i = between(0, 4);
         return switch (i) {
             // Mutate CC's primary and generation
             case 0 -> {
@@ -81,7 +83,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                     newCcTermAndGen.generation(),
                     instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
                     instance.getClusterStateVersion(),
-                    instance.getNodeId()
+                    instance.getNodeId(),
+                    instance.getNewMergedSegmentsSizes()
                 );
             }
             // Mutate latest uploaded BCC's primary and generation
@@ -102,7 +105,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                     bccGeneration,
                     newUploadedBccTermAndGen,
                     instance.getClusterStateVersion(),
-                    instance.getNodeId()
+                    instance.getNodeId(),
+                    instance.getNewMergedSegmentsSizes()
                 );
             }
             // Mutate cluster state version
@@ -112,7 +116,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 instance.getBatchedCompoundCommitGeneration(),
                 instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
                 randomValueOtherThan(instance.getClusterStateVersion(), ESTestCase::randomNonNegativeLong),
-                instance.getNodeId()
+                instance.getNodeId(),
+                instance.getNewMergedSegmentsSizes()
             );
             // Mutate node id
             case 3 -> new NewCommitNotificationRequest(
@@ -121,7 +126,18 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 instance.getBatchedCompoundCommitGeneration(),
                 instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
                 instance.getClusterStateVersion(),
-                randomValueOtherThan(instance.getNodeId(), ESTestCase::randomIdentifier)
+                randomValueOtherThan(instance.getNodeId(), ESTestCase::randomIdentifier),
+                instance.getNewMergedSegmentsSizes()
+            );
+            // Mutate merge-produced files
+            case 4 -> new NewCommitNotificationRequest(
+                indexShardRoutingTable,
+                compoundCommit,
+                instance.getBatchedCompoundCommitGeneration(),
+                instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                instance.getClusterStateVersion(),
+                instance.getNodeId(),
+                randomValueOtherThan(instance.getNewMergedSegmentsSizes(), NewCommitNotificationRequestTests::randomNewMergedSegmentsSizes)
             );
             default -> throw new IllegalArgumentException("Unexpected value " + i);
         };
@@ -155,7 +171,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             generation + 1,
             new PrimaryTermAndGeneration(primaryTerm, generation + 2),
             randomNonNegativeLong(),
-            randomIdentifier()
+            randomIdentifier(),
+            Map.of()
         );
 
         final ActionRequestValidationException validationException1 = request1.validate();
@@ -181,7 +198,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             generation,
             new PrimaryTermAndGeneration(primaryTerm + 1, generation),
             randomNonNegativeLong(),
-            randomIdentifier()
+            randomIdentifier(),
+            Map.of()
         );
 
         final ActionRequestValidationException validationException2 = request2.validate();
@@ -214,7 +232,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             bccGeneration,
             null,
             clusterStateVersion,
-            nodeId
+            nodeId,
+            randomNewMergedSegmentsSizes()
         );
         assertThat(request.toString(), request.isUploaded(), is(false));
 
@@ -224,7 +243,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             bccGeneration,
             new PrimaryTermAndGeneration(randomLongBetween(1, primaryTerm), randomLongBetween(1, bccGeneration - 1)),
             clusterStateVersion,
-            nodeId
+            nodeId,
+            randomNewMergedSegmentsSizes()
         );
         assertThat(request.toString(), request.isUploaded(), is(false));
 
@@ -234,7 +254,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             bccGeneration,
             new PrimaryTermAndGeneration(primaryTerm, bccGeneration),
             clusterStateVersion,
-            nodeId
+            nodeId,
+            randomNewMergedSegmentsSizes()
         );
         assertThat(request.toString(), request.isUploaded(), is(true));
     }
@@ -265,7 +286,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 null // for new shards where uploads are yet to happen
             ),
             randomNonNegativeLong(),
-            randomIdentifier()
+            randomIdentifier(),
+            randomNewMergedSegmentsSizes()
         );
     }
 
@@ -279,7 +301,24 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             generation,
             new PrimaryTermAndGeneration(primaryTerm, generation),
             randomNonNegativeLong(),
-            randomIdentifier()
+            randomIdentifier(),
+            randomNewMergedSegmentsSizes()
         );
+    }
+
+    @Nullable
+    private static Map<String, Long> randomNewMergedSegmentsSizes() {
+        return switch (between(0, 2)) {
+            case 0 -> null; // feature disabled on the indexing node
+            case 1 -> Map.of(); // enabled, no merge-produced segments in this commit
+            default -> {
+                final Map<String, Long> segmentSizes = new HashMap<>();
+                final int count = between(1, 4);
+                for (int i = 0; i < count; i++) {
+                    segmentSizes.put("_" + randomIdentifier(), randomNonNegativeLong());
+                }
+                yield segmentSizes;
+            }
+        };
     }
 }

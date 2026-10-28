@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAlloc
 import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchColdSegmentsMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
@@ -1227,7 +1228,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
                         NoopCircuitBreaker.INSTANCE,
                         StatelessReaderHeapMetrics.NOOP,
-                        new ReshardSearchFilters(Settings.EMPTY)
+                        new ReshardSearchFilters(Settings.EMPTY),
+                        SearchColdSegmentsMetrics.NOOP
                     );
                 }
             });

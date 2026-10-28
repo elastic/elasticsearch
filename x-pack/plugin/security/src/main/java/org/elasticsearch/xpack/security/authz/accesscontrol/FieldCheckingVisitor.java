@@ -14,7 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.function.Supplier;
@@ -89,7 +89,7 @@ final class FieldCheckingVisitor extends QueryVisitor {
     }
 
     @Override
-    public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+    public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
         checkField(field);
     }
 

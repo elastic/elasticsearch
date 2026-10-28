@@ -18,7 +18,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -44,7 +44,7 @@ public class FieldCheckingVisitorTests extends ESTestCase {
         new FieldPermissions(new FieldPermissionsDefinition(new String[] { CACHEABLE_FIELD }, new String[] { "_disallowed" })),
         DocumentPermissions.allowAll()
     );
-    private static final Supplier<ByteRunAutomaton> UNUSED_AUTOMATON = () -> { throw new AssertionError("automaton not evaluated"); };
+    private static final Supplier<ByteRunnable> UNUSED_AUTOMATON = () -> { throw new AssertionError("automaton not evaluated"); };
     private static final Query UNUSED_QUERY = new UnusedQuery();
 
     public void testAcceptField() {

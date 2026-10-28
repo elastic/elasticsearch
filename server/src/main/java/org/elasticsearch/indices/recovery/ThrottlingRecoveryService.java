@@ -576,7 +576,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         boolean isUnassigned() {
             RecoveryState state = recoveryState();
             return switch (state.getRecoveryPriority()) {
-                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING,
+                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING,
                     UNASSIGNED_RESHARDING -> true;
                 case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> false;
                 case UNKNOWN -> {

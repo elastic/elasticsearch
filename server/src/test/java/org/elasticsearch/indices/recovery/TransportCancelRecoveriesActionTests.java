@@ -522,7 +522,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
     private static RecoveryState newRecoveryState(ShardId shardId, ShardRouting.RecoveryPriority recoveryPriority) {
         String relocatingNodeId = switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING,
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING,
                 UNASSIGNED_RESHARDING -> null;
             case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
             case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");

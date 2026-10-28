@@ -566,7 +566,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     LegacyRecoveryPriority copyPriority = in.readEnum(LegacyRecoveryPriority.class);
                     LegacyRecoveryPriority expectedPriority = switch (originalPriority) {
                         case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> LegacyRecoveryPriority.UNASSIGNED_EXISTING;
-                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING, UNASSIGNED_RESHARDING ->
+                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING, UNASSIGNED_RESHARDING ->
                             LegacyRecoveryPriority.UNASSIGNED_NEW;
                         case RELOCATION_CAN_REMAIN_NO -> LegacyRecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                         case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> LegacyRecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED;
@@ -604,7 +604,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     /// A copy of the [ShardRouting.RecoveryPriority] enum before the introduction of
     /// [ShardRouting.RecoveryPriority#UNASSIGNED_RESTORING], [ShardRouting.RecoveryPriority#UNASSIGNED_RESHARDING] and
-    /// [ShardRouting.RecoveryPriority#UNASSIGNED_SEARCH_SCALING].
+    /// [ShardRouting.RecoveryPriority#UNASSIGNED_REPLICA_SCALING].
     private enum RecoveryPriorityBeforeDeferrableUnassigned {
         UNASSIGNED_NEW_PRIMARY,
         UNASSIGNED_UNEXPECTED,
@@ -617,9 +617,9 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     /// Serializes a [ShardRouting.RecoveryPriority] using a [TransportVersion] from before the introduction of
     /// [ShardRouting.RecoveryPriority#UNASSIGNED_RESTORING], [ShardRouting.RecoveryPriority#UNASSIGNED_RESHARDING] and
-    /// [ShardRouting.RecoveryPriority#UNASSIGNED_SEARCH_SCALING], deserializes them the way that we used to before that change to get a
+    /// [ShardRouting.RecoveryPriority#UNASSIGNED_REPLICA_SCALING], deserializes them the way that we used to before that change to get a
     /// [RecoveryPriorityBeforeDeferrableUnassigned], and assert that it is the equivalent or closest value.
-    public void testRecoveryPrioritySerialization_previousReader() throws IOException {
+    public void testRecoveryPrioritySerialization_beforeDeferrableUnassignedReader() throws IOException {
         for (final var originalPriority : ShardRouting.RecoveryPriority.values()) {
             final var version = ShardRouting.RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -630,7 +630,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     final var expectedPriority = switch (originalPriority) {
                         case UNASSIGNED_NEW_PRIMARY -> RecoveryPriorityBeforeDeferrableUnassigned.UNASSIGNED_NEW_PRIMARY;
                         case UNASSIGNED_UNEXPECTED -> RecoveryPriorityBeforeDeferrableUnassigned.UNASSIGNED_UNEXPECTED;
-                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING, UNASSIGNED_RESHARDING ->
+                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING, UNASSIGNED_RESHARDING ->
                             RecoveryPriorityBeforeDeferrableUnassigned.UNASSIGNED_EXPECTED;
                         case RELOCATION_CAN_REMAIN_NO -> RecoveryPriorityBeforeDeferrableUnassigned.RELOCATION_CAN_REMAIN_NO;
                         case RELOCATION_CAN_REMAIN_NOT_PREFERRED ->
@@ -646,10 +646,10 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     /// Serializes a [RecoveryPriorityBeforeDeferrableUnassigned] the way we used to before the introduction of
     /// [ShardRouting.RecoveryPriority#UNASSIGNED_RESTORING], [ShardRouting.RecoveryPriority#UNASSIGNED_RESHARDING] and
-    /// [ShardRouting.RecoveryPriority#UNASSIGNED_SEARCH_SCALING], deserializes
+    /// [ShardRouting.RecoveryPriority#UNASSIGNED_REPLICA_SCALING], deserializes
     /// them to get a [ShardRouting.RecoveryPriority] using a [TransportVersion] from before that change, and assert that it is an
     /// equivalent value.
-    public void testRecoveryPrioritySerialization_previousWriter() throws IOException {
+    public void testRecoveryPrioritySerialization_beforeDeferrableUnassignedWriter() throws IOException {
         for (final var originalPriority : RecoveryPriorityBeforeDeferrableUnassigned.values()) {
             final var version = ShardRouting.RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -657,7 +657,16 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 try (StreamInput in = output.bytes().streamInput()) {
                     in.setTransportVersion(version);
                     final var copyPriority = ShardRouting.RecoveryPriority.readFrom(in);
-                    assertEquals(originalPriority.name(), copyPriority.name());
+                    final var expectedPriority = switch (originalPriority) {
+                        case UNASSIGNED_NEW_PRIMARY -> ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
+                        case UNASSIGNED_UNEXPECTED -> ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                        case UNASSIGNED_EXPECTED -> ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
+                        case RELOCATION_CAN_REMAIN_NO -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+                        case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED;
+                        case RELOCATE_REBALANCING -> ShardRouting.RecoveryPriority.RELOCATE_REBALANCING;
+                        case UNKNOWN -> ShardRouting.RecoveryPriority.UNKNOWN;
+                    };
+                    assertEquals(expectedPriority, copyPriority);
                 }
             }
         }

@@ -518,7 +518,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             addedReplica.recoveryPriority(),
             equalTo(
                 existingReplica != null && existingReplica.started()
-                    ? ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING
+                    ? ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING
                     : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             )
         );

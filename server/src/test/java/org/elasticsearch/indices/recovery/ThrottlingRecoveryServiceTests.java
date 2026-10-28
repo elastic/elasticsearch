@@ -478,13 +478,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         );
 
         // Enqueue more recoveries from unassigned with lower priority in random order. There are fewer UNASSIGNED_RESTORING
-        // than free slots, so the remaining slots should go to UNASSIGNED_SEARCH_SCALING, of which there are more than
+        // than free slots, so the remaining slots should go to UNASSIGNED_REPLICA_SCALING, of which there are more than
         // enough, and none to UNASSIGNED_RESHARDING:
         final int freeSlots = maxConcurrentRecoveries - maxConcurrentRelocationRecoveries;
         final Map<ShardRouting.RecoveryPriority, Integer> counts = Map.of(
             ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
             between(1, freeSlots - 1),
-            ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING,
+            ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING,
             freeSlots + between(1, 4),
             ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING,
             between(1, 4)
@@ -513,12 +513,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
         assertThat(countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING), equalTo(runningRestoring));
         assertThat(
-            countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING),
+            countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING),
             equalTo(freeSlots - runningRestoring)
         );
         assertThat(countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING), equalTo(0));
 
-        // Complete one of the recoveries from unassigned, and assert that another UNASSIGNED_SEARCH_SCALING one starts
+        // Complete one of the recoveries from unassigned, and assert that another UNASSIGNED_REPLICA_SCALING one starts
         final var completed = randomFrom(runningRecoveries.keySet().stream().filter(id -> id.startsWith("relocation-") == false).toList());
         runningRecoveries.remove(completed).onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
@@ -526,7 +526,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(
             countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING) + countRunning(
                 runningRecoveries,
-                ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING
+                ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING
             ),
             equalTo(freeSlots)
         );
@@ -2637,7 +2637,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static RecoveryState newRecoveryState(ShardId shardId, ShardRouting.RecoveryPriority recoveryPriority) {
         String relocatingNodeId = switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING,
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING,
                 UNASSIGNED_RESHARDING -> null;
             case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
             case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");

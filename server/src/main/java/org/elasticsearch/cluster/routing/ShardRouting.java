@@ -51,7 +51,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         UNASSIGNED_UNEXPECTED(false, true),
 
         /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening an index.
-        /// Note that this excludes [#UNASSIGNED_NEW_PRIMARY], [#UNASSIGNED_RESTORING], [#UNASSIGNED_SEARCH_SCALING]
+        /// Note that this excludes [#UNASSIGNED_NEW_PRIMARY], [#UNASSIGNED_RESTORING], [#UNASSIGNED_REPLICA_SCALING]
         /// or [#UNASSIGNED_RESHARDING].
         UNASSIGNED_EXPECTED(false, true),
 
@@ -67,12 +67,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         /// must be vacated (e.g. because it is shutting down) may do so.
         UNASSIGNED_RESTORING(false, true),
 
-        /// A shard which is unassigned because it is a replica added to a shard which already has an active replica, so
-        /// it just adds search capacity.
+        /// A unassigned replica that was added to a shard which already has an active replica.
         ///
         /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because the shard is already
         /// fully available without this new replica.
-        UNASSIGNED_SEARCH_SCALING(false, true),
+        UNASSIGNED_REPLICA_SCALING(false, true),
 
         /// A primary shard which is unassigned because it is the target of a reshard split. Replicas of split targets are
         /// [#UNASSIGNED_EXPECTED] instead: they can only start once the target primary has taken over its share of the writes,
@@ -80,9 +79,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         ///
         /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because, until the source hands
         /// off to the target, the index is fully available from the source shard, so the new shard only improves performance.
-        /// Note that a target which fails after the handoff, but before it becomes active, keeps this priority on retry
-        /// (see `RoutingNodes#failedShardRecoveryPriority`) even though its share of the writes is then unavailable.
-        /// It is also lower priority than [#UNASSIGNED_SEARCH_SCALING] because a split is expected to take longer than starting
+        /// It is also lower priority than [#UNASSIGNED_REPLICA_SCALING] because a split is expected to take longer than starting
         /// a new replica, and holds its recovery slot on the target while the source does most of the work.
         UNASSIGNED_RESHARDING(false, true),
 
@@ -112,7 +109,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 return in.readEnum(RecoveryPriority.class);
             } else if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
                 // Deserialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING,
-                // UNASSIGNED_RESHARDING and UNASSIGNED_SEARCH_SCALING values
+                // UNASSIGNED_RESHARDING and UNASSIGNED_REPLICA_SCALING values
                 int ordinal = in.readVInt();
                 return switch (ordinal) {
                     case 0 -> UNASSIGNED_NEW_PRIMARY;
@@ -154,11 +151,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 out.writeEnum(this);
             } else if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
                 // Serialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING,
-                // UNASSIGNED_RESHARDING and UNASSIGNED_SEARCH_SCALING values, or the nearest fallbacks
+                // UNASSIGNED_RESHARDING and UNASSIGNED_REPLICA_SCALING values, or the nearest fallbacks
                 int ordinal = switch (this) {
                     case UNASSIGNED_NEW_PRIMARY -> 0;
                     case UNASSIGNED_UNEXPECTED -> 1;
-                    case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING, UNASSIGNED_RESHARDING -> 2;
+                    case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING, UNASSIGNED_RESHARDING -> 2;
                     case RELOCATION_CAN_REMAIN_NO -> 3;
                     case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 4;
                     case RELOCATE_REBALANCING -> 5;
@@ -170,7 +167,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 // or the nearest fallbacks
                 int legacyOrdinal = switch (this) {
                     case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> 0;
-                    case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING, UNASSIGNED_RESHARDING -> 1;
+                    case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING, UNASSIGNED_RESHARDING -> 1;
                     case RELOCATION_CAN_REMAIN_NO -> 2;
                     case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
                     case RELOCATE_REBALANCING, UNKNOWN -> 4;
@@ -195,7 +192,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     );
 
     /// Introduced along with [RecoveryPriority#UNASSIGNED_RESTORING], [RecoveryPriority#UNASSIGNED_RESHARDING] and
-    /// [RecoveryPriority#UNASSIGNED_SEARCH_SCALING]
+    /// [RecoveryPriority#UNASSIGNED_REPLICA_SCALING]
     private static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION = TransportVersion.fromName(
         "recovery_priority_unassigned_deferrable"
     );

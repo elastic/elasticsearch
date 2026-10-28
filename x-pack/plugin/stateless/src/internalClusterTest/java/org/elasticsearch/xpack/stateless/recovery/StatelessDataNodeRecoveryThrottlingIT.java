@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -467,13 +468,21 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             });
         };
 
-        // Stall the handoffs of the relocations, so that the relocations keep their recovery slots once started
-        final var proceedWithHandoffs = new CountDownLatch(1);
+        // Stall the handoffs of the relocations, so that the relocations keep their recovery slots once started. The handoffs
+        // are queued rather than blocking the handler thread, so they cannot time out however long the test takes to release them.
+        final var stallHandoffs = new AtomicBoolean(true);
+        final var stalledHandoffs = new ConcurrentLinkedQueue<CheckedRunnable<Exception>>();
         MockTransportService.getInstance(targetNode)
             .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
-                safeAwait(proceedWithHandoffs);
+                synchronized (stalledHandoffs) {
+                    if (stallHandoffs.get()) {
+                        stalledHandoffs.add(() -> handler.messageReceived(request, channel, task));
+                        return;
+                    }
+                }
                 handler.messageReceived(request, channel, task);
             });
+        final var targetExecutor = internalCluster().getInstance(ThreadPool.class, targetNode).generic();
 
         safeGet(client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(reshardedIndex)));
         awaitRecoveryCountStats(
@@ -532,7 +541,16 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         while (stalledSplits.isEmpty() == false) {
             releaseOneSplit.run();
         }
-        proceedWithHandoffs.countDown();
+        synchronized (stalledHandoffs) {
+            stallHandoffs.set(false);
+            stalledHandoffs.forEach(handoff -> targetExecutor.execute(() -> {
+                try {
+                    handoff.run();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }));
+        }
         awaitClusterState(state -> state.projectState().metadata().index(reshardedIndex).getReshardingMetadata() == null);
         ensureGreen(evacuatedIndex, reshardedIndex);
         final var state = internalCluster().clusterService().state();

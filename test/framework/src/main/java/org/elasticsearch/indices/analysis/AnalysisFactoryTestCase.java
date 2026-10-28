@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -376,6 +377,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         final boolean neverShares;
         final Map<String, Object> base;
         final List<SettingCase> settings = new ArrayList<>();
+        final List<FactorySettings> variants = new ArrayList<>();
+        final List<IndexVersion> versionBoundaries = new ArrayList<>();
 
         private FactorySettings(boolean neverShares, Map<String, Object> base) {
             this.neverShares = neverShares;
@@ -391,6 +394,27 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         /** This setting is read but MUST NOT change the instance. Each value is probed against the base. */
         public FactorySettings ignored(String name, Object... values) {
             settings.add(new SettingCase(name, false, List.of(values)));
+            return this;
+        }
+
+        /**
+         * The factory's behavior is gated on the index version created, so indices on either side of
+         * {@code boundary} MUST NOT share an instance. Probed by building the base at the version just
+         * before the boundary; skipped when no read-compatible version predates it.
+         */
+        public FactorySettings gatedAt(IndexVersion boundary) {
+            versionBoundaries.add(boundary);
+            return this;
+        }
+
+        /**
+         * Probes further settings against a different base. For settings only some bases read, such as
+         * one encoder of several behind a single factory name, which cannot be declared against the
+         * primary base.
+         */
+        public FactorySettings alsoWith(FactorySettings variant) {
+            assert variant.variants.isEmpty() : "variants do not nest";
+            variants.add(variant);
             return this;
         }
     }
@@ -529,21 +553,52 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     continue;
                 }
                 assertSame(kind + " [" + type + "] two identical configurations must produce the same shared instance", reference, again);
-                for (SettingCase setting : decl.settings) {
-                    for (Object value : setting.values()) {
-                        Map<String, Object> varied = new LinkedHashMap<>(decl.base);
-                        varied.put(setting.name(), value);
-                        Analyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a").analyzer();
-                        String where = kind + " [" + type + "] setting [" + setting.name() + "]=" + value;
-                        if (setting.affectsInstance()) {
-                            assertNotSame(
-                                where + " must produce a distinct instance; it is not folded into sharingKey()",
-                                reference,
-                                other
-                            );
-                        } else {
-                            assertSame(where + " is declared ignored and must not change the instance, but it did", reference, other);
+                List<FactorySettings> probes = new ArrayList<>();
+                probes.add(decl);
+                probes.addAll(decl.variants);
+                for (FactorySettings probe : probes) {
+                    Analyzer probeReference = probe == decl
+                        ? reference
+                        : build(registry, chainSettings(kind, type, probe.base), tracked).get("a").analyzer();
+                    for (SettingCase setting : probe.settings) {
+                        for (Object value : setting.values()) {
+                            Map<String, Object> varied = new LinkedHashMap<>(probe.base);
+                            varied.put(setting.name(), value);
+                            Analyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a").analyzer();
+                            String where = kind + " [" + type + "] base " + probe.base + " setting [" + setting.name() + "]=" + value;
+                            if (setting.affectsInstance()) {
+                                assertNotSame(
+                                    where + " must produce a distinct instance; it is not folded into sharingKey()",
+                                    probeReference,
+                                    other
+                                );
+                            } else {
+                                assertSame(
+                                    where + " is declared ignored and must not change the instance, but it did",
+                                    probeReference,
+                                    other
+                                );
+                            }
                         }
+                    }
+                    for (IndexVersion boundary : probe.versionBoundaries) {
+                        IndexVersion before = IndexVersionUtils.getPreviousVersion(boundary);
+                        if (before.before(IndexVersionUtils.getLowestReadCompatibleVersion())) {
+                            continue;
+                        }
+                        Analyzer other = build(registry, chainSettings(kind, type, probe.base), before, tracked).get("a").analyzer();
+                        assertNotSame(
+                            kind
+                                + " ["
+                                + type
+                                + "] base "
+                                + probe.base
+                                + " is gated at index version "
+                                + boundary
+                                + " and must not share across it; the gate is not folded into sharingKey()",
+                            probeReference,
+                            other
+                        );
                     }
                 }
             }
@@ -564,8 +619,13 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     private static IndexAnalyzers build(AnalysisRegistry registry, Settings analysis, List<IndexAnalyzers> tracked) throws IOException {
+        return build(registry, analysis, IndexVersion.current(), tracked);
+    }
+
+    private static IndexAnalyzers build(AnalysisRegistry registry, Settings analysis, IndexVersion created, List<IndexAnalyzers> tracked)
+        throws IOException {
         Settings s = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, created)
             // Room for the larger gram/shingle spans some probes use.
             .put("index.max_ngram_diff", 10)
             .put("index.max_shingle_diff", 10)

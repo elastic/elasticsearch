@@ -46,6 +46,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private NameType nametype;
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
+    private int maxVariations;
     private final Object sharingKey;
     private boolean legacyHaaseVariations;
 
@@ -55,6 +56,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
+        this.maxVariations = 0;
         this.isDaitchMokotoff = false;
         this.replace = settings.getAsBoolean("replace", true);
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
@@ -98,11 +100,13 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik(maxVariations(settings));
+                this.maxVariations = maxVariations(settings);
+                this.encoder = new KoelnerPhonetik(maxVariations);
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
+                this.maxVariations = maxVariations(settings);
                 this.legacyHaaseVariations = indexSettings.getIndexVersionCreated()
                     .before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
-                this.encoder = new HaasePhonetik(maxVariations(settings), legacyHaaseVariations);
+                this.encoder = new HaasePhonetik(maxVariations, legacyHaaseVariations);
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -121,7 +125,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             nametype,
             ruletype,
             isDaitchMokotoff,
-            legacyHaaseVariations
+            legacyHaaseVariations,
+            maxVariations
         );
     }
 
@@ -182,6 +187,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         RuleType ruleType,
         boolean daitchMokotoff,
         // Derived from the index version rather than a setting: the encoder class alone can't tell legacy and fixed haasephonetik apart.
-        boolean legacyHaaseVariations
+        boolean legacyHaaseVariations,
+        // 0 for encoders that do not generate variations, so they still share across differing max_variations.
+        int maxVariations
     ) {}
 }

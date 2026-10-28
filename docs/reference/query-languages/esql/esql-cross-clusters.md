@@ -546,8 +546,7 @@ defined on a remote cluster can't be queried from the local cluster.
 ::::{applies-switch}
 :::{applies-item} stack: ga 9.6+
 Remote views are invisible to source resolution. An exact remote view reference
-returns an `Unknown index` error, and wildcard expressions don't match remote
-views.
+returns an `Unknown index` error.
 :::
 :::{applies-item} stack: preview 9.4-9.5
 A query fails if its source expression matches a remote view.

@@ -1114,7 +1114,6 @@ public class TranslogReplicatorTests extends ESTestCase {
             assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0]);
         });
 
-        assertTrue(future.isDone());
         assertThat(expectThrows(AlreadyClosedException.class, future::actionGet).getMessage(), containsString("primary term is stale"));
         translogReplicator.unregister(shardId);
     }

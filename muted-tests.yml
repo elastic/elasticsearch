@@ -536,14 +536,12 @@ tests:
   tasks:
   - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
   - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
   issue: https://github.com/elastic/elasticsearch/issues/163608
-- class: org.elasticsearch.xpack.eql.qa.mixed_node.EqlSearchIT
-  tasks:
-  - :x-pack:plugin:eql:qa:mixed-node:v9.6.0#javaRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/163660
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163565
 - class: org.elasticsearch.index.IndexSettingsTests
   tasks:
@@ -565,3 +563,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSetLevel
   issue: https://github.com/elastic/elasticsearch/issues/163699
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStressWithRelocationFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148129

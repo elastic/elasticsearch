@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -23,11 +20,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
@@ -36,7 +30,6 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQuer
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 
@@ -137,7 +130,7 @@ public class EsqlDataExtractor implements DataExtractor {
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
         String sourceQuery = EsqlDataExtractorQueryUtils.sourceRangeSummaryQuery(context.esqlQuery());
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             DataSummary summary = parseSummaryResponse(response.response());
@@ -176,7 +169,7 @@ public class EsqlDataExtractor implements DataExtractor {
         QueryBuilder probeFilter = EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
         String probeQuery = EsqlDataExtractorQueryUtils.boundedProbeQuery(context.esqlQuery());
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             for (Iterable<Object> row : response.response().rows()) {
@@ -234,7 +227,7 @@ public class EsqlDataExtractor implements DataExtractor {
         String orderedQuery = EsqlDataExtractorQueryUtils.buildOrderedQuery(context.esqlQuery());
 
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             Optional<InputStream> data = Optional.empty();
@@ -273,60 +266,12 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    private EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        return syncQueryRunner.run(orderedQuery, timeFilter, params);
+    private EsqlQueryResponse runQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
+        return EsqlQueryRunner.runWithSingleRetry(syncQueryRunner, query, timeFilter, params, () -> isCancelled, context.jobId());
     }
 
     private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
-    }
-
-    private EsqlQueryResponse runEsqlQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        throwIfCancelled();
-        try {
-            return runEsqlQuery(query, timeFilter, params);
-        } catch (NodeClosedException | NodeDisconnectedException | NodeNotConnectedException | UnavailableShardsException e) {
-            return retryAfterNodeFailure(query, timeFilter, params, e);
-        } catch (ElasticsearchException e) {
-            if (isRetryableNodeFailure(e) == false) {
-                throw e;
-            }
-            return retryAfterNodeFailure(query, timeFilter, params, e);
-        }
-    }
-
-    private EsqlQueryResponse retryAfterNodeFailure(
-        String query,
-        QueryBuilder timeFilter,
-        List<EsqlQueryParam> params,
-        Exception nodeFailure
-    ) {
-        if (isCancelled) {
-            if (nodeFailure instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw new ElasticsearchException(nodeFailure);
-        }
-        LOGGER.debug(
-            () -> "[" + context.jobId() + "] ES|QL query failed due to a node or shard availability failure; retrying the same range",
-            nodeFailure
-        );
-        throwIfCancelled();
-        return runEsqlQuery(query, timeFilter, params);
-    }
-
-    private void throwIfCancelled() {
-        if (isCancelled) {
-            throw new IllegalStateException(Messages.getMessage(Messages.DATAFEED_ESQL_QUERY_CANCELLED));
-        }
-    }
-
-    public static boolean isRetryableNodeFailure(Exception e) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        return cause instanceof NodeClosedException
-            || cause instanceof NodeDisconnectedException
-            || cause instanceof NodeNotConnectedException
-            || cause instanceof UnavailableShardsException;
     }
 
     private List<EsqlQueryParam> timeFieldParam() {

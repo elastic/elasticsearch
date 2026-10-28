@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.PartitionedAggregationBlock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -170,9 +171,48 @@ public class HashAggregationOperator implements Operator {
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
     public static final long DEFAULT_PARTITIONING_MEMORY_THRESHOLD = 16L * 1024 * 1024;
     public static final int DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD = 400_000;
+    public static final int DEFAULT_DIRECT_TABLE_SLOTS = 2048;
+    public static final int DEFAULT_DIRECT_TABLE_SWITCH_MIN_KEYS = 32 * 1024;
+    public static final double DEFAULT_DIRECT_TABLE_SWITCH_UNIQUENESS = 0.5;
 
     // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
+
+    /**
+     * Configures the switch of a partial aggregation to a direct-mapped hash table, see {@link BlockHash#buildDirect}.
+     * <p>
+     * The operator starts with a regular hash table. Once it holds at least {@code switchMinKeys} keys and the
+     * keys added over the last few pages are at least {@code switchUniqueness} of the rows, it emits and continues with
+     * a direct-mapped table with {@code slots} slots until the end of the input. That table is small, so it stays in
+     * cache, and flushes at the usual partitioning threshold. It can emit the same key several times, which the final
+     * aggregation merges.
+     *
+     * @param slots the number of slots in the direct-mapped table, a power of two. {@code 0} disables the switch.
+     * @param switchMinKeys the minimum number of keys in the regular table to consider switching
+     * @param switchUniqueness the minimum ratio of new keys to rows over the recent pages to switch
+     */
+    public record DirectTableConfig(int slots, int switchMinKeys, double switchUniqueness) {
+        public DirectTableConfig {
+            if (slots < 0 || (slots > 0 && Integer.bitCount(slots) != 1)) {
+                throw new IllegalArgumentException("slots must be zero or a power of two; got " + slots);
+            }
+            if (switchMinKeys < 0) {
+                throw new IllegalArgumentException("switchMinKeys must not be negative; got " + switchMinKeys);
+            }
+            if (switchUniqueness < 0.0) {
+                throw new IllegalArgumentException("switchUniqueness must not be negative; got " + switchUniqueness);
+            }
+        }
+
+        public boolean enabled() {
+            return slots > 0;
+        }
+    }
+
+    /**
+     * The minimum number of rows between two checks of the uniqueness of the keys. About two pages.
+     */
+    static final int SWITCH_CHECK_ROWS = 16 * 1024;
 
     public record ParallelConfig(
         Executor executor,
@@ -203,6 +243,7 @@ public class HashAggregationOperator implements Operator {
         private TopAggregation topAggregation;
         private boolean allowPartitionedOutput;
         private ParallelConfig parallelConfig;
+        private DirectTableConfig directTableConfig;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
             this.groups = groups;
@@ -255,6 +296,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder directTable(DirectTableConfig directTableConfig) {
+            this.directTableConfig = directTableConfig;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -272,6 +318,7 @@ public class HashAggregationOperator implements Operator {
         private final TopAggregation topAggregation;
         private final ParallelConfig parallelConfig;
         private final boolean allowPartitionedOutput;
+        private final DirectTableConfig directTableConfig;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -285,6 +332,7 @@ public class HashAggregationOperator implements Operator {
             this.topAggregation = builder.topAggregation;
             this.parallelConfig = builder.parallelConfig;
             this.allowPartitionedOutput = builder.allowPartitionedOutput;
+            this.directTableConfig = builder.directTableConfig;
         }
 
         @Override
@@ -310,6 +358,13 @@ public class HashAggregationOperator implements Operator {
                 aggregatorMode,
                 aggregators,
                 dc -> wrapBlockHash(dc, BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, false)),
+                directTableConfig != null && directTableConfig.enabled() && BlockHash.supportsDirect(groups)
+                    ? dc -> wrapBlockHash(
+                        dc,
+                        BlockHash.buildDirect(groups, dc.blockFactory(), aggregationBatchSize, directTableConfig.slots())
+                    )
+                    : null,
+                directTableConfig,
                 partialEmitKeysThreshold,
                 partialEmitUniquenessThreshold,
                 maxPageSize,
@@ -335,6 +390,13 @@ public class HashAggregationOperator implements Operator {
     }
 
     protected final Function<DriverContext, BlockHash> blockHashSupplier;
+    /**
+     * Builds the direct-mapped block hash that this operator can switch to, or {@code null} if it never switches.
+     */
+    @Nullable
+    private final Function<DriverContext, BlockHash> directBlockHashSupplier;
+    @Nullable
+    private final DirectTableConfig directTableConfig;
     protected final AggregatorMode aggregatorMode;
     protected final List<GroupingAggregator.Factory> aggregatorFactories;
     protected final List<GroupingAggregator> aggregators;
@@ -393,14 +455,66 @@ public class HashAggregationOperator implements Operator {
     protected long rowsAddedInCurrentBatch;
 
     /**
+     * Whether this operator may switch to the direct-mapped table. That needs partitioned partial output, so that the
+     * keys are merged downstream, and it only applies to the first stage of an aggregation.
+     */
+    private boolean directTableAllowed;
+    /**
+     * Whether the operator is using the direct-mapped table. Once true, it stays true.
+     */
+    private boolean directTable;
+    /**
+     * Set when the regular table was emitted to switch to the direct-mapped table. The switch happens when the next page
+     * arrives, where the other state of the operator is reset too.
+     */
+    private boolean switchToDirectPending;
+    private int keysAtLastSwitchCheck;
+    private long rowsSinceLastSwitchCheck;
+
+    /**
      * Build the operator. Instead of calling this directly, build the {@link Builder},
      * then the {@link Builder#build()} then {@link Factory#get}.
+     */
+    public HashAggregationOperator(
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        Function<DriverContext, BlockHash> blockHashSupplier,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int maxPageSize,
+        TopAggregation topAggregation,
+        DriverContext driverContext,
+        ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput
+    ) {
+        this(
+            aggregatorMode,
+            aggregatorFactories,
+            blockHashSupplier,
+            null,
+            null,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            maxPageSize,
+            topAggregation,
+            driverContext,
+            parallelConfig,
+            allowPartitionedOutput
+        );
+    }
+
+    /**
+     * @param directBlockHashSupplier builds the hash that the operator switches to, see {@link DirectTableConfig}.
+     *                                {@code null} if it never switches.
+     * @param directTableConfig when to switch, required if {@code directBlockHashSupplier} is set
      */
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         Function<DriverContext, BlockHash> blockHashSupplier,
+        @Nullable Function<DriverContext, BlockHash> directBlockHashSupplier,
+        @Nullable DirectTableConfig directTableConfig,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
         int maxPageSize,
@@ -419,6 +533,11 @@ public class HashAggregationOperator implements Operator {
         this.driverContext = driverContext;
         this.aggregatorFactories = aggregatorFactories;
         this.blockHashSupplier = blockHashSupplier;
+        this.directBlockHashSupplier = directBlockHashSupplier;
+        this.directTableConfig = directTableConfig;
+        if (directBlockHashSupplier != null && directTableConfig == null) {
+            throw new IllegalArgumentException("directTableConfig is required with a directBlockHashSupplier");
+        }
         this.aggregators = new ArrayList<>();
         this.topAggregation = topAggregation;
         this.parallelConfig = parallelConfig;
@@ -437,6 +556,10 @@ public class HashAggregationOperator implements Operator {
                 && PartitionedBlockHash.supportPartitioning()
                 && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
             this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
+            // The direct-mapped table repeats keys, which only a later stage can merge. SINGLE emits final results.
+            this.directTableAllowed = directBlockHashSupplier != null
+                && partitionedPartialOutput
+                && aggregatorMode.isInputPartial() == false;
             success = true;
         } finally {
             if (success == false) {
@@ -580,6 +703,9 @@ public class HashAggregationOperator implements Operator {
             rowsAddedInCurrentBatch += page.getPositionCount();
             if (shouldEmitPartialResultsPeriodically()) {
                 emit();
+            } else if (shouldSwitchToDirectTable(page.getPositionCount())) {
+                emit();
+                switchToDirectPending = true;
             }
         } finally {
             page.releaseBlocks();
@@ -620,7 +746,13 @@ public class HashAggregationOperator implements Operator {
 
     void clearCurrentBatch() {
         rowsAddedInCurrentBatch = 0;
-        if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
+        if (switchToDirectPending) {
+            switchToDirectPending = false;
+            BlockHash direct = directBlockHashSupplier.apply(driverContext);
+            Releasables.close(blockHash);
+            blockHash = direct;
+            directTable = true;
+        } else if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
             partitionedBlockHash.clear();
         } else {
             blockHash.close();
@@ -659,6 +791,13 @@ public class HashAggregationOperator implements Operator {
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    /**
+     * Whether the operator switched to the direct-mapped table.
+     */
+    boolean usesDirectTable() {
+        return directTable;
     }
 
     private boolean shouldEmitPartitionedPartialOutput() {
@@ -724,6 +863,33 @@ public class HashAggregationOperator implements Operator {
             }
             return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
         }
+    }
+
+    /**
+     * Whether to emit the regular table and continue with the direct-mapped table. A regular table pays a cache miss
+     * per row once it is large, but it only reduces the rows if keys repeat. So switch once the table is big enough and
+     * the keys of the recent pages were mostly new. The cumulative ratio is not used because it takes long to drop
+     * after a start with many repeated keys, and the ratio of the first pages is not representative.
+     */
+    private boolean shouldSwitchToDirectTable(int pagePositions) {
+        if (directTableAllowed == false || directTable) {
+            return false;
+        }
+        final int numKeys = blockHash.numKeys();
+        if (numKeys < keysAtLastSwitchCheck) {
+            // The table was cleared by an emit since the last check, so those keys are not comparable.
+            keysAtLastSwitchCheck = 0;
+            rowsSinceLastSwitchCheck = pagePositions;
+            return false;
+        }
+        rowsSinceLastSwitchCheck += pagePositions;
+        if (rowsSinceLastSwitchCheck < SWITCH_CHECK_ROWS) {
+            return false;
+        }
+        final double uniqueness = (double) (numKeys - keysAtLastSwitchCheck) / rowsSinceLastSwitchCheck;
+        keysAtLastSwitchCheck = numKeys;
+        rowsSinceLastSwitchCheck = 0;
+        return numKeys >= directTableConfig.switchMinKeys() && uniqueness >= directTableConfig.switchUniqueness();
     }
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {

@@ -991,6 +991,31 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, BytesRefArray bytesRefs, PartitionSplitter partitionSplitter) {
+        return splitPartition(breaker, bigArrays, pagedPartitionBytesThreshold, bytesRefs, partitionSplitter);
+    }
+
+    /**
+     * Partitions the keys of a dense {@link BytesRefArray}, where the id of a key is its index. The result can be passed to
+     * {@link #combinePartition} of any {@link BytesRefSwissHash}. This lets tables that are not swiss hashes, for example
+     * {@link BytesRefDirectHash}, feed a swiss hash on the combining side. The keys may contain duplicates.
+     */
+    static PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        BytesRefArray bytesRefs,
+        PartitionSplitter partitionSplitter
+    ) {
+        return splitPartition(breaker, bigArrays, PAGED_PARTITION_THRESHOLD_BYTES, bytesRefs, partitionSplitter);
+    }
+
+    private static PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        long pagedPartitionBytesThreshold,
+        BytesRefArray bytesRefs,
+        PartitionSplitter partitionSplitter
+    ) {
+        final BytesRef scratch = new BytesRef();
         final int size = Math.toIntExact(bytesRefs.size());
         final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];

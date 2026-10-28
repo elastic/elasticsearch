@@ -817,6 +817,23 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
             }
         }
 
+        void splitKeys(CircuitBreaker breaker, long[] keys, int idOffset, short[] positions, int[] fills) {
+            assert NUM_PARTITIONS * PARTITION_WRITE_BATCH < Short.MAX_VALUE : "shifted ids of one batch must fit in the short value range";
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int c = fills[p];
+                if (c == 0) {
+                    continue;
+                }
+                int writeOffset = partitionCounts[p];
+                ensureCapacity(breaker, p, writeOffset + c);
+                var sub = partitionKeys[p];
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < c; i++) {
+                    sub[writeOffset++] = keys[idOffset + (positions[base + i] & 0xFFFF)];
+                }
+            }
+        }
+
         private void ensureCapacity(CircuitBreaker breaker, int p, int minLength) {
             long[] sub = partitionKeys[p];
             final int currentLength = sub.length;
@@ -887,6 +904,48 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
                 shiftedIds[p * PARTITION_WRITE_BATCH + c] = (short) (id - batchStart);
             }
             partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);
+            partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
+            for (int i = 0; i < NUM_PARTITIONS; i++) {
+                partitionOffsets[i] += batchPartitionCounts[i];
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                partitionedKeys.releaseAll(breaker);
+            }
+        }
+        return partitionedKeys;
+    }
+
+    /**
+     * Partitions the first {@code size} entries of a dense key array, where the id of a key is its index. The result can be passed to
+     * {@link #combinePartition} of any {@link LongSwissHash}. This lets tables that are not swiss hashes, for example
+     * {@link LongDirectHash}, feed a swiss hash on the combining side. The keys may contain duplicates.
+     */
+    static PartitionedHashKeys splitPartition(CircuitBreaker breaker, long[] keys, int size, PartitionSplitter partitionSplitter) {
+        final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
+        final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
+        int batchStart = 0;
+        var partitionedKeys = new LongPartitionedHashKeys(breaker, Math.max(Math.ceilDiv(size, NUM_PARTITIONS), 1));
+        final int[] partitionOffsets = partitionedKeys.partitionCounts;
+        boolean success = false;
+        try {
+            for (int id = 0; id < size; id++) {
+                final int p = partition(keys[id]);
+                if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
+                    partitionedKeys.splitKeys(breaker, keys, batchStart, shiftedIds, batchPartitionCounts);
+                    partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);
+                    for (int i = 0; i < NUM_PARTITIONS; i++) {
+                        partitionOffsets[i] += batchPartitionCounts[i];
+                    }
+                    batchStart = id;
+                    Arrays.fill(batchPartitionCounts, 0);
+                }
+                int c = batchPartitionCounts[p]++;
+                assert id - batchStart <= Short.MAX_VALUE : id - batchStart;
+                shiftedIds[p * PARTITION_WRITE_BATCH + c] = (short) (id - batchStart);
+            }
+            partitionedKeys.splitKeys(breaker, keys, batchStart, shiftedIds, batchPartitionCounts);
             partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
             for (int i = 0; i < NUM_PARTITIONS; i++) {
                 partitionOffsets[i] += batchPartitionCounts[i];

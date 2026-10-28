@@ -250,6 +250,68 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     }
 
     /**
+     * Whether {@link #buildDirect} supports these groups. The hashes built there cover the key types where hashing is the
+     * bottleneck of a partial aggregation with many distinct keys: a single {@code LONG} or {@code BYTES_REF}, and any
+     * combination of fixed width types ({@code BOOLEAN}, {@code INT}, {@code LONG}, {@code DOUBLE}).
+     */
+    public static boolean supportsDirect(List<GroupSpec> groups) {
+        if (groups.isEmpty() || groups.stream().anyMatch(g -> g.topNDef() != null || g.isCategorize())) {
+            return false;
+        }
+        if (groups.size() == 1) {
+            ElementType type = groups.get(0).elementType();
+            return type == ElementType.LONG || type == ElementType.BYTES_REF;
+        }
+        if (groups.size() == 2 && isLongInt(groups.get(0).elementType(), groups.get(1).elementType())) {
+            return true;
+        }
+        // Other multiple keys use the same layout as PackedValuesBlockHash, so only the types it packs at a fixed width.
+        // Two LONG keys are packed too, because LongLongBlockHash is not enabled in production.
+        for (GroupSpec group : groups) {
+            ElementType type = group.elementType();
+            if (type != ElementType.BOOLEAN && type != ElementType.INT && type != ElementType.LONG && type != ElementType.DOUBLE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Creates a hash backed by a direct-mapped table, for partial aggregations with mostly distinct keys. A key can be
+     * assigned several ids, so only use it when the consumer of the results merges rows with equal keys, as the final
+     * stage of an aggregation does. Its partitioned keys are interchangeable with those of the hash from {@link #build}
+     * for the same groups.
+     * @param directSlots the number of slots in the table, a power of two
+     * @throws IllegalArgumentException if {@link #supportsDirect} is false for the groups
+     */
+    public static BlockHash buildDirect(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, int directSlots) {
+        if (supportsDirect(groups) == false) {
+            throw new IllegalArgumentException("direct hash doesn't support " + groups);
+        }
+        if (groups.size() == 1) {
+            GroupSpec group = groups.get(0);
+            return switch (group.elementType()) {
+                case LONG -> new LongBlockHash(group.channel(), blockFactory, directSlots);
+                case BYTES_REF -> new BytesRefBlockHash(group.channel(), blockFactory, directSlots);
+                default -> throw new IllegalStateException("unsupported type [" + group.elementType() + "]");
+            };
+        }
+        // Must pick the same hash class as build does for these groups, because the final stage combines the partitioned keys.
+        if (groups.size() == 2) {
+            ElementType type1 = groups.get(0).elementType();
+            ElementType type2 = groups.get(1).elementType();
+            if (isLongInt(type1, type2)) {
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, type1 == ElementType.INT, directSlots);
+            }
+        }
+        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize, directSlots);
+    }
+
+    private static boolean isLongInt(ElementType type1, ElementType type2) {
+        return (type1 == ElementType.LONG && type2 == ElementType.INT) || (type1 == ElementType.INT && type2 == ElementType.LONG);
+    }
+
+    /**
      * Temporary method to build a {@link PackedValuesBlockHash}.
      */
     public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {

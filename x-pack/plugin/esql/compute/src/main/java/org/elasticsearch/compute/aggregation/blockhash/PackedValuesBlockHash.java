@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefDirectHash;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 import java.lang.invoke.MethodHandles;
@@ -89,11 +90,35 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
     }
 
+    /**
+     * Builds a hash backed by a {@link BytesRefDirectHash} with {@code directSlots} slots. Only for partial aggregations,
+     * where a key may get several group ids. See {@link BytesRefDirectHash}.
+     */
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, int directSlots) {
+        this(
+            specs,
+            blockFactory,
+            blockFactory.breaker(),
+            emitBatchSize,
+            new BytesRefDirectHash(blockFactory.breaker(), blockFactory.bigArrays(), directSlots)
+        );
+    }
+
     /*
      * This constructor is also used by {@code PackedValuesBlockHashCircuitBreakerTests} to provide different circuit breakers
      *  to bytesRefHash and bytes. Production code should use the primary constructor above and provide same breaker for both.
      */
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
+        this(specs, blockFactory, circuitBreaker, emitBatchSize, HashImplFactory.newBytesRefHash(blockFactory));
+    }
+
+    private PackedValuesBlockHash(
+        List<GroupSpec> specs,
+        BlockFactory blockFactory,
+        CircuitBreaker circuitBreaker,
+        int emitBatchSize,
+        BytesRefHashTable bytesRefHash
+    ) {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
@@ -120,12 +145,12 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 variableWidthSupported = false;
             }
         }
-        this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
+        this.bytesRefHash = bytesRefHash;
         boolean success = false;
         try {
             this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", this.nullTrackingBytes);
-            if (allFixedWidth && bytesRefHash instanceof BytesRefSwissHash swiss) {
-                this.batchWork = new FixedWidthBatchWork(swiss, columnOffsets, keyLength, emitBatchSize, blockFactory, specs);
+            if (allFixedWidth && (bytesRefHash instanceof BytesRefSwissHash || bytesRefHash instanceof BytesRefDirectHash)) {
+                this.batchWork = new FixedWidthBatchWork(bytesRefHash, columnOffsets, keyLength, emitBatchSize, blockFactory, specs);
             } else if (variableWidthSupported && bytesRefHash instanceof BytesRefSwissHash swiss) {
                 this.batchWork = new VariableWidthBatchWork(swiss, emitBatchSize, blockFactory, specs, nullTrackingBytes);
             } else {
@@ -592,8 +617,8 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         CircuitBreaker breaker,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
-        if (bytesRefHash instanceof BytesRefSwissHash swiss) {
-            PartitionedHashKeys keys = swiss.splitPartition(breaker, partitionSplitter);
+        if (bytesRefHash instanceof PartitionedHashTable partitionable) {
+            PartitionedHashKeys keys = partitionable.splitPartition(breaker, partitionSplitter);
             return new PartitionedHashKeysWithSeenNull(keys, seenNull);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
@@ -691,6 +716,8 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         final long[] hashes;
         final int[] groupIds;
         private final int emitBatchSize;
+        private final BytesRefHashTable hash;
+        /** The {@link #hash} if it is a swiss hash, which can prefetch; otherwise {@code null}. */
         private final BytesRefSwissHash swiss;
 
         private final BlockFactory blockFactory;
@@ -700,14 +727,15 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         private long usedBytes;
 
         FixedWidthBatchWork(
-            BytesRefSwissHash swiss,
+            BytesRefHashTable hash,
             int[] offsets,
             int keyLength,
             int emitBatchSize,
             BlockFactory blockFactory,
             List<GroupSpec> specs
         ) {
-            this.swiss = swiss;
+            this.hash = hash;
+            this.swiss = hash instanceof BytesRefSwissHash s ? s : null;
             this.offsets = offsets;
             this.keyLength = keyLength;
             this.blockFactory = blockFactory;
@@ -744,7 +772,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 while (batchOffset < emitSize) {
                     final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
                     fillKeys(positionOffset + batchOffset, chunkSize);
-                    if (swiss.shouldPrefetch()) {
+                    if (swiss != null && swiss.shouldPrefetch()) {
                         for (int i = 0; i < chunkSize; i++) {
                             hashes[i] = BytesRefSwissHash.hash64(keys, i * keyLength, keyLength);
                             dummy ^= swiss.prefetch(hashes[i]);
@@ -757,7 +785,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                     } else {
                         for (int i = 0; i < chunkSize; i++) {
                             key.offset = i * keyLength;
-                            long id = swiss.add(key);
+                            long id = hash.add(key);
                             groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
                         }
                     }

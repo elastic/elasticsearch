@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.BytesRefDirectHash;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
@@ -70,6 +71,16 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.newBytesRefHash(blockFactory);
+    }
+
+    /**
+     * Builds a hash backed by a {@link BytesRefDirectHash} with {@code directSlots} slots. Only for partial aggregations,
+     * where a key may get several group ids. See {@link BytesRefDirectHash}.
+     */
+    BytesRefBlockHash(int channel, BlockFactory blockFactory, int directSlots) {
+        super(blockFactory);
+        this.channel = channel;
+        this.hash = new BytesRefDirectHash(blockFactory.breaker(), blockFactory.bigArrays(), directSlots);
     }
 
     @Override
@@ -327,11 +338,11 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         CircuitBreaker breaker,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
-        if (hash instanceof BytesRefSwissHash swiss) {
-            // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
+        if (hash instanceof PartitionedHashTable partitionable) {
+            // Hash ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
             // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
             var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
-            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
+            PartitionedHashTable.PartitionedHashKeys keys = partitionable.splitPartition(breaker, groupIdSplitter);
             boolean success = false;
             try {
                 if (seenNull) {

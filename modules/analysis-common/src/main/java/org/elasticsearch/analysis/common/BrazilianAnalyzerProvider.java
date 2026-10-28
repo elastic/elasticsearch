@@ -25,7 +25,12 @@ public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Bra
 
     BrazilianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, BrazilianAnalyzer.getDefaultStopSet());
+        CharArraySet stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            BrazilianAnalyzer.getDefaultStopSet()
+        );
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new BrazilianAnalyzer(stopWords, stemExclusions);
         this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));

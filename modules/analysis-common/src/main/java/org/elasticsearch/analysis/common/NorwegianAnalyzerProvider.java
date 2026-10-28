@@ -25,7 +25,12 @@ public class NorwegianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Nor
 
     NorwegianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, NorwegianAnalyzer.getDefaultStopSet());
+        CharArraySet stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            NorwegianAnalyzer.getDefaultStopSet()
+        );
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new NorwegianAnalyzer(stopWords, stemExclusions);
         this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));

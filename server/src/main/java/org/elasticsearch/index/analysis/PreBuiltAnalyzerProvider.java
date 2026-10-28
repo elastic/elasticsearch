@@ -15,12 +15,22 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer> {
 
     private final NamedAnalyzer analyzer;
+    private final boolean shareByName;
 
     public PreBuiltAnalyzerProvider(String name, AnalyzerScope scope, Analyzer analyzer) {
+        this(name, scope, analyzer, true);
+    }
+
+    /**
+     * @param shareByName {@code false} if the analyzer was built for one index version and must only be shared by indices that
+     *                    resolved this very provider
+     */
+    PreBuiltAnalyzerProvider(String name, AnalyzerScope scope, Analyzer analyzer, boolean shareByName) {
         // we create the named analyzer here so the resources associated with it will be shared
         // and we won't wrap a shared analyzer with named analyzer each time causing the resources
         // to not be shared...
         this.analyzer = new NamedAnalyzer(name, scope, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+        this.shareByName = shareByName;
     }
 
     @Override
@@ -47,6 +57,7 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
         // analyzers are version-invariant (PreBuiltAnalyzers#create ignores the version); a
         // version-sensitive component folds the version into its own factory sharingKey() instead. See
         // AnalysisRegistryTests#testVersionInvariantAnalyzersShareAcrossVersions.
-        return analyzer;
+        // Version-sensitive prebuilt analyzers (PreBuiltAnalyzerProviderFactory#indexVersion) key on the provider instead.
+        return shareByName ? analyzer : this;
     }
 }

@@ -53,6 +53,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -156,8 +157,29 @@ public class Analysis {
         return defaultWords;
     }
 
-    public static CharArraySet parseCommonWords(Environment env, Settings settings, CharArraySet defaultCommonWords, boolean ignoreCase) {
+    /**
+     * Parses the {@code common_words} setting, resolving named sets such as {@code _thai_} as they apply to an index created at
+     * {@code indexCreatedVersion}.
+     */
+    public static CharArraySet parseCommonWords(
+        IndexVersion indexCreatedVersion,
+        Environment env,
+        Settings settings,
+        CharArraySet defaultCommonWords,
+        boolean ignoreCase
+    ) {
         return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
+    }
+
+    /**
+     * Resolves named sets as they apply to an index created at the current version.
+     *
+     * @deprecated use {@link #parseCommonWords(IndexVersion, Environment, Settings, CharArraySet, boolean)} so that named sets follow
+     * the index's creation version.
+     */
+    @Deprecated
+    public static CharArraySet parseCommonWords(Environment env, Settings settings, CharArraySet defaultCommonWords, boolean ignoreCase) {
+        return parseCommonWords(IndexVersion.current(), env, settings, defaultCommonWords, ignoreCase);
     }
 
     public static CharArraySet parseArticles(Environment env, Settings settings) {
@@ -165,18 +187,59 @@ public class Analysis {
         return parseWords(env, settings, "articles", null, null, articlesCase);
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
+    /**
+     * Parses the {@code stopwords} setting (honouring {@code stopwords_case}), resolving named sets such as {@code _thai_} as they
+     * apply to an index created at {@code indexCreatedVersion}.
+     */
+    public static CharArraySet parseStopWords(
+        IndexVersion indexCreatedVersion,
+        Environment env,
+        Settings settings,
+        CharArraySet defaultStopWords
+    ) {
         boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
-        return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
+        return parseStopWords(indexCreatedVersion, env, settings, defaultStopWords, stopwordsCase);
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, boolean ignoreCase) {
+    /**
+     * Parses the {@code stopwords} setting, resolving named sets such as {@code _thai_} as they apply to an index created at
+     * {@code indexCreatedVersion}.
+     */
+    public static CharArraySet parseStopWords(
+        IndexVersion indexCreatedVersion,
+        Environment env,
+        Settings settings,
+        CharArraySet defaultStopWords,
+        boolean ignoreCase
+    ) {
         return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
     /**
+     * Resolves named sets as they apply to an index created at the current version.
+     *
+     * @deprecated use {@link #parseStopWords(IndexVersion, Environment, Settings, CharArraySet)} so that named sets follow the
+     * index's creation version.
+     */
+    @Deprecated
+    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
+        return parseStopWords(IndexVersion.current(), env, settings, defaultStopWords);
+    }
+
+    /**
+     * Resolves named sets as they apply to an index created at the current version.
+     *
+     * @deprecated use {@link #parseStopWords(IndexVersion, Environment, Settings, CharArraySet, boolean)} so that named sets follow
+     * the index's creation version.
+     */
+    @Deprecated
+    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, boolean ignoreCase) {
+        return parseStopWords(IndexVersion.current(), env, settings, defaultStopWords, ignoreCase);
+    }
+
+    /**
      * Wraps a stop-word set for inclusion in an analyzer provider's {@code sharingKey()}. {@link
-     * #parseStopWords(Environment, Settings, CharArraySet)} builds the runtime set with the
+     * #parseStopWords(IndexVersion, Environment, Settings, CharArraySet)} builds the runtime set with the
      * {@code stopwords_case} flag, which toggles case-sensitive matching, so two recipes that differ
      * only in {@code stopwords_case} can tokenize differently. Folding the flag into the key here is
      * what keeps those recipes from resolving to one shared instance.

@@ -17,9 +17,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.io.IOException;
 import java.io.Reader;
 
 /**
@@ -33,7 +36,11 @@ import java.io.Reader;
 public class FactorySharingKeyTests extends ESTestCase {
 
     private IndexSettings indexSettings() {
-        Settings idx = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        return indexSettings(IndexVersion.current());
+    }
+
+    private IndexSettings indexSettings(IndexVersion version) {
+        Settings idx = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         return IndexSettingsModule.newIndexSettings("test", idx);
     }
 
@@ -100,6 +107,46 @@ public class FactorySharingKeyTests extends ESTestCase {
         StopTokenFilterFactory keep = new StopTokenFilterFactory(is, env, "a", Settings.builder().put("remove_trailing", true).build());
         StopTokenFilterFactory remove = new StopTokenFilterFactory(is, env, "b", Settings.builder().put("remove_trailing", false).build());
         assertNotEquals(keep.sharingKey(), remove.sharingKey());
+    }
+
+    // ---- PreBuiltAnalyzerProviderFactory ----
+
+    /**
+     * Prebuilt analyzers from {@link PreBuiltAnalyzerProviderFactory#indexVersion} may behave differently per index version, so
+     * unlike the name-keyed version-invariant ones they must only share with indices that resolved the same provider.
+     */
+    public void testIndexVersionPrebuiltAnalyzerDoesNotShareAcrossVersions() throws IOException {
+        Environment env = env();
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion();
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.indexVersion(
+                "versioned",
+                CachingStrategy.INDEX,
+                version -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> current = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> old = factory.get(indexSettings(previous), env, "versioned", Settings.EMPTY);
+            assertEquals(current.sharingKey(), factory.get(indexSettings(), env, "versioned", Settings.EMPTY).sharingKey());
+            assertEquals(old.sharingKey(), factory.get(indexSettings(previous), env, "versioned", Settings.EMPTY).sharingKey());
+            assertNotEquals(current.sharingKey(), old.sharingKey());
+        }
+    }
+
+    /** Prebuilt analyzers registered with a plain supplier are version-invariant and keep sharing by name across versions. */
+    public void testSupplierPrebuiltAnalyzerSharesAcrossVersions() throws IOException {
+        Environment env = env();
+        try (
+            PreBuiltAnalyzerProviderFactory factory = new PreBuiltAnalyzerProviderFactory(
+                "invariant",
+                CachingStrategy.INDEX,
+                StandardAnalyzer::new
+            )
+        ) {
+            AnalyzerProvider<?> current = factory.get(indexSettings(), env, "invariant", Settings.EMPTY);
+            AnalyzerProvider<?> old = factory.get(indexSettings(IndexVersionUtils.getPreviousVersion()), env, "invariant", Settings.EMPTY);
+            assertEquals(current.sharingKey(), old.sharingKey());
+        }
     }
 
     // ---- ShingleTokenFilterFactory ----

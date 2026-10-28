@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
     private final Function<IndexVersion, Analyzer> create;
+    private final boolean versionInvariant;
     private final PreBuiltAnalyzerProvider current;
 
     /**
@@ -36,15 +37,41 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     PreBuiltAnalyzerProviderFactory(String name, PreBuiltAnalyzers preBuiltAnalyzer) {
         super(name, new PreBuiltAnalyzersDelegateCache(name, preBuiltAnalyzer));
         this.create = preBuiltAnalyzer::getAnalyzer;
+        this.versionInvariant = true;
         Analyzer analyzer = preBuiltAnalyzer.getAnalyzer(IndexVersion.current());
         current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
     }
 
+    /**
+     * For analyzers whose behavior does not depend on the index version; instances are shared across indices by name.
+     */
     public PreBuiltAnalyzerProviderFactory(String name, PreBuiltCacheFactory.CachingStrategy cache, Supplier<Analyzer> create) {
+        this(name, cache, version -> create.get(), true);
+    }
+
+    private PreBuiltAnalyzerProviderFactory(
+        String name,
+        PreBuiltCacheFactory.CachingStrategy cache,
+        Function<IndexVersion, Analyzer> create,
+        boolean versionInvariant
+    ) {
         super(name, cache);
-        this.create = version -> create.get();
-        Analyzer analyzer = create.get();
-        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+        this.create = create;
+        this.versionInvariant = versionInvariant;
+        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.apply(IndexVersion.current()), versionInvariant);
+    }
+
+    /**
+     * For analyzers whose behavior depends on the index version. Use {@link PreBuiltCacheFactory.CachingStrategy#INDEX}; instances
+     * are only shared by indices created at the same version. A static method rather than a constructor because a
+     * {@code Function} overload next to the {@code Supplier} one would make {@code SomeAnalyzer::new} ambiguous.
+     */
+    public static PreBuiltAnalyzerProviderFactory indexVersion(
+        String name,
+        PreBuiltCacheFactory.CachingStrategy cache,
+        Function<IndexVersion, Analyzer> create
+    ) {
+        return new PreBuiltAnalyzerProviderFactory(name, cache, create, false);
     }
 
     @Override
@@ -61,8 +88,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     @Override
     protected AnalyzerProvider<?> create(IndexVersion version) {
         assert IndexVersion.current().equals(version) == false;
-        Analyzer analyzer = create.apply(version);
-        return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, analyzer);
+        return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, create.apply(version), versionInvariant);
     }
 
     @Override

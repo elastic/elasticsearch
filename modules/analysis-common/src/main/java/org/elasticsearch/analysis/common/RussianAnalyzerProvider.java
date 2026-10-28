@@ -25,7 +25,12 @@ public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Russi
 
     RussianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, RussianAnalyzer.getDefaultStopSet());
+        CharArraySet stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            RussianAnalyzer.getDefaultStopSet()
+        );
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new RussianAnalyzer(stopWords, stemExclusions);
         this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));

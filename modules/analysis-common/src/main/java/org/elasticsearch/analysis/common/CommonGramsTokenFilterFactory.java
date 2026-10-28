@@ -34,7 +34,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.queryMode = settings.getAsBoolean("query_mode", false);
-        this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
+        this.words = Analysis.parseCommonWords(indexSettings.getIndexVersionCreated(), env, settings, null, ignoreCase);
 
         if (this.words == null) {
             throw new IllegalArgumentException(

@@ -65,7 +65,7 @@ dependencies {
   // Must match the Jackson bundled by the extended x-pack-esql plugin (see libs:arrow) so this
   // copy is de-duplicated out of the plugin bundle instead of tripping the jar-hell check at boot.
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:2.21.8"
-  runtimeOnly 'com.google.api:gax-httpjson:2.83.0'
+  runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
   runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'

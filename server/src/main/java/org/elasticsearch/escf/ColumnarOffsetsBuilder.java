@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitUtil;
@@ -20,8 +21,10 @@ import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 /**
  * Builds the {@code <field>.offsets} sidecar column on the columnar indexing path — the counterpart of
@@ -43,7 +46,9 @@ import java.util.Arrays;
  * writer will sort — for {@code LONG} elements, the sortable-long output of
  * {@link NumberColumnTransform}. Ordinals have to agree with the order the values are read back in, so a
  * column encoded any other way misorders the array silently. Byte-string elements are limited to
- * {@code IndexWriter.MAX_TERM_LENGTH}.
+ * {@link IndexWriter#MAX_TERM_LENGTH}, and so is each document's encoded offsets: a document with more
+ * slots than fit makes {@link #build} throw {@link UnsupportedOperationException}, so the batch falls back
+ * to the row path, which rejects that document alone with the same error.
  *
  * <p>Elements must be {@code LONG}, {@code STRING} or {@code BINARY}, which is also why no
  * {@code NULL_ORD} slot is ever emitted: a null element makes the element child a {@code UNION}.
@@ -71,8 +76,18 @@ public final class ColumnarOffsetsBuilder {
      *
      * @return the sidecar column, or {@code null} when no document in the batch had enough slots to record
      */
+    /**
+     * @param ownedSink called with the produced {@link EscfColumnData} so the caller can register it
+     *     for release (e.g. via {@code ctx.addColumn(column, data)}). Not called when the method returns
+     *     {@code null} (no document had enough slots to record).
+     */
     @Nullable
-    public static LuceneBinaryColumn build(EscfColumn source, String offsetsFieldName, Recycler<BytesRef> recycler) {
+    public static LuceneBinaryColumn build(
+        EscfColumn source,
+        String offsetsFieldName,
+        Recycler<BytesRef> recycler,
+        Consumer<EscfColumnData> ownedSink
+    ) {
         // ARRAY is EscfArrayColumn by construction; see EscfColumn#from, the only place columns are built.
         assert source instanceof EscfArrayColumn : "expected ARRAY, got " + EscfColumnKind.name(source.kind());
         final EscfArrayColumn arrayColumn = (EscfArrayColumn) source;
@@ -90,7 +105,7 @@ public final class ColumnarOffsetsBuilder {
             case EscfColumnKind.STRING, EscfColumnKind.BINARY -> batchRankCursor(arrayColumn, rowOffsets, docCount);
             default -> throw new AssertionError("unexpected element kind: " + EscfColumnKind.name(arrayColumn.leafValueKind()));
         };
-        return encodeColumn(cursor, rowOffsets, docCount, maxSlotCount, offsetsFieldName, recycler);
+        return encodeColumn(cursor, rowOffsets, docCount, maxSlotCount, offsetsFieldName, recycler, ownedSink);
     }
 
     /** Widest per-document slot range. */
@@ -108,17 +123,20 @@ public final class ColumnarOffsetsBuilder {
         int docCount,
         int maxSlotCount,
         String offsetsFieldName,
-        Recycler<BytesRef> recycler
+        Recycler<BytesRef> recycler,
+        Consumer<EscfColumnData> ownedSink
     ) {
-        final EscfColumnBuilder columnBuilder = newBinaryBuilder(recycler);
         final long[] slotValues = new long[maxSlotCount];
         final long[] sortScratch = new long[maxSlotCount];
         final int[] slotOrdinals = new int[maxSlotCount];
 
-        // One stream for the whole batch, rewound per document: bytes() is bounded by the stream position
-        // and setBinary copies immediately, so rewriting over the previous document is safe. The stream
-        // grows to the widest document's encoding and then stops allocating.
-        try (RecyclerBytesStreamOutput encoded = new RecyclerBytesStreamOutput(recycler)) {
+        try (
+            EscfColumnBuilder columnBuilder = newBinaryBuilder(recycler);
+            RecyclerBytesStreamOutput encoded = new RecyclerBytesStreamOutput(recycler)
+        ) {
+            // One stream for the whole batch, rewound per document: bytes() is bounded by the stream position
+            // and setBinary copies immediately, so rewriting over the previous document is safe. The stream
+            // grows to the widest document's encoding and then stops allocating.
             for (int doc = 0; doc < docCount; doc++) {
                 final int slotCount = rowOffsets[doc + 1] - rowOffsets[doc];
                 // Drains skipped documents too: the cursor advances per element, so every document's slots
@@ -133,10 +151,25 @@ public final class ColumnarOffsetsBuilder {
 
                 encoded.seek(0);
                 writeSlotOrdinals(encoded, slotOrdinals, slotCount);
-                columnBuilder.setBinary(doc, encoded.bytes().toBytesRef());
+                final BytesRef encodedOffsets = encoded.bytes().toBytesRef();
+                if (encodedOffsets.length > IndexWriter.MAX_TERM_LENGTH) {
+                    // Lucene rejects sorted doc values larger than MAX_TERM_LENGTH, so this batch cannot be indexed as is. Bail
+                    // out to the row path, which rejects just this document with the same error (see
+                    // FieldArrayContext#addToLuceneDocument) while the rest of the batch indexes normally.
+                    throw new UnsupportedOperationException(
+                        "ColumnarOffsetsBuilder: "
+                            + FieldArrayContext.oversizedOffsetsMessage(offsetsFieldName, encodedOffsets.length)
+                            + " for document ["
+                            + doc
+                            + "] in batch"
+                    );
+                }
+                columnBuilder.setBinary(doc, encodedOffsets);
             }
+            EscfColumnData colData = columnBuilder.finish(docCount);
+            ownedSink.accept(colData);
+            return LuceneBinaryColumn.of(colData, offsetsFieldName, OFFSETS_FIELD_TYPE);
         }
-        return LuceneBinaryColumn.of(columnBuilder.finish(docCount), offsetsFieldName, OFFSETS_FIELD_TYPE);
     }
 
     private static void gatherSlots(LongTupleCursor cursor, int doc, int slotCount, long[] slotValues) {

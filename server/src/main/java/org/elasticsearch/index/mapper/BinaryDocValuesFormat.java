@@ -17,9 +17,9 @@ package org.elasticsearch.index.mapper;
  * on its own path.
  *
  * <p>They are not interchangeable, and decoding one as another silently returns wrong values rather than
- * failing — a length prefix reads as a character. So every reader is told which to expect: the doc-values
- * queries, fielddata, index sorting and the block loaders all take this from the mapping that decided how the
- * values were written.
+ * failing — a length prefix reads as a character, a payload's slot count reads as the head of a term. So every
+ * reader is told which to expect: the doc-values queries, fielddata, index sorting and the block loaders all
+ * take this from the mapping that decided how the values were written.
  *
  * <p>{@link #ordinal()} is persisted in segment info by
  * {@link org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField}, which Lucene rebuilds at
@@ -38,5 +38,24 @@ public enum BinaryDocValuesFormat {
      * {@code [len+1][value]...} with the slot count in a {@code .counts} companion; a lone value stored raw. Slots
      * are in document order and a {@code [vint 0]} slot is a null, which is what the length bias buys.
      */
-    ARRAY_ORDER_INLINE_NULL
+    ARRAY_ORDER_INLINE_NULL,
+
+    /**
+     * {@code [slotCount][len+1][value]...} — the ColumNAR codec's payload, which carries its own count and writes
+     * no companion field at all. See {@link ColumnarBinaryDocValuesField} for why the count has to travel inside
+     * the blob.
+     */
+    COLUMNAR_PAYLOAD,
+
+    /**
+     * The value's own bytes, unframed: no count prefix, no null slots, no empty arrays. Only sound when the
+     * mapping guarantees exactly one non-null value per document — specifically when {@code multi_value: false}.
+     * Under this framing the blob is the sort key directly, so no decoding is needed for index sorting or
+     * single-valued reads.
+     *
+     * <p>Produced only by the ColumNAR codec (the field still uses a columnar string column on disk), so it is
+     * routed to {@link org.elasticsearch.lucene.queries.ColumnarBinaryDocValuesQueries} and never to the
+     * scanning queries, which know nothing of the column it sits in.
+     */
+    PLAIN
 }

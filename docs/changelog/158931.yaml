@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 158931
+summary: "PromQL: add sort and `sort_desc` functions"
+type: feature

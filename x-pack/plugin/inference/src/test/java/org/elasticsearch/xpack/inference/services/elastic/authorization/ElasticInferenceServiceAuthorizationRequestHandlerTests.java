@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -730,7 +730,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
         doAnswer(invocationOnMock -> {
             ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(4);
-            listener.onResponse(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("awesome"))));
+            listener.onResponse(new CompletionResults(List.of(new CompletionResults.Result("awesome"))));
             return Void.TYPE;
         }).when(senderMock).sendWithoutQueuing(any(), any(), any(), any(), any());
 

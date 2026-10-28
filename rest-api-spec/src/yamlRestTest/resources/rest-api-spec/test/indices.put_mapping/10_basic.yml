@@ -65,14 +65,13 @@
 ---
 "Put mappings with explicit _doc type":
   - requires:
-      cluster_features: ["gte_v8.0.0"]
-      reason: "deprecation message changed in 8.0"
+      cluster_features: ["indices.put_mapping.no_types_check"]
+      reason: "REST layer no longer rejects _doc-wrapped mapping sources"
   - do:
       indices.create:
         index: test_index
 
   - do:
-      catch: bad_request
       indices.put_mapping:
         index: test_index
         body:
@@ -81,8 +80,11 @@
               field:
                 type: keyword
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Types cannot be provided in put mapping requests" }
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.field.type: keyword }
 
 ---
 "Update per-field metadata":

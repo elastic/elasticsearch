@@ -20,6 +20,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -879,7 +880,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) {
-            prefiltersToQueryNameMap.put(queryName(), context.autoPrefilteringScope().getPrefilters().stream().collect(Collectors.toSet()));
+            prefiltersToQueryNameMap.put(
+                queryName(),
+                context.autoPrefilteringScope().getPrefilters().stream().map(ScopedPrefilter::query).collect(Collectors.toSet())
+            );
             return new Query() {
                 @Override
                 public String toString(String field) {

@@ -9,14 +9,17 @@
 
 package org.elasticsearch.benchmark.script;
 
-import org.elasticsearch.benchmark.Utils;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -33,6 +36,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -43,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Measures the per-execution overhead of Painless allocation tracking across three modes:
@@ -71,7 +77,7 @@ import java.util.concurrent.atomic.LongAdder;
 public class PainlessAllocationTrackingBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /**
@@ -94,9 +100,46 @@ public class PainlessAllocationTrackingBenchmark {
      *       {@code String+int} concat, entrySet iterator, and {@code String+String} concat</li>
      *   <li>{@code def_alloc} – def-typed string concat (PR 7.5 MIC path) and def method
      *       dispatch to annotated targets (PR 7 PIC path)</li>
+     *   <li>{@code foreach_typed} – one typed {@code for-each}; the iterator charge on the typed path</li>
+     *   <li>{@code foreach_def} – the same loop through {@code def}, where the charge is inline</li>
+     *   <li>{@code foreach_many} – ten loops; shows whether the per-loop cost scales</li>
+     *   <li>{@code foreach_array} – control: an array loop has no iterator, so all modes should agree</li>
+     *   <li>{@code indexed_typed} – control: same list without a {@code for-each}</li>
+     *   <li>{@code string_format} – {@code String.format}, bounded from the format and argument count</li>
+     *   <li>{@code string_join_small}/{@code string_join_large} – {@code String.join} over 3 then 300
+     *       elements; shows the overhead shrinking relative to a growing workload</li>
+     *   <li>{@code builder_substring} – the annotated {@code StringBuilder(CharSequence)} plus a
+     *       builder {@code substring}: two estimator sites in one script</li>
+     *   <li>{@code keyword_read} – one keyword doc value read through {@code def}, as {@code doc['f'].value} is</li>
+     *   <li>{@code keyword_read_typed} – the same read with the static type known</li>
+     *   <li>{@code keyword_field_read} – the same read through the fields API</li>
+     *   <li>{@code def_map_get} – {@code map.get(key)} through {@code def}; a hot call whose name is shared with the
+     *       charged doc value reads, so its call site carries the script too</li>
+     *   <li>{@code typed_map_get} – control: the same call with the static type known</li>
      * </ul>
      */
-    @Param({ "trivial", "allocating", "contains", "complex", "def_alloc" })
+    @Param(
+        {
+            "trivial",
+            "allocating",
+            "contains",
+            "complex",
+            "def_alloc",
+            "foreach_typed",
+            "foreach_def",
+            "foreach_many",
+            "foreach_array",
+            "indexed_typed",
+            "string_format",
+            "string_join_small",
+            "string_join_large",
+            "builder_substring",
+            "keyword_read",
+            "keyword_read_typed",
+            "keyword_field_read",
+            "def_map_get",
+            "typed_map_get" }
+    )
     private String script;
 
     /**
@@ -169,6 +212,81 @@ public class PainlessAllocationTrackingBenchmark {
                         joined = joined + item;
                     }
                     return joined.length() > 0""";
+                // The typed path. The body only bumps a counter; an empty one is rejected as an extraneous loop.
+                case "foreach_typed" -> """
+                    long n = 0;
+                    List items = params.items;
+                    for (def item : items) {
+                        n++;
+                    }
+                    return n > 0""";
+                // The def path, where the charge is an inline constant.
+                case "foreach_def" -> """
+                    long n = 0;
+                    def items = params.items;
+                    for (def item : items) {
+                        n++;
+                    }
+                    return n > 0""";
+                // Ten loops, to lift the per-loop cost above run-to-run noise.
+                case "foreach_many" -> """
+                    long n = 0;
+                    List items = params.items;
+                    for (int outer = 0; outer < 10; outer++) {
+                        for (def item : items) {
+                            n++;
+                        }
+                    }
+                    return n > 0""";
+                // Control: an array loop has no iterator, so no mode should cost more.
+                case "foreach_array" -> """
+                    long n = 0;
+                    int[] a = (int[])params.numbers;
+                    for (int e : a) {
+                        n++;
+                    }
+                    return n > 0""";
+                // Control: same list, no for-each, so no iterator.
+                case "indexed_typed" -> """
+                    long n = 0;
+                    List items = params.items;
+                    for (int i = 0; i < items.size(); i++) {
+                        n++;
+                    }
+                    return n > 0""";
+                // String.format, whose estimator bounds the result from the format length and argument count.
+                case "string_format" -> """
+                    def[] args = params.args;
+                    return String.format('%s-%s', args).length() > 0""";
+                // String.join over 3 elements, then the same over 300. The pair shows the overhead shrinking in relative
+                // terms as the real work grows; it cannot resolve the estimator's own cost, which the join dwarfs.
+                case "string_join_small" -> """
+                    List items = params.small;
+                    return String.join(',', items).length() > 0""";
+                case "string_join_large" -> """
+                    List items = params.large;
+                    return String.join(',', items).length() > 0""";
+                // The annotated CharSequence constructor plus a builder substring: two estimator sites in one script.
+                case "builder_substring" -> """
+                    String text = params.text;
+                    StringBuilder b = new StringBuilder(text);
+                    return b.substring(4, 20).length() > 0""";
+                // A keyword doc value read, the way doc['f'].value reaches it: through def.
+                case "keyword_read" -> """
+                    def field = params.field;
+                    return field.value.length() > 0""";
+                case "keyword_read_typed" -> """
+                    ScriptDocValues.Strings field = (ScriptDocValues.Strings) params.field;
+                    return field.value.length() > 0""";
+                case "keyword_field_read" -> """
+                    def field = params.keyword;
+                    return field.get('').length() > 0""";
+                case "def_map_get" -> """
+                    def m = params.map;
+                    return m.get('k') != null""";
+                case "typed_map_get" -> """
+                    Map m = params.map;
+                    return m.get('k') != null""";
                 default -> throw new IllegalArgumentException("unknown script: " + script);
             };
 
@@ -188,11 +306,53 @@ public class PainlessAllocationTrackingBenchmark {
         public void setup(PainlessAllocationTrackingBenchmark benchmark) {
             Map<String, Object> params = new HashMap<>();
             params.put("word", "echo");
+            // Pre-built so the loop workloads allocate nothing but the iterator being measured.
+            params.put("items", List.of("alfa", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"));
+            // Also pre-built: an array built in the script would be charged, breaking the control.
+            params.put("numbers", new int[] { 1, 2, 3, 4, 5, 6, 7, 8 });
+            // Pre-built so the String workloads measure the annotated call, not the setup.
+            params.put("args", new Object[] { "alfa", "bravo" });
+            params.put("small", List.of("alfa", "bravo", "charlie"));
+            params.put("large", IntStream.range(0, 300).mapToObj(Integer::toString).collect(Collectors.toList()));
+            params.put("text", "the quick brown fox jumps over the lazy dog");
+            // One document with one short keyword term, already positioned, as a leaf script would see it.
+            KeywordDocValuesField keyword = new KeywordDocValuesField(binaryDocValues(new BytesRef("hello")), "test");
+            try {
+                keyword.setNextDocId(0);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            params.put("keyword", keyword);
+            params.put("map", Map.of("k", "v"));
+            params.put("field", keyword.toScriptDocValues());
             Map<String, Object> context = new HashMap<>();
             context.put("message", "test");
 
             script = benchmark.factory.newInstance(params, context);
         }
+    }
+
+    /** Binary doc values over one document holding {@code values}. */
+    private static SortableBinaryDocValues binaryDocValues(BytesRef... values) {
+        return new SortableBinaryDocValues(null) {
+            private int next;
+
+            @Override
+            public boolean advanceExact(int doc) {
+                next = 0;
+                return doc == 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.length;
+            }
+
+            @Override
+            public BytesRef nextValue() {
+                return values[next++];
+            }
+        };
     }
 
     @Benchmark

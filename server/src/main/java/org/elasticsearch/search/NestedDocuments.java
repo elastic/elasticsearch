@@ -154,8 +154,14 @@ public class NestedDocuments {
                     // Callers are not required to advance in doc id order: a SourceLoader reading stored source during the query phase may
                     // re-read the segment from the top for a second query clause (see ConcurrentSegmentSourceProvider).
                     // DocIdSetIterators are forward-only, so pull a fresh scorer to rewind.
-                    objectFilter.setValue(getNestedChildWeight(ctx, objectFilter.getKey()).scorer(ctx));
-                    it = objectFilter.getValue().iterator();
+                    Scorer freshScorer = getNestedChildWeight(ctx, objectFilter.getKey()).scorer(ctx);
+                    if (freshScorer == null) {
+                        // No matching nested docs for this path in this segment; skip it,
+                        // consistent with how the constructor filters null scorers at init time.
+                        continue;
+                    }
+                    objectFilter.setValue(freshScorer);
+                    it = freshScorer.iterator();
                 }
                 if (it.docID() == doc || it.docID() < doc && it.advance(doc) == doc) {
                     if (path == null || path.length() > objectFilter.getKey().length()) {

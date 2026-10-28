@@ -61,6 +61,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.NAMED_SUBQUERY_LET;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
@@ -229,9 +231,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             .toList();
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, remoteCapabilities);
 
-        // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
-        // because they may produce inconsistent results with multiple clusters.
-        assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
+        // Do not run tests including "METADATA _index" or "METADATA _name" unless marked with
+        // metadata_fields_remote_test, because they may produce inconsistent results with multiple clusters.
+        assumeFalse("can't test with cluster-qualified metadata", (remoteMetadata == false) && hasQualifiedNameMetadata(testCase.query));
         // METRICS_INFO/TS_INFO produce a data_stream column that includes the cluster alias prefix
         // when data is on a remote cluster. Non-remote tests expect the bare data stream name, so
         // they are always skipped in CCS. Remote tests need the data to be on the remote cluster,
@@ -283,10 +285,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(ML_ANOMALIES.capabilityName()));
 
         assumeFalse(
             "Dense vector equality is not supported in CCS unless all nodes support it",
             bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
+        );
+        assumeFalse(
+            "DENSE_VECTOR command is not supported in CCS unless all nodes support it",
+            bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_COMMAND.capabilityName())
         );
 
     }
@@ -453,7 +460,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
-            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+            || testCase.requiredCapabilities.contains(NAMED_SUBQUERY_LET.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);
         }
         String query = testCase.query;
@@ -477,11 +485,6 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
-        // To make warnings optional for some version, uncomment this. Tests might also
-        // need changing, but that's fine.
-        // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
-        // testCase.makeWarningsOptional();
-        // }
         return testCase;
     }
 
@@ -491,10 +494,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 
-    private static final Pattern HAS_INDEX_METADATA = Pattern.compile("metadata\\s+[^|=]*_index", Pattern.CASE_INSENSITIVE);
+    // _name aliases _index on an index, so a remote row answers it with the cluster-qualified name just as
+    // _index does, and a spec written against a single cluster expects the bare one.
+    private static final Pattern HAS_QUALIFIED_NAME_METADATA = Pattern.compile(
+        "metadata\\s+[^|=]*(_index|_name)",
+        Pattern.CASE_INSENSITIVE
+    );
 
-    static boolean hasIndexMetadata(String query) {
-        return HAS_INDEX_METADATA.matcher(query).find();
+    static boolean hasQualifiedNameMetadata(String query) {
+        return HAS_QUALIFIED_NAME_METADATA.matcher(query).find();
     }
 
     @Override
@@ -522,6 +530,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    /**
+     * The local cluster coordinates and the remote cluster runs the part of the query that reads its indices,
+     * so an older cluster on either side can drop warnings.
+     */
+    @Override
+    protected boolean mayDropWarnings() {
+        return versionMayDropWarnings(Clusters.bwcVersion());
     }
 
     @Override

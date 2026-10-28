@@ -32,6 +32,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -73,8 +74,13 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
 
     abstract V randomDenseQueryVector(int dim);
 
+    /** Adds the encoded slice key (the index sort field) and the numeric slice hash that sliced search prunes on. */
     protected static void addRoutingSlice(Document doc, BytesRef sliceId) {
-        doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, sliceId));
+        doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, SliceIndexing.encodeSliceKey(sliceId)));
+    }
+
+    protected static SortField routingSliceSortField() {
+        return new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING, false, SortField.STRING_LAST);
     }
 
     @Before
@@ -85,7 +91,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
     protected IndexWriterConfig slicedIndexWriterConfig() {
         return newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setMergePolicy(newMergePolicy(random(), false))
-            .setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)))
+            .setIndexSort(new Sort(routingSliceSortField()))
             .setParentField(Engine.ROOT_DOC_FIELD_NAME);
     }
 
@@ -235,7 +241,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
     public void testSkewedIndex() throws IOException {
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
-                .setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)))
+                .setIndexSort(new Sort(routingSliceSortField()))
                 .setParentField(Engine.ROOT_DOC_FIELD_NAME);
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 int r = 0;
@@ -323,7 +329,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
         String filterMiss = "miss";
         String docIdField = "_doc_id";
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)));
+        iwc.setIndexSort(new Sort(routingSliceSortField()));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         iwc.setMergePolicy(newMergePolicy(random(), false));
         iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);

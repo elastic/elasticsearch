@@ -168,6 +168,43 @@ public class ExchangeServiceTests extends ESTestCase {
         safeGet(remoteSinkFuture);
     }
 
+    public void testLocalExchangeBasic() {
+        BlockFactory blockFactory = blockFactory();
+        Page[] pages = new Page[] {
+            new Page(blockFactory.newConstantIntBlockWith(0, 1)),
+            new Page(blockFactory.newConstantIntBlockWith(1, 1)),
+            new Page(blockFactory.newConstantIntBlockWith(2, 1)) };
+        LocalExchange exchange = new LocalExchange(2);
+        ExchangeSource source = exchange.exchangeSource();
+        AtomicInteger pagesAdded = new AtomicInteger();
+        ExchangeSink sink1 = exchange.exchangeSink(pagesAdded::incrementAndGet);
+        ExchangeSink sink2 = exchange.exchangeSink(pagesAdded::incrementAndGet);
+
+        assertFalse(source.waitForReading().listener().isDone());
+        sink1.addPage(pages[0]);
+        sink2.addPage(pages[1]);
+        assertThat(pagesAdded.get(), equalTo(2));
+        assertFalse(sink1.waitForWriting().listener().isDone());
+
+        assertSame(pages[0], source.pollPage());
+        assertTrue(sink1.waitForWriting().listener().isDone());
+        sink1.finish();
+        assertTrue(sink1.isFinished());
+        assertFalse(source.isFinished());
+
+        sink2.addPage(pages[2]);
+        sink2.finish();
+        assertSame(pages[1], source.pollPage());
+        assertSame(pages[2], source.pollPage());
+        assertNull(source.pollPage());
+        assertTrue(source.isFinished());
+        source.finish();
+
+        for (Page page : pages) {
+            page.releaseBlocks();
+        }
+    }
+
     /**
      * Generates sequence numbers up to the {@code maxInputSeqNo} (exclusive)
      */
@@ -678,6 +715,70 @@ public class ExchangeServiceTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             // ensure no cyclic exception
             ElasticsearchException.writeException(err, output);
+        }
+    }
+
+    public void testLocalExchangeConcurrentRuns() {
+        LocalExchange localExchange = new LocalExchange(between(1, 100));
+        final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+        final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+        Set<Integer> actualSeqNos = runConcurrentTest(
+            maxInputSeqNo,
+            maxOutputSeqNo,
+            localExchange::exchangeSource,
+            () -> localExchange.exchangeSink(() -> {})
+        );
+        var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
+        assertThat(actualSeqNos, hasSize(expectedSeqNos.size()));
+        assertThat(actualSeqNos, equalTo(expectedSeqNos));
+    }
+
+    /**
+     * A {@code sourcesFinished} fetch is the coordinator closing the exchange. The sink must leave
+     * {@link ExchangeService#isEmpty()} immediately, a completion listener that also finishes the sink must still
+     * run, and the next compute lookup must observe the close instead of a missing exchange. A second close is a
+     * finished response.
+     */
+    public void testSourcesFinishedUnregistersSink() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            ExchangeSinkHandler created = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
+            AtomicBoolean completionRan = new AtomicBoolean();
+            created.addCompletionListener(ActionListener.running(() -> {
+                completionRan.set(true);
+                exchange1.finishSinkHandler(exchangeId, null);
+            }));
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, exchangeId, node0, connection).close(closed);
+            closed.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(completionRan.get());
+            assertTrue(exchange1.isEmpty());
+            // The marker stays until it expires, so a retried compute request also sees the close.
+            assertNull(exchange1.getSinkHandlerIfOpen(exchangeId));
+            assertNull(exchange1.getSinkHandlerIfOpen(exchangeId));
+
+            PlainActionFuture<Void> closedAgain = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, exchangeId, node0, connection).close(closedAgain);
+            closedAgain.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(exchange1.isEmpty());
+
+            // No completion listener: the transport handler itself must drop the sink after sourcesFinished.
+            String bareId = "exchange-bare-" + randomAlphaOfLength(8);
+            exchange1.createSinkHandler(bareId, randomExchangeBuffer());
+            PlainActionFuture<Void> bareClosed = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, bareId, node0, connection).close(bareClosed);
+            bareClosed.actionGet(10, TimeUnit.SECONDS);
+            assertTrue("sink with no completion listener must be unregistered", exchange1.isEmpty());
+            assertNull(exchange1.getSinkHandlerIfOpen(bareId));
         }
     }
 

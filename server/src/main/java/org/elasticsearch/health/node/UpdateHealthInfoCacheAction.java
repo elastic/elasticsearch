@@ -42,6 +42,10 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
     private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
 
     private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
+    private static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName(
+        "dlm_frozen_transitions_health_info"
+    );
+    private static final TransportVersion DATA_RECOVERY_HEALTH_INFO = TransportVersion.fromName("data_recovery_health_info");
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
@@ -53,19 +57,27 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         private final RepositoriesHealthInfo repositoriesHealthInfo;
         @Nullable
         private final FileSettingsHealthInfo fileSettingsHealthInfo;
+        @Nullable
+        private final DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo;
+        @Nullable
+        private final DataRecoveryHealthInfo dataRecoveryHealthInfo;
 
         public Request(
             String nodeId,
             DiskHealthInfo diskHealthInfo,
             DataStreamLifecycleHealthInfo dslHealthInfo,
             RepositoriesHealthInfo repositoriesHealthInfo,
-            @Nullable FileSettingsHealthInfo fileSettingsHealthInfo
+            @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+            @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo,
+            @Nullable DataRecoveryHealthInfo dataRecoveryHealthInfo
         ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
             this.dslHealthInfo = dslHealthInfo;
             this.repositoriesHealthInfo = repositoriesHealthInfo;
             this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+            this.dlmFrozenTransitionsHealthInfo = dlmFrozenTransitionsHealthInfo;
+            this.dataRecoveryHealthInfo = dataRecoveryHealthInfo;
         }
 
         public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
@@ -74,6 +86,8 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.repositoriesHealthInfo = null;
             this.dslHealthInfo = dslHealthInfo;
             this.fileSettingsHealthInfo = null;
+            this.dlmFrozenTransitionsHealthInfo = null;
+            this.dataRecoveryHealthInfo = null;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -84,6 +98,12 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.repositoriesHealthInfo = in.readOptionalWriteable(RepositoriesHealthInfo::new);
             this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? in.readOptionalWriteable(FileSettingsHealthInfo::new)
+                : null;
+            this.dlmFrozenTransitionsHealthInfo = in.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)
+                ? in.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::readFrom)
+                : null;
+            this.dataRecoveryHealthInfo = in.getTransportVersion().supports(DATA_RECOVERY_HEALTH_INFO)
+                ? in.readOptionalWriteable(DataRecoveryHealthInfo::new)
                 : null;
         }
 
@@ -108,6 +128,16 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             return fileSettingsHealthInfo;
         }
 
+        @Nullable
+        public DlmFrozenTransitionsHealthInfo getDlmFrozenTransitionsHealthInfo() {
+            return dlmFrozenTransitionsHealthInfo;
+        }
+
+        @Nullable
+        public DataRecoveryHealthInfo getDataRecoveryHealthInfo() {
+            return dataRecoveryHealthInfo;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -122,6 +152,12 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             out.writeOptionalWriteable(repositoriesHealthInfo);
             if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
                 out.writeOptionalWriteable(fileSettingsHealthInfo);
+            }
+            if (out.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)) {
+                out.writeOptionalWriteable(dlmFrozenTransitionsHealthInfo);
+            }
+            if (out.getTransportVersion().supports(DATA_RECOVERY_HEALTH_INFO)) {
+                out.writeOptionalWriteable(dataRecoveryHealthInfo);
             }
         }
 
@@ -150,12 +186,22 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 && Objects.equals(diskHealthInfo, request.diskHealthInfo)
                 && Objects.equals(dslHealthInfo, request.dslHealthInfo)
                 && Objects.equals(repositoriesHealthInfo, request.repositoriesHealthInfo)
-                && Objects.equals(fileSettingsHealthInfo, request.fileSettingsHealthInfo);
+                && Objects.equals(fileSettingsHealthInfo, request.fileSettingsHealthInfo)
+                && Objects.equals(dlmFrozenTransitionsHealthInfo, request.dlmFrozenTransitionsHealthInfo)
+                && Objects.equals(dataRecoveryHealthInfo, request.dataRecoveryHealthInfo);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo);
+            return Objects.hash(
+                nodeId,
+                diskHealthInfo,
+                dslHealthInfo,
+                repositoriesHealthInfo,
+                fileSettingsHealthInfo,
+                dlmFrozenTransitionsHealthInfo,
+                dataRecoveryHealthInfo
+            );
         }
 
         public static class Builder {
@@ -164,6 +210,8 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             private RepositoriesHealthInfo repositoriesHealthInfo;
             private DataStreamLifecycleHealthInfo dslHealthInfo;
             private FileSettingsHealthInfo fileSettingsHealthInfo;
+            private DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo;
+            private DataRecoveryHealthInfo dataRecoveryHealthInfo;
 
             public Builder nodeId(String nodeId) {
                 this.nodeId = nodeId;
@@ -190,8 +238,26 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 return this;
             }
 
+            public Builder dlmFrozenTransitionsHealthInfo(DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo) {
+                this.dlmFrozenTransitionsHealthInfo = dlmFrozenTransitionsHealthInfo;
+                return this;
+            }
+
+            public Builder dataRecoveryHealthInfo(DataRecoveryHealthInfo dataRecoveryHealthInfo) {
+                this.dataRecoveryHealthInfo = dataRecoveryHealthInfo;
+                return this;
+            }
+
             public Request build() {
-                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo);
+                return new Request(
+                    nodeId,
+                    diskHealthInfo,
+                    dslHealthInfo,
+                    repositoriesHealthInfo,
+                    fileSettingsHealthInfo,
+                    dlmFrozenTransitionsHealthInfo,
+                    dataRecoveryHealthInfo
+                );
             }
         }
     }
@@ -245,7 +311,9 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 request.getDiskHealthInfo(),
                 request.getDslHealthInfo(),
                 request.getRepositoriesHealthInfo(),
-                request.getFileSettingsHealthInfo()
+                request.getFileSettingsHealthInfo(),
+                request.getDlmFrozenTransitionsHealthInfo(),
+                request.getDataRecoveryHealthInfo()
             );
             listener.onResponse(AcknowledgedResponse.of(true));
         }

@@ -39,8 +39,8 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             super(
                 USE_FIXTURE,
                 null,
-                "bucket",
-                "base_path_integration_tests",
+                () -> "bucket",
+                () -> "base_path_integration_tests",
                 () -> consistencyModel,
                 fixedAccessKey("s3_test_access_key", regionSupplier, "s3")
             );
@@ -137,6 +137,13 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
         }
 
         return settings.build();
+    }
+
+    @Override
+    protected boolean checkDeprecations(Settings repositorySettings) {
+        // Opting into the deprecated conditional-writes setting is critically deprecated and would fail analysis. Skip that check so
+        // these tests can still exercise the MPU-based implementation.
+        return repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes") == false;
     }
 
     @Override

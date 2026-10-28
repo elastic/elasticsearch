@@ -21,8 +21,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -51,7 +51,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    private final BufferScratch scratch = new BufferScratch();
+    private final SegmentBufferScratch scratch = new SegmentBufferScratch();
 
     public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
@@ -415,12 +415,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 offset + 4L * this.bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
+            var targetComponentSums = ((IntVector) ShortVector.fromMemorySegment(
                 SHORT_SPECIES_128,
                 memorySegment,
                 offset + 8L * this.bulkSize + (long) i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.S2I, 0)).and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
@@ -495,12 +495,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 offset + 4L * this.bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
+            var targetComponentSums = ((IntVector) ShortVector.fromMemorySegment(
                 SHORT_SPECIES_256,
                 memorySegment,
                 offset + 8L * this.bulkSize + (long) i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.S2I, 0)).and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,

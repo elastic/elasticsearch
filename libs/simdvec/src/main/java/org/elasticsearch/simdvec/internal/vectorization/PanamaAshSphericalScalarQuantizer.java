@@ -69,23 +69,48 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
 
     @Override
     protected float calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
-        final int limit = FLOAT_SPECIES.loopBound(absZF.length);
         FloatVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f);
 
-        FloatVector dotAcc = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
+
+        // manually unrolling splits up the data dependency on the single acc value
+        int sectionLength = FLOAT_SPECIES.length() * 4;
+        if (absZF.length >= sectionLength) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+            int limit = (absZF.length / sectionLength) * sectionLength;
+            for (; i < limit; i += sectionLength) {
+                FloatVector abs0 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).abs();
+                FloatVector abs1 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length()).abs();
+                FloatVector abs2 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 2).abs();
+                FloatVector abs3 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 3).abs();
+                abs0.reinterpretAsInts().intoArray(absZF, i);
+                abs1.reinterpretAsInts().intoArray(absZF, i + FLOAT_SPECIES.length());
+                abs2.reinterpretAsInts().intoArray(absZF, i + FLOAT_SPECIES.length() * 2);
+                abs3.reinterpretAsInts().intoArray(absZF, i + FLOAT_SPECIES.length() * 3);
+                acc0 = fma(halfConst, abs0, acc0);
+                acc1 = fma(halfConst, abs1, acc1);
+                acc2 = fma(halfConst, abs2, acc2);
+                acc3 = fma(halfConst, abs3, acc3);
+            }
+            acc = acc0.add(acc1).add(acc2).add(acc3);
+        }
+        int limit = FLOAT_SPECIES.loopBound(absZF.length);
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector abs = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).abs();
             abs.reinterpretAsInts().intoArray(absZF, i);
-            dotAcc = fma(halfConst, abs, dotAcc);
+            acc = fma(halfConst, abs, acc);
         }
         if (i < absZF.length) {
             var mask = FLOAT_SPECIES.indexInRange(i, absZF.length);
             FloatVector abs = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i, mask).abs();
             abs.reinterpretAsInts().intoArray(absZF, i, mask.cast(INTEGER_SPECIES));
-            dotAcc = fma(halfConst, abs, dotAcc);
+            acc = fma(halfConst, abs, acc);
         }
-        return dotAcc.reduceLanes(ADD);
+        return acc.reduceLanes(ADD);
     }
 
     @Override

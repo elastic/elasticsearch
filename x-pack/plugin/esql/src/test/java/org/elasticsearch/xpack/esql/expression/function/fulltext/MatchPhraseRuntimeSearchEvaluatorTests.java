@@ -11,14 +11,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -171,10 +177,20 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
     }
 
-    public void testTextWithNonStandardValuesAnalyzerUsesLuceneQueryEvaluator() {
-        // The fast matcher cannot express the position gaps a stopword-removing analyzer leaves behind.
-        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown fox", null);
+    public void testAQueryWhoseTermsLeaveAGapUsesLuceneQueryEvaluator() {
+        // The stopword between them leaves the query's terms two positions apart, which the fast matcher asks for
+        // adjacent and cannot express.
+        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown the fox", null);
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
+    }
+
+    /**
+     * The same analyzer, and a query it drops nothing from: its terms sit one to a position, so the fast matcher
+     * asks for exactly what a query over an index of the values would.
+     */
+    public void testAQueryTheAnalyzerDropsNothingFromKeepsTheFastEvaluator() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown fox", null);
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextEvaluator.Factory.class));
     }
 
     public void testTextWithExplicitStandardValuesAnalyzerUsesOptimizedEvaluator() {
@@ -293,6 +309,45 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
     }
 
     /**
+     * {@code match_phrase(to_text(field), ...)} where {@code field} is a genuine, single-typed, always-mapped
+     * {@code keyword} {@link FieldAttribute} — the inline-{@code to_text}-on-an-indexed-field shape from
+     * <a href="https://github.com/elastic/elasticsearch/issues/159265">#159265</a>. See
+     * {@link MatchRuntimeSearchEvaluatorTests#runtimeMatchOnToTextOverIndexedField} for the {@code match} analogue.
+     */
+    private static MatchPhrase runtimeMatchPhraseOnToTextOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToText field = new ToText(Source.EMPTY, child);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    /**
+     * {@code match_phrase(to_string(field), ...)} where {@code field} is a genuine, single-typed, always-mapped
+     * {@code text} {@link FieldAttribute} - the mirror-image bug of
+     * {@link #runtimeMatchPhraseOnToTextOverIndexedField}: {@code TO_STRING} declares that the value must be
+     * matched as exact, unanalyzed {@code keyword} text, and that holds regardless of whether the field happens
+     * to be indexed as TEXT.
+     */
+    private static MatchPhrase runtimeMatchPhraseOnToStringOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToString field = new ToString(Source.EMPTY, child, TEST_CFG);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    /**
      * A runtime {@code match_phrase("Brown Fox")} over a reference carrying the whitespace values analyzer as
      * attribute metadata, the {@code EVAL t = to_text(...)} form. The semantics matrix is exercised through the
      * inline {@code to_text} form; the reference form only pins that the second declaration site feeds the same
@@ -323,6 +378,40 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
     }
 
+    /**
+     * https://github.com/elastic/elasticsearch/issues/159265: {@code match_phrase(to_text(keyword_field), ...)}
+     * written inline, directly over a normal {@code keyword} field, must match with standard
+     * analyzed phrase semantics (case-insensitive) — the same as a non-indexed reference. Before the fix, the
+     * field's presence as a genuine {@link FieldAttribute} made {@link MatchPhrase#isRuntimeSearch()} return
+     * {@code false}, so this was pushed down as a plain (exact, case-sensitive) match on the raw keyword field.
+     */
+    public void testPhraseValuesAnalyzerFromToTextOverIndexedField() {
+        Boolean[] result = evaluate(runtimeMatchPhraseOnToTextOverIndexedField("brown fox"), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a Brown Fox runs"));
+            builder.appendBytesRef(new BytesRef("a fox runs, brown"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * Mirror-image bug of {@link #testPhraseValuesAnalyzerFromToTextOverIndexedField}:
+     * {@code match_phrase(to_string(text_field), "brown fox")} written inline, directly over a real
+     * single-typed mapped {@code text} field, must match exactly and case-sensitively - the value must equal
+     * the query in full, not merely contain it as a substring or consecutive phrase. Before the fix, this was
+     * pushed down as a plain analyzed phrase match on the raw text field, which over-matches.
+     */
+    public void testKeywordExactSemanticsFromToStringOverIndexedField() {
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToStringOverIndexedField("brown fox"),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("Brown Fox")); // case differs from the query: must not match
+                builder.appendBytesRef(new BytesRef("a brown fox runs")); // query is only a substring: must not match
+                builder.appendBytesRef(new BytesRef("brown fox")); // exact match: must match
+            })
+        );
+        assertArrayEquals(new Boolean[] { false, false, true }, result);
+    }
+
     public void testPhraseValuesAnalyzerFromToText() {
         // whitespace declared on TO_TEXT applies to values AND (by default) the query: case-sensitive on both sides
         Boolean[] result = evaluate(
@@ -343,6 +432,19 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
             factory -> bytesRefBlock(factory, builder -> builder.appendBytesRef(new BytesRef("the Brown Fox runs")))
         );
         assertArrayEquals(new Boolean[] { false }, result);
+    }
+
+    public void testPhraseMatchAnalyzerOverridesQuerySideOfValuesAnalyzer() {
+        // values are whitespace-analyzed (case kept); match_phrase's standard query analyzer lowercases the phrase,
+        // like search_analyzer overriding the query side on an indexed field
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("whitespace", "BROWN FOX", mapOptions("analyzer", "standard")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the brown fox runs"));
+                builder.appendBytesRef(new BytesRef("the Brown Fox runs"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     public void testPhraseStopwordAnalyzerKeepsPositionGaps() {

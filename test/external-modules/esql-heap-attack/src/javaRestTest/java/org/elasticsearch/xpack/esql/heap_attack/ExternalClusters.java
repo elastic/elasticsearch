@@ -43,6 +43,7 @@ class ExternalClusters {
             .setting("indices.breaker.request.limit", BREAKER_LIMIT_PERCENT + "%")
             // S3 client wiring — endpoint discovered at startup from the fixture rule.
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             .setting("s3.client.default.protocol", "http")
             .keystore("s3.client.default.access_key", S3FixtureUtils.ACCESS_KEY)
             .keystore("s3.client.default.secret_key", S3FixtureUtils.SECRET_KEY)

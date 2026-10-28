@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasable;
 /**
  * An immutable, format-agnostic batch of source documents carrying a shared {@link SourceSchema}.
  *
- * <p>Batches are {@link Releasable}; callers that own the batch must close it when done.
+ * <p>Batches are {@link Releasable}; callers that own the batch must close it exactly once when done.
  * Slices produced by {@link #slice(int, int)} do not own the underlying buffers and their
  * {@link #close()} is a no-op.
  */
@@ -52,4 +52,21 @@ public interface SourceBatch extends Releasable, Accountable {
      * @throws IndexOutOfBoundsException if the range is invalid.
      */
     SourceBatch slice(int from, int to);
+
+    /**
+     * Estimates the bytes this batch contributes to the Lucene indexing buffer.
+     */
+    int estimatedBytes();
+
+    /**
+     * Returns {@code true} if every present row in column {@code columnIndex} is either absent, JSON
+     * {@code null}, or an empty object ({@code {}}). When {@code true}, the column carries no indexable
+     * value and can be safely ignored during batch mapper resolution.
+     *
+     * <p>The default implementation returns {@code false} (conservative: treat as non-empty). Format-aware
+     * implementations override this to inspect column data directly.
+     */
+    default boolean isEmptyObjectColumn(int columnIndex) {
+        return false;
+    }
 }

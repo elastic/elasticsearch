@@ -325,6 +325,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             Math.toIntExact(BUFFER_SIZE.getBytes()),
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            ByteSizeValue.ofMb(1).getBytes(),
             BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
             new GcsRepositoryStatsCollector(),
             null,

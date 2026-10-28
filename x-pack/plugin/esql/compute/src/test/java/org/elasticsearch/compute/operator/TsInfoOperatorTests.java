@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.compute.operator.MetricsInfoOperatorTests.DATA_STREAMS_BY_INDEX;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +41,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     @Override
     protected TsInfoOperator.Factory simple(SimpleOptions options) {
-        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL);
     }
 
     @Override
@@ -122,7 +123,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createInitialOperator() {
-        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
+        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
     }
 
     private Operator createFinalOperator(int[] channels) {
@@ -562,9 +563,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     /**
      * When the _index block contains a cluster-prefixed backing index name
-     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
-     * strips the backing-index suffix but preserves the cluster prefix, producing
-     * "remote_cluster:k8s".
+     * the supplied data-stream lookup preserves the cluster qualifier in the output.
      */
     public void testRemoteClusterPrefixPreservedForBackingIndex() {
         BlockFactory blockFactory = driverContext().blockFactory();
@@ -589,9 +588,32 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    /**
-     * Local index names (no cluster prefix) pass through unchanged.
-     */
+    /** Membership overrides naming conventions, while standalone indices retain their names. */
+    public void testDataStreamMembershipLookup() {
+        String clusterPrefix = randomBoolean() ? "remote_cluster:" : "";
+        String customIndex = clusterPrefix + "custom-backing-index";
+        String backingIndex = clusterPrefix + ".ds-misleading-name-2024.01.15-000001";
+        String standaloneIndex = clusterPrefix + "partial-.ds-metrics-2024.01.15-000002";
+        String dataStream = clusterPrefix + "metrics";
+        Map<String, String> dataStreams = Map.of(customIndex, dataStream, backingIndex, dataStream);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = new TsInfoOperator.Factory(SIMPLE_LOOKUP, dataStreams, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext())) {
+            for (String index : List.of(customIndex, backingIndex, standaloneIndex)) {
+                op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", index));
+            }
+            op.finish();
+            Page output = op.getOutput();
+            assertNotNull(output);
+            try {
+                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of(dataStream, standaloneIndex)));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /** Local index names without a parent data stream pass through unchanged. */
     public void testLocalIndexNameUnchanged() {
         BlockFactory blockFactory = driverContext().blockFactory();
         Operator op = createInitialOperator();
@@ -617,7 +639,14 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx)) {
+        try (
+            TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(
+                SIMPLE_LOOKUP,
+                DATA_STREAMS_BY_INDEX,
+                METADATA_CHANNEL,
+                INDEX_CHANNEL
+            ).get(ctx)
+        ) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
@@ -718,7 +747,12 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
 
-        TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
+        TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            DATA_STREAMS_BY_INDEX,
+            METADATA_CHANNEL,
+            INDEX_CHANNEL
+        ).get(ctx);
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
         assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));

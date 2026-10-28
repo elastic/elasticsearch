@@ -8,6 +8,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -67,7 +68,7 @@ public class NdJsonReadBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         byte[] ndjsonBytes = generateNdJsonFixture(rowCount);
         fixtureBytes = ndjsonBytes.length;

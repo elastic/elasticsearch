@@ -46,7 +46,7 @@ public record IvfSegmentConfig(
 
     /**
      * ASH (Asymmetric Scalar Hashing) configuration — used by ASH writers/readers.
-     * ASH handles its own packing via {@code AsymmetricHashingScorer} and does not use {@link QuantEncoding}.
+     * ASH handles its own packing via {@code ESVectorUtil.ashPack} and does not use {@link QuantEncoding}.
      *
      * <p>Mirrors how {@link OsqConfig} wraps {@link QuantEncoding} with both document and query bit widths:
      * {@code bitsPerDim} controls document encoding while {@code queryBitsPerDim} controls query-time
@@ -64,8 +64,28 @@ public record IvfSegmentConfig(
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
         public static final int DEFAULT_BITS_PER_DIM = 2;
         public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
-        public static final int DEFAULT_TRAINING_ITERATIONS = 5;
+        /**
+         * Procrustes iterations used to refine the rotation applied to the PCA subspace. With zero, the default, the
+         * rotation is a random orthogonal matrix and no projected training sample is needed; any positive value runs
+         * that many iterations on a projected training sample.
+         */
+        public static final int DEFAULT_TRAINING_ITERATIONS = 0;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /**
+         * Training-sample factor used on the flush path. Training streams the sample through a
+         * {@code originalDim x originalDim} second-moment matrix, so its memory no longer grows with the
+         * sample size and flush can use the same factor as merge.
+         */
+        public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 10;
+
+        /**
+         * Returns the training-sample factor to use when learning W at flush time. Merge uses
+         * {@link #trainingFactor()}.
+         */
+        public int flushTrainingFactor() {
+            return DEFAULT_FLUSH_TRAINING_FACTOR;
+        }
 
         /**
          * Returns {@code true} if the given bits-per-dimension value is supported for ASH document encoding.

@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -54,7 +53,7 @@ public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
     public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
-    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String INGEST_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
     private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
@@ -123,10 +122,10 @@ public final class IngestDocument {
     public IngestDocument(IngestDocument other) {
         this(
             new IngestCtxMap(
-                deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource(), "source document")),
+                CollectionUtils.deepCopy(ensureNoSelfReferences(other.ctxMap.getSource(), "source document")),
                 other.ctxMap.getMetadata().clone()
             ),
-            deepCopyMap(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
+            CollectionUtils.deepCopy(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
         );
         /*
          * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
@@ -1046,22 +1045,15 @@ public final class IngestDocument {
         return template.newInstance(templateModel).execute();
     }
 
-    /**
-     * Get source and metadata map
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return ctxMap;
-    }
-
     /*
-     * This returns the same information as getSourceAndMetadata(), but in an unmodifiable map that is safe to send into a script that is
+     * This returns the same information as getCtxMap(), but in an unmodifiable map that is safe to send into a script that is
      * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map, List, or Set nested within it, an
      * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
      * results are not reflected on this IngestDocument. If a user has put any other mutable Object into the IngestDocument, this method
      * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
      * Objects found in IngestDocuments.
      */
-    public Map<String, Object> getUnmodifiableSourceAndMetadata() {
+    public Map<String, Object> getUnmodifiableCtxMap() {
         return new UnmodifiableIngestData(ctxMap);
     }
 
@@ -1097,57 +1089,6 @@ public final class IngestDocument {
     void ensureNoSelfReferences() {
         CollectionUtils.ensureNoSelfReferences(ctxMap.getSource(), "source document");
         CollectionUtils.ensureNoSelfReferences(ingestMetadata, "ingest metadata");
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
-        return (Map<K, V>) deepCopy(source);
-    }
-
-    public static Object deepCopy(Object value) {
-        if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(entry.getKey(), deepCopy(entry.getValue()));
-            }
-            // TODO(stu): should this check for IngestCtxMap in addition to Map?
-            return copy;
-        } else if (value instanceof List<?> listValue) {
-            List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(deepCopy(itemValue));
-            }
-            return copy;
-        } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
-            for (Object itemValue : setValue) {
-                copy.add(deepCopy(itemValue));
-            }
-            return copy;
-        } else if (value instanceof byte[] bytes) {
-            return Arrays.copyOf(bytes, bytes.length);
-        } else if (value instanceof double[][] doubles) {
-            double[][] result = new double[doubles.length][];
-            for (int i = 0; i < doubles.length; i++) {
-                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
-            }
-            return result;
-        } else if (value instanceof double[] doubles) {
-            return Arrays.copyOf(doubles, doubles.length);
-        } else if (value == null
-            || value instanceof String
-            || value instanceof Integer
-            || value instanceof Long
-            || value instanceof Float
-            || value instanceof Double
-            || value instanceof Boolean
-            || value instanceof ZonedDateTime) {
-                return value;
-            } else if (value instanceof Date date) {
-                return date.clone();
-            } else {
-                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-            }
     }
 
     public static Set<String> getAllFields(Map<String, Object> input) {
@@ -1395,9 +1336,9 @@ public final class IngestDocument {
         // you shouldn't call this directly, use the FieldPath.of method above instead!
         private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
-            if (path.startsWith(INGEST_KEY_PREFIX)) {
+            if (path.startsWith(INGEST_PREFIX)) {
                 useIngestContext = true;
-                newPath = path.substring(INGEST_KEY_PREFIX.length());
+                newPath = path.substring(INGEST_PREFIX.length());
             } else {
                 useIngestContext = false;
                 if (path.startsWith(SOURCE_PREFIX)) {

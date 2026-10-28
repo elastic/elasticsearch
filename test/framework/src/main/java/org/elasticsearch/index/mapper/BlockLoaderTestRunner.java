@@ -16,9 +16,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.BaseMatcher;
@@ -28,6 +30,7 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -132,12 +135,10 @@ public class BlockLoaderTestRunner {
                 var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
                 var source = new SourceToParse(
                     "1",
-                    BytesReference.bytes(documentXContent),
-                    XContentType.JSON,
+                    new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
                     null,
                     Map.of(),
                     Map.of(),
-                    true,
                     XContentMeteringParserDecorator.NOOP,
                     null
                 );
@@ -166,7 +167,14 @@ public class BlockLoaderTestRunner {
      * calling {@link #run}.
      */
     public void document(Map<String, Object> doc) throws IOException {
-        this.mapDoc = doc;
+        this.mapDoc = decorateWithRequiredFields(new HashMap<>(doc), params.indexMode());
+    }
+
+    private static Map<String, Object> decorateWithRequiredFields(Map<String, Object> document, IndexMode indexMode) {
+        if (indexMode == IndexMode.LOGSDB) {
+            document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
+        }
+        return document;
     }
 
     /**

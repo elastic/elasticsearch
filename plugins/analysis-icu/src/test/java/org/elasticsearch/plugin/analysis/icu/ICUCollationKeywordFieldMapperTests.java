@@ -22,7 +22,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -71,16 +70,25 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
         checker.registerUpdateCheck("ignore_above", b -> b.field("ignore_above", 5), m -> {});
-        checker.registerConflictCheck("norms", b -> b.field("norms", true));
-        checker.registerUpdateCheck("norms", b -> {
-            minimalMapping(b);
-            b.field("norms", true);
-        }, b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             minimalMapping(b);
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }));
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }));
     }
 
     @Override
@@ -375,9 +383,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * {@code shouldEnforceSingleValue()} override.
      */
     public void testMultiValueFalseRejectsMultipleValues() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(icuMultiFieldMapping(b -> b.field("multi_value", false)));
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("parent", "a", "b"))));
         assertThat(
             e.getCause().getMessage(),
@@ -390,9 +396,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * the ICU multi-field's doc values are written.
      */
     public void testMultiValueFalseAcceptsSingleValue() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(icuMultiFieldMapping(b -> b.field("multi_value", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("parent", "a")));
         assertFalse("parent.icu must have doc values", doc.rootDoc().getFields("parent.icu").isEmpty());
         assertThat(doc.rootDoc().getFields("_ignored"), empty());
@@ -405,14 +409,12 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * does occupy the slot, so a subsequent real value triggers the multi-value violation.
      */
     public void testMultiValueFalseNullDoesNotConsumeSlot() throws IOException {
-        DocumentMapper mapperNoNullValue = createColumnarModeDocumentMapper(
-            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapperNoNullValue = createColumnarModeDocumentMapper(icuMultiFieldMapping(b -> b.field("multi_value", false)));
         ParsedDocument doc = mapperNoNullValue.parse(source(b -> b.array("parent", (Object) null, "a")));
         assertThat("null must not occupy the single-value slot", doc.rootDoc().getFields("_ignored"), empty());
 
         DocumentMapper mapperWithNullValue = createColumnarModeDocumentMapper(
-            icuMultiFieldMapping(b -> b.field("null_value", "NULL").startObject("doc_values").field("multi_value", false).endObject())
+            icuMultiFieldMapping(b -> b.field("null_value", "NULL").field("multi_value", false))
         );
         expectThrows(DocumentParsingException.class, () -> mapperWithNullValue.parse(source(b -> b.array("parent", (Object) null, "a"))));
     }
@@ -424,9 +426,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * is marked in {@code _ignored}.
      */
     public void testOnFailureIgnoreRedirectsExtraValue() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(
-            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject())
+            icuMultiFieldMapping(b -> b.field("multi_value", false).field("on_failure", "ignore"))
         );
         ParsedDocument doc = mapper.parse(source(b -> b.array("parent", "a", "b")));
         assertFalse("parent.icu must have doc values for the first value", doc.rootDoc().getFields("parent.icu").isEmpty());
@@ -447,9 +448,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * override, which previously always returned {@code FAIL} regardless of the configured value.
      */
     public void testOnFailureIgnoreHonoredForNullabilityViolation() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(
-            icuMultiFieldMapping(b -> b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject())
+            icuMultiFieldMapping(b -> b.field("nullability", false).field("on_failure", "ignore"))
         );
         ParsedDocument doc = mapper.parse(source(b -> {}));
         assertTrue(

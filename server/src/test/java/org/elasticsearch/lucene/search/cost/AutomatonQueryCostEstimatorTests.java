@@ -66,7 +66,7 @@ public class AutomatonQueryCostEstimatorTests extends ESTestCase {
      * state as a lower bound.
      */
     public void testEstimateCoversActualSize() {
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("test");
+        NoopCircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         String[][] patterns = {
             { "simple_ascii", "foo*bar" },
             { "many_wildcards", "a*b?c*d?e*f?g*h" },

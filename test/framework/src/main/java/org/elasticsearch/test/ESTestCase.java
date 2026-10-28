@@ -34,6 +34,8 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -53,6 +55,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -70,6 +73,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.TestUUIDSourceRule;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -284,6 +288,27 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
+    /**
+     * Promise warnings we tolerate instead of failing a test on. A listener that throws is normally one of our own
+     * callbacks breaking, which is what the DefaultPromise appender below exists to catch; these are third-party
+     * listeners throwing while their own library shuts down, where nothing on our side is wrong or fixable.
+     * <p>
+     * Each entry names the class that declares the listener, which is the stable part of what Netty reports: for a
+     * lambda it logs the declaring class followed by a generated suffix that differs from run to run. Deliberately not
+     * the package — that would also cover these clients' request paths, where a throw is worth seeing.
+     */
+    private static final List<String> TOLERATED_PROMISE_WARNINGS = List.of(
+        // gRPC's transport, throwing from a ChannelFutureListener for an HTTP/2 stream it had already closed, after
+        // FlightServer.close() returned. A known source of flakiness for the Arrow Flight based tests, which is where
+        // this first showed up. Logged as "An exception was thrown by io.grpc.netty.NettyServerHandler$X
+        // .operationComplete()". See #144244, #144263.
+        "An exception was thrown by io.grpc.netty.NettyServerHandler",
+        // The AWS SDK's connection pool. Its idle-count bookkeeping — on the acquire and release paths as well as on
+        // channel close — is submitted to an event executor that the client's own shutdown may already have terminated.
+        // See #161727.
+        "An exception was thrown by software.amazon.awssdk.http.nio.netty.internal.IdleConnectionCountingChannelPool"
+    );
+
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -343,11 +368,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
                     final String message = event.getMessage().getFormattedMessage();
-                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
-                    // which Netty logs as a WARN on DefaultPromise:
-                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
-                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
-                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                    if (TOLERATED_PROMISE_WARNINGS.stream().anyMatch(message::contains)) {
                         return;
                     }
                     synchronized (loggedLeaks) {
@@ -481,6 +502,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
 
     @Rule
+    public final TestRule uuidSource = new TestUUIDSourceRule();
+
+    @Rule
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
         @Override
         protected void afterIfSuccessful() throws Throwable {
@@ -552,6 +576,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
+
+    @ClassRule
+    public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -779,6 +806,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add("Running Elasticsearch with Java 21-24 is deprecated.");
         filtered.add(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
@@ -1086,6 +1114,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
+    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            int choice = randomIntBetween(0, 2);
+            if (choice == 0) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
+            } else if (choice == 1) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+            }
+        }
+        return settings;
+    }
+
     public static Boolean randomOptionalBoolean() {
         return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
     }
@@ -1362,6 +1402,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         Random random = random();
         for (int i = 0; i < length; i++) {
             sb.append(ALPHANUMERIC_CHARACTERS.charAt(random.nextInt(ALPHANUMERIC_CHARACTERS.length())));
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Generate a random string containing only digit characters ({@code 0-9}), never starting
+     * with a redundant leading zero (e.g. never {@code "007"}), so the result reads as a normal
+     * base-10 integer with exactly {@code length} significant digits.
+     * @param length the length of the string to generate
+     * @return the generated string
+     */
+    public static String randomNumericOfLength(int length) {
+        return randomNumericOfLength(length, false);
+    }
+
+    /**
+     * Generate a random string containing only digit characters ({@code 0-9}).
+     * @param length the length of the string to generate
+     * @param allowLeadingZero if {@code false}, the first digit is chosen from {@code 1-9}
+     *                         instead of {@code 0-9} (so {@code length == 1} never produces
+     *                         {@code "0"})
+     * @return the generated string
+     */
+    public static String randomNumericOfLength(int length, boolean allowLeadingZero) {
+        StringBuilder sb = new StringBuilder();
+        Random random = random();
+        String firstDigitCandidates = allowLeadingZero ? DIGIT_CHARACTERS : DIGIT_CHARACTERS.substring(1);
+        for (int i = 0; i < length; i++) {
+            String candidates = (i == 0) ? firstDigitCandidates : DIGIT_CHARACTERS;
+            sb.append(candidates.charAt(random.nextInt(candidates.length())));
         }
 
         return sb.toString();
@@ -3295,6 +3366,48 @@ public abstract class ESTestCase extends LuceneTestCase {
             return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
         }
         return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
+    }
+
+    /**
+     * Wraps {@code collector} as a {@link CollectorManager} that reuses a single instance.
+     * Only safe with a sequential searcher either created without an executor or always searching a single slice.
+     * Note that reduce returns null. Results need to be collected by the provided collector.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> singleThreadedCollectorManager(C collector) {
+        return new CollectorManager<>() {
+            private boolean created;
+
+            @Override
+            public C newCollector() {
+                assert created == false : "singleThreadedCollectorManager does not support concurrent search";
+                created = true;
+                return collector;
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                assert collectors.size() == 1 : "Collectors must have only one collector";
+                return null;
+            }
+        };
+    }
+
+    /**
+     * A {@link CollectorManager} that creates a fresh collector for each slice.
+     * Note that reduce returns null. Results need to be externally gathered during collection.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> collectorManager(CheckedSupplier<C, IOException> factory) {
+        return new CollectorManager<>() {
+            @Override
+            public C newCollector() throws IOException {
+                return factory.get();
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                return null;
+            }
+        };
     }
 
     /**

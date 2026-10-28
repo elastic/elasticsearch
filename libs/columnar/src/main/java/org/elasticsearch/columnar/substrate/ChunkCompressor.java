@@ -9,7 +9,7 @@
 
 package org.elasticsearch.columnar.substrate;
 
-import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.DataOutput;
 
 import java.io.IOException;
 
@@ -17,5 +17,5 @@ import java.io.IOException;
 public interface ChunkCompressor {
 
     /** Writes {@code src[0, length)} as one chunk and returns how many bytes it occupies in {@code out}. */
-    int write(byte[] src, int length, IndexOutput out) throws IOException;
+    int write(byte[] src, int length, DataOutput out) throws IOException;
 }

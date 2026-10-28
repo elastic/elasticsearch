@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.time.Duration;
 import java.time.Period;
@@ -50,6 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -573,8 +575,51 @@ public class ExpressionTests extends ESTestCase {
             assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedNamePattern.class));
             UnresolvedNamePattern ua = (UnresolvedNamePattern) projections.get(0);
             assertThat(ua.name(), equalTo(e));
+            assertThat(ua.glob(), equalTo(e));
             assertThat(ua.unresolvedMessage(), equalTo("Unresolved pattern [" + e + "]"));
         }
+    }
+
+    public void testProjectKeepPatternGlobTakesBackquotedLegsLiterally() {
+        assertThat(keepPatternGlob("`tags`*"), equalTo("tags*"));
+        assertThat(keepPatternGlob("`tags`.n*"), equalTo("tags.n*"));
+        assertThat(keepPatternGlob("t`ag`s*"), equalTo("tags*"));
+        assertThat(keepPatternGlob("`a*b`*"), equalTo("a\\*b*"));
+        assertThat(keepPatternGlob("`a``b`*"), equalTo("a`b*"));
+        assertThat(keepPatternGlob("`a\\b`*"), equalTo("a\\\\b*"));
+        assertThat(keepPatternGlob("*`x*y`*`z*`"), equalTo("*x\\*y*z\\*"));
+    }
+
+    public void testProjectKeepPatternGlobMatchesWhatTheAutomatonMatches() {
+        for (int i = 0; i < 200; i++) {
+            String e = String.join(".", randomList(1, 2, () -> String.join("", randomList(1, 3, ExpressionTests::randomNamePatternPiece))));
+            if (singleValue(projectExpression(e).projections()) instanceof UnresolvedNamePattern unp) {
+                UnmappedFieldsPattern glob = UnmappedFieldsPattern.includes(List.of(unp.glob()));
+                for (int j = 0; j < 50; j++) {
+                    String name = randomCandidateName();
+                    assertThat("[" + e + "] against [" + name + "]", glob.matches(name), equalTo(unp.match(name)));
+                    if (glob.matches(name)) {
+                        for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                            assertTrue(
+                                "[" + e + "] must ship [" + name.substring(0, dot) + "]",
+                                glob.objectSubfieldsCouldMatch(name.substring(0, dot))
+                            );
+                        }
+                        assertTrue("[" + e + "] must ship [" + name + "]", glob.objectSubfieldsCouldMatch(name));
+                    }
+                }
+            }
+        }
+    }
+
+    private static String randomNamePatternPiece() {
+        return randomBoolean()
+            ? randomFrom("*", "a", "b", "a*", "*b", "a*b")
+            : "`" + String.join("", randomList(1, 3, () -> randomFrom("a", "*", "\\", ".", "``"))) + "`";
+    }
+
+    private static String randomCandidateName() {
+        return String.join("", randomList(0, 7, () -> randomFrom("a", "b", "*", "\\", "`", ".")));
     }
 
     public void testWildcardProjectKeep() {
@@ -725,6 +770,10 @@ public class ExpressionTests extends ESTestCase {
 
     private Project projectExpression(String e) {
         return (Project) parse("from a | keep " + e);
+    }
+
+    private String keepPatternGlob(String e) {
+        return as(singleValue(projectExpression(e).projections()), UnresolvedNamePattern.class).glob();
     }
 
     private LogicalPlan parse(String s) {

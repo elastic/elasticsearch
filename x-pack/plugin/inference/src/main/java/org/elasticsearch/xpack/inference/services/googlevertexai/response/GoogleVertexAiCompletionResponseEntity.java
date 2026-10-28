@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiU
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
@@ -96,8 +97,14 @@ public class GoogleVertexAiCompletionResponseEntity {
             moveToFirstToken(parser);
             chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(parser);
         }
-        var results = chunk.choices().stream().map(choice -> choice.message().content()).map(ChatCompletionResults.Result::new).toList();
+        // A candidate stopped before producing any text (e.g. finishReason MAX_TOKENS after spending the whole output
+        // budget thinking) has no content; Result must not hold null, which it cannot serialize.
+        var results = chunk.choices()
+            .stream()
+            .map(choice -> Objects.requireNonNullElse(choice.message().content(), ""))
+            .map(CompletionResults.Result::new)
+            .toList();
 
-        return new ChatCompletionResults(results);
+        return new CompletionResults(results);
     }
 }

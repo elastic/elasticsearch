@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
@@ -39,7 +39,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+        var unifiedRequest = UnifiedCompletionRequestBody.of(messageList);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
         OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", USER);
@@ -73,7 +73,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
     public void testReasoningEffort_IsMappedToOpenAiReasoningEffort() throws IOException {
         Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
         var reasoning = new Reasoning(ReasoningEffort.NONE, null, null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             java.util.List.of(message),
             null,
             null,
@@ -125,7 +125,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     public void testMaxCompletionTokens_IsSerialized() throws IOException {
         Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             java.util.List.of(message),
             null,
             128L,

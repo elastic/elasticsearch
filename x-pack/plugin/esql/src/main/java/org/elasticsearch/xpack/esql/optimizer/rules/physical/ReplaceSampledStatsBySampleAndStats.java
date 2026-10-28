@@ -136,7 +136,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
                 addSample(lookupJoin.left(), sampleProbability),
                 lookupJoin.right()
             );
-            // For fork: add sampling in every branch.
+            // For MergeExec: add sampling in every branch.
             case MergeExec merge -> merge.replaceChildren(
                 merge.children().stream().map(child -> addSample(child, sampleProbability)).toList()
             );

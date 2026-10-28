@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -89,7 +90,11 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
 
-        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(indexName);
+        List<RecoveryState> recoveryStates = response.shardRecoveryInfos()
+            .get(indexName)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
         List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
         assertThat(nodeARecoveryStates.size(), equalTo(1));
         List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
@@ -143,7 +148,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
 
         response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
 
-        recoveryStates = response.shardRecoveryStates().get(indexName);
+        recoveryStates = response.shardRecoveryInfos().get(indexName).stream().map(ShardRecoveryInfo::recoveryState).toList();
         assertThat(recoveryStates.size(), equalTo(1));
 
         assertRecoveryState(
@@ -197,7 +202,11 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, nodeB, nodeC));
 
         RecoveryResponse response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(indexName);
+        List<RecoveryState> recoveryStates = response.shardRecoveryInfos()
+            .get(indexName)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
         List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
         List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
         List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
@@ -247,7 +256,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             ensureStableCluster(3);
 
             response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-            recoveryStates = response.shardRecoveryStates().get(indexName);
+            recoveryStates = response.shardRecoveryInfos().get(indexName).stream().map(ShardRecoveryInfo::recoveryState).toList();
 
             nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
             assertThat(nodeARecoveryStates.size(), equalTo(1));
@@ -273,7 +282,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen();
 
         response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-        recoveryStates = response.shardRecoveryStates().get(indexName);
+        recoveryStates = response.shardRecoveryInfos().get(indexName).stream().map(ShardRecoveryInfo::recoveryState).toList();
 
         nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
         assertThat(nodeARecoveryStates.size(), equalTo(1));

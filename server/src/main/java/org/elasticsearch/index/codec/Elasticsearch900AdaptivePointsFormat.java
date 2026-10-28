@@ -22,9 +22,9 @@ import java.io.IOException;
  * to bound the heap memory used by BKD tree metadata structures during indexing. The on-disk
  * format is fully compatible with {@link org.apache.lucene.codecs.lucene90.Lucene90PointsFormat}.
  */
-class Elasticsearch900AdaptivePointsFormat extends PointsFormat {
+public class Elasticsearch900AdaptivePointsFormat extends PointsFormat {
 
-    static final Elasticsearch900AdaptivePointsFormat INSTANCE = new Elasticsearch900AdaptivePointsFormat();
+    public static final Elasticsearch900AdaptivePointsFormat INSTANCE = new Elasticsearch900AdaptivePointsFormat();
 
     private Elasticsearch900AdaptivePointsFormat() {}
 

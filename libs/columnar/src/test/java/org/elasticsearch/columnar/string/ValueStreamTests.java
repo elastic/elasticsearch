@@ -10,11 +10,10 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -23,30 +22,56 @@ import java.util.List;
 
 /**
  * The byte sequence a string column stores its values in, on its own: whatever is written reads back, at
- * every block layout and every width a packed length takes.
+ * every block layout and every bit width a packed length takes.
  */
 public class ValueStreamTests extends ESTestCase {
 
-    private static final String FILE = "stream.bin";
+    private static final String FILE = "stream";
+    private static final byte[] SEGMENT_ID = new byte[16];
 
     /** Values short enough that a block keeps each length beside its own value. */
     public void testInlineLengths() throws IOException {
         assertRoundTrip(values(between(200, 2000), 0, 20));
     }
 
-    /** One byte per length: long enough for a block to pack them, short enough to fit in a byte. */
-    public void testPackedLengthsOneByte() throws IOException {
+    /** Values of length 0 and 1, so the packed header is 1 bit per value. */
+    public void testPackedOneBit() throws IOException {
+        assertRoundTrip(values(between(200, 2000), 0, 1));
+    }
+
+    /** Values up to 255 bytes, so the packed header is at most 8 bits per value. */
+    public void testPackedEightBits() throws IOException {
         assertRoundTrip(values(between(200, 1500), 40, 255));
     }
 
-    /** Two bytes per length. */
-    public void testPackedLengthsTwoBytes() throws IOException {
-        assertRoundTrip(values(between(100, 600), 300, 5000));
+    /** Values up to 4095 bytes, so the packed header is at most 12 bits per value. */
+    public void testPackedTwelveBits() throws IOException {
+        assertRoundTrip(values(between(100, 600), 300, 4000));
     }
 
-    /** Four bytes per length, which needs a value past sixty-five thousand. */
-    public void testPackedLengthsFourBytes() throws IOException {
-        final List<BytesRef> values = new ArrayList<>(values(between(4, 20), 66_000, 66_500));
+    /** Values whose length needs 17 bits, past what two bytes could hold. */
+    public void testPackedSeventeenBits() throws IOException {
+        assertRoundTrip(values(between(4, 20), 66_000, 66_500));
+    }
+
+    /**
+     * Values all of one short length. The lengths pack to a single width whatever the mean is, so these
+     * blocks take the packed layout that a mean this short would otherwise have kept inline.
+     */
+    public void testUniformShortLengths() throws IOException {
+        final int length = between(1, 31);
+        assertRoundTrip(values(between(200, 2000), length, length));
+    }
+
+    /**
+     * One short length but for the occasional longer value, so whether a block is of a single length —
+     * and with it which layout the block takes — differs from one block to the next.
+     */
+    public void testMostlyUniformShortLengths() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0, count = between(500, 3000); i < count; i++) {
+            values.add(new BytesRef(randomAlphaOfLength(rarely() ? between(40, 90) : 16)));
+        }
         assertRoundTrip(values);
     }
 
@@ -109,24 +134,18 @@ public class ValueStreamTests extends ESTestCase {
         final String label = "codec=" + codec + " perBlock=" + valuesPerBlock + " chunk=" + targetChunkBytes + " n=" + values.size();
         try (Directory dir = newDirectory()) {
             final ValueStream.Metadata metadata;
-            try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
-                try (
-                    ValueStream.Writer writer = new ValueStream.Writer(
-                        codec,
-                        targetChunkBytes,
-                        valuesPerBlock,
-                        values.size(),
-                        dir,
-                        IOContext.DEFAULT,
-                        "stream",
-                        out
-                    )
-                ) {
-                    for (BytesRef value : values) {
-                        writer.add(value);
-                    }
-                    metadata = writer.finish();
+            try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
+                final ValueStream.Writer writer = new ValueStream.Writer(
+                    codec,
+                    ChunkBounds.ofBytes(targetChunkBytes),
+                    valuesPerBlock,
+                    out.outputs()
+                );
+                for (BytesRef value : values) {
+                    writer.add(value);
                 }
+                metadata = writer.finish();
+
             }
             assertEquals(label + " numValues", values.size(), metadata.numValues());
             long valueBytes = 0;
@@ -135,8 +154,8 @@ public class ValueStreamTests extends ESTestCase {
             }
             assertEquals(label + " valueBytes", valueBytes, metadata.valueBytes());
 
-            try (IndexInput in = dir.openInput(FILE, IOContext.DEFAULT)) {
-                final ValueStream.Reader reader = metadata.open(in);
+            try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, FILE, SEGMENT_ID)) {
+                final ValueStream.Reader reader = metadata.open(in.inputs());
                 final BytesRef read = new BytesRef();
 
                 for (int i = 0; i < values.size(); i++) {
@@ -154,6 +173,16 @@ public class ValueStreamTests extends ESTestCase {
                     assertEquals(label + " random at " + i, values.get(i), read);
                 }
             }
+        }
+    }
+
+    /** Every value a block's first byte may take; anything else is a corrupt index. */
+    public void testUnknownLayoutMarkersAreNotAccepted() {
+        for (ValueStream.BlockLayout layout : ValueStream.BlockLayout.values()) {
+            assertSame("id " + layout.id + " round-trips to " + layout, layout, ValueStream.BlockLayout.fromId(layout.id));
+        }
+        for (byte marker : new byte[] { 3, 4, 5, 6, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
+            assertNull("marker " + marker + " names no known layout", ValueStream.BlockLayout.fromId(marker));
         }
     }
 }

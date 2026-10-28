@@ -18,6 +18,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
@@ -80,7 +81,6 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -558,12 +558,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             cacheClusterService.getClusterSettings(),
             threadPool,
             BlobCacheMetrics.NOOP,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(
-                indexSettings.getSettings(),
-                cacheClusterService,
-                TestUtils.mockIndicesService(cacheClusterService),
-                threadPool
-            ),
+            new DefaultEvictionPolicy<>(),
             System::nanoTime,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -85,7 +85,7 @@ public class CrossFormatReadBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         byte[] csv = CsvReadBenchmark.generateFixture(rowCount, ',', false);
         byte[] tsv = CsvReadBenchmark.generateFixture(rowCount, '\t', false);

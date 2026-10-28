@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -21,13 +23,16 @@ import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.util.Optional;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -116,6 +121,32 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         }));
     }
 
+    public void testDoInference_NonStreaming_ServiceDoesNotSupportNonStreaming_RejectsWithBadRequest() {
+        var service = mock(InferenceService.class);
+        when(service.supportsNonStreamingChatCompletion()).thenReturn(false);
+        when(service.name()).thenReturn(serviceId);
+        when(service.canStream(any())).thenReturn(false);
+        when(service.supportedStreamingTasks()).thenReturn(Set.of());
+        mockInferenceEndpointRegistry(taskType);
+        when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
+
+        var listener = doExecute(taskType);
+
+        verify(listener).onFailure(assertArg(e -> {
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(e.getMessage(), containsString("does not support non-streaming for the chat completion task type"));
+        }));
+    }
+
+    public void testDoInference_NonStreaming_ServiceSupportsNonStreaming_CallsService() {
+        mockService(listener -> listener.onResponse(mock()));
+
+        var listener = doExecute(taskType);
+
+        verify(listener).onResponse(any());
+    }
+
     public void testMetricsAfterUnifiedInferSuccess_WithRequestTaskTypeAny() {
         mockInferenceEndpointRegistry(TaskType.COMPLETION);
         mockService(listener -> listener.onResponse(mock()));
@@ -130,5 +161,15 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error_type"), nullValue());
         }));
+    }
+
+    public void testUnifiedCompletionInferenceRunsAsChildOfActionTask() {
+        mockService(listener -> listener.onResponse(mock()));
+        var service = serviceRegistry.getService(serviceId).orElseThrow();
+
+        doExecute(taskType);
+
+        // doExecute runs the action with a mocked task, whose id is 0
+        verify(service).unifiedCompletionInfer(any(), any(), any(), eq(new TaskId("local_node", 0L)), any());
     }
 }

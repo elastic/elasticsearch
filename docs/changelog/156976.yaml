@@ -1,0 +1,12 @@
+pr: 156976
+summary: "ES|QL: `FIELD_EXTRACT` is generally available"
+area: ES|QL
+type: enhancement
+issues: []
+highlight:
+  notable: true
+  title: "Query `flattened` fields in ES|QL"
+  body: |-
+    ES|QL can now read [`flattened`](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/flattened) fields and pull out their sub-fields with the [`FIELD_EXTRACT`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/string-functions/field_extract) function, which is now generally available.
+    A `flattened` field stores an entire object as a single field — handy for data with a large or unpredictable set of keys, such as OpenTelemetry attributes. Previously those values were opaque to ES|QL. Now you can extract any leaf value by key and use it like any other keyword column: filter, sort, `STATS`, `LOOKUP JOIN`, `ENRICH`, and more.
+    See [ES|QL and flattened fields](https://www.elastic.co/docs/reference/query-languages/esql/esql-flattened-fields) to get started.

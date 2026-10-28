@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
@@ -33,7 +34,7 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<ByteSizeValue> CACHE_SIZE_OLD = Setting.memorySizeSetting(
         "esql.source.cache.size",
-        "0.4%",
+        "0.5%",
         Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
@@ -67,13 +68,14 @@ public final class ExternalSourceCacheSettings {
 
     /**
      * Deprecated no-op. The schema (per-file) and dataset-aggregate caches are invalidated by identity
-     * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, never by a clock — see
-     * {@link ExternalSourceCacheService}. This setting formerly capped the schema cache with a hard TTL;
-     * it is retained, registered, and ignored so a node that carries it in {@code elasticsearch.yml} from
+     * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, with {@link #SCHEMA_TTL}
+     * bounding the schema store and {@link #LISTING_TTL} the aggregate — see {@link ExternalSourceCacheService}. This setting formerly
+     * capped the schema cache with a hard TTL; it is retained, registered, and ignored so a node that carries
+     * it in {@code elasticsearch.yml} from
      * an earlier version still starts (removing a released node setting would fail startup). It is wired to
      * nothing and emits a deprecation warning when set.
      */
-    public static final Setting<TimeValue> SCHEMA_TTL = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> SCHEMA_TTL_OLD = Setting.positiveTimeSetting(
         "esql.source.cache.schema.ttl",
         TimeValue.timeValueMinutes(5),
         Setting.Property.DeprecatedWarning,
@@ -86,16 +88,36 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<TimeValue> LISTING_TTL_OLD = Setting.positiveTimeSetting(
         "esql.source.cache.listing.ttl",
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMinutes(5),
         Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
 
-    // Only the listing cache carries a time-based refresh: it discovers file identity and has no per-file
-    // key to invalidate on. The schema and dataset-aggregate caches invalidate by identity, not by a clock.
+    // This is the only time-based REFRESH: the listing discovers file identity and has no per-file key to
+    // invalidate on. The schema and dataset-aggregate caches invalidate by identity, and a clock bounds how long
+    // each may serve -- SCHEMA_TTL the schema store, this one the aggregate -- which is a different question
+    // from whether their inputs moved.
+    // Default is five minutes after write (the deprecated key's default; this key falls back to it). A file
+    // added or removed becomes visible on the next query once that elapses. Lower the setting for faster
+    // visibility. Re-lists stay query-triggered. A file's length and mtime are cached under this same clock, so
+    // this is also how long a single-file resolve can answer without asking the store anything.
     public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.listing.ttl",
         LISTING_TTL_OLD,
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a schema inferred from a file may be served before it is derived again. An upper bound on reuse,
+     * not a freshness bound — the identity keys already miss when a file moves. A statistic measured from the
+     * file is addressed separately and has no clock, so it is reused while its entry is held. {@code 0} is
+     * unbounded. Unlike {@link #LISTING_TTL} it does not inherit its deprecated {@code esql.source.cache.*}
+     * counterpart, which shipped documented as ignored.
+     */
+    public static final Setting<TimeValue> SCHEMA_TTL = Setting.timeSetting(
+        "esql.external.cache.schema.ttl",
+        TimeValue.timeValueMinutes(20),
         TimeValue.timeValueMillis(0),
         Setting.Property.NodeScope
     );
@@ -112,8 +134,9 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Default 8 MB, derived (not arbitrary) from the ClickBench text-format file-size distribution
      * against the schema-cache budget: a representative ~1.8 GB shard yields ~231 stripes (ample
-     * pruning resolution), and a 500-hot-file working set consumes ~11 MB — 42% of the ~26 MB schema
-     * budget on a 32 GB heap. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
+     * pruning resolution), and a 500-hot-file working set consumes ~11 MB. That was 42% of the ~26 MB
+     * schema budget on a 32 GB heap when stripe state rode the schema record; it is charged to the
+     * statistics slice now. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
      * larger grids (≥32 MB) coarsen a representative shard to &lt;60 stripes, blunting per-stripe min/max
      * pruning. 8 MB is the knee.
      */
@@ -154,6 +177,115 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Rejects a non-positive footer cache budget at settings-parse time. Both footer caches are
+     * built lazily, when a format reader is first constructed, so without this the node would
+     * accept {@code 0b}/{@code 0%} at startup and only fail on the first Parquet or ORC query.
+     */
+    private static final Setting.Validator<ByteSizeValue> FOOTER_CACHE_BUDGET_VALIDATOR = value -> {
+        if (value.getBytes() <= 0) {
+            throw new IllegalArgumentException("footer cache budget must be greater than 0, got [" + value + "]");
+        }
+    };
+
+    /**
+     * Byte budget for a columnar format reader's footer-byte cache ({@link FooterByteCache}): raw
+     * footer/tail bytes reused across the resolution, split-discovery, and execution phases of a
+     * query, and across back-to-back queries within {@link #FOOTER_CACHE_TTL}. The budget is per
+     * reader instance (the Parquet and ORC readers each own one cache), so the node-wide worst
+     * case is twice this value; absolute values are accepted.
+     * <p>
+     * This is a <em>working-set</em> LRU, not a function of
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
+     * (25k default, up to 1M allowed). The
+     * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
+     * capacity is fine; do not size this so the cache would admit on the order of a million
+     * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file
+     * tails (~8k × 5 KiB) without growing the budget with the file cap. Keep the default at 0.5%.
+     * <p>
+     * Note that only files too large to be fetched whole reach this cache via the 4 MiB adapter
+     * window. Parquet's 64 KiB footer prefetch {@code put}s {@code min(64KiB, fileLength)}, so a
+     * tiny file's whole object can live here and serve a later coalesced data read. An adapter
+     * whole-file fill is admitted on that same 64 KiB bound, so the data path can put back an
+     * entry the prefetch already wrote; a larger one, up to the 4 MiB window, stays out so those
+     * bodies cannot displace genuine footers.
+     */
+    public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
+        "esql.external.cache.footer.size",
+        "0.5%",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.size"),
+        FOOTER_CACHE_BUDGET_VALIDATOR,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Byte budget for a columnar format reader's parsed-footer cache ({@link ParsedFooterCache}):
+     * deserialized footer structures (Parquet {@code ParquetMetadata}, ORC {@code OrcTail}),
+     * weighed by a per-format structural estimate. Like {@link #FOOTER_CACHE_SIZE} the budget is
+     * per reader instance, so the node-wide worst case is twice this value.
+     * <p>
+     * A parsed footer costs several times its serialized form and scales with column count rather
+     * than file size (at Parquet's estimate a single-row-group file weighs ~13 KiB at 15 columns
+     * and ~55 KiB at 100), and files whose writer embeds a schema document in the footer's
+     * key-value metadata (Spark, Iceberg and pandas all do) weigh more again. Doubling
+     * {@link #FOOTER_CACHE_SIZE}'s ratio does not usually offset that, so for typical schemas this
+     * cache holds fewer entries than the byte cache and is the one that evicts first.
+     * <p>
+     * That ordering is worth having rather than a shortcoming, because it keeps the common failure
+     * mode cheap: when a footer is dropped here the raw bytes are often still cached, so the next
+     * phase pays a re-parse (CPU) instead of a fresh network round trip. It is a tendency, not a
+     * guarantee. Two cases invert it. A file within the footer prefetch is held whole in the byte
+     * cache, so an eviction there loses the data pages too, not just a tail to re-read. And a file
+     * carrying large per-column
+     * statistics can have a serialized footer bigger than the structural estimate charged here.
+     * In both, an eviction from this cache does cost a re-read. Deployments running wide schemas
+     * over large file sets can raise this to buy back the re-parse; the cost is heap held for as long as
+     * the working set keeps being read, and until a later cache operation prunes it once that stops.
+     */
+    public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
+        "esql.external.cache.footer.parsed.size",
+        "1%",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.parsed.size"),
+        FOOTER_CACHE_BUDGET_VALIDATOR,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Expire-after-access TTL shared by both footer caches. It bounds how long an entry nobody is reading
+     * stays eligible: a footer read at least once per interval keeps being served, and one that stops being
+     * read becomes a miss an interval later. Expiry is lazy — {@link org.elasticsearch.common.cache.Cache}
+     * reclaims an expired entry when a later operation prunes the LRU rather than on a timer — so on an idle
+     * node the heap stays held until something touches the cache. Both caches take the same value, but they
+     * no longer age out together: a reader that answers from the parsed cache does not read bytes, so a
+     * parsed entry can be renewed while its bytes go cold.
+     * <p>
+     * It bounds memory, not staleness. The footer key carries the object's version (see {@link FooterByteCache}),
+     * so a rewritten object is read through its new version, and its footer parsed afresh, whatever the TTL. Both
+     * caches also carry a write cap of {@link FooterByteCache#WRITE_CAP_MULTIPLIER} times this TTL, so an entry that
+     * keeps being read is still released at most {@code WRITE_CAP_MULTIPLIER × TTL} after it was written.
+     * <p>
+     * A query whose phases span a rewrite of a versioned object does not mix footers either: each phase reads the
+     * version the listing pinned, and a read of the rewritten object fails with the object-changed error. An object
+     * without a version is not footer-cached, so each phase reads it from storage.
+     */
+    public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
+        "esql.external.cache.footer.ttl",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Kill switch for coalescing concurrent {@link ParsedFooterCache#getOrLoadAsync} loads. When
+     * true (the default), concurrent queries over the same columnar file share one footer GET/parse.
+     * Restart-only: the parsed-footer cache is built from node settings when the format reader is
+     * first constructed. The raw {@link FooterByteCache} is unaffected.
+     */
+    public static final Setting<Boolean> FOOTER_COALESCE = Setting.boolSetting(
+        "esql.external.cache.footer.coalesce",
+        true,
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             CACHE_SIZE,
@@ -161,10 +293,15 @@ public final class ExternalSourceCacheSettings {
             CACHE_ENABLED,
             CACHE_ENABLED_OLD,
             SCHEMA_TTL,
+            SCHEMA_TTL_OLD,
             LISTING_TTL,
             LISTING_TTL_OLD,
             STRIPE_SIZE,
-            STRIPE_COLUMNS
+            STRIPE_COLUMNS,
+            FOOTER_CACHE_SIZE,
+            FOOTER_PARSED_CACHE_SIZE,
+            FOOTER_CACHE_TTL,
+            FOOTER_COALESCE
         );
     }
 }

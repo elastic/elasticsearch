@@ -36,6 +36,10 @@ public class HealthInfoCache implements ClusterStateListener {
     private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
     private volatile FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
     @Nullable
+    private volatile DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo = null;
+    @Nullable
+    private volatile DataRecoveryHealthInfo dataRecoveryHealthInfo = null;
+    @Nullable
     private volatile String masterNodeId = null;
 
     private HealthInfoCache() {}
@@ -53,6 +57,37 @@ public class HealthInfoCache implements ClusterStateListener {
         @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
         @Nullable FileSettingsHealthInfo fileSettingsHealthInfo
     ) {
+        updateNodeHealth(nodeId, diskHealthInfo, latestDslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo, null);
+    }
+
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo
+    ) {
+        updateNodeHealth(
+            nodeId,
+            diskHealthInfo,
+            latestDslHealthInfo,
+            repositoriesHealthInfo,
+            fileSettingsHealthInfo,
+            latestDlmFrozenTransitionsHealthInfo,
+            null
+        );
+    }
+
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo,
+        @Nullable DataRecoveryHealthInfo latestDataRecoveryHealthInfo
+    ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
         }
@@ -67,6 +102,12 @@ public class HealthInfoCache implements ClusterStateListener {
             }
             if (fileSettingsHealthInfo != null) {
                 this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+            }
+            if (latestDlmFrozenTransitionsHealthInfo != null) {
+                this.dlmFrozenTransitionsHealthInfo = latestDlmFrozenTransitionsHealthInfo;
+            }
+            if (latestDataRecoveryHealthInfo != null) {
+                this.dataRecoveryHealthInfo = latestDataRecoveryHealthInfo;
             }
         }
     }
@@ -90,18 +131,26 @@ public class HealthInfoCache implements ClusterStateListener {
             // Processing a delayed update after the cache has been emptied because
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
-        } else if (diskInfoByNode.isEmpty() == false
+        } else if (hasAnyHealthInfo()) {
+            logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
+            diskInfoByNode = new ConcurrentHashMap<>();
+            dslHealthInfo = null;
+            repositoriesInfoByNode = new ConcurrentHashMap<>();
+            fileSettingsHealthInfo = INDETERMINATE;
+            masterNodeId = null;
+            dlmFrozenTransitionsHealthInfo = null;
+            dataRecoveryHealthInfo = null;
+        }
+    }
+
+    private boolean hasAnyHealthInfo() {
+        return diskInfoByNode.isEmpty() == false
             || dslHealthInfo != null
             || repositoriesInfoByNode.isEmpty() == false
             || fileSettingsHealthInfo != INDETERMINATE
-            || masterNodeId != null) {
-                logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
-                diskInfoByNode = new ConcurrentHashMap<>();
-                dslHealthInfo = null;
-                repositoriesInfoByNode = new ConcurrentHashMap<>();
-                fileSettingsHealthInfo = INDETERMINATE;
-                masterNodeId = null;
-            }
+            || masterNodeId != null
+            || dlmFrozenTransitionsHealthInfo != null
+            || dataRecoveryHealthInfo != null;
     }
 
     /**
@@ -110,6 +159,13 @@ public class HealthInfoCache implements ClusterStateListener {
      */
     public HealthInfo getHealthInfo() {
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode), fileSettingsHealthInfo);
+        return new HealthInfo(
+            Map.copyOf(diskInfoByNode),
+            dslHealthInfo,
+            Map.copyOf(repositoriesInfoByNode),
+            fileSettingsHealthInfo,
+            dlmFrozenTransitionsHealthInfo,
+            dataRecoveryHealthInfo
+        );
     }
 }

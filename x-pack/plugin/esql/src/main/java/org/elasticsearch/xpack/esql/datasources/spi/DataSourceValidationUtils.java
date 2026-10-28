@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.ValidationException;
 
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 /**
@@ -38,7 +40,7 @@ public final class DataSourceValidationUtils {
     public static void rejectUnknownFields(Map<String, Object> settings, Set<String> knownFields, ValidationException errors) {
         for (String key : settings.keySet()) {
             if (knownFields.contains(key) == false) {
-                errors.addValidationError("unknown setting [" + key + "]; known settings: " + knownFields);
+                errors.addValidationError("unknown setting [" + key + "]; known settings: " + new TreeSet<>(knownFields));
             }
         }
     }
@@ -112,6 +114,32 @@ public final class DataSourceValidationUtils {
                 return;
             }
             result.put(field, value);
+        }
+    }
+
+    /**
+     * Rejects {@code value} unless it is an absolute http(s) URL with a resolvable host. The scheme
+     * comparison is case-insensitive. The host check uses {@link URI#getHost()}, which returns
+     * {@code null} for hostnames that are invalid per RFC 2396 (e.g. underscores: {@code http://minio_s3:9000},
+     * or non-numeric ports like {@code http://localhost:abc}) — those cause errors in HTTP client libraries
+     * and must be rejected at registration time rather than at first query.
+     */
+    public static void validateHttpUrl(String value, String settingName, ValidationException errors) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            if (uri.isAbsolute() == false
+                || ("http".equalsIgnoreCase(scheme) == false && "https".equalsIgnoreCase(scheme) == false)
+                || uri.getHost() == null) {
+                errors.addValidationError(
+                    settingName + " [" + value + "] must be an absolute http or https URL (e.g. https://my-endpoint.example.com)"
+                );
+            }
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError(settingName + " [" + value + "] is not a valid URL: " + e.getMessage());
         }
     }
 

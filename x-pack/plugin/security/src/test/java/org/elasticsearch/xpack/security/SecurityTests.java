@@ -16,12 +16,20 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -52,6 +60,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -90,6 +99,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -99,11 +109,13 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -123,6 +135,7 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -244,6 +257,10 @@ public class SecurityTests extends ESTestCase {
     }
 
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
+        return createComponentsUtil(settings, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+    }
+
+    private Collection<Object> createComponentsUtil(Settings settings, ProjectResolver projectResolver) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
@@ -274,7 +291,7 @@ public class SecurityTests extends ESTestCase {
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
-            TestProjectResolvers.alwaysThrow(),
+            projectResolver,
             CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP,
             new SystemIndices(List.of()),
@@ -283,6 +300,11 @@ public class SecurityTests extends ESTestCase {
     }
 
     private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
+        return createComponents(testSettings, TestProjectResolvers.DEFAULT_PROJECT_ONLY, extensions);
+    }
+
+    private Collection<Object> createComponents(Settings testSettings, ProjectResolver projectResolver, SecurityExtension... extensions)
+        throws Exception {
         if (security != null) {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }
@@ -298,7 +320,7 @@ public class SecurityTests extends ESTestCase {
                 return List.of();
             }
         });
-        return createComponentsUtil(settings);
+        return createComponentsUtil(settings, projectResolver);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -347,8 +369,12 @@ public class SecurityTests extends ESTestCase {
         assertNull(fileServiceAccountTokenStore);
         IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
         assertNull(indexServiceAccountTokenStore);
+        assertNull(findComponent(UserManagedServiceAccountStore.class, components));
         var account = randomFrom(ServiceAccountService.getBuiltInServiceAccounts().values());
-        assertThrows(IllegalStateException.class, () -> serviceAccountService.createIndexToken(null, null, null));
+        var createTokenFuture = new PlainActionFuture<CreateServiceAccountTokenResponse>();
+        serviceAccountService.createBuiltInToken(null, null, createTokenFuture);
+        var e = expectThrows(IllegalStateException.class, createTokenFuture::actionGet);
+        assertEquals("Can't create token because index service account token store not configured", e.getMessage());
         var future = new PlainActionFuture<Authentication>();
         serviceAccountService.authenticateToken(ServiceAccountToken.newToken(account.id(), "test"), "test", future);
         assertTrue(future.get().isServiceAccount());
@@ -386,6 +412,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(fileServiceAccountTokenStore);
         IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
         assertNotNull(indexServiceAccountTokenStore);
+        assertNotNull(findComponent(UserManagedServiceAccountStore.class, components));
+    }
+
+    public void testUserManagedServiceAccountStoreIsWithheldFromMultiProjectClusters() throws Exception {
+        Collection<Object> components = createComponents(Settings.EMPTY, TestProjectResolvers.allProjects());
+        assertNull(findComponent(UserManagedServiceAccountStore.class, components));
+
+        ServiceAccountService serviceAccountService = findComponent(ServiceAccountService.class, components);
+        assertNotNull(serviceAccountService);
+        var future = new PlainActionFuture<UserManagedServiceAccountStore.PutResult>();
+        serviceAccountService.putUserManagedAccount(
+            new ServiceAccountId("foo", "bar"),
+            List.of("role"),
+            true,
+            null,
+            AuthenticationTestHelper.builder().build(),
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            future
+        );
+        var e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("user-managed service accounts are not available"));
     }
 
     public void testAuditEnabled() throws Exception {
@@ -878,6 +925,90 @@ public class SecurityTests extends ESTestCase {
     public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
         assertThatLogger(() -> Security.validateForFips(settings), Security.class);
+    }
+
+    public void testSystemDataStreamsNotManageableByDataStreamLifecycle() {
+        final DataStreamLifecycle.Builder enabledDataLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(1));
+        final Template.Builder enabledFailureStore = Template.builder()
+            .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)));
+
+        final String coveredDataLifecycle = ".fleet-actions-results";
+        final String uncoveredDataLifecycle = ".uncovered-data-lifecycle";
+        final String uncoveredComponentTemplateLifecycle = ".uncovered-component-template-lifecycle";
+        final String uncoveredFailureStoreOnly = ".uncovered-failure-store-only";
+        final String uncoveredDisabledDataLifecycle = ".uncovered-disabled-data-lifecycle";
+        final String uncoveredDisabledFailuresLifecycle = ".uncovered-disabled-failures-lifecycle";
+        final String uncoveredNoLifecycle = ".uncovered-no-lifecycle";
+        final SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-feature",
+                    "feature with system data streams for the data stream lifecycle user check",
+                    List.of(),
+                    List.of(
+                        systemDataStreamDescriptor(coveredDataLifecycle, Template.builder().lifecycle(enabledDataLifecycle), Map.of()),
+                        systemDataStreamDescriptor(uncoveredDataLifecycle, Template.builder().lifecycle(enabledDataLifecycle), Map.of()),
+                        systemDataStreamDescriptor(
+                            uncoveredComponentTemplateLifecycle,
+                            Template.builder(),
+                            Map.of(
+                                "with-lifecycle",
+                                new ComponentTemplate(Template.builder().lifecycle(enabledDataLifecycle).build(), null, null)
+                            )
+                        ),
+                        systemDataStreamDescriptor(uncoveredFailureStoreOnly, enabledFailureStore, Map.of()),
+                        systemDataStreamDescriptor(
+                            uncoveredDisabledDataLifecycle,
+                            Template.builder().lifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(false)),
+                            Map.of()
+                        ),
+                        systemDataStreamDescriptor(
+                            uncoveredDisabledFailuresLifecycle,
+                            Template.builder()
+                                .dataStreamOptions(
+                                    new DataStreamOptions.Template(
+                                        new DataStreamFailureStore.Template(
+                                            true,
+                                            DataStreamLifecycle.failuresLifecycleBuilder().enabled(false).buildTemplate()
+                                        )
+                                    )
+                                ),
+                            Map.of()
+                        ),
+                        systemDataStreamDescriptor(uncoveredNoLifecycle, Template.builder(), Map.of())
+                    )
+                )
+            )
+        );
+        final RestrictedIndices restrictedIndices = new RestrictedIndices(systemIndices.getSystemNameAutomaton());
+
+        assertThat(
+            Security.systemDataStreamsNotManageableByDataStreamLifecycle(systemIndices, restrictedIndices),
+            containsInAnyOrder(uncoveredDataLifecycle, uncoveredComponentTemplateLifecycle, uncoveredFailureStoreOnly)
+        );
+    }
+
+    private static SystemDataStreamDescriptor systemDataStreamDescriptor(
+        String name,
+        Template.Builder template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        return new SystemDataStreamDescriptor(
+            name,
+            "system data stream for testing",
+            SystemDataStreamDescriptor.Type.EXTERNAL,
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(name))
+                .template(template)
+                .componentTemplates(List.copyOf(componentTemplates.keySet()))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build(),
+            componentTemplates,
+            List.of("test"),
+            "test",
+            null
+        );
     }
 
     public void testSecurityProvider() {

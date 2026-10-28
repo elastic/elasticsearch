@@ -32,7 +32,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
@@ -142,11 +142,11 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
 
     private final MeterRegistry meterRegistry;
-    private final Map<String, LongGaugeMetric> redMetrics = new HashMap<>();
+    private final Map<String, LongGauge> redMetrics = new HashMap<>();
 
     // Writers for logs or messages
     // default visibility for testing purposes
-    private final BiConsumer<LongGaugeMetric, Long> metricWriter;
+    private final BiConsumer<LongGauge, Long> metricWriter;
     private final Consumer<ESLogMessage> logWriter;
 
     /**
@@ -175,7 +175,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         Client client,
         HealthService healthService,
         TelemetryProvider telemetryProvider,
-        BiConsumer<LongGaugeMetric, Long> metricWriter,
+        BiConsumer<LongGauge, Long> metricWriter,
         Consumer<ESLogMessage> logWriter
     ) {
         HealthPeriodicLogger healthLogger = new HealthPeriodicLogger(
@@ -197,7 +197,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         Client client,
         HealthService healthService,
         MeterRegistry meterRegistry,
-        BiConsumer<LongGaugeMetric, Long> metricWriter,
+        BiConsumer<LongGauge, Long> metricWriter,
         Consumer<ESLogMessage> logWriter
     ) {
         this.settings = settings;
@@ -209,14 +209,11 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         this.enabled = ENABLED_SETTING.get(settings);
         this.outputModes = EnumSet.copyOf(OUTPUT_MODE_SETTING.get(settings));
         this.meterRegistry = meterRegistry;
-        this.metricWriter = metricWriter == null ? LongGaugeMetric::set : metricWriter;
+        this.metricWriter = metricWriter == null ? LongGauge::set : metricWriter;
         this.logWriter = logWriter == null ? logger::info : logWriter;
 
         // create metric for overall level metrics
-        this.redMetrics.put(
-            "overall",
-            LongGaugeMetric.create(this.meterRegistry, "es.health.overall.red.status", "Overall: Red", "{cluster}")
-        );
+        this.redMetrics.put("overall", this.meterRegistry.registerLongGauge("es.health.overall.red.status", "Overall: Red", "{cluster}"));
     }
 
     private void registerListeners() {
@@ -443,10 +440,9 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         if (healthIndicatorResults != null) {
             for (HealthIndicatorResult result : healthIndicatorResults) {
                 String metricName = result.name();
-                LongGaugeMetric metric = this.redMetrics.get(metricName);
+                LongGauge metric = this.redMetrics.get(metricName);
                 if (metric == null) {
-                    metric = LongGaugeMetric.create(
-                        this.meterRegistry,
+                    metric = this.meterRegistry.registerLongGauge(
                         String.format(Locale.ROOT, "es.health.%s.red.status", metricName),
                         String.format(Locale.ROOT, "%s: Red", metricName),
                         "{cluster}"

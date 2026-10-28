@@ -33,17 +33,19 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.LeafExecutionScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +88,12 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<String> processedQueries = new TreeSet<>();
-    private final Set<String> processedShards = new HashSet<>();
+    /**
+     * The queries already rendered into {@link #processedQueries}, by identity. One weight, so one query, serves every leaf of
+     * a shard, and rendering a large query can cost more than scoring a small leaf, so each query is rendered once.
+     */
+    private final Set<Query> renderedQueries = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<String> processedShards = new TreeSet<>();
 
     protected LuceneSlice currentSlice;
     private int sliceIndex;
@@ -269,11 +276,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
+        releaseCurrentScorer();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
     }
 
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
+
+    private void releaseCurrentScorer() {
+        if (currentScorer != null) {
+            currentScorer.releaseExecutionMemory();
+        }
+    }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         if (doneCollecting) {
@@ -286,6 +300,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     sliceIndex = 0;
                     currentSlice = sliceQueue.nextSlice(currentSlice);
                     if (currentSlice == null) {
+                        releaseCurrentScorer();
                         doneCollecting = true;
                         return null;
                     }
@@ -300,7 +315,10 @@ public abstract class LuceneOperator extends SourceOperator {
                     || currentScorer.weight != currentSlice.weight() // Moved to a new query
                 ) {
                     final Weight weight = currentSlice.weight();
-                    processedQueries.add(Status.queryString(weight.getQuery()));
+                    if (renderedQueries.add(weight.getQuery())) {
+                        processedQueries.add(Status.queryString(weight.getQuery()));
+                    }
+                    releaseCurrentScorer();
                     currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                     if (sliceBlocked == null || sliceBlocked.isDone()) {
@@ -419,6 +437,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final Weight weight;
         private final LeafReaderContext leafReaderContext;
         private final List<Object> tags;
+        private final LeafExecutionScope executionScope = new LeafExecutionScope();
 
         private BulkScorer bulkScorer;
         private int position;
@@ -435,11 +454,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
         private void reinitialize() {
             this.executingThread = Thread.currentThread();
+            // the previous bulk scorer, if any, is dropped here
+            releaseExecutionMemory();
             try {
-                this.bulkScorer = weight.bulkScorer(leafReaderContext);
+                this.bulkScorer = executionScope.capture(() -> weight.bulkScorer(leafReaderContext));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        /** Releases the execution memory that building the bulk scorer charged to the request circuit breaker. */
+        void releaseExecutionMemory() {
+            executionScope.release();
         }
 
         void scoreNextRange(LeafCollector collector, Bits acceptDocs, int numDocs) throws IOException {
@@ -520,6 +546,11 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected abstract void describe(StringBuilder sb);
 
+    @Nullable
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return null;
+    }
+
     @Override
     public Operator.Status status() {
         return new Status(this);
@@ -536,10 +567,13 @@ public abstract class LuceneOperator extends SourceOperator {
         private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName(
             "esql_lucene_operator_bytes_read"
         );
+        private static final TransportVersion ESQL_LUCENE_OPERATOR_MIN_COMPETITIVE = TransportVersion.fromName(
+            "esql_lucene_operator_min_competitive"
+        );
 
         private final int processedSlices;
-        private final Set<String> processedQueries;
-        private final Set<String> processedShards;
+        private final List<String> processedQueries;
+        private final List<String> processedShards;
         private final long processNanos;
         private final int totalSlices;
         private final int pagesEmitted;
@@ -550,6 +584,8 @@ public abstract class LuceneOperator extends SourceOperator {
         private final long rowsEmitted;
         private final long bytesRead;
         private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
+        @Nullable
+        private final MinCompetitiveQuery.Status minCompetitive;
 
         public static final int QUERY_STRING_TRUNCATION = 500;
 
@@ -563,14 +599,14 @@ public abstract class LuceneOperator extends SourceOperator {
                     + queryString.hashCode()
                     + "])";
             }
-            return query.toString();
+            return queryString;
         }
 
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries;
+            processedQueries = List.copyOf(operator.processedQueries);
             processNanos = operator.processingNanos;
-            processedShards = new TreeSet<>(operator.processedShards);
+            processedShards = List.copyOf(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
             LuceneSlice slice = operator.currentSlice;
@@ -592,12 +628,13 @@ public abstract class LuceneOperator extends SourceOperator {
             rowsEmitted = operator.rowsEmitted;
             bytesRead = operator.totalBytesRead;
             partitioningStrategies = operator.sliceQueue.partitioningStrategies();
+            minCompetitive = operator.minCompetitiveStatus();
         }
 
         Status(
             int processedSlices,
-            Set<String> processedQueries,
-            Set<String> processedShards,
+            List<String> processedQueries,
+            List<String> processedShards,
             long processNanos,
             int sliceIndex,
             int totalSlices,
@@ -607,7 +644,8 @@ public abstract class LuceneOperator extends SourceOperator {
             int current,
             long rowsEmitted,
             long bytesRead,
-            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
+            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies,
+            @Nullable MinCompetitiveQuery.Status minCompetitive
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -622,12 +660,13 @@ public abstract class LuceneOperator extends SourceOperator {
             this.rowsEmitted = rowsEmitted;
             this.bytesRead = bytesRead;
             this.partitioningStrategies = partitioningStrategies;
+            this.minCompetitive = minCompetitive;
         }
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            processedQueries = in.readCollectionAsSet(StreamInput::readString);
-            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processedQueries = in.readCollectionAsImmutableList(StreamInput::readString);
+            processedShards = in.readCollectionAsImmutableList(StreamInput::readString);
             processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
@@ -640,6 +679,9 @@ public abstract class LuceneOperator extends SourceOperator {
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
+            minCompetitive = serializeMinCompetitive(in.getTransportVersion())
+                ? in.readOptionalWriteable(MinCompetitiveQuery.Status::readFrom)
+                : null;
         }
 
         @Override
@@ -661,6 +703,13 @@ public abstract class LuceneOperator extends SourceOperator {
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
+            if (serializeMinCompetitive(out.getTransportVersion())) {
+                out.writeOptionalWriteable(minCompetitive);
+            }
+        }
+
+        private static boolean serializeMinCompetitive(TransportVersion version) {
+            return version.supports(ESQL_LUCENE_OPERATOR_MIN_COMPETITIVE);
         }
 
         private static boolean serializeShardPartitioning(TransportVersion version) {
@@ -680,11 +729,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices;
         }
 
-        public Set<String> processedQueries() {
+        public List<String> processedQueries() {
             return processedQueries;
         }
 
-        public Set<String> processedShards() {
+        public List<String> processedShards() {
             return processedShards;
         }
 
@@ -730,6 +779,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return partitioningStrategies;
         }
 
+        @Nullable
+        public MinCompetitiveQuery.Status minCompetitive() {
+            return minCompetitive;
+        }
+
         @Override
         public long documentsFound() {
             return rowsEmitted;
@@ -759,6 +813,9 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("bytes_read", bytesRead);
             builder.field("partitioning_strategies", new TreeMap<>(this.partitioningStrategies));
+            if (minCompetitive != null) {
+                builder.field("min_competitive", minCompetitive);
+            }
         }
 
         @Override
@@ -778,7 +835,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 && current == status.current
                 && rowsEmitted == status.rowsEmitted
                 && bytesRead == status.bytesRead
-                && partitioningStrategies.equals(status.partitioningStrategies);
+                && partitioningStrategies.equals(status.partitioningStrategies)
+                && Objects.equals(minCompetitive, status.minCompetitive);
         }
 
         @Override
@@ -793,7 +851,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 current,
                 rowsEmitted,
                 bytesRead,
-                partitioningStrategies
+                partitioningStrategies,
+                minCompetitive
             );
         }
 

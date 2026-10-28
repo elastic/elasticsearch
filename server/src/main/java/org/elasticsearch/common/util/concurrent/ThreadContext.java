@@ -10,9 +10,12 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -687,6 +690,52 @@ public final class ThreadContext implements Writeable, TraceContext {
      */
     public Map<String, Object> getTransientHeaders() {
         return Collections.unmodifiableMap(threadLocal.get().transientHeaders);
+    }
+
+    /**
+     * Estimates the heap retained by the current request context: its request headers plus any transient header values that
+     * implement {@link Accountable}. Header strings are sized as Latin-1 compact strings, which holds for the ASCII headers
+     * Elasticsearch puts on the wire. Transient values that do not implement {@link Accountable} are not counted, and neither is
+     * one that fails to report its size.
+     */
+    public long estimatedRequestContextBytes() {
+        final ThreadContextStruct context = threadLocal.get();
+        long bytes = 0;
+        for (Map.Entry<String, String> header : context.requestHeaders.entrySet()) {
+            bytes += sizeOfLatin1String(header.getKey()) + sizeOfLatin1String(header.getValue());
+        }
+        for (Object value : context.transientHeaders.values()) {
+            if (value instanceof Accountable accountable) {
+                bytes += ramBytesUsedOrZero(accountable);
+            }
+        }
+        return bytes;
+    }
+
+    private static long ramBytesUsedOrZero(Accountable accountable) {
+        try {
+            return accountable.ramBytesUsed();
+        } catch (Exception e) {
+            // an estimate must never fail the request it is made for, and on a replica a failure would fail the shard copy
+            logger.debug(
+                () -> Strings.format(
+                    "failed to estimate the size of a request context value of type [%s], counting it as zero",
+                    accountable.getClass().getName()
+                ),
+                e
+            );
+            return 0;
+        }
+    }
+
+    private static final long STRING_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(String.class);
+
+    private static long sizeOfLatin1String(String string) {
+        if (string == null) {
+            // putHeader accepts null values, and an estimate must never fail the request it is made for
+            return 0;
+        }
+        return STRING_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + string.length());
     }
 
     /**

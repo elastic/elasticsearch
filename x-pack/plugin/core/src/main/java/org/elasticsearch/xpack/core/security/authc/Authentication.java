@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BufferedStreamOutput;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -46,6 +49,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -113,7 +117,7 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
  * of this class should just need to know about the {@link #effectiveSubject}. That is, often times, the caller
  * begins with {@code authentication.getEffectiveSubject()} for interrogating an Authentication object.
  */
-public final class Authentication implements ToXContentObject {
+public final class Authentication implements ToXContentObject, Accountable {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
@@ -132,9 +136,13 @@ public final class Authentication implements ToXContentObject {
         "security_cloud_service_account_and_limited_by_roles"
     );
 
+    public static final TransportVersion SECURITY_ENRICH_INTERNAL_USER = TransportVersion.fromName("security_enrich_internal_user");
+
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
+    // null = not yet computed; non-null (including empty map) = already computed
+    private volatile Map<String, Object> parsedApiKeyMetadata;
 
     private Authentication(Subject subject, AuthenticationType type) {
         this(subject, subject, type);
@@ -253,6 +261,26 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
+     * Returns the parsed API key metadata for this authentication, or an empty map if no metadata
+     * is present. The result is lazily computed and cached on first access. The assignment is a
+     * benign race: two threads may both parse on first access, but both produce equivalent maps
+     * and only visibility, not atomicity, is required.
+     */
+    public Map<String, Object> getApiKeyMetadata() {
+        if (false == this.isAuthenticatedAsApiKey()) {
+            return Map.of();
+        }
+        Map<String, Object> result = parsedApiKeyMetadata;
+        if (result != null) {
+            return result;
+        }
+        final BytesReference raw = (BytesReference) getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
+        result = raw == null ? Map.of() : XContentHelper.convertToMap(raw, false, XContentType.JSON).v2();
+        parsedApiKeyMetadata = result;
+        return result;
+    }
+
+    /**
      * Whether the authentication contains a subject run-as another subject. That is, the authentication subject
      * is different from the effective subject.
      */
@@ -312,6 +340,24 @@ public final class Authentication implements ToXContentObject {
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
+        }
+        // The marker that makes a service account user-managed is an ordinary metadata entry, so this would rewrite into a shape an older
+        // node parses happily and then reads wrong: it ignores the marker and looks for a built-in account of the same principal, which
+        // cannot exist. Refuse, so the caller is told the cluster is not fully upgraded rather than left with that lookup's failure.
+        if (isUserManagedServiceAccount() && olderVersion.supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO.toReleaseVersion()
+                    + "] can't handle user-managed service account authentication and attempted to rewrite for ["
+                    + olderVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
+
+        // _enrich internal user is unknown to older nodes; downgrade to _xpack so they can decode it
+        if (InternalUsers.ENRICH_USER.equals(getEffectiveSubject().getUser())
+            && olderVersion.supports(SECURITY_ENRICH_INTERNAL_USER) == false) {
+            return newInternalAuthentication(InternalUsers.XPACK_USER, olderVersion, getEffectiveSubject().getRealm().getNodeName());
         }
 
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
@@ -457,7 +503,9 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication token() {
         assert false == isAuthenticatedInternally();
-        assert false == isServiceAccount();
+        // Built-in service accounts must not derive OAuth2 tokens, but user-managed service accounts may, through the
+        // privileged [_user_managed_service_account] grant of the create token API.
+        assert false == isServiceAccount() || isUserManagedServiceAccount();
         assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;
@@ -671,6 +719,88 @@ public final class Authentication implements ToXContentObject {
         new AuthenticationContextSerializer().writeToContext(this, ctx);
     }
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Authentication.class);
+    private static final long SUBJECT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Subject.class);
+    private static final long USER_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(User.class);
+    private static final long REALM_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(RealmRef.class);
+    private static final long HASH_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
+    // used for values whose type is not sized explicitly, e.g. boxed primitives and enums
+    private static final long DEFAULT_VALUE_SIZE = 32;
+
+    /**
+     * Estimates the heap retained by this authentication.
+     *
+     * <p>This is an approximation that favors being cheap over being exact. It sizes strings, byte references, nested
+     * {@link Accountable} values, maps and collections, and charges a small constant for any other value.
+     */
+    @Override
+    public long ramBytesUsed() {
+        long bytes = SHALLOW_SIZE + subjectRamBytesUsed(authenticatingSubject);
+        if (effectiveSubject != authenticatingSubject) {
+            bytes += subjectRamBytesUsed(effectiveSubject);
+        }
+        return bytes;
+    }
+
+    private static long subjectRamBytesUsed(Subject subject) {
+        return SUBJECT_SHALLOW_SIZE + userRamBytesUsed(subject.getUser()) + realmRefRamBytesUsed(subject.getRealm()) + valueRamBytesUsed(
+            subject.getMetadata()
+        );
+    }
+
+    private static long userRamBytesUsed(User user) {
+        long bytes = USER_SHALLOW_SIZE + RamUsageEstimator.sizeOf(user.principal()) + RamUsageEstimator.sizeOf(user.fullName())
+            + RamUsageEstimator.sizeOf(user.email()) + valueRamBytesUsed(user.metadata());
+        bytes += RamUsageEstimator.shallowSizeOf(user.roles());
+        for (String role : user.roles()) {
+            bytes += RamUsageEstimator.sizeOf(role);
+        }
+        return bytes;
+    }
+
+    private static long realmRefRamBytesUsed(@Nullable RealmRef realmRef) {
+        if (realmRef == null) {
+            return 0;
+        }
+        long bytes = REALM_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(realmRef.getNodeName()) + RamUsageEstimator.sizeOf(
+            realmRef.getName()
+        ) + RamUsageEstimator.sizeOf(realmRef.getType());
+        final RealmDomain domain = realmRef.getDomain();
+        if (domain != null) {
+            bytes += DEFAULT_VALUE_SIZE + RamUsageEstimator.sizeOf(domain.name());
+            for (RealmIdentifier identifier : domain.realms()) {
+                bytes += DEFAULT_VALUE_SIZE + RamUsageEstimator.sizeOf(identifier.getType()) + RamUsageEstimator.sizeOf(
+                    identifier.getName()
+                );
+            }
+        }
+        return bytes;
+    }
+
+    private static long valueRamBytesUsed(@Nullable Object value) {
+        return switch (value) {
+            case null -> 0;
+            case BytesReference bytesReference -> bytesReference.ramBytesUsed();
+            case String string -> RamUsageEstimator.sizeOf(string);
+            case Accountable accountable -> accountable.ramBytesUsed(); // nested cross cluster access auth and role descriptor bytes
+            case Map<?, ?> map -> {
+                long bytes = HASH_MAP_SHALLOW_SIZE + (long) map.size() * RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY;
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    bytes += valueRamBytesUsed(entry.getKey()) + valueRamBytesUsed(entry.getValue());
+                }
+                yield bytes;
+            }
+            case Collection<?> collection -> {
+                long bytes = DEFAULT_VALUE_SIZE + (long) collection.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+                for (Object element : collection) {
+                    bytes += valueRamBytesUsed(element);
+                }
+                yield bytes;
+            }
+            default -> DEFAULT_VALUE_SIZE;
+        };
+    }
+
     public String encode() throws IOException {
         return doEncode(effectiveSubject, authenticatingSubject, type);
     }
@@ -740,6 +870,18 @@ public final class Authentication implements ToXContentObject {
                 "versions of Elasticsearch before ["
                     + SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES.toReleaseVersion()
                     + "] can't enforce cloud limited-by roles and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        // Keyed on the metadata marker rather than the subject type: a built-in account must keep serializing as it did before, but an
+        // older node ignores the marker and resolves the account as built-in, so a user-managed one must never be sent.
+        if (effectiveSubject.isUserManagedServiceAccount()
+            && out.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO.toReleaseVersion()
+                    + "] can't handle user-managed service account authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
@@ -843,6 +985,10 @@ public final class Authentication implements ToXContentObject {
         final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
+        final List<String> limitedByRoleNames = effectiveSubject.getCloudLimitedByRoleNames();
+        if (limitedByRoleNames != null) {
+            builder.array(User.Fields.LIMITED_BY_ROLES.getPreferredName(), limitedByRoleNames.toArray(String[]::new));
+        }
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
@@ -860,6 +1006,11 @@ public final class Authentication implements ToXContentObject {
                     "managed_by",
                     CredentialManagedBy.ELASTICSEARCH.getDisplayName()
                 )
+            );
+        } else if (isCloudServiceAccount()) {
+            builder.field(
+                User.Fields.TOKEN.getPreferredName(),
+                Map.of("type", CLOUD_SERVICE_ACCOUNT_REALM_TYPE, "managed_by", CredentialManagedBy.CLOUD.getDisplayName())
             );
         } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
             String managedBy = (String) metadata.get("managed_by");

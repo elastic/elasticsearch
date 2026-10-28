@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.TypeElement;
@@ -46,6 +47,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayou
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Reference;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
@@ -131,7 +133,12 @@ class ImplClassWriter {
         CD_String
     );
     private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
-    private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
+    private static final MethodTypeDesc MTD_LinkerHelper_readString = MethodTypeDesc.of(CD_String, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_LinkerHelper_rawAddress = MethodTypeDesc.of(CD_long, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_LinkerHelper_assertNative = MethodTypeDesc.of(CD_void, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_LinkerHelper_assertRawAddressNative = MethodTypeDesc.of(CD_void, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_LinkerHelper_assertLive = MethodTypeDesc.of(CD_void, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_Reference_reachabilityFence = MethodTypeDesc.of(CD_void, CD_Object);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
@@ -406,7 +413,7 @@ class ImplClassWriter {
         cb.invokeinterface(ClassDesc.of(SYMBOL_RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
 
         // descriptor
-        emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());
+        emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes(), nm.rawAddressParamIndices());
 
         // Linker.nativeLinker()
         cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
@@ -444,7 +451,7 @@ class ImplClassWriter {
         String fdFieldName = upcallFdFieldName(fieldName, upcall);
         String mhFieldName = upcallMhFieldName(fieldName, upcall);
 
-        emitFunctionDescriptor(cb, upcall.returnType(), upcall.paramTypes());
+        emitFunctionDescriptor(cb, upcall.returnType(), upcall.paramTypes(), Set.of());
         cb.putstatic(generatedDesc, fdFieldName, CD_FunctionDescriptor);
 
         cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
@@ -455,24 +462,29 @@ class ImplClassWriter {
         cb.putstatic(generatedDesc, mhFieldName, CD_MethodHandle);
     }
 
-    private static void emitFunctionDescriptor(CodeBuilder cb, NativeType returnType, List<NativeType> paramTypes) {
+    private static void emitFunctionDescriptor(
+        CodeBuilder cb,
+        NativeType returnType,
+        List<NativeType> paramTypes,
+        Set<Integer> rawAddressParamIndices
+    ) {
         if (returnType == NativeType.VOID) {
-            emitParamLayoutArray(cb, paramTypes);
+            emitParamLayoutArray(cb, paramTypes, rawAddressParamIndices);
             cb.invokestatic(CD_FunctionDescriptor, "ofVoid", MTD_FunctionDescriptor_ofVoid, true);
         } else {
             emitValueLayout(cb, returnType.layoutType());
-            emitParamLayoutArray(cb, paramTypes);
+            emitParamLayoutArray(cb, paramTypes, rawAddressParamIndices);
             cb.invokestatic(CD_FunctionDescriptor, "of", MTD_FunctionDescriptor_of, true);
         }
     }
 
-    private static void emitParamLayoutArray(CodeBuilder cb, List<NativeType> paramTypes) {
+    private static void emitParamLayoutArray(CodeBuilder cb, List<NativeType> paramTypes, Set<Integer> rawAddressParamIndices) {
         cb.loadConstant(paramTypes.size());
         cb.anewarray(CD_MemoryLayout);
         for (int i = 0; i < paramTypes.size(); i++) {
             cb.dup();
             cb.loadConstant(i);
-            emitValueLayout(cb, paramTypes.get(i).layoutType());
+            emitValueLayout(cb, rawAddressParamIndices.contains(i) ? NativeType.LONG : paramTypes.get(i).layoutType());
             cb.aastore();
         }
     }
@@ -573,6 +585,7 @@ class ImplClassWriter {
         int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
         cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm, libraryPrefix), accessFlag, code -> {
             emitBoundsChecks(code, generatedDesc, nm);
+            emitNativeSegmentChecks(code, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             boolean hasUpcalls = nm.upcalls().isEmpty() == false;
             if (hasStringParams) {
@@ -582,8 +595,16 @@ class ImplClassWriter {
             } else {
                 code.trying(tryBlock -> {
                     emitInvokeExact(tryBlock, generatedDesc, nm, fieldName);
+                    if (nm.rawAddressParamIndices().isEmpty() == false) {
+                        emitRawAddressReachabilityFences(tryBlock, nm);
+                    }
                     emitTypedReturn(tryBlock, nm.returnType());
                 }, catchBuilder -> catchBuilder.catchingAll(catchBlock -> {
+                    // The exception stays on the stack while the fences run, then is wrapped below.
+                    // This is the exceptional half of the generated finally behavior.
+                    if (nm.rawAddressParamIndices().isEmpty() == false) {
+                        emitRawAddressReachabilityFences(catchBlock, nm);
+                    }
                     // throw new AssertionError(t) — stack on entry: [t]
                     catchBlock.new_(CD_AssertionError);
                     catchBlock.dup_x1();
@@ -593,6 +614,24 @@ class ImplClassWriter {
                 }));
             }
         });
+    }
+
+    /**
+     * Emits the assertion that every {@code @RawAddress} parameter, and every {@code MemorySegment} parameter of a
+     * non-critical binding, is a native segment.
+     */
+    private static void emitNativeSegmentChecks(CodeBuilder cb, MethodModel nm) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        int[] slots = computeParamSlots(paramTypes);
+        for (int i = 0; i < paramTypes.size(); i++) {
+            if (nm.rawAddressParamIndices().contains(i)) {
+                cb.aload(slots[i]);
+                cb.invokestatic(CD_LinkerHelper, "assertRawAddressNative", MTD_LinkerHelper_assertRawAddressNative);
+            } else if (paramTypes.get(i) == NativeType.ADDRESS && nm.isCritical() == false) {
+                cb.aload(slots[i]);
+                cb.invokestatic(CD_LinkerHelper, "assertNative", MTD_LinkerHelper_assertNative);
+            }
+        }
     }
 
     /**
@@ -843,22 +882,31 @@ class ImplClassWriter {
             tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
             emitCaptureStateSegment(tryBlock, nm.capturedError());
             slot = 1;
+            int[] slots = new int[paramTypes.size()];
             marshaledSlot = arenaSlot + 1;
-            for (NativeType paramType : paramTypes) {
+            paramIndex = 0;
+            for (int i = 0; i < paramTypes.size(); ++i) {
+                NativeType paramType = paramTypes.get(i);
+                slots[i] = slot;
                 if (paramType == NativeType.STRING) {
                     tryBlock.aload(marshaledSlot);
                     marshaledSlot++;
                     slot++;
                 } else {
-                    slot += emitLoadParam(tryBlock, paramType, slot);
+                    slot += emitLoadParam(tryBlock, paramType, slot, nm.rawAddressParamIndices().contains(paramIndex));
                 }
+                paramIndex++;
             }
             tryBlock.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
+            emitRawAddressLivenessAssert(nm, tryBlock, slots);
 
             // Store return value before closing the arena (avoids having a live value on the
             // stack when we call arena.close()).
             if (returnType != NativeType.VOID) {
                 emitStore(tryBlock, returnType, resultSlot);
+            }
+            if (nm.rawAddressParamIndices().isEmpty() == false) {
+                emitRawAddressReachabilityFences(tryBlock, nm);
             }
 
             tryBlock.aload(arenaSlot);
@@ -869,7 +917,10 @@ class ImplClassWriter {
             }
             emitTypedReturn(tryBlock, returnType);
         }, catchBuilder -> catchBuilder.catchingAll(catchBlock -> {
-            // Stack on entry: [t]. Close arena, then wrap in AssertionError.
+            // Stack on entry: [t]. Fence raw segments, close arena, then wrap in AssertionError.
+            if (nm.rawAddressParamIndices().isEmpty() == false) {
+                emitRawAddressReachabilityFences(catchBlock, nm);
+            }
             catchBlock.aload(arenaSlot);
             catchBlock.invokeinterface(CD_Arena, "close", MTD_Arena_close);
             catchBlock.new_(CD_AssertionError);
@@ -878,6 +929,16 @@ class ImplClassWriter {
             catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
             catchBlock.athrow();
         }));
+    }
+
+    private static void emitRawAddressLivenessAssert(MethodModel nm, CodeBuilder codeBuilder, int[] slots) {
+        for (int i = 0; i < nm.paramTypes().size(); i++) {
+            var rawAddress = nm.rawAddressParamIndices().contains(i);
+            if (rawAddress) {
+                codeBuilder.aload(slots[i]);
+                codeBuilder.invokestatic(CD_LinkerHelper, "assertLive", MTD_LinkerHelper_assertLive);
+            }
+        }
     }
 
     /**
@@ -917,7 +978,7 @@ class ImplClassWriter {
                 if (t == NativeType.UPCALL) {
                     tryBlock.aload(stubSlots.get(i));
                 } else {
-                    emitLoadParam(tryBlock, t, slots[i]);
+                    emitLoadParam(tryBlock, t, slots[i], false);
                 }
             }
             tryBlock.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
@@ -966,18 +1027,37 @@ class ImplClassWriter {
         emitCaptureStateSegment(cb, nm.capturedError());
 
         int slot = 1;
-        for (var paramType : nm.paramTypes()) {
-            slot += emitLoadParam(cb, paramType, slot);
+        int[] slots = new int[nm.paramTypes().size()];
+        for (int i = 0; i < nm.paramTypes().size(); i++) {
+            NativeType paramType = nm.paramTypes().get(i);
+            slots[i] = slot;
+            slot += emitLoadParam(cb, paramType, slot, nm.rawAddressParamIndices().contains(i));
         }
 
         cb.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
+
+        emitRawAddressLivenessAssert(nm, cb, slots);
+    }
+
+    private static void emitRawAddressReachabilityFences(CodeBuilder cb, MethodModel nm) {
+        int[] slots = computeParamSlots(nm.paramTypes());
+        for (int index : nm.rawAddressParamIndices()) {
+            cb.aload(slots[index]);
+            cb.invokestatic(CD_Reference, "reachabilityFence", MTD_Reference_reachabilityFence);
+        }
     }
 
     /**
      * Loads a single parameter onto the stack. Returns the number of local-variable slots consumed
      * (2 for {@code long}/{@code double}, 1 for everything else).
      */
-    private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot) {
+    private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot, boolean rawAddress) {
+        if (rawAddress) {
+            assert paramType == NativeType.ADDRESS : "@RawAddress parameter must be a MemorySegment";
+            cb.aload(slot);
+            cb.invokestatic(CD_LinkerHelper, "rawAddress", MTD_LinkerHelper_rawAddress);
+            return slotWidth(paramType);
+        }
         switch (paramType) {
             case INT, SHORT, BYTE, BOOLEAN -> cb.iload(slot);
             case LONG -> cb.lload(slot);
@@ -1023,26 +1103,15 @@ class ImplClassWriter {
     /**
      * Marshals a {@code MemorySegment} returned by the native call into a Java {@code String},
      * returning {@code null} for a null pointer. Stack on entry: {@code [segment]}.
+     *
+     * <p>The whole null-check + reinterpret + UTF-8 read is delegated to {@code LinkerHelper.readString}
+     * rather than inlined here so the restricted {@code MemorySegment.reinterpret} runs in the entitled
+     * {@code org.elasticsearch.foreign} module. Inlining it would attribute the {@code load_native_libraries}
+     * check to this generated {@code $Impl}, forcing every library that binds a string-returning function to
+     * hold that entitlement.
      */
     private static void emitStringReturn(CodeBuilder cb) {
-        var notNull = cb.newLabel();
-        cb.dup();
-        cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
-        cb.lconst_0();
-        cb.lcmp();
-        cb.ifne(notNull);
-        // null pointer path: pop segment, return null
-        cb.pop();
-        cb.aconst_null();
-        cb.areturn();
-        cb.labelBinding(notNull);
-        // Otherwise reinterpret the segment to a known size and read it as a UTF-8 string. We route
-        // the read through MemorySegmentAdapter so the mrjar shim picks the right API for the runtime
-        // JDK (MemorySegment.getString in JDK 22+, getUtf8String in JDK 21).
-        cb.ldc(Long.MAX_VALUE);
-        cb.invokeinterface(CD_MemorySegment, "reinterpret", MethodTypeDesc.of(CD_MemorySegment, CD_long));
-        cb.ldc(0L);
-        cb.invokestatic(CD_MemorySegmentAdapter, "getString", MTD_MemorySegmentAdapter_getString);
+        cb.invokestatic(CD_LinkerHelper, "readString", MTD_LinkerHelper_readString);
         cb.areturn();
     }
 
@@ -1235,8 +1304,8 @@ class ImplClassWriter {
         if (nm.capturedError() != MethodModel.CapturedError.NONE) {
             paramDescs.add(CD_MemorySegment);
         }
-        for (var paramType : nm.paramTypes()) {
-            paramDescs.add(nativeClassDesc(paramType));
+        for (int i = 0; i < nm.paramTypes().size(); i++) {
+            paramDescs.add(nm.rawAddressParamIndices().contains(i) ? CD_long : nativeClassDesc(nm.paramTypes().get(i)));
         }
         return MethodTypeDesc.of(nativeClassDesc(nm.returnType()), paramDescs);
     }

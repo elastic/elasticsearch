@@ -91,16 +91,16 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);
-        return buildError(message, outboundRequest, result, errorEntityMsg);
+        return constructNonStreamingException(message, outboundRequest, result, errorEntityMsg);
     }
 
-    protected ElasticsearchException buildError(
+    public static ElasticsearchStatusException constructNonStreamingException(
         String message,
         OutboundRequest outboundRequest,
         HttpResult result,
         ErrorResponse errorResponse
     ) {
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
+        var responseStatusCode = result.response().getCode();
         return new ElasticsearchStatusException(
             constructErrorMessage(message, outboundRequest, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)

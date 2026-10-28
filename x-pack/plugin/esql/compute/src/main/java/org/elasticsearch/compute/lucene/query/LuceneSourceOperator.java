@@ -13,10 +13,11 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -39,11 +40,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -75,10 +78,15 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
     private final int minPageSize;
 
+    @Nullable
+    private final MinCompetitiveQuery minCompetitiveQuery;
+
     public static class Factory extends LuceneOperator.Factory {
         protected final IndexedByShardId<? extends RefCounted> refCounteds;
         protected final int maxPageSize;
         protected final Limiter limiter;
+        @Nullable
+        private final MinCompetitiveQuery.Factory minCompetitive;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> shardContexts,
@@ -93,6 +101,38 @@ public class LuceneSourceOperator extends LuceneOperator {
             LongSupplier directoryBytesRead,
             int minDocsPerSlice,
             QueryWarnings singleValueQueryWarnings
+        ) {
+            this(
+                shardContexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                maxPageSize,
+                limit,
+                needsScore,
+                directoryBytesRead,
+                minDocsPerSlice,
+                singleValueQueryWarnings,
+                null
+            );
+        }
+
+        public Factory(
+            IndexedByShardId<? extends ShardContext> shardContexts,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int maxPageSize,
+            int limit,
+            boolean needsScore,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings,
+            @Nullable MinCompetitiveQuery.Factory minCompetitive
         ) {
             super(
                 shardContexts,
@@ -114,6 +154,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
+            this.minCompetitive = minCompetitive;
         }
 
         @Override
@@ -127,7 +168,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 limiter,
                 needsScore,
                 directoryBytesRead,
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                minCompetitive
             );
         }
 
@@ -161,14 +203,35 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
          * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
-         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. A query with a {@code limit} early-terminates
-         * after matching {@code N} docs — whether DOC pays off then depends on match density, which the cost can't see —
-         * so that case is deferred and keeps the low-overhead {@link PartitioningStrategy#SHARD}.
+         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC.
+         * <p>
+         * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
+         * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
+         * beats rebuilding scorers per segment when the limit fires early; {@link org.apache.lucene.search.MatchAllDocsQuery}
+         * and {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
+         * {@code minCostForDoc}) keep {@code SHARD}. Only a scan-heavy filter with {@code cost ≥ minCostForDoc} (e.g. a
+         * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
+         * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
          */
         public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
             return limit -> limit == NO_LIMIT
                 ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
-                : Factory::lowOverheadAutoStrategy;
+                : (ctx, query) -> limitedScanAutoStrategy(ctx, query, minCostForDoc);
+        }
+
+        private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
+            if (containsCostlyClause(query)) {
+                return SHARD;
+            }
+            Query unwrapped = unwrapQuery(query);
+            if (unwrapped instanceof MatchAllDocsQuery || unwrapped instanceof MatchNoDocsQuery) {
+                return SHARD;
+            }
+            try {
+                return queryCost(ctx, query, minCostForDoc) < minCostForDoc ? SHARD : DOC;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         /**
@@ -306,16 +369,10 @@ public class LuceneSourceOperator extends LuceneOperator {
             return found[0];
         }
 
-        // copied from UsageTrackingQueryCachingPolicy
         static boolean isCostlyToBuildScorer(Query query) {
-            if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
-                return true;
-            }
-            final String clazzName = query.getClass().getSimpleName();
-            if (clazzName.equals("MultiTermQueryConstantScoreBlendedWrapper") || clazzName.equals("MultiTermQueryConstantScoreWrapper")) {
-                return true;
-            }
-            return false;
+            return CostlyMultiTermQueries.isCostlyMultiTermQuery(query)
+                || query instanceof PointRangeQuery
+                || query instanceof PointInSetQuery;
         }
 
         static Query unwrapQuery(Query query) {
@@ -346,7 +403,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         Limiter limiter,
         boolean needsScore,
         LongSupplier directoryBytesRead,
-        QueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings,
+        @Nullable MinCompetitiveQuery.Factory minCompetitive
     ) {
         super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.minPageSize = Math.max(1, maxPageSize / 2);
@@ -363,6 +421,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 this.leafCollector = new LimitingCollector();
             }
             this.docIdsPool = new IntArrayPool(blockFactory.breaker());
+            this.minCompetitiveQuery = minCompetitive == null ? null : minCompetitive.build(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -371,6 +430,14 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    /**
+     * Collects doc ids into {@link #docIds} until the limit is exhausted. The unchecked {@code docIds} writes are safe
+     * because {@link LuceneScorer#scoreNextRange} clamps every scored window to {@code maxPageSize - currentPagePos} docs
+     * and bulk scorers only deliver docs within the requested window.
+     *
+     * <p>The bulk methods do not delegate to {@link #collect(int)}; subclasses that override it to do per-document work
+     * must override {@link #collectRange} and {@link #collect(DocIdStream)} too, as {@link ScoringCollector} does.
+     */
     class LimitingCollector implements LeafCollector {
         @Override
         public void setScorer(Scorable scorer) {}
@@ -383,6 +450,49 @@ public class LuceneSourceOperator extends LuceneOperator {
             } else {
                 throw new CollectionTerminatedException();
             }
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            // Only the limit can cut the range short; the window is already clamped to the docIds capacity.
+            final int len = Math.min(max - min, remainingDocs);
+            final int pos = currentPagePos;
+            for (int i = 0; i < len; i++) {
+                docIds[pos + i] = min + i;
+            }
+            currentPagePos = pos + len;
+            remainingDocs -= len;
+            if (len < max - min) {
+                throw new CollectionTerminatedException();
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            if (currentPagePos == 0) {
+                // intoArray writes from index 0 and may leave a tail in the stream for the loop below.
+                int n = stream.intoArray(docIds);
+                if (n > remainingDocs) {
+                    currentPagePos = remainingDocs;
+                    remainingDocs = 0;
+                    throw new CollectionTerminatedException();
+                }
+                currentPagePos = n;
+                remainingDocs -= n;
+            }
+            stream.forEach(doc -> {
+                if (remainingDocs > 0) {
+                    --remainingDocs;
+                    docIds[currentPagePos++] = doc;
+                } else {
+                    throw new CollectionTerminatedException();
+                }
+            });
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            return minCompetitiveQuery == null ? null : minCompetitiveQuery.disi();
         }
     }
 
@@ -399,11 +509,27 @@ public class LuceneSourceOperator extends LuceneOperator {
             super.collect(doc);
             scoreBuilder.appendDouble(scorable.score());
         }
+
+        // The bulk methods must collect per document so that scoreBuilder stays in sync with docIds. Bulk scorers normally
+        // only use them when scores aren't needed, but restoring the per-document loop here keeps this collector correct if
+        // one ever does.
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            for (int doc = min; doc < max; doc++) {
+                collect(doc);
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            stream.forEach(this::collect);
+        }
     }
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || limiter.remaining() == 0;
+        return doneCollecting || (currentPagePos == 0 && limiter.remaining() == 0);
     }
 
     @Override
@@ -420,25 +546,35 @@ public class LuceneSourceOperator extends LuceneOperator {
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
+                assert doneCollecting == false || currentPagePos == 0 : "finished with " + currentPagePos + " buffered docs";
                 return null;
             }
             if (docIds == null) {
                 docIds = docIdsPool.getOrAllocate(maxPageSize);
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
-            try {
-                scorer.scoreNextRange(
-                    leafCollector,
-                    scorer.leafReaderContext().reader().getLiveDocs(),
-                    // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
-                    // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
-                    // alleviates this issue.
-                    maxPageSize - currentPagePos
-                );
-            } catch (CollectionTerminatedException ex) {
-                // The leaf collector terminated the execution
+            if (remainingDocsStart == 0) {
+                // Another driver exhausted the shared limit; nothing left to collect, only the buffered docs to emit (see isFinished).
                 doneCollecting = true;
                 scorer.markAsDone();
+            } else {
+                if (minCompetitiveQuery != null) {
+                    minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
+                }
+                try {
+                    scorer.scoreNextRange(
+                        leafCollector,
+                        scorer.leafReaderContext().reader().getLiveDocs(),
+                        // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with
+                        // a highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus
+                        // currentPagePos) alleviates this issue.
+                        maxPageSize - currentPagePos
+                    );
+                } catch (CollectionTerminatedException ex) {
+                    // The leaf collector terminated the execution
+                    doneCollecting = true;
+                    scorer.markAsDone();
+                }
             }
             final int collectedDocs = remainingDocsStart - remainingDocs;
             final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);
@@ -519,12 +655,17 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(scoreBuilder, docIdsPool);
+        Releasables.close(scoreBuilder, docIdsPool, minCompetitiveQuery);
     }
 
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", remainingDocs = ").append(remainingDocs);
+    }
+
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return minCompetitiveQuery == null ? null : minCompetitiveQuery.status();
     }
 
     private static class IntArrayPool implements Releasable {

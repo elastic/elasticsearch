@@ -289,7 +289,23 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A grouped LIMIT (LIMIT BY) above a Fork must not be pushed into the fork branches.
+     * A coordinator LOOKUP JOIN runs after the data exchange on the coordinator, like a remote ENRICH.
+     * The LimitBy is duplicated: the copy below prunes rows before the exchange; the original above
+     * enforces the global per-group constraint after the join.
+     */
+    public void testLimitByDuplicatedBelowCoordinatorLookupJoin() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN _coordinator:languages_lookup ON language_code
+            | LIMIT 5 BY emp_no
+            """, STAGES, STATS);
+    }
+
+    /**
+     * A grouped LIMIT (LIMIT BY) above a Fork is not pushed or duplicated into the branches.
+     * The Fork is a multi-child plan and expression remapping across the Fork's NameId boundary
+     * is not implemented, so the rule leaves LimitBy above the Fork unchanged.
      */
     public void testLimitByNotPushedIntoForkBranches() {
         runGoldenTest("""
@@ -389,6 +405,19 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | ENRICH languages ON first_name
+            | LIMIT 5 BY emp_no
+            """, STAGES, STATS);
+    }
+
+    /**
+     * A LIMIT BY whose grouping references only source fields is duplicated below a remote ENRICH.
+     * The copy below is an early pruning optimisation; the original above enforces the global
+     * per-group limit after the remote ENRICH runs on the coordinator of the remote cluster.
+     */
+    public void testLimitByDuplicatedBelowRemoteEnrichWhenGroupingOnSourceField() {
+        runGoldenTest("""
+            FROM employees
+            | ENRICH _remote:languages_remote ON first_name
             | LIMIT 5 BY emp_no
             """, STAGES, STATS);
     }

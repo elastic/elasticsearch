@@ -157,12 +157,6 @@ public interface NativeAccess {
     Systemd systemd();
 
     /**
-     * Returns an accessor to zstd compression functions.
-     * @return an object used to compress and decompress bytes using zstd
-     */
-    Zstd getZstd();
-
-    /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file.
      *
      * @param path the path to the file

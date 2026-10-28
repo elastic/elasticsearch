@@ -55,4 +55,31 @@ public class DictionaryPolicyTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new DictionaryPolicy(1000, 1.1, 0.2));
         expectThrows(IllegalArgumentException.class, () -> new DictionaryPolicy(1000, 0.5, -0.1));
     }
+
+    public void testRejectsABarThatIsNotANumber() {
+        expectThrows(IllegalArgumentException.class, () -> new DictionaryPolicy(1000, Double.NaN, 0.2));
+        expectThrows(IllegalArgumentException.class, () -> new DictionaryPolicy(1000, 0.5, Double.NaN));
+    }
+
+    public void testAnUnknownBoundRulesNothingOut() {
+        assertFalse("nothing was measured, so nothing is settled", CAPPED_AT_SIXTY_FOUR.rulesOut(BestCoverage.UNKNOWN));
+    }
+
+    // NOTE: a bound answers a question about one byte cap. A larger cap buys terms it never considered, so
+    // only a bound taken under a cap at least as large as this policy's still describes the dictionary here.
+    public void testOnlyABoundTakenUnderACapThisLargeRulesOneOut() {
+        assertFalse("eight bytes says nothing about sixty four", CAPPED_AT_SIXTY_FOUR.rulesOut(BestCoverage.of(0, 100, 8)));
+        assertTrue("its own cap does", CAPPED_AT_SIXTY_FOUR.rulesOut(BestCoverage.of(0, 100, 64)));
+        assertTrue("and so does a larger one", CAPPED_AT_SIXTY_FOUR.rulesOut(BestCoverage.of(0, 100, 128)));
+    }
+
+    public void testAZeroBoundRulesOutEveryBarAboveNothing() {
+        assertTrue("naming none of a hundred cannot reach half", CAPPED_AT_SIXTY_FOUR.rulesOut(BestCoverage.of(0, 100, 64)));
+        assertFalse(
+            "but a bar of nothing is reached by naming nothing",
+            new DictionaryPolicy(64, 0.0, 0.2).rulesOut(BestCoverage.of(0, 100, 64))
+        );
+    }
+
+    private static final DictionaryPolicy CAPPED_AT_SIXTY_FOUR = new DictionaryPolicy(64, 0.5, 0.2);
 }

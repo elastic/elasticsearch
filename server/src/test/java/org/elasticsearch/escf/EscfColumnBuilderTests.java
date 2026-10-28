@@ -10,15 +10,20 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for {@link EscfColumnBuilder}, covering both {@link CollisionPolicy}s: the
@@ -706,7 +711,10 @@ public class EscfColumnBuilderTests extends ESTestCase {
         EscfColumnData data = b.finish(3); // all absent
         assertEquals(3, data.docCount());
         assertTrue(EscfColumn.from(data).isAbsent(0));
-        b.discard();
+        // finish() moved ownership into `data`, so closing the builder afterwards must be a no-op.
+        b.close();
+        assertEquals(3, data.docCount());
+        assertTrue(EscfColumn.from(data).isAbsent(0));
     }
 
     /**
@@ -828,6 +836,125 @@ public class EscfColumnBuilderTests extends ESTestCase {
             out.add(r.type() == SourceValueType.INT ? (long) r.intValue() : r.longValue());
         }
         return out;
+    }
+
+    /**
+     * A builder released without {@link EscfColumnBuilder#finish} must hand every page it obtained back to
+     * the recycler, for each of the internal builder kinds (fixed-numeric, var-width, array, union) and
+     * across the promotion paths, where a stream is adopted by the promoted builder and the old field
+     * nulled out.
+     */
+    public void testCloseWithoutFinishReleasesEveryPage() {
+        assertAllPagesReleasedOnClose("fixed numeric", b -> b.addLong(randomLong()));
+        assertAllPagesReleasedOnClose("var width", b -> b.addString(utf8(randomAlphaOfLength(2000))));
+        assertAllPagesReleasedOnClose("array", b -> {
+            b.beginArray(0);
+            b.appendLong(randomLong());
+            b.endArray();
+        });
+        assertAllPagesReleasedOnClose("union", b -> {
+            b.addLong(randomLong());
+            b.addString(utf8("mixed"));
+        });
+        // Promotion paths: the promoted builder adopts the original stream, so a naive close would either
+        // double-release the adopted pages or leak the replaced ones.
+        assertAllPagesReleasedOnClose("scalar to array", b -> {
+            b.setLong(0, 1L);
+            b.setLong(0, 2L); // same row -> promoteToArray
+        });
+        assertAllPagesReleasedOnClose("var scalar to array", b -> {
+            b.setString(0, utf8("a"));
+            b.setString(0, utf8("b")); // same row -> promoteToArray
+        });
+        assertAllPagesReleasedOnClose("array to union", b -> {
+            b.beginArray(0);
+            b.appendLong(1L);
+            b.endArray();
+            b.setString(1, utf8("scalar")); // child-kind clash -> rewriteArrayToUnion
+        });
+    }
+
+    /** After {@link EscfColumnBuilder#finish}, the pages belong to the column data: closing the builder frees nothing. */
+    public void testFinishTransfersPageOwnership() {
+        CountingRecycler recycler = new CountingRecycler();
+        EscfColumnData data;
+        try (EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler)) {
+            for (int i = 0; i < 100; i++) {
+                b.addString(utf8(randomAlphaOfLength(500)));
+            }
+            data = b.finish(100);
+        }
+        assertThat("finish() moved the pages, so closing the builder must not release them", recycler.released(), equalTo(0));
+        assertTrue("obtained at least one page", recycler.obtained() > 0);
+        // The data is still readable after the builder was closed.
+        assertEquals(100, data.docCount());
+        assertEquals(EscfColumnKind.STRING, data.kind());
+
+        data.close();
+        assertThat("closing the column data releases every page", recycler.released(), equalTo(recycler.obtained()));
+    }
+
+    private static void assertAllPagesReleasedOnClose(String description, Consumer<EscfColumnBuilder> writes) {
+        CountingRecycler recycler = new CountingRecycler();
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
+        writes.accept(b);
+        assertTrue(description + ": expected at least one page to be obtained", recycler.obtained() > 0);
+        b.close();
+        assertThat(description, recycler.released(), equalTo(recycler.obtained()));
+        // close() is idempotent, so a try-with-resources around a discarded builder cannot double-release.
+        b.close();
+        assertThat(description + " (second close)", recycler.released(), equalTo(recycler.obtained()));
+    }
+
+    /**
+     * Wraps the non-recycling recycler to count page obtain/release. Necessary because
+     * {@link org.elasticsearch.transport.BytesRefRecycler#NON_RECYCLING_INSTANCE} allocates fresh arrays
+     * and drops them on close, which makes a leak invisible to every other test in this class.
+     */
+    private static final class CountingRecycler implements Recycler<BytesRef> {
+        private final Recycler<BytesRef> delegate = BytesRefRecycler.NON_RECYCLING_INSTANCE;
+        private int obtained;
+        private int released;
+
+        int obtained() {
+            return obtained;
+        }
+
+        int released() {
+            return released;
+        }
+
+        @Override
+        public Recycler.V<BytesRef> obtain() {
+            final Recycler.V<BytesRef> page = delegate.obtain();
+            obtained++;
+            return new Recycler.V<>() {
+                private boolean closed;
+
+                @Override
+                public BytesRef v() {
+                    return page.v();
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return page.isRecycled();
+                }
+
+                @Override
+                public void close() {
+                    assertFalse("page released twice", closed);
+                    closed = true;
+                    released++;
+                    page.close();
+                }
+            };
+        }
+
+        @Override
+        public int pageSize() {
+            return delegate.pageSize();
+        }
     }
 
     /** Builds in SPLIT mode; scalar/union cases behave identically under MERGE. */

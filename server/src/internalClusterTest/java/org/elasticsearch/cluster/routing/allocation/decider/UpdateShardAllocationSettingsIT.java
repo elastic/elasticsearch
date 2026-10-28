@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -103,10 +104,11 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         Map<String, List<ShardRouting.RecoveryPriority>> recoveryPrioritiesByTargetNode = admin().indices()
             .prepareRecoveries("test", "test_1")
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .values()
             .stream()
             .flatMap(List::stream)
+            .map(ShardRecoveryInfo::recoveryState)
             .collect(groupingBy(state -> state.getTargetNode().getName(), mapping(RecoveryState::getRecoveryPriority, toList())));
         // All shards on firstNode should be from initial creation, and recovered with priority UNASSIGNED_NEW_PRIMARY:
         assertThat(recoveryPrioritiesByTargetNode.get(firstNode), everyItem(equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)));

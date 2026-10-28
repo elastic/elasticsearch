@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
@@ -40,12 +41,22 @@ public final class NumericColumnReader {
     private final NumericBlockEncoder encoder;
     private final long[] blockBuffer;
 
+    /** A block holds a power of two values, so the block a value is in and where it sits are shifts. */
+    private final int blockShift;
+    private final int blockMask;
+
     private long cachedBlock = -1;
 
-    public NumericColumnReader(NumericColumnMetadata meta, IndexInput data) throws IOException {
+    public NumericColumnReader(NumericColumnMetadata meta, ColumnInputs inputs) throws IOException {
+        final IndexInput data = inputs.data();
+        final IndexInput addressing = inputs.addressing();
+        final IndexInput navigation = inputs.navigation();
         this.meta = meta;
+        assert (meta.blockSize() & (meta.blockSize() - 1)) == 0 : "values per block must be a power of two, got " + meta.blockSize();
+        this.blockShift = Integer.numberOfTrailingZeros(meta.blockSize());
+        this.blockMask = meta.blockSize() - 1;
         this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
-        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
+        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), addressing);
         this.data = data.clone();
         if (meta.numDocsWithField() == 0) {
             this.blockOffsets = null;
@@ -56,15 +67,15 @@ public final class NumericColumnReader {
             return;
         }
         this.blockOffsets = MonotonicReader.open(
-            data,
+            navigation,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,
             meta.blockOffsetsDataOffset(),
             meta.blockOffsetsDataLength()
         );
-        this.valueAddresses = meta.multiValued()
+        this.valueAddresses = meta.hasValueAddresses()
             ? MonotonicReader.open(
-                data,
+                addressing,
                 meta.valueAddressesMeta(),
                 meta.numDocsWithField() + 1L,
                 meta.valueAddressesDataOffset(),
@@ -83,10 +94,10 @@ public final class NumericColumnReader {
     }
 
     /**
-     * Whether any document holds more than one value. A single-valued column maps a rank straight to a value
-     * address.
+     * Whether the column tables where each document's values begin. Without that table a rank maps straight
+     * to a value address.
      */
-    public boolean multiValued() {
+    public boolean hasValueAddresses() {
         return valueAddresses != null;
     }
 
@@ -102,9 +113,9 @@ public final class NumericColumnReader {
 
     /** The value at {@code valueAddress} in {@code [0, numValues)}. */
     public long valueAt(long valueAddress) throws IOException {
-        long block = valueAddress / meta.blockSize();
+        final long block = valueAddress >>> blockShift;
         ensureBlock(block);
-        return blockBuffer[(int) (valueAddress - block * meta.blockSize())];
+        return blockBuffer[(int) (valueAddress & blockMask)];
     }
 
     /** Values per encoding block. */
@@ -115,6 +126,11 @@ public final class NumericColumnReader {
     /** Total number of values across all documents. */
     public long numValues() {
         return meta.numValues();
+    }
+
+    /** How many documents have a value. */
+    public int numDocsWithField() {
+        return meta.numDocsWithField();
     }
 
     /**

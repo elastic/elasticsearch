@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 158382
+summary: Fix NPE in nested `inner_hits` backward doc access
+type: bug

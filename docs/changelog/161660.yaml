@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 122036
+pr: 161660
+summary: Use `Set<SnapshotId>` for snapshots deletion
+type: bug

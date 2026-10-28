@@ -481,6 +481,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
                 file = "bucket",
                 tag = "bucketWithOffset"
+            ),
+            @Example(
+                description = """
+                    `BUCKET` can also operate on `exponential_histogram` and `tdigest` fields. Instead of a single value, it
+                    returns the `double_range` buckets that hold values of the histogram, so a histogram spanning several buckets
+                    contributes a row to each of them. Pass the bucket as the second argument of
+                    [`COUNT`](/reference/query-languages/esql/functions-operators/aggregation-functions/count.md) to count
+                    the values of the histograms that fall into each bucket:""",
+                file = "exponential_histogram",
+                tag = "countBucketExpHistoForDocs",
+                explanation = """
+                    ::::{note}
+                    Histograms only record approximate value distributions, so the counts per bucket are estimates.
+                    ::::"""
             ) },
         type = FunctionType.GROUPING
     )

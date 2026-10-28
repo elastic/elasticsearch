@@ -7,24 +7,27 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 /**
- * Decorates a {@link StorageProvider} with concurrency limiting. Each cloud API call
- * acquires a permit from a shared {@link ConcurrencyLimiter} before executing and
- * releases it when the call completes. Permits are per-API-call, not held across
- * retries or backoff sleeps.
+ * Decorates a {@link StorageProvider} with concurrency limiting. {@link #listObjects}, {@link #listChildren} and
+ * {@link #exists} acquire a permit from a shared {@link ConcurrencyLimiter} before executing and release it when the
+ * call completes; byte transfers acquire theirs inside the {@link StorageObject} that {@link #newObject} wraps.
+ * Permits are per-API-call, not held across retries or backoff sleeps, except for a listing's, which is held until
+ * its iterator is closed.
+ * <p>
+ * {@code objectMetadata} is deliberately not permit-governed: it is left to the base's forward, matching
+ * {@code ConcurrencyLimitedStorageObject#length}, which the resolve path called before this and which forwards
+ * without a permit. Parking a metadata request behind the permits that long-lived streams hold starved the threads
+ * the resolve runs on.
  */
-class ConcurrencyLimitedStorageProvider implements StorageProvider {
+class ConcurrencyLimitedStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final ConcurrencyLimiter limiter;
@@ -32,6 +35,11 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     ConcurrencyLimitedStorageProvider(StorageProvider delegate, ConcurrencyLimiter limiter) {
         this.delegate = delegate;
         this.limiter = limiter;
+    }
+
+    @Override
+    protected StorageProvider delegate() {
+        return delegate;
     }
 
     @Override
@@ -50,10 +58,21 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new ConcurrencyLimitedStorageObject(delegate.newObject(path, length, lastModified, version), limiter);
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-        acquirePermit();
+        return listObjects(prefix, "", recursive);
+    }
+
+    /** One permit per listing either way; the prefix only narrows what the delegate returns. */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
+        limiter.acquireChecked();
         try {
-            StorageIterator delegateIterator = delegate.listObjects(prefix, recursive);
+            StorageIterator delegateIterator = delegate.listObjects(prefix, namePrefix, recursive);
             return new ConcurrencyLimitedStorageIterator(delegateIterator, limiter);
         } catch (Exception e) {
             limiter.release();
@@ -62,8 +81,19 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        // One remote call, fully materialized by the delegate: the permit brackets the call itself.
+        limiter.acquireChecked();
+        try {
+            return delegate.listChildren(prefix, limit);
+        } finally {
+            limiter.release();
+        }
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             return delegate.exists(path);
         } finally {
@@ -72,35 +102,8 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
-    }
-
-    @Override
-    public boolean supportsStableMetadata() {
-        return delegate.supportsStableMetadata();
-    }
-
-    @Override
     public void close() throws IOException {
         delegate.close();
-    }
-
-    private void acquirePermit() {
-        try {
-            limiter.acquire();
-        } catch (TimeoutException e) {
-            // Permit pool exhausted: a node-local admission back-pressure condition, not a client error. Raise it as
-            // the retryable 503-class type the retry layer acts on (RetryableStorageProvider -> RetryPolicy.execute
-            // catches ExternalUnavailableException and re-attempts). throttling=false: this is a local semaphore, not
-            // a remote-store 429/503, so it must not feed the per-bucket adaptive backoff or the throttle budget.
-            throw new ExternalUnavailableException(e, "Timed out acquiring cloud API concurrency permit: {}", e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            // Interrupt is a shutdown/cancellation signal, not back-pressure: throw non-retryable so the
-            // retry layer does not loop on an interrupt flag that will fire again immediately.
-            throw new EsRejectedExecutionException("Interrupted while acquiring cloud API concurrency permit");
-        }
     }
 
     /**

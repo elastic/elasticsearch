@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,8 +18,16 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -33,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -49,7 +59,7 @@ public class CsvModeReadTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -108,9 +118,8 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * {@code escaped} + a custom {@code null_value}: the two null routes stay consistent — a field
-     * equal to {@code null_value} nulls via the tokenizer before the decode runs, and a whole-field
-     * {@code \N} nulls via the decode. Both must land on null in the same read.
+     * {@code escaped} + a custom {@code null_value}: a field equal to {@code null_value} after
+     * decode, and a whole-field {@code \N}, both land on null in the same read.
      */
     public void testEscapedWithCustomNullValueKeepsBothNullRoutes() throws IOException {
         String tsv = """
@@ -119,27 +128,20 @@ public class CsvModeReadTests extends ESTestCase {
             """;
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "null_value", "NULL")), tsv);
         assertEquals(1, values.size());
-        assertNull(values.get(0).get(0)); // null_value match — tokenizer route
-        assertNull(values.get(0).get(1)); // \N — decode route
+        assertNull(values.get(0).get(0)); // null_value match after decode
+        assertNull(values.get(0).get(1)); // whole-field \N
         assertEquals("value", values.get(0).get(2));
     }
 
     /**
-     * Documents the escaped-mode residual: {@code escaped} (quoting off, escaping on) keeps
-     * {@code jacksonGrammarApplies()} true even under no-trim (the house grammar mirrors only the QUOTED /
-     * PLAIN dialects, not the C-style decode), so escaped reads still tokenize with Jackson and inherit its
-     * {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating. This is a real no-trim gap for escaped
-     * mode — but it is uniform across every escaped arm (per-record + bulk + inference all go through Jackson),
-     * so there is no cross-path misbind. Pinned so a future widening of the house grammar to escaped mode (which
-     * WOULD start preserving col-0 whitespace) is a deliberate, visible change rather than a silent drift.
+     * Escaped mode tokenizes with the house grammar, which preserves first-column leading whitespace
+     * under no-trim (it does not apply Jackson {@code SKIP_EMPTY_LINES}).
      */
-    public void testEscapedModeStillEatsColumnZeroLeadingWhitespaceUnderNoTrim() throws IOException {
+    public void testEscapedModePreservesColumnZeroLeadingWhitespaceUnderNoTrim() throws IOException {
         String tsv = "a:keyword\tb:keyword\n  x\t  y\n";
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
         assertEquals(1, values.size());
-        // Column 0's leading whitespace is eaten by Jackson's SKIP_EMPTY_LINES; a non-first column keeps its
-        // padding, so the residual is column-0-specific (not general trimming).
-        assertEquals("x", values.get(0).get(0));
+        assertEquals("  x", values.get(0).get(0));
         assertEquals("  y", values.get(0).get(1));
     }
 
@@ -155,6 +157,102 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals("\"starts with quote", values.get(0).get(0));
     }
 
+    public void testEscapedSemicolonDelimiterStaysInField() throws IOException {
+        String csv = "ts:keyword;url:keyword;agent:keyword;host:keyword;ip:keyword\n"
+            + "1704880800000;https://www.elastic.co/downloads/elasticsearch;"
+            + "Mozilla/5.0 (Windows NT 10.0\\; Win64\\; x64) AppleWebKit/537.36;www.elastic.co;8.8.8.8\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";")), csv);
+        assertEquals(1, values.size());
+        assertEquals(5, values.get(0).size());
+        assertEquals("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", values.get(0).get(2));
+    }
+
+    public void testEscapedCommaDelimiterStaysInField() throws IOException {
+        String csv = "a:keyword,b:keyword\nfoo\\,bar,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped")), csv);
+        assertEquals(1, values.size());
+        assertEquals(List.of("foo,bar", "ok"), values.get(0));
+    }
+
+    public void testEscapedRawTabDelimiterStaysInField() throws IOException {
+        String tsv = "a:keyword\tb:keyword\nhello\\\tworld\tok\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
+        assertEquals(1, values.size());
+        assertEquals("hello\tworld", values.get(0).get(0));
+        assertEquals("ok", values.get(0).get(1));
+    }
+
+    public void testEscapedRawTabDelimiterStaysInFieldUnderTrimSpaces() throws IOException {
+        String tsv = "a:keyword\tb:keyword\nhello\\\tworld\tok\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "trim_spaces", true)), tsv);
+        assertEquals(1, values.size());
+        assertEquals("hello\tworld", values.get(0).get(0));
+        assertEquals("ok", values.get(0).get(1));
+    }
+
+    public void testEscapedNonDelimTabAtFieldEdgeSurvivesTrimSpaces() throws IOException {
+        String csv = "a:keyword,b:keyword\nhello\\\t,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "trim_spaces", true)), csv);
+        assertEquals(List.of("hello\t", "ok"), values.get(0));
+    }
+
+    public void testEscapedDoubledEscapeThenNonDelimTabStillTrims() throws IOException {
+        String csv = "a:keyword,b:keyword\nhello\\\\\t,ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "trim_spaces", true)), csv);
+        assertEquals(List.of("hello\\", "ok"), values.get(0));
+    }
+
+    public void testEscapedBackslashThenDelimiterStillSplits() throws IOException {
+        String csv = "a:keyword;b:keyword\nfoo\\\\;bar\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";")), csv);
+        assertEquals(1, values.size());
+        assertEquals(List.of("foo\\", "bar"), values.get(0));
+    }
+
+    public void testEscapedCustomEscapeCharProtectsDelimiter() throws IOException {
+        String csv = "a:keyword;b:keyword\nfoo~;bar;ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";", "escape", "~")), csv);
+        assertEquals(1, values.size());
+        assertEquals(List.of("foo;bar", "ok"), values.get(0));
+    }
+
+    public void testQuotedWrapsDelimiterAndPlainSplits() throws IOException {
+        String quoted = "a:keyword;b:keyword\n\"foo;bar\";ok\n";
+        List<List<String>> quotedValues = readAll(csvReader(Map.of("delimiter", ";")), quoted);
+        assertEquals(List.of("foo;bar", "ok"), quotedValues.get(0));
+
+        String plain = "a:keyword;b:keyword;c:keyword\nfoo\\;bar;ok\n";
+        List<List<String>> plainValues = readAll(csvReader(Map.of("mode", "plain", "delimiter", ";")), plain);
+        assertEquals(List.of("foo\\", "bar", "ok"), plainValues.get(0));
+    }
+
+    public void testEscapedDelimiterHoldsPastSampleWindow() throws IOException {
+        int rows = 80;
+        StringBuilder csv = new StringBuilder("a:keyword,b:keyword\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append("foo\\,bar,").append(i).append('\n');
+        }
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "schema_sample_size", 8)), csv.toString());
+        assertEquals(rows, values.size());
+        assertEquals("foo,bar", values.get(0).get(0));
+        assertEquals("foo,bar", values.get(rows - 1).get(0));
+        assertEquals(Integer.toString(rows - 1), values.get(rows - 1).get(1));
+    }
+
+    public void testEscapedDelimiterDoesNotExplodeInferredWidth() throws IOException {
+        String csv = "a,b\nfoo\\,bar,ok\n1,2\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped")), csv);
+        assertEquals(2, values.size());
+        assertEquals(List.of("foo,bar", "ok"), values.get(0));
+        assertEquals(List.of("1", "2"), values.get(1));
+    }
+
+    public void testEscapedSemicolonDelimiterStaysInFieldUnderTrimSpaces() throws IOException {
+        String csv = "a:keyword;b:keyword\nfoo\\;bar;ok\n";
+        List<List<String>> values = readAll(csvReader(Map.of("mode", "escaped", "delimiter", ";", "trim_spaces", true)), csv);
+        assertEquals(List.of("foo;bar", "ok"), values.get(0));
+    }
+
     /** The default CSV path is untouched: RFC-4180 wrapping and doubling still work. */
     public void testQuotedModeUnchanged() throws IOException {
         String csv = "a:keyword,b:keyword\n\"has,comma\",\"he said \"\"hi\"\"\"\n";
@@ -165,17 +263,340 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Splitter dispatch is decided once, from the (quoting, escaping) pair: only plain (no quoting, no
-     * escaping) takes the strided terminator scan. Escaped keeps quoting off but escaping on, and a
-     * backslash-escaped raw newline is in-field content, so it needs the escape-aware quote-state splitter.
+     * Splitter dispatch is decided once, from the (quoting, escaping) pair and {@code multiline_fields}: plain (no
+     * quoting, no escaping) and a quoting or escaping dataset not declared {@code multiline_fields: true} take the
+     * strided terminator scan. {@code mode: escaped} is in that group when the flag is unset. A raw newline already
+     * ends its records (an in-field newline is the two bytes {@code \}+{@code n}), so the quote-state splitter is used
+     * only when {@code multiline_fields} is {@code true}, and that does not change the rows.
      */
     public void testSplitterDispatchByQuoting() throws IOException {
         assertThat(tsvReader(Map.of("mode", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(
+            tsvReader(Map.of("mode", "escaped", "multiline_fields", true)).recordSplitter(1024),
+            instanceOf(CsvRecordSplitter.class)
+        );
         // The .tsv baseline is plain, so an unconfigured TSV reader takes the terminator scan; quoting is opt-in.
         assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "quoted", "multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    private static final List<Attribute> TWO_KEYWORDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+    );
+
+    private static FormatReadContext splitContext(boolean firstSplit, boolean lastSplit, boolean recordAligned) {
+        return FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(firstSplit)
+            .lastSplit(lastSplit)
+            .recordAligned(recordAligned)
+            .readSchema(TWO_KEYWORDS)
+            .fileHeaderColumns(List.of("a", "b"))
+            .build();
+    }
+
+    private static InMemoryStorageObject bytes(String content) {
+        return new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * A quoted field holding a line break breaks the contract the file is read on when {@code multiline_fields} is not
+     * {@code true}: fail rather than return misaligned rows. The failure does not depend on how the file was read: a cut
+     * split, a parallel-parsing chunk and a file read in one piece fail alike, so the same file cannot read while it is
+     * small and fail once it grows past the split threshold.
+     */
+    public void testMultiLineFieldFailsHoweverTheFileIsRead() throws IOException {
+        String csv = "x,y\n\"multi\nline\",z\n";
+        CsvFormatReader reader = csvReader(Map.of()).withSchema(TWO_KEYWORDS);
+        for (FormatReadContext context : List.of(
+            splitContext(true, false, true), // the first of several splits: its record runs into the newline the file was cut at
+            splitContext(true, true, true),  // a lone parallel-parsing chunk
+            splitContext(true, true, false)  // the whole file in one piece
+        )) {
+            Exception e = expectThrows(ExternalClientException.class, () -> drain(reader, bytes(csv), context));
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            // Data without multi-line fields is unaffected.
+            assertEquals(1, drain(reader, bytes("x,y\nu,v\n"), context));
+        }
+    }
+
+    /**
+     * Schema inference reads the file's first rows on the same contract, so a multi-line value within the sample is
+     * reported at planning, with the same remedy, rather than by the first split read.
+     */
+    public void testSchemaInferenceFailsOnMultiLineFieldUnlessMultilineFields() throws IOException {
+        String csv = "x,y\n\"multi\nline\",z\n";
+        Exception e = expectThrows(ExternalClientException.class, () -> csvReader(Map.of()).metadata(bytes(csv)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        // The failure is not a sampling error that error_mode may skip.
+        Exception lenient = expectThrows(
+            ExternalClientException.class,
+            () -> csvReader(Map.of("error_mode", "skip_row")).metadata(bytes(csv))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(lenient).getMessage(), containsString("multiline_fields"));
+        assertEquals(2, csvReader(Map.of("multiline_fields", true)).metadata(bytes(csv)).schema().size());
+    }
+
+    /**
+     * An unquoted backslash-escaped newline is in-field content for a quoting dialect. The schema sample uses the same
+     * escape-aware guard as the data read, so the failure is reported at planning rather than as two short rows.
+     */
+    public void testSchemaInferenceFailsOnEscapedLineBreak() throws IOException {
+        // Untyped header: a typed header returns before the sample rows are read.
+        String csv = "k\nfoo\\\nbar\n";
+        Exception e = expectThrows(ExternalClientException.class, () -> csvReader(Map.of()).metadata(bytes(csv)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        Exception lenient = expectThrows(
+            ExternalClientException.class,
+            () -> csvReader(Map.of("error_mode", "skip_row")).metadata(bytes(csv))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(lenient).getMessage(), containsString("multiline_fields"));
+        assertEquals(1, csvReader(Map.of("multiline_fields", true)).metadata(bytes(csv)).schema().size());
+    }
+
+    /**
+     * A quoted line that also crosses the record cap is still a line-span failure. The cap must not turn it into a
+     * skipped oversized row and then parse the tail of the value as further rows.
+     */
+    public void testOverCapQuotedLineSpanIsNotSkippedByErrorMode() throws IOException {
+        int cap = 16;
+        String csv = "a,b\n\"" + "a".repeat(cap) + "\nline\",z\nu,v\n";
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(true)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(TWO_KEYWORDS)
+            .fileHeaderColumns(List.of("a", "b"))
+            .maxRecordBytes(cap)
+            .build();
+        for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
+            for (boolean directBlock : List.of(true, false)) {
+                CsvFormatReader reader = csvReader(Map.of("error_mode", errorMode)).withDirectBlockEnabled(directBlock)
+                    .withSchema(TWO_KEYWORDS);
+                Exception e = expectThrows(ExternalClientException.class, () -> drain(reader, bytes(csv), context));
+                assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            }
+        }
+    }
+
+    /**
+     * A single-line quoted field that only exceeds the record cap stays a cap failure: the quote closes before the
+     * newline, so {@code skip_row} drops that row and keeps the next one.
+     */
+    public void testOverCapSingleLineQuotedFieldIsSkipped() throws IOException {
+        int cap = 16;
+        String csv = "a,b\n\"" + "a".repeat(cap) + "\",z\nu,v\n";
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(true)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(TWO_KEYWORDS)
+            .fileHeaderColumns(List.of("a", "b"))
+            .maxRecordBytes(cap)
+            .build();
+        CsvFormatReader reader = csvReader(Map.of("error_mode", "skip_row")).withSchema(TWO_KEYWORDS);
+        assertEquals(1, drain(reader, bytes(csv), context));
+        List<String> warnings = drainWarnings();
+        assertTrue(
+            "skip_row summarizes the skipped rows, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("cannot be read; skipping them"))
+        );
+        assertTrue(
+            "the skipped row is the oversized one, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("record exceeds [16b]"))
+        );
+    }
+
+    /**
+     * The failure is not a bad row: no {@code error_mode} may turn it into a skipped row, on the record-iterator path
+     * (reached here with the direct-to-block read disabled) or the direct path.
+     */
+    public void testLineSpanningRecordIsNotSkippedByErrorMode() throws IOException {
+        for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
+            Map<String, Object> config = Map.of("error_mode", errorMode);
+            for (boolean directBlock : List.of(true, false)) {
+                CsvFormatReader reader = csvReader(config).withDirectBlockEnabled(directBlock).withSchema(TWO_KEYWORDS);
+                Exception e = expectThrows(
+                    ExternalClientException.class,
+                    () -> drain(reader, bytes("x,y\n\"multi\nline\",z\nu,v\n"), splitContext(true, false, true))
+                );
+                assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            }
+        }
+    }
+
+    /**
+     * A split that starts on the tail of a value cut by the previous split is not told apart from one that starts on a real
+     * boundary: the previous split, which owns the value, is the one that fails. A quote inside an unquoted field is valid
+     * data, so it must not fail a split's first record.
+     */
+    public void testQuoteInUnquotedFieldAtSplitStartReadsNormally() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of()).withSchema(TWO_KEYWORDS);
+        FormatReadContext split = splitContext(false, true, true);
+        assertEquals(2, drain(reader, bytes("5000,12\" ruler\nu,v\n"), split));
+        assertEquals(2, drain(reader, bytes("u,v\n\"w\",x\n"), split));
+        // The previous split's record runs into the cut newline: that is where the contradiction is reported.
+        Exception owner = expectThrows(
+            ExternalClientException.class,
+            () -> drain(reader, bytes("u,v\n\"first part\n"), splitContext(true, false, true))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(owner).getMessage(), containsString("spans several lines"));
+    }
+
+    /**
+     * {@code multiline_fields} is a contract with no sample involved: only an explicit {@code true} keeps the quote-aware
+     * walk, so unset behaves like {@code false}, whatever the dialect.
+     */
+    public void testUnsetMultilineFieldsBehavesLikeFalse() {
+        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", false)).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", "false")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", "true")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        // An explicit dialect does not change the contract.
+        assertThat(csvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("mode", "quoted", "multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        // Bracketed cells can span lines, so unset keeps the quote-aware walk there.
+        assertThat(csvReader(Map.of("multi_value_syntax", "brackets")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    public void testMultilineFieldsRejectsBadValuesAndBracketsAtStoreTime() {
+        Exception bad = expectThrows(IllegalArgumentException.class, () -> csvReader(Map.of("multiline_fields", "maybe")));
+        assertThat(bad.getMessage(), containsString("multiline_fields"));
+        Map<String, Object> bracketed = Map.of("multiline_fields", false, "multi_value_syntax", "brackets");
+        Exception stored = expectThrows(
+            IllegalArgumentException.class,
+            () -> CsvFormatReader.validateConfig(bracketed, CsvFormatOptions.DEFAULT)
+        );
+        assertThat(stored.getMessage(), containsString(CsvFormatReader.MULTILINE_FALSE_WITH_BRACKETS_MESSAGE));
+        CsvFormatReader.validateConfig(Map.of("multiline_fields", true, "multi_value_syntax", "brackets"), CsvFormatOptions.DEFAULT);
+        // A dataset stored before the check keeps reading, on the proven walk.
+        assertThat(csvReader(bracketed).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /** Unless {@code multiline_fields} is {@code true}, a record spanning lines fails a split read. */
+    public void testMultilineFieldsNotTrueGuardsSplits() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of("multiline_fields", false)).withSchema(TWO_KEYWORDS);
+        String csv = "x,y\n\"multi\nline\",z\n";
+        Exception e = expectThrows(ExternalClientException.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        Exception unset = expectThrows(
+            ExternalClientException.class,
+            () -> drain(csvReader(Map.of()).withSchema(TWO_KEYWORDS), bytes(csv), splitContext(true, false, true))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(unset).getMessage(), containsString("multiline_fields"));
+        // multiline_fields: true reads the same bytes as one multi-line field.
+        CsvFormatReader multiline = csvReader(Map.of("multiline_fields", true)).withSchema(TWO_KEYWORDS);
+        assertEquals(1, drain(multiline, bytes(csv), splitContext(true, false, true)));
+    }
+
+    /** Withers keep newline splitting: the splitter and the guard must not depend on the order they are applied in. */
+    public void testWithDirectBlockEnabledKeepsNewlineSplitting() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of());
+        assertThat(reader.withDirectBlockEnabled(false).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+    }
+
+    /**
+     * The splitting decision follows the options a reader currently holds, not those it was built with: a reader derived
+     * through {@link CsvFormatReader#withOptions} lands where one built from the same options does.
+     */
+    public void testWithOptionsDerivesSplittingFromTheNewOptions() {
+        CsvFormatReader fromTsv = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
+        assertThat(fromTsv.recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(fromTsv.withOptions(CsvFormatOptions.DEFAULT).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        CsvFormatReader multiline = csvReader(Map.of("multiline_fields", true));
+        assertThat(multiline.recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(multiline.withOptions(CsvFormatOptions.TSV).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(multiline.withOptions(CsvFormatOptions.DEFAULT).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /**
+     * A bzip2 block split reaches the reader as a decompressed range that starts in the middle of a record the previous
+     * split already emitted ({@code firstSplit=false}, {@code recordAligned=false}). Even with a pinned schema that tail
+     * must be dropped rather than parsed as a row: the stream below is what {@code decompressRange} yields for the second
+     * block of a file cut in the middle of the {@code 2,bb} row.
+     */
+    public void testByteRangeSplitWithPinnedSchemaDropsLeadingPartialRecord() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        FormatReadContext split = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
+            .build();
+        // The tail "b,x" is not a valid long in its first column, so parsing it as a row would fail.
+        byte[] tail = "b,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(2, drain(csvReader(Map.of()).withSchema(schema), new InMemoryStorageObject(tail), split));
+    }
+
+    /**
+     * Unless {@code multiline_fields} is {@code true}, the discarded tail ends at the first newline, by contract, whatever
+     * quote state a quote-aware read would enter on it: a tail that starts with the closing quote of the previous split's
+     * value ({@code 1,"a,|"} cut before the quote) would otherwise open a quoted field and swallow the rows up to the next
+     * quote. A quote inside the tail is just as inert.
+     */
+    public void testByteRangeSplitDiscardsLeadingPartialRecordUpToTheNewline() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        FormatReadContext split = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
+            .build();
+        CsvFormatReader reader = csvReader(Map.of()).withSchema(schema);
+        // Every line terminator ends the tail: LF, CRLF and a lone CR, which must not swallow the character after it.
+        for (String tail : List.of("\"\n3,cc\n4,dd\n", "\",x\r\n3,cc\n4,dd\n", "\",x\r3,cc\r4,dd\r", "12\" ruler,x\n3,cc\n4,dd\n")) {
+            assertEquals(tail, 2, drain(reader, bytes(tail), split));
+        }
+    }
+
+    /**
+     * {@code multiline_fields: true} promises nothing a plain dialect can hold, so it is accepted but reported: the user
+     * likely expects multi-line values to come through, and they will read as separate rows instead.
+     */
+    public void testMultilineFieldsTrueOnPlainDialectIsNoticed() {
+        assertEquals(
+            List.of(CsvFormatReader.MULTILINE_TRUE_WITH_PLAIN_MESSAGE),
+            tsvReader(Map.of("multiline_fields", true)).configWarnings()
+        );
+        assertEquals(
+            List.of(CsvFormatReader.MULTILINE_TRUE_WITH_PLAIN_MESSAGE),
+            csvReader(Map.of("mode", "plain", "multiline_fields", "true")).configWarnings()
+        );
+        // Not a conflict: stored as is, and silent where the flag means something or says nothing.
+        CsvFormatReader.validateConfig(Map.of("multiline_fields", true), CsvFormatOptions.TSV);
+        assertTrue(tsvReader(Map.of("multiline_fields", false)).configWarnings().isEmpty());
+        assertTrue(tsvReader(Map.of("mode", "escaped", "multiline_fields", true)).configWarnings().isEmpty());
+        assertTrue(csvReader(Map.of("multiline_fields", true)).configWarnings().isEmpty());
+    }
+
+    private static int drain(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {
+        int rows = 0;
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        return rows;
     }
 
     /** Bare brackets selects QUOTED (bracket cells carry quoted elements), even on the plain .tsv baseline. */
@@ -188,7 +609,10 @@ public class CsvModeReadTests extends ESTestCase {
      * may carry the tab delimiter as data and the reader switches to the quote-state splitter.
      */
     public void testPlainQuoteOverrideEnablesQuoting() throws IOException {
-        assertThat(tsvReader(Map.of("mode", "plain", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            tsvReader(Map.of("mode", "plain", "quote", "\"", "multiline_fields", true)).recordSplitter(1024),
+            instanceOf(CsvRecordSplitter.class)
+        );
         String tsv = "a:keyword\tb:keyword\n\"x\ty\"\tz\n";
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain", "quote", "\"")), tsv);
         assertEquals(1, values.size());
@@ -215,13 +639,16 @@ public class CsvModeReadTests extends ESTestCase {
      * this is plain RFC-4180-with-escape parsing, not C-style escaped decoding.)
      */
     public void testEscapedQuoteOverrideEnablesQuoting() throws IOException {
-        assertThat(tsvReader(Map.of("mode", "escaped", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            tsvReader(Map.of("mode", "escaped", "quote", "\"", "multiline_fields", true)).recordSplitter(1024),
+            instanceOf(CsvRecordSplitter.class)
+        );
         String tsv = "a:keyword\tb:keyword\n\"x\ty\"\tz\n";
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "quote", "\"")), tsv);
         assertEquals(1, values.size());
         assertEquals("x\ty", values.get(0).get(0)); // tab inside quotes is data — quoting is on
         assertEquals("z", values.get(0).get(1));
-        drainWarnings(); // escaped+quote emits the expected decode-disabled config warning; clear it
+        assertTrue("the decode-disabled notice rides on the metadata, not on this thread's headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -260,9 +687,8 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Volume guard: the escaped mode decodes on the BULK data path (the merge's only per-value seam
-     * there), so {@code \t} un-escapes and a whole-field {@code \N} is null across many batches,
-     * exactly as on the per-record path.
+     * Volume guard: escaped-mode C-style decode ({@code \t}, whole-field {@code \N}) holds across
+     * many batches after the sample window, on the house per-record iterator.
      */
     public void testBulkPathEscapedDecodesAtVolume() throws IOException {
         int rows = 500;
@@ -331,30 +757,93 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the
-     * whole-field {@code \N} null marker emits a one-time response {@code Warning} header nudging
-     * toward {@code mode: escaped}. The query author reads the response, so the channel is a Warning
-     * header, not a DEBUG log they would never see. If the hint scan is dropped, no header is emitted
-     * and this fails.
+     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the whole-field {@code \N}
+     * null marker nudges toward {@code mode: escaped}. The hint is raised at resolve time (schema inference) and at
+     * read time (first-split inference). Neither runs on a thread whose response headers reach the client, so the
+     * former rides on the metadata and the latter goes to the read context's sink; nothing may land on this thread's
+     * headers.
      */
     public void testPlainNullMarkerEmitsWarning() throws IOException {
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\t\\N\nid1\tplain note\n");
+        CsvFormatReader reader = tsvReader(Map.of("mode", "plain", "header_row", false));
+        StorageObject object = new InMemoryStorageObject("id0\t\\N\nid1\tplain note\n".getBytes(StandardCharsets.UTF_8));
+
+        assertNullMarkerWarning(reader.metadata(object).warnings());
+
+        assertNullMarkerWarning(readAllCollectingWarnings(reader, object));
+        assertTrue("the hint must never land on this thread's response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A condensed repro: a column inferred {@code integer}
+     * from its first two rows widens to {@code keyword} on a third, non-numeric row still inside the
+     * sample. The widen must be reported — naming the column, the forced type, and the value — exactly
+     * like the {@code \N} hint above, and must never land on this thread's response headers either.
+     * Checked on both inference entry points: {@code metadata()} (planning) and {@code read()} without a
+     * pre-resolved schema (the cold-resolve inline-inference path a first-split read without a schema
+     * handed down by planning takes) — a within-file widen must warn on either.
+     */
+    public void testWithinSampleKeywordWideningEmitsWarning() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of());
+        StorageObject object = new InMemoryStorageObject("a,b\n1,r1\n2,r2\noops,r3\n".getBytes(StandardCharsets.UTF_8));
+
+        assertWideningWarning(reader.metadata(object).warnings());
+        assertTrue("the widening notice must never land on this thread's response headers", drainWarnings().isEmpty());
+
+        assertWideningWarning(readAllCollectingWarnings(reader, object));
+        assertTrue("the widening notice must never land on this thread's response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A column that only ever moves losslessly (here {@code integer -> long}) must stay silent, matching
+     * the cross-file emitters' own gating ({@code emitKeywordFallbackWarnings} /
+     * {@code emitPrecisionLossWarnings}, which likewise never fire on a lossless promotion).
+     */
+    public void testLosslessPromotionEmitsNoWideningWarning() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of());
+        StorageObject object = new InMemoryStorageObject("a\n1\n9999999999\n".getBytes(StandardCharsets.UTF_8));
+
+        assertTrue("a lossless promotion must not be reported", reader.metadata(object).warnings().isEmpty());
+    }
+
+    private static void assertWideningWarning(List<String> warnings) {
+        assertTrue(
+            "expected a within-sample widening warning naming the column, the forced type, and the value, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]") && w.contains("oops"))
+        );
+    }
+
+    /**
+     * A read context without a sink (tests, benchmarks) falls back to this thread's response headers, the same fallback
+     * {@code SkipWarnings} uses, so the two read-time channels agree. Production read paths always supply a sink.
+     */
+    public void testPlainNullMarkerFallsBackToHeaderWarningWithoutSink() throws IOException {
+        CsvFormatReader reader = tsvReader(Map.of("mode", "plain", "header_row", false));
+        readAll(reader, "id0\t\\N\nid1\tplain note\n");
         assertNullMarkerWarning(drainWarnings());
     }
 
     /**
-     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted,
-     * which hands the escape char to Jackson and drops the C-style decode. The data scan can't catch
-     * this (Jackson rewrites {@code \N} to {@code N} before the sample exists), so the resolver emits a
-     * deterministic config-time response warning. Building the reader is enough to trigger it.
+     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted, which hands the
+     * escape char to Jackson and drops the C-style decode. The data scan can't catch this (Jackson rewrites
+     * {@code \N} to {@code N} before the sample exists), so the notice is decided when the config is parsed and
+     * exposed as {@link CsvFormatReader#configWarnings()} for the resolver to raise once per path. It is about the
+     * options, not a file, so it stays off per-file metadata; and it is never a header on this thread.
      */
-    public void testEscapedPlusQuoteWarnsDecodeDisabled() {
-        tsvReader(Map.of("mode", "escaped", "quote", "\""));
-        List<String> warnings = drainWarnings();
+    public void testEscapedPlusQuoteWarnsDecodeDisabled() throws IOException {
+        CsvFormatReader reader = tsvReader(Map.of("mode", "escaped", "quote", "\""));
+        StorageObject object = new InMemoryStorageObject("a:keyword\tb:keyword\nx\ty\n".getBytes(StandardCharsets.UTF_8));
+
+        List<String> configWarnings = reader.configWarnings();
         assertTrue(
-            "expected a config-time decode-disabled warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
+            "expected a config-time decode-disabled warning, got: " + configWarnings,
+            configWarnings.stream().anyMatch(w -> w.contains("turns off the [escaped] mode"))
         );
+        List<String> fileWarnings = reader.metadata(object).warnings();
+        assertTrue(
+            "a file's metadata must not repeat the dataset-level notice, got: " + fileWarnings,
+            fileWarnings.stream().noneMatch(w -> w.contains("turns off the [escaped] mode"))
+        );
+        assertTrue("the notice must never land on this thread's response headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -364,9 +853,17 @@ public class CsvModeReadTests extends ESTestCase {
      * with no quote (already decoding). No response warning of any kind should accumulate.
      */
     public void testNoWarningForCleanWindowsPathOrEscapedMode() throws IOException {
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tclean\nid1\talso clean\n");
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tC:\\temp\nid1\tC:\\Users\n");
-        readAll(tsvReader(Map.of("mode", "escaped", "header_row", false)), "id0\t\\N\nid1\tvalue\n");
+        CsvFormatReader plain = tsvReader(Map.of("mode", "plain", "header_row", false));
+        CsvFormatReader escaped = tsvReader(Map.of("mode", "escaped", "header_row", false));
+        for (var readerAndContent : List.of(
+            Map.entry(plain, "id0\tclean\nid1\talso clean\n"),
+            Map.entry(plain, "id0\tC:\\temp\nid1\tC:\\Users\n"),
+            Map.entry(escaped, "id0\t\\N\nid1\tvalue\n")
+        )) {
+            StorageObject object = new InMemoryStorageObject(readerAndContent.getValue().getBytes(StandardCharsets.UTF_8));
+            assertTrue("no resolve-time notice expected", readerAndContent.getKey().metadata(object).warnings().isEmpty());
+            assertTrue("no read-time notice expected", readAllCollectingWarnings(readerAndContent.getKey(), object).isEmpty());
+        }
         assertTrue("no response warning expected", drainWarnings().isEmpty());
     }
 
@@ -398,8 +895,7 @@ public class CsvModeReadTests extends ESTestCase {
 
     /**
      * Escaped-mode separator-only row: {@code \t\t} in TSV with mode=escaped must also emit
-     * null/empty fields — not be dropped. Mode=escaped has {@code decodesEscapes=true}, so
-     * {@code jacksonGrammarApplies()} is true and Jackson handles the record.
+     * null/empty fields, not be dropped.
      */
     public void testTsvEscapedModeSeparatorOnlyRowEmitsNullFields() throws IOException {
         String tsv = "a:keyword\tb:keyword\tc:keyword\nreal\tdata\trow\n\t\t\nmore\treal\tdata\n";
@@ -480,16 +976,14 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     private static void assertNullMarkerWarning(List<String> warnings) {
-        // Match on an escape-free slice of the message: HeaderWarning escapes backslashes and quotes in
-        // the header value, so a literal "\N" / "\"mode\"" substring would not match the drained value.
-        // Also assert the directed action and a location field are present.
+        // Match on a slice of the message and assert the directed action and a location field are present.
         assertTrue(
             "expected an undecoded null-marker response warning, got: " + warnings,
             warnings.stream()
                 .anyMatch(
-                    w -> w.contains("null marker, but the current mode keeps it as literal text")
-                        && w.contains("data row [")
-                        && w.contains("Set ")
+                    w -> w.contains("N] at sample row [")
+                        && w.contains("is read as text")
+                        && w.contains("; set [mode] to [escaped] to read it as null")
                 )
         );
     }
@@ -561,6 +1055,18 @@ public class CsvModeReadTests extends ESTestCase {
         }
     }
 
+    /** Reads {@code object} to exhaustion with a capturing informational sink and returns what the read sent to it. */
+    private static List<String> readAllCollectingWarnings(CsvFormatReader reader, StorageObject object) throws IOException {
+        List<String> sink = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(sink::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+        return sink;
+    }
+
     /** Reads every page and renders each value as a string ({@code null} stays null). */
     private static List<List<String>> readAll(CsvFormatReader reader, String content) throws IOException {
         StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
@@ -591,6 +1097,9 @@ public class CsvModeReadTests extends ESTestCase {
 
     private record InMemoryStorageObject(byte[] bytes) implements StorageObject {
         @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(bytes);
         }
@@ -618,6 +1127,11 @@ public class CsvModeReadTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://csv-mode-read-tests");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

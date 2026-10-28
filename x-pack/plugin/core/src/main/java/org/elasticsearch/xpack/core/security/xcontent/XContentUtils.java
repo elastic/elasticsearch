@@ -83,7 +83,14 @@ public class XContentUtils {
      * - If the permissions are based on a user's roles at the time the config was created then the list of these
      *   roles is added.
      * - If the permissions come from an API key then the ID and name of the API key are added.
-     * - If the permissions come from a service account then the name of the service account is added.
+     * - If the permissions come from a service account then the name of the service account is added, along with its
+     *   assigned roles if it is user-managed rather than built-in.
+     * - If the permissions come from a cloud API key or a cloud service account then its ID and assigned roles are
+     *   added under a key naming the kind.
+     * - If the permissions come from a cross cluster access subject then the querying cluster's API key is added
+     *   together with the remote subject's own authorization, rendered by these same rules.
+     * Any subject whose roles are capped by the cloud identity provider also reports the names of the capping roles,
+     * because the assigned roles alone would overstate its permissions.
      * @param builder The {@link XContentBuilder} that the extra fields will be added to.
      * @param headers Security headers that were stored to determine which permissions a background service
      *                will run as. If <code>null</code> or no authentication key entry is present then no
@@ -124,9 +131,20 @@ public class XContentUtils {
 
     private static void addSubjectInfo(XContentBuilder builder, Subject subject) throws IOException {
         switch (subject.getType()) {
-            case USER -> builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+            case USER -> {
+                builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+                addCloudLimitedByRoles(builder, subject);
+            }
             case API_KEY -> addApiKeyInfo(builder, subject);
-            case SERVICE_ACCOUNT -> builder.field("service_account", subject.getUser().principal());
+            case SERVICE_ACCOUNT -> {
+                builder.field("service_account", subject.getUser().principal());
+                // A built-in account's privileges are fixed by its definition and resolved from the principal alone, so the
+                // principal is the whole authorization. A user-managed account is instead authorized from the role names
+                // snapshotted onto its user, which the principal does not reveal, so they have to be reported alongside it.
+                if (subject.isUserManagedServiceAccount()) {
+                    builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+                }
+            }
             case CROSS_CLUSTER_ACCESS -> {
                 builder.startObject("cross_cluster_access");
                 {
@@ -149,14 +167,27 @@ public class XContentUtils {
                 }
                 builder.field("internal", metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY));
                 builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+                addCloudLimitedByRoles(builder, subject);
                 builder.endObject();
             }
             case CLOUD_SERVICE_ACCOUNT -> {
                 builder.startObject("cloud_service_account");
                 builder.field("id", subject.getUser().principal());
                 builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+                addCloudLimitedByRoles(builder, subject);
                 builder.endObject();
             }
+        }
+    }
+
+    /**
+     * Reports the cloud identity provider's cap on a subject's assigned roles, when it has one. Authorization ANDs the
+     * cap with the assigned roles, so listing only the latter would overstate what the background service can do.
+     */
+    private static void addCloudLimitedByRoles(XContentBuilder builder, Subject subject) throws IOException {
+        final List<String> limitedByRoleNames = subject.getCloudLimitedByRoleNames();
+        if (limitedByRoleNames != null) {
+            builder.array(User.Fields.LIMITED_BY_ROLES.getPreferredName(), limitedByRoleNames.toArray(String[]::new));
         }
     }
 

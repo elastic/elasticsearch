@@ -9,33 +9,49 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.format.PageLocation;
+import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.ColumnIndex;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -53,9 +69,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -71,14 +90,65 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class PreloadedRowGroupMetadataTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
+    /**
+     * Footer byte cache budget that admits no entry, for a test that observes the preload's own GETs on a file
+     * that fits the footer prefetch: with the default cache the footer parse stores such a file whole and the
+     * preload reads nothing.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
+
     private BlockFactory blockFactory;
     private CircuitBreaker breaker;
 
     @Before
     public void initBlockFactoryAndAllocator() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         breaker = blockFactory.breaker();
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    }
+
+    public void testAwaitCoalescedTimesOutWhenReadNeverCompletes() {
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        long start = System.nanoTime();
+        ElasticsearchTimeoutException ex = expectThrows(
+            ElasticsearchTimeoutException.class,
+            () -> PreloadedRowGroupMetadata.awaitCoalesced(future, 50)
+        );
+        assertTrue(ex.getMessage().contains("50"));
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertTrue("timeout must fire promptly, took " + elapsedMs + "ms", elapsedMs < 1_000);
+    }
+
+    public void testPreloadTimesOutWhenAsyncReadNeverCompletes() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        long[] values = new long[65_536];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        AtomicInteger streamReads = new AtomicInteger();
+        StorageObject hung = createHungAsyncStorageObject(parquetData, streamReads);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(hung, footerByteCache, breaker), options)) {
+            streamReads.set(0);
+            long start = System.nanoTime();
+            expectThrows(
+                ElasticsearchTimeoutException.class,
+                () -> PreloadedRowGroupMetadata.preload(reader, hung, Set.of("v"), breaker, 50L)
+            );
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            assertTrue("timeout must fire promptly, took " + elapsedMs + "ms", elapsedMs < 1_000);
+            assertEquals("coalesced timeout must not fall back to sequential stream reads", 0, streamReads.get());
+        }
     }
 
     /**
@@ -100,7 +170,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, footerByteCache, breaker), options)
+        ) {
             int rgCount = reader.getRowGroups().size();
             assertTrue("Test setup must produce at least one row group", rgCount >= 1);
 
@@ -156,13 +228,160 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, footerByteCache, breaker), options)
+        ) {
             PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), breaker);
             assertFalse("Pre-warm map must be populated to exercise the ArrowBuf-backed releasable", metadata.preWarmedChunks().isEmpty());
             metadata.close();
             // Without the idempotency guard this second close throws on ArrowBuf double-decrement.
             metadata.close();
         }
+    }
+
+    /**
+     * {@link PreloadedRowGroupMetadata#releaseRawBuffers()} drops the coalesced dictionary/bloom
+     * (and leftover index-page) DirectReadBuffers so their forceAdd charges return, while parsed
+     * column/offset indexes stay usable. A later {@link PreloadedRowGroupMetadata#close()} must
+     * not refund twice.
+     */
+    public void testReleaseRawBuffersKeepsIndexesAndRefundsOnce() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        int rows = 65_536;
+        long[] values = new long[rows];
+        for (int i = 0; i < rows; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+        CircuitBreaker trackingBreaker = new LimitedBreaker("release-raw", ByteSizeValue.ofMb(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        FooterByteCache noEntries = FooterByteCache.fromSettings(NO_FOOTER_BYTE_CACHE);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, noEntries, trackingBreaker), options)
+        ) {
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    storage,
+                    Set.of("v"),
+                    null,
+                    null,
+                    Integer.MAX_VALUE,
+                    trackingBreaker,
+                    watermark,
+                    noEntries
+                )
+            ) {
+                assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
+                ColumnIndex columnIndex = metadata.getColumnIndex(0, "v");
+                OffsetIndex offsetIndex = metadata.getOffsetIndex(0, "v");
+                MessageType capturedSchema = metadata.schema();
+                assertNotNull("fixture must expose a parsed column index", columnIndex);
+                assertNotNull("fixture must expose a parsed offset index", offsetIndex);
+                assertNotNull(capturedSchema);
+                long watermarkAfterPreload = watermark.used();
+                long breakerAfterPreload = trackingBreaker.getUsed();
+                assertTrue("preload must forceAdd coalesced buffers, used=" + watermarkAfterPreload, watermarkAfterPreload > 0L);
+
+                metadata.releaseRawBuffers();
+                assertTrue("raw map is cleared after release", metadata.preWarmedChunks().isEmpty());
+                assertSame("parsed column index stays valid", columnIndex, metadata.getColumnIndex(0, "v"));
+                assertSame("parsed offset index stays valid", offsetIndex, metadata.getOffsetIndex(0, "v"));
+                assertSame("schema stays valid", capturedSchema, metadata.schema());
+                assertEquals("watermark refunds the forceAdd", 0L, watermark.used());
+                long breakerAfterRelease = trackingBreaker.getUsed();
+                assertTrue(
+                    "breaker refunds coalesced buffers, leftover is the adapter window; before="
+                        + breakerAfterPreload
+                        + " after="
+                        + breakerAfterRelease,
+                    breakerAfterRelease < breakerAfterPreload
+                );
+                assertTrue("adapter window remains charged until reader close", breakerAfterRelease > 0L);
+
+                metadata.releaseRawBuffers();
+                metadata.close();
+                assertEquals("second release refunds nothing", 0L, watermark.used());
+                assertEquals("close after release refunds nothing twice", breakerAfterRelease, trackingBreaker.getUsed());
+            }
+        }
+        assertEquals("adapter close refunds leftover window charges", 0L, trackingBreaker.getUsed());
+        assertEquals(0L, watermark.used());
+    }
+
+    /**
+     * Both coalesced batches must be in flight before either completes. Failing the index GET
+     * while the pre-warm GET is parked, then completing that parked GET, must refund the late
+     * result so {@code used} and the breaker return to the pre-open baseline.
+     */
+    public void testIndexGetFailsWhilePreWarmInFlightReleasesLateResult() throws Exception {
+        runSplitBatchFailure(true);
+    }
+
+    /**
+     * Pre-warm GET fails after the index batch succeeded. The index buffers must be closed and
+     * the failed pre-warm must not leave a forceAdd.
+     */
+    public void testPreWarmGetFailsAfterIndexSucceededRefunds() throws Exception {
+        runSplitBatchFailure(false);
+    }
+
+    private void runSplitBatchFailure(boolean failIndex) throws Exception {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeSpanOverOneMibParquet(schema);
+        CircuitBreaker trackingBreaker = new LimitedBreaker("split-batch", ByteSizeValue.ofMb(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, trackingBreaker),
+                options
+            )
+        ) {
+            PageIndexRanges pageIndexes = collectPageIndexRanges(reader);
+            assertTrue("fixture must write page indexes so the index batch is non-empty", pageIndexes.totalCount() > 0);
+            long span = neededSpan(reader, Set.of("a"));
+            assertTrue(
+                "split-case fixture span must exceed the 1 MiB single-GET ceiling, span=" + span,
+                span > CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+            );
+            GatedAsyncStorage gated = new GatedAsyncStorage(parquetData, pool, allIndexRanges(pageIndexes), failIndex);
+            Future<PreloadedRowGroupMetadata> future = pool.submit(
+                () -> PreloadedRowGroupMetadata.preload(
+                    reader,
+                    gated,
+                    Set.of("a"),
+                    null,
+                    null,
+                    Integer.MAX_VALUE,
+                    trackingBreaker,
+                    watermark,
+                    null
+                )
+            );
+            assertBusy(() -> {
+                assertTrue("index GET dispatched", gated.indexGets.get() > 0);
+                assertTrue("pre-warm GET dispatched", gated.preWarmGets.get() > 0);
+            });
+            gated.release.countDown();
+            PreloadedRowGroupMetadata metadata = null;
+            try {
+                metadata = future.get(15, TimeUnit.SECONDS);
+            } catch (ExecutionException ignored) {
+                // Coalesced failure may surface instead of sequential fallback.
+            }
+            if (metadata != null) {
+                metadata.close();
+            }
+        } finally {
+            terminate(pool);
+        }
+        assertEquals(0L, trackingBreaker.getUsed());
+        assertEquals("late GET result must not stay force-added", 0L, watermark.used());
     }
 
     /**
@@ -175,7 +394,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, footerByteCache, breaker), options)
+        ) {
             try (PreloadedRowGroupMetadata withoutPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, breaker)) {
                 assertTrue("Default preload must not pre-warm dictionary pages", withoutPrewarm.preWarmedChunks().isEmpty());
             }
@@ -188,6 +409,92 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 assertTrue("Null predicate set must disable pre-warm", withNullPredicates.preWarmedChunks().isEmpty());
             }
         }
+    }
+
+    /**
+     * Writers may omit {@code dictionary_page_offset}. The first pre-warm batch cannot locate
+     * that dictionary; after OffsetIndex parse, omitted-offset ranges must be the gap
+     * {@code [startingPos, first indexed data page)}.
+     */
+    public void testOmittedDictionaryOffsetUsesOffsetIndexGap() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        @SuppressWarnings("deprecation")
+        ColumnChunkMetaData column = ColumnChunkMetaData.get(
+            ColumnPath.get("min_fl"),
+            PrimitiveType.PrimitiveTypeName.INT64,
+            CompressionCodecName.UNCOMPRESSED,
+            Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN),
+            org.apache.parquet.column.statistics.Statistics.createStats(
+                Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("min_fl")
+            ),
+            4L,
+            0L,
+            100,
+            200,
+            200
+        );
+        block.addColumn(column);
+        assertEquals(0L, column.getDictionaryPageOffset());
+        assertEquals(4L, column.getStartingPos());
+        assertNull(
+            "first pre-warm batch has no OffsetIndex bound, so omitted offsets must not produce a range",
+            ColumnChunkPrefetcher.dictionaryPageRange(column, column.getFirstDataPageOffset())
+        );
+        OffsetIndex offsetIndex = ParquetMetadataConverter.fromParquetOffsetIndex(
+            new org.apache.parquet.format.OffsetIndex(List.of(new PageLocation(100, 32, 0)))
+        );
+        Map<String, OffsetIndex> indexes = Map.of(PreloadedRowGroupMetadata.key(0, column), offsetIndex);
+
+        List<CoalescedRangeReader.ByteRange> missing = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            indexes,
+            Set.of()
+        );
+        assertEquals(List.of(new CoalescedRangeReader.ByteRange(4, 96)), missing);
+
+        List<CoalescedRangeReader.ByteRange> alreadyCovered = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            indexes,
+            Set.of(4L)
+        );
+        assertTrue(alreadyCovered.isEmpty());
+
+        List<CoalescedRangeReader.ByteRange> withoutOffsetIndex = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            Map.of(),
+            Set.of()
+        );
+        assertTrue(withoutOffsetIndex.isEmpty());
+
+        BlockMetaData explicit = new BlockMetaData();
+        explicit.setRowCount(100);
+        @SuppressWarnings("deprecation")
+        ColumnChunkMetaData explicitDict = ColumnChunkMetaData.get(
+            ColumnPath.get("min_fl"),
+            PrimitiveType.PrimitiveTypeName.INT64,
+            CompressionCodecName.UNCOMPRESSED,
+            Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN),
+            org.apache.parquet.column.statistics.Statistics.createStats(
+                Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("min_fl")
+            ),
+            100L,
+            50L,
+            100,
+            200,
+            200
+        );
+        explicit.addColumn(explicitDict);
+        List<CoalescedRangeReader.ByteRange> explicitOffset = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(explicit),
+            Set.of("min_fl"),
+            Map.of(PreloadedRowGroupMetadata.key(0, explicitDict), offsetIndex),
+            Set.of()
+        );
+        assertTrue("explicit dictionary_page_offset belongs in the first batch, not the omitted pass", explicitOffset.isEmpty());
     }
 
     /**
@@ -209,7 +516,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, breaker),
                 options
             )
         ) {
@@ -241,7 +548,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         });
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorage, breaker);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorage, footerByteCache, breaker);
         try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
             // Pre-fetch + install: exactly the production wiring.
             try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, countingStorage, Set.of("v"), breaker)) {
@@ -305,7 +612,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             StorageObject asyncStorage = createAsyncRangeReadStorageObject(parquetData, ioPool, asyncReadCount);
 
             ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage, breaker);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage, footerByteCache, breaker);
             try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
                 try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, asyncStorage, Set.of("v"), breaker)) {
                     NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = metadata.preWarmedChunks();
@@ -345,7 +652,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     /**
      * Full scan (no predicate, no threshold): the caller passes empty column/offset index sets, so
      * the preload must fetch zero page-index byte ranges and expose no column/offset indexes. This
-     * is the core optimization in esql-planning#817 — page indexes that no plan consumes are no
+    * is the core optimization in — page indexes that no plan consumes are no
      * longer fetched and decoded.
      */
     public void testFullScanEmitsZeroPageIndexRanges() throws IOException {
@@ -357,7 +664,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         long[][] indexRanges;
         try (
             ParquetFileReader probe = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, breaker),
                 options
             )
         ) {
@@ -375,7 +682,12 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         });
 
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(countingStorage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(countingStorage, footerByteCache, breaker),
+                options
+            )
+        ) {
             // Footer reads happen during open and never overlap the index ranges; capture the count
             // afterwards so the assertion isolates the preload's contribution.
             int readsBeforePreload = indexRangeReads.get();
@@ -420,7 +732,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         long[][] indexRanges;
         try (
             ParquetFileReader probe = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, breaker),
                 options
             )
         ) {
@@ -462,7 +774,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, footerByteCache, breaker), options)
+        ) {
             assertHasPageIndexReferences(reader, "a", "b", "c");
             try (
                 PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
@@ -492,7 +806,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, footerByteCache, breaker), options)
+        ) {
             assertHasPageIndexReferences(reader, "a", "b", "c");
             Set<String> predicates = Set.of("a", "c");
             try (
@@ -525,7 +841,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, footerByteCache, breaker), options)
+        ) {
             assertHasPageIndexReferences(reader, "a", "b", "c");
             try (
                 PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
@@ -631,7 +949,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         PageIndexRanges ranges;
         try (
             ParquetFileReader probe = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, breaker),
                 options
             )
         ) {
@@ -669,7 +987,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             )
         );
         for (Scenario s : scenarios) {
-            ParquetStorageObjectAdapter.clearFooterCacheForTests();
+            // Scenarios reuse one (path, length); reset the shared byte cache between them.
+            footerByteCache.invalidateAll();
             AtomicLong ciBytes = new AtomicLong();
             AtomicLong oiBytes = new AtomicLong();
             AtomicInteger idxReads = new AtomicInteger();
@@ -686,7 +1005,12 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     idxReads.incrementAndGet();
                 }
             });
-            try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(counting, breaker), options)) {
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new ParquetStorageObjectAdapter(counting, footerByteCache, breaker),
+                    options
+                )
+            ) {
                 // Footer reads during open never overlap the index ranges; snapshot afterwards so the
                 // measurement isolates the preload's contribution.
                 long ciAfterOpen = ciBytes.get();
@@ -765,6 +1089,68 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .named("c")
             .named("schema");
+    }
+
+    /**
+     * Same three-column layout as {@link #writeThreeColumnInt64Parquet}, but column {@code a} stays
+     * dictionary-encoded while {@code b} and {@code c} are unique and uncompressed so the needed
+     * span exceeds the 1 MiB single-GET ceiling.
+     */
+    private static byte[] writeSpanOverOneMibParquet(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        int rows = 80_000;
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(true)
+                .withDictionaryEncoding("b", false)
+                .withDictionaryEncoding("c", false)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) (i % 16));
+                g.add("b", (long) i);
+                g.add("c", (long) i);
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static long neededSpan(ParquetFileReader reader, Set<String> predicates) {
+        List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
+        for (BlockMetaData block : reader.getRowGroups()) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
+                var ci = col.getColumnIndexReference();
+                if (ci != null && ci.getLength() > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(ci.getOffset(), ci.getLength()));
+                }
+                var oi = col.getOffsetIndexReference();
+                if (oi != null && oi.getLength() > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(oi.getOffset(), oi.getLength()));
+                }
+                if (predicates.contains(path)) {
+                    CoalescedRangeReader.ByteRange dict = ColumnChunkPrefetcher.dictionaryPageRange(col, col.getFirstDataPageOffset());
+                    if (dict != null) {
+                        ranges.add(dict);
+                    }
+                    if (col.getBloomFilterOffset() > 0 && col.getBloomFilterLength() > 0) {
+                        ranges.add(new CoalescedRangeReader.ByteRange(col.getBloomFilterOffset(), col.getBloomFilterLength()));
+                    }
+                }
+            }
+        }
+        return PreloadedRowGroupMetadata.neededSpan(ranges);
     }
 
     /**
@@ -944,6 +1330,13 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         return new PageIndexRanges(ci.toArray(new long[0][]), oi.toArray(new long[0][]));
     }
 
+    private static long[][] allIndexRanges(PageIndexRanges page) {
+        long[][] all = new long[page.totalCount()][];
+        System.arraycopy(page.columnIndex, 0, all, 0, page.columnIndex.length);
+        System.arraycopy(page.offsetIndex, 0, all, page.columnIndex.length, page.offsetIndex.length);
+        return all;
+    }
+
     /**
      * Sums the bytes of a read {@code [position, position + length)} that overlap any of the given
      * index ranges, so coalesced reads that pull adjacent data are attributed only their index bytes.
@@ -1009,6 +1402,116 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         };
     }
 
+    /**
+     * Parks every async GET until {@link #release}, so the test can assert both coalesced
+     * batches are in flight. Completing or failing a parked GET after abandon exercises the
+     * late-result release.
+     */
+    private static final class GatedAsyncStorage implements StorageObject {
+        private final byte[] data;
+        private final ExecutorService pool;
+        private final long[][] indexRanges;
+        private final boolean failIndex;
+        private final AtomicInteger indexGets = new AtomicInteger();
+        private final AtomicInteger preWarmGets = new AtomicInteger();
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        private GatedAsyncStorage(byte[] data, ExecutorService pool, long[][] indexRanges, boolean failIndex) {
+            this.data = data;
+            this.pool = pool;
+            this.indexRanges = indexRanges;
+            this.failIndex = failIndex;
+        }
+
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return true;
+        }
+
+        @Override
+        public String version() {
+            return "v1";
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int pos = (int) position;
+            int len = (int) Math.min(length, data.length - position);
+            return new ByteArrayInputStream(data, pos, len);
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor ignored,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            boolean index = overlapBytes(position, length, indexRanges) > 0;
+            if (index) {
+                indexGets.incrementAndGet();
+            } else {
+                preWarmGets.incrementAndGet();
+            }
+            pool.execute(() -> {
+                try {
+                    if (release.await(10, TimeUnit.SECONDS) == false) {
+                        listener.onFailure(new IOException("gated GET not released"));
+                        return;
+                    }
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, data.length - position);
+                    DirectReadBuffer dest = factory.allocateWritableWindow(len);
+                    boolean fail = failIndex ? index : index == false;
+                    if (fail) {
+                        dest.close();
+                        listener.onFailure(new IOException(index ? "index GET failed" : "pre-warm GET failed"));
+                        return;
+                    }
+                    dest.buffer().put(data, pos, len);
+                    dest.buffer().flip();
+                    listener.onResponse(dest);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.ofEpochMilli(0);
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://preload-gated-test.parquet");
+        }
+    }
+
     private static StorageObject createRangeReadStorageObject(byte[] data) {
         return createRangeReadCountingStorageObject(data, (pos, len) -> {});
     }
@@ -1025,6 +1528,19 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      */
     private static StorageObject createAsyncRangeReadStorageObject(byte[] data, ExecutorService pool, AtomicInteger asyncReadCount) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -1081,8 +1597,83 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         };
     }
 
+    private static StorageObject createHungAsyncStorageObject(byte[] data, AtomicInteger streamReads) {
+        return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                streamReads.incrementAndGet();
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                streamReads.incrementAndGet();
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor ignored,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                // Never complete: coalesced preload must time out instead of parking forever.
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://preload-hung-test.parquet");
+            }
+        };
+    }
+
     private static StorageObject createRangeReadCountingStorageObject(byte[] data, RangeReadObserver observer) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

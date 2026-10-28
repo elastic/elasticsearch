@@ -12,12 +12,17 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -26,23 +31,31 @@ import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.common.spatial.H3CartesianUtil;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
@@ -72,27 +85,27 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static Object valueOf(BytesRef wkb, int precision) {
+    private static Object valueOf(BytesRef wkb, int precision, Consumer<String> warnings) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             return StGeohex.unboundedGrid.calculateGridId(point, precision);
         }
         try {
-            return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, null));
+            return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, null, warnings));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohex for geo_shape", e);
         }
     }
 
-    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> warnings) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             StGeohex.GeoHexBoundedGrid bounds = new StGeohex.GeoHexBoundedGrid.Factory(precision, bbox).get(null);
             long gridId = bounds.calculateGridId(point);
-            return gridId < 0 ? null : gridId;
+            return gridId == -1L ? null : gridId;
         }
         try {
-            return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, bbox));
+            return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, bbox, warnings));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohex for geo_shape", e);
         }
@@ -109,6 +122,29 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
         assertThat(ex.getMessage(), containsString("Invalid geohex_grid precision of -1. Must be between 0 and 15."));
         ex = expectThrows(IllegalArgumentException.class, () -> process(H3.MAX_H3_RES + 1, StGeohexTests::valueOf));
         assertThat(ex.getMessage(), containsString("Invalid geohex_grid precision of 16. Must be between 0 and 15."));
+    }
+
+    /**
+     * The evaluator stops at {@link SpatialGridFunction#MAX_GRID_CELLS} cells per row and warns. Together with
+     * {@code GeoHexGridTilerTests#testCellLimitBoundsWork} this bounds the work per row. The world has 288,122 cells at
+     * precision 4, so without the cap this returns all of them.
+     */
+    public void testEvaluatorCapsCellsPerRow() {
+        BytesRef world = GEO.asWkb(new Rectangle(-180, 180, 90, -90));
+        int precision = 4;
+        List<CircuitBreaker> breakers = new ArrayList<>();
+        DriverContext context = driverContext(breakers);
+        try (
+            ExpressionEvaluator eval = evaluator(
+                build(Source.EMPTY, List.of(field("shape", GEO_SHAPE), new Literal(Source.EMPTY, precision, INTEGER)))
+            ).get(context);
+            Block block = eval.eval(row(List.of(world)))
+        ) {
+            assertThat(block.getValueCount(0), equalTo(SpatialGridFunction.MAX_GRID_CELLS));
+        }
+        context.finish();
+        assertThat(context.warnings(), contains(endsWith("ST_GEOHEX generated more than 10000 grid cells")));
+        assertThat(breakers.getFirst().getUsed(), equalTo(0L));
     }
 
     // --- Polar-cell and noChild regression tests ---
@@ -217,23 +253,27 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
      */
     private static void assertGeohexCellsMatchBruteForce(Geometry geometry, int precision) throws IOException {
         BytesRef wkb = GEO.asWkb(geometry);
-        List<Long> recursive = new ArrayList<>(StGeohex.computeGeohexCells(wkb, precision, null));
+        long[] recursive = StGeohex.computeGeohexCells(wkb, precision, null, w -> {});
         List<Long> brute = bruteForceGeohexCells(wkb, precision, null);
-        Collections.sort(recursive);
+        Arrays.sort(recursive);
         Collections.sort(brute);
-        assertEquals("ST_GEOHEX recursive and brute-force results differ at precision " + precision, brute, recursive);
+        assertEquals(
+            "ST_GEOHEX recursive and brute-force results differ at precision " + precision,
+            brute,
+            Arrays.stream(recursive).boxed().toList()
+        );
     }
 
     private static void assertGeohexCellsMatchBruteForce(Geometry geometry, int precision, GeoBoundingBox bbox) throws IOException {
         BytesRef wkb = GEO.asWkb(geometry);
-        List<Long> recursive = new ArrayList<>(StGeohex.computeGeohexCells(wkb, precision, bbox));
+        long[] recursive = StGeohex.computeGeohexCells(wkb, precision, bbox, w -> {});
         List<Long> brute = bruteForceGeohexCells(wkb, precision, bbox);
-        Collections.sort(recursive);
+        Arrays.sort(recursive);
         Collections.sort(brute);
         assertEquals(
             "ST_GEOHEX recursive and brute-force results differ at precision " + precision + " with bbox " + bbox,
             brute,
-            recursive
+            Arrays.stream(recursive).boxed().toList()
         );
     }
 

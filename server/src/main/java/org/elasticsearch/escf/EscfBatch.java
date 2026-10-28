@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -35,6 +36,7 @@ public final class EscfBatch implements SourceBatch {
     private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
+    private boolean closed;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
@@ -74,6 +76,16 @@ public final class EscfBatch implements SourceBatch {
         return EscfBatchCodec.parse(data, releasable);
     }
 
+    /**
+     * In-memory construction path for builders outside this package that manage their own
+     * {@link SourceSchema} and {@link EscfColumnData} array — for example a domain-specific builder with a
+     * fixed, pre-registered schema (see {@code AbstractOTLPBatchBuilder} in the {@code otel-data} plugin).
+     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#buildPartition}.
+     */
+    public static EscfBatch of(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
+        return new EscfBatch(schema, docCount, columnData, releasable);
+    }
+
     @Override
     public int docCount() {
         return docCount;
@@ -86,6 +98,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        assert closed == false : "batch already closed";
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -104,6 +117,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
+        assert closed == false : "batch already closed";
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
@@ -112,11 +126,18 @@ public final class EscfBatch implements SourceBatch {
 
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
+        assert closed == false : "batch already closed";
         return columns[columnIndex];
     }
 
     @Override
+    public boolean isEmptyObjectColumn(int columnIndex) {
+        return EscfColumnTransforms.allNullOrEmptyObject(columns[columnIndex]);
+    }
+
+    @Override
     public SourceBatch slice(int from, int to) {
+        assert closed == false : "batch already closed";
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -133,7 +154,51 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
+        assert closed == false : "batch already closed";
+        closed = true;
         releasable.close();
+    }
+
+    /**
+     * Estimates the bytes this batch contributes to the Lucene indexing buffer.
+     */
+    @Override
+    public int estimatedBytes() {
+        int size = schemaBytes(schema);
+        if (columnData != null) {
+            for (EscfColumnData col : columnData) {
+                size += valueBytes(col);
+            }
+            return size;
+        }
+        // Slice views share the parent's backing; materialize each column's parent's data.
+        for (EscfColumn column : columns) {
+            size += valueBytes(column.toColumnData());
+        }
+        return size;
+    }
+
+    /** Raw value bytes of one column: the payload ref length, or the kind-specific equivalent when there is no payload. */
+    private static int valueBytes(EscfColumnData col) {
+        return switch (col.kind()) {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
+                (int) refLen(col.data());
+            // BOOL has no byte payload: values are one bit per document
+            case EscfColumnKind.BOOL -> EscfBatchCodec.bitsetBytes(col.docCount());
+            // ARRAY has no payload of its own: the elements live in the child column
+            case EscfColumnKind.ARRAY -> valueBytes(col.child());
+            default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(col.kind()));
+        };
+    }
+
+    /** UTF-8 bytes of every leaf's full field path. */
+    private static int schemaBytes(SourceSchema schema) {
+        int size = 0;
+        for (int i = 0; i < schema.leafCount(); i++) {
+            String path = schema.getFullPath(i);
+            size += UnicodeUtil.calcUTF16toUTF8Length(path, 0, path.length());
+        }
+        return size;
     }
 
     @Override

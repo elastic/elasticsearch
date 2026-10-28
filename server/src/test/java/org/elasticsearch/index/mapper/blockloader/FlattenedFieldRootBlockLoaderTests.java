@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -110,7 +111,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         }
         ValuesMode mode = ValuesMode.from(fieldMapping, params);
         var ignoreAboveRaw = fieldMapping.get("ignore_above");
-        int ignoreAbove = ignoreAboveRaw instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+        int ignoreAbove = (ignoreAboveRaw instanceof Number n && params.indexMode().isStrictColumnar() == false)
+            ? n.intValue()
+            : Integer.MAX_VALUE;
         return flattenAndStringify(value, mode, ignoreAbove);
     }
 
@@ -125,7 +128,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
          * ignore_above are restored to their original source order via the offsets sidecar.
          */
         AS_IS_OFFSETS,
-        /** Sort values and remove duplicates. Both SortedSetDocValues and SortedBinaryDocValues
+        /** Sort values and remove duplicates. Both SortedSetDocValues and SortableBinaryDocValues
          *  use SORTED_UNIQUE ordering for flattened fields. */
         SORTED_UNIQUE;
 
@@ -134,8 +137,11 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         }
 
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
+            boolean indexKeepsArray = BlockLoaderTestCase.indexKeepsArray(params.blTestCaseParams());
             var configuredValue = fieldMapping.get("preserve_leaf_arrays");
-            boolean isExact = "exact".equals(configuredValue) || (configuredValue == null && params.indexMode().isStrictColumnar());
+
+            boolean exactByDefault = params.indexMode().isStrictColumnar() || indexKeepsArray;
+            boolean isExact = configuredValue == null ? exactByDefault : "exact".equals(configuredValue);
             if (isExact == false) {
                 return SORTED_UNIQUE;
             }

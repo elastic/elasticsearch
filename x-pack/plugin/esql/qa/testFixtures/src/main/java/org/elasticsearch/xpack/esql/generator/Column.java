@@ -16,7 +16,9 @@ import java.util.List;
  * @param originalTypes the original types, in case of a union type.
  * @param indexMapped whether this column originates from an actual index mapping ({@code true}) or was
  *                    computed/derived by a pipeline command such as EVAL, GROK, DISSECT, ENRICH, etc. ({@code false}).
- *                    Full-text functions (match, match_phrase, {@code :} operator) require index-mapped fields.
+ *                    MATCH, MATCH_PHRASE, and the {@code :} operator can be pushed down to Lucene on index-mapped
+ *                    fields, or run as a row-by-row runtime search on keyword/text expressions. Runtime options
+ *                    are allowed only on TEXT.
  *                    An exception here is MV_EXPAND which, even if has as ouput a field from an index, this field is forbidden to be used
  *                    in full-text functions, as well. See https://github.com/elastic/elasticsearch/issues/142713
  */

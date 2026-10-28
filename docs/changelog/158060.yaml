@@ -1,6 +1,0 @@
-area: Mapping
-issues:
- - 158008
-pr: 158060
-summary: Fix composite agg on doc values skipper fields
-type: bug

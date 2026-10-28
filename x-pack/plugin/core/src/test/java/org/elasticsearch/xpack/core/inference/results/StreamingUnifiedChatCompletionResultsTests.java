@@ -13,7 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -423,7 +423,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
+        return new NamedWriteableRegistry(UnifiedCompletionRequestBody.getNamedWriteables());
     }
 
     @Override

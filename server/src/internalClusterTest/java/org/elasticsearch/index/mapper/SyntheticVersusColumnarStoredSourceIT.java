@@ -168,16 +168,13 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * Both source modes must reconstruct the same document from their respective storage mechanisms.
      */
     public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -196,16 +193,13 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * this is a regression test for the existing nullability-tracking path.
      */
     public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            .startObject("doc_values")
             .field("nullability", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -223,17 +217,14 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * {@code _ignored} with the field name.
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
             .field("normalizer", "lowercase")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -247,16 +238,13 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     public void testNumberFieldMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject("num")
             .field("type", "long")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

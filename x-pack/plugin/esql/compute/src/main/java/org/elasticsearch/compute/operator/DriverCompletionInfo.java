@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -24,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
 
 /**
  * Information returned when one of more {@link Driver}s is completed.
@@ -43,7 +46,11 @@ import java.util.concurrent.atomic.AtomicLong;
  *                  Lucene contributes 0; only external-source operators populate this.
  * @param readCpuNanos Total CPU time format readers spent on producer threads (no IO wait), in nanoseconds.
  *                     Lucene contributes 0; only external-source operators populate this.
- * @param cpuNanos Total CPU time across all drivers (sum of per-driver CPU time).
+ * @param cpuNanos Total thread CPU time across all drivers (sum of per-driver {@link DriverProfile#cpuNanos()}).
+ *                 Excludes time spent waiting for a core, GC pauses and time blocked inside an operator. Includes
+ *                 the thread CPU time operators used on other threads ({@link DriverContext#meteredCpu}).
+ * @param driverNanos Total time drivers held a thread (sum of per-driver {@link DriverProfile#driverNanos()}).
+ *                    Includes time spent waiting for a core, GC pauses and time blocked inside an operator.
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
  *                          the request.
@@ -73,6 +80,7 @@ public record DriverCompletionInfo(
     long readNanos,
     long readCpuNanos,
     long cpuNanos,
+    long driverNanos,
     List<DriverProfile> driverProfiles,
     List<PlanProfile> planProfiles,
     Map<String, List<Map<String, Object>>> capturedSourceMetadata,
@@ -87,6 +95,7 @@ public record DriverCompletionInfo(
      * responses from very old nodes.
      */
     public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(
+        0,
         0,
         0,
         0,
@@ -119,12 +128,43 @@ public record DriverCompletionInfo(
             readNanos,
             readCpuNanos,
             cpuNanos,
+            driverNanos,
             driverProfiles,
             planProfiles,
             capturedSourceMetadata,
             partial,
             false,
             warnings
+        );
+    }
+
+    /**
+     * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
+     * order (existing warnings first). Empty or null input returns {@code this}.
+     */
+    public DriverCompletionInfo withAdditionalWarnings(Collection<String> additional) {
+        if (additional == null || additional.isEmpty()) {
+            return this;
+        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>(warnings);
+        if (merged.addAll(additional) == false) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverNanos,
+            driverProfiles,
+            planProfiles,
+            capturedSourceMetadata,
+            partial,
+            approximationApplied,
+            Collections.unmodifiableSet(merged)
         );
     }
 
@@ -154,6 +194,7 @@ public record DriverCompletionInfo(
         long readNanos = 0;
         long readCpuNanos = 0;
         long cpuNanos = 0;
+        long driverNanos = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
         for (Driver d : drivers) {
             DriverProfile p = d.profile();
@@ -166,6 +207,7 @@ public record DriverCompletionInfo(
                 readCpuNanos += o.readCpuNanos();
             }
             cpuNanos += p.cpuNanos();
+            driverNanos += p.driverNanos();
             collectedProfiles.add(p);
         }
         return new DriverCompletionInfo(
@@ -176,6 +218,7 @@ public record DriverCompletionInfo(
             readNanos,
             readCpuNanos,
             cpuNanos,
+            driverNanos,
             collectedProfiles,
             List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
             collectCapturedSourceMetadata(drivers),
@@ -201,6 +244,7 @@ public record DriverCompletionInfo(
         long readNanos = 0;
         long readCpuNanos = 0;
         long cpuNanos = 0;
+        long driverNanos = 0;
         for (Driver d : drivers) {
             DriverStatus s = d.status();
             assert s.status() == DriverStatus.Status.DONE;
@@ -213,6 +257,7 @@ public record DriverCompletionInfo(
                 readCpuNanos += o.readCpuNanos();
             }
             cpuNanos += s.cpuNanos();
+            driverNanos += s.driverNanos();
         }
         return new DriverCompletionInfo(
             documentsFound,
@@ -222,6 +267,7 @@ public record DriverCompletionInfo(
             readNanos,
             readCpuNanos,
             cpuNanos,
+            driverNanos,
             List.of(),
             List.of(),
             collectCapturedSourceMetadata(drivers),
@@ -351,18 +397,9 @@ public record DriverCompletionInfo(
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
-            List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
-            if (headerWarnings.isEmpty()) {
-                warnings = Set.of();
-            } else {
-                LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
-                for (String header : headerWarnings) {
-                    String extracted = HeaderWarning.extractWarningValueFromWarningHeader(header, false);
-                    parsed.add(HeaderWarning.decodeAndUnescape(extracted));
-                }
-                warnings = parsed;
-            }
+            warnings = HeaderWarning.readWarningsFromThreadContext(threadContext);
         }
+        long driverNanos = in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0;
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
@@ -371,6 +408,7 @@ public record DriverCompletionInfo(
             readNanos,
             readCpuNanos,
             cpuNanos,
+            driverNanos,
             driverProfiles,
             planProfiles,
             captured,
@@ -417,6 +455,9 @@ public record DriverCompletionInfo(
         if (out.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             out.writeStringCollection(warnings);
         }
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NANOS)) {
+            out.writeVLong(driverNanos);
+        }
     }
 
     public static class Accumulator {
@@ -427,6 +468,7 @@ public record DriverCompletionInfo(
         private long readNanos;
         private long readCpuNanos;
         private long cpuNanos;
+        private long driverNanos;
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
@@ -442,6 +484,7 @@ public record DriverCompletionInfo(
             this.readNanos += info.readNanos;
             this.readCpuNanos += info.readCpuNanos;
             this.cpuNanos += info.cpuNanos;
+            this.driverNanos += info.driverNanos;
             this.driverProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
             mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
@@ -459,6 +502,7 @@ public record DriverCompletionInfo(
                 readNanos,
                 readCpuNanos,
                 cpuNanos,
+                driverNanos,
                 driverProfiles,
                 planProfiles,
                 capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata),
@@ -477,6 +521,7 @@ public record DriverCompletionInfo(
         private final AtomicLong readNanos = new AtomicLong();
         private final AtomicLong readCpuNanos = new AtomicLong();
         private final AtomicLong cpuNanos = new AtomicLong();
+        private final AtomicLong driverNanos = new AtomicLong();
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
@@ -492,6 +537,7 @@ public record DriverCompletionInfo(
             this.readNanos.addAndGet(info.readNanos);
             this.readCpuNanos.addAndGet(info.readCpuNanos);
             this.cpuNanos.addAndGet(info.cpuNanos);
+            this.driverNanos.addAndGet(info.driverNanos);
             this.collectedProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
             synchronized (capturedSourceMetadata) {
@@ -529,6 +575,7 @@ public record DriverCompletionInfo(
                 readNanos.get(),
                 readCpuNanos.get(),
                 cpuNanos.get(),
+                driverNanos.get(),
                 collectedProfiles,
                 planProfiles,
                 snapshot,

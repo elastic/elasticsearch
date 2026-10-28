@@ -392,7 +392,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
-        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recovery = recoveryInfo.recoveryState();
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
             }
@@ -591,7 +592,8 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     void assertNoFileBasedRecovery(String indexName) {
-        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recovery = recoveryInfo.recoveryState();
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
             }

@@ -127,7 +127,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             .build();
 
-        primary = newStartedShard(p -> newShard(shardRouting, indexSettings, new InternalEngineFactory()), true);
+        primary = newStartedShard(p -> newShard(shardRouting, null, indexSettings, new InternalEngineFactory()), true);
         for (int i = 0; i < 10; i++) {
             final String id = Integer.toString(i);
             indexDoc(primary, "_doc", id, "{\"value\":" + id + "}");

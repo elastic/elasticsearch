@@ -58,10 +58,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
         assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
-    private static void requireMultiColumnInSubquerySupport() {
-        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     // -- basic IN subqueries --
 
     public void testInSubquery() {
@@ -975,7 +971,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: mixed with single-column IN subquery connected by AND/OR/NOT --
 
     public void testMultiColumnInSubqueryAndSingleColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
@@ -984,7 +979,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryOrSingleColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
@@ -993,7 +987,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryAndSingleColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) NOT IN (FROM employees | KEEP emp_no, salary)
@@ -1002,7 +995,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryAndSingleColumnNotInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
@@ -1013,7 +1005,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: constant left-hand side --
 
     public void testConstantsInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (10001, 60000) IN (FROM employees | KEEP emp_no, salary)
@@ -1021,7 +1012,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMixedConstantAndFieldInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, 60000) IN (FROM employees | KEEP emp_no, salary)
@@ -1036,7 +1026,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
      * {@code InSubqueryResolverTests#testRepeatedConstantsInMultiColumnInSubqueryGetDistinctNames}.
      */
     public void testRepeatedConstantsInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (1, 1) IN (FROM employees | KEEP emp_no, languages)
@@ -1046,7 +1035,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: implicit date cast --
 
     public void testMultiColumnInSubqueryWithImplicitDateCast() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, hire_date) IN (
@@ -1061,7 +1049,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: FROM subquery combinations --
 
     public void testFromSubqueryInsideMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -1072,7 +1059,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testFromSubqueryBeforeMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE salary > 50000 | KEEP emp_no, salary)
@@ -1081,7 +1067,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInsideFromSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees
@@ -1093,7 +1078,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- nested multi-column IN subquery --
 
     public void testNestedMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -1105,7 +1089,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedNotInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) NOT IN (
@@ -1117,7 +1100,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -1131,7 +1113,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: union-typed field resolved by an explicit cast --
 
     public void testFromSubqueryUnionTypeLeftFieldWithCastInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
             | EVAL id = emp_no::long, sal = salary::long
@@ -1141,7 +1122,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testUnionTypeFieldWithCastInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees, employees_incompatible
             | EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
@@ -1151,7 +1131,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testUnionTypeRightFieldWithCastInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (first_name, last_name) IN (
@@ -1166,7 +1145,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: ROW as main source or subquery source --
 
     public void testMultiColumnInSubqueryWithRowSource() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)
@@ -1174,7 +1152,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testRowMainMultiColumnInSubqueryWithIndexSource() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             ROW emp_no = 10001, salary = 60000
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
@@ -1182,7 +1159,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testRowMainMultiColumnInSubqueryWithRowSource() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             ROW emp_no = 10001, salary = 60000
             | WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)
@@ -1192,7 +1168,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery: TS as main source or subquery source --
 
     public void testMultiColumnInSubqueryWithTsSource() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | WHERE (first_name, last_name) IN (
@@ -1205,7 +1180,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsMainMultiColumnInSubqueryWithIndexSource() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             TS k8s
             | WHERE (cluster, pod) IN (FROM employees | KEEP first_name, last_name)
@@ -1214,7 +1188,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsMainMultiColumnInSubqueryWithRowSource() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             TS k8s
             | WHERE (cluster, pod) IN (ROW cluster = "my-cluster", pod = "my-pod")
@@ -1223,7 +1196,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsMainMultiColumnInSubqueryWithTsSource() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             TS k8s
             | WHERE (cluster, pod) IN (
@@ -1236,7 +1208,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testRowMainMultiColumnInSubqueryWithTsSource() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             ROW cluster = "my-cluster", pod = "my-pod"
             | WHERE (cluster, pod) IN (

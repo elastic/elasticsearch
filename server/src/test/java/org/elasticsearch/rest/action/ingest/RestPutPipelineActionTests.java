@@ -39,7 +39,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         action = new RestPutPipelineAction(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(AcknowledgedResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(AcknowledgedResponse.class));
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> Mockito.mock(AcknowledgedResponse.class));
     }
 
     public void testRejectsOversizedRequestBody() {

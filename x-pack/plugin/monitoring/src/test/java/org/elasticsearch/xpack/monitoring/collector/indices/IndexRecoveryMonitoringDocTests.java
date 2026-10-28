@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -116,10 +117,12 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize("_node_id", "_allocation_id", 123L);
 
-        final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
+        final Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
-        shardRecoveryStates.put("_shard_0", singletonList(recoveryState));
+        shardRecoveryInfos.put("_shard_0", singletonList(new ShardRecoveryInfo(recoveryState, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS)));
 
+        // Start the recovery before stopping its timer, so we report and test a non-0 total time
+        recoveryState.setStage(RecoveryState.Stage.INIT);
         final RecoveryState.Timer timer = recoveryState.getTimer();
         timer.stop();
 
@@ -127,7 +130,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         final Throwable reason = new NodeDisconnectedException(discoveryNodeZero, "");
         shardFailures.add(new IndicesShardStoresResponse.Failure("_failed_node_id", "_failed_index", 1, reason));
 
-        final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, shardRecoveryStates, shardFailures);
+        final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, shardRecoveryInfos, shardFailures);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final IndexRecoveryMonitoringDoc document = new IndexRecoveryMonitoringDoc(
             "_cluster",
@@ -159,6 +162,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "id": 0,
                     "type": "PEER",
                     "stage": "INIT",
+                    "local_retries": 0,
                     "primary": false,
                     "priority": "UNASSIGNED_EXPECTED",
                     "start_time_in_millis": %s,

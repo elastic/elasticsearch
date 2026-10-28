@@ -51,12 +51,14 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -65,6 +67,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -72,7 +75,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -148,6 +151,7 @@ public class FakeStatelessNode implements Closeable {
     public final Environment environment;
     public final IndexMetadata indexMetadata;
     public final ShardId shardId;
+    public final IndexShard indexShard;
     public final IndexSettings indexSettings;
     public final MockTransport transport;
     public final ClusterService clusterService;
@@ -268,7 +272,9 @@ public class FakeStatelessNode implements Closeable {
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
-            indicesService = TestUtils.mockIndicesService(clusterService);
+            indexShard = mock(IndexShard.class);
+            when(indexShard.shardId()).thenReturn(shardId);
+            indicesService = createIndicesService();
             sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool, meterRegistry);
             this.meterRegistry = meterRegistry;
             localCloseables.add(sharedCacheService);
@@ -289,7 +295,14 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService, projectResolver);
+            objectStoreService = new ObjectStoreService(
+                nodeSettings,
+                repoService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                meterRegistry != null ? meterRegistry : MeterRegistry.NOOP
+            );
             if (projectResolver.supportsMultipleProjects()) {
                 clusterService.addStateApplier(objectStoreService);
             }
@@ -299,13 +312,20 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            WarmingRatioProvider warmingRatioProvider = new DefaultWarmingRatioProviderFactory().create(clusterSettings);
+            WarmingRatioProvider warmingRatioProvider = new DefaultWarmingRatioProviderFactory(() -> clusterSettings).create(shardId);
             warmingService = createSharedBlobCacheWarmingService(
                 sharedCacheService,
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider
+                warmingRatioProvider,
+                new SearchRecoveryTimeoutCalculationService(
+                    sharedCacheService,
+                    threadPool,
+                    clusterSettings,
+                    nodeSettings,
+                    ByteSizeValue.ZERO
+                )
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,
@@ -368,19 +388,24 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
             SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
             DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
             ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
             ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
         );
     }
@@ -390,9 +415,16 @@ public class FakeStatelessNode implements Closeable {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider
+        WarmingRatioProvider warmingRatioProvider,
+        SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            telemetryProvider,
+            clusterSettings,
+            searchRecoveryTimeoutCalculationService
+        );
     }
 
     protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
@@ -403,8 +435,7 @@ public class FakeStatelessNode implements Closeable {
             Map.of(),
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
     }
 
@@ -539,32 +570,35 @@ public class FakeStatelessNode implements Closeable {
     }
 
     public List<StatelessCommitRef> generateIndexCommitsWithoutCompoundFiles(int commitsNumber) throws IOException {
-        return generateIndexCommits(commitsNumber, false, true, generation -> {}, false);
+        return generateIndexCommits(commitsNumber, false, DEFAULT_ID_GENERATOR_FOR_DELETES, generation -> {}, false);
     }
 
-    public List<StatelessCommitRef> generateIndexCommits(
-        int commitsNumber,
-        boolean merge,
-        boolean includeDeletions,
-        LongConsumer onCommitClosed
-    ) throws IOException {
-        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, true);
-    }
-
-    private List<StatelessCommitRef> generateIndexCommits(
-        int commitsNumber,
-        boolean merge,
-        boolean includeDeletions,
-        LongConsumer onCommitClosed,
-        boolean useCompoundFile
-    ) throws IOException {
+    public List<StatelessCommitRef> generateCommitsWithGenerationalFiles(int count) throws IOException {
         var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
-        indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10)); // lucene 10.3 changed default to 8
-        indexWriterConfig.setUseCompoundFile(useCompoundFile);
-        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, (commitNumber) -> {
+        indexWriterConfig.setUseCompoundFile(false);
+
+        var committedDocumentIds = new ArrayList<String>();
+
+        return generateIndexCommits(count, false, commitIndex -> {
+            // We need commited segments to produce generational files.
+            if (commitIndex == 0) {
+                return null;
+            }
+
+            if (committedDocumentIds.isEmpty()) {
+                return null;
+            }
+
+            int idToDelete = ESTestCase.randomIntBetween(0, committedDocumentIds.size() - 1);
+            return committedDocumentIds.remove(idToDelete);
+        }, generation -> {}, commitIndex -> {
+            String id = ESTestCase.randomAlphaOfLength(10);
+            committedDocumentIds.add(id);
+
             LuceneDocument document = new LuceneDocument();
             document.add(new KeywordField("field0", "term", Field.Store.YES));
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
             return List.of(document);
         }, indexWriterConfig);
     }
@@ -573,6 +607,41 @@ public class FakeStatelessNode implements Closeable {
         int commitsNumber,
         boolean merge,
         boolean includeDeletions,
+        LongConsumer onCommitClosed
+    ) throws IOException {
+        return generateIndexCommits(commitsNumber, merge, includeDeletions ? DEFAULT_ID_GENERATOR_FOR_DELETES : null, onCommitClosed, true);
+    }
+
+    private List<StatelessCommitRef> generateIndexCommits(
+        int commitsNumber,
+        boolean merge,
+        Function<Integer, String> idGeneratorForDeletes,
+        LongConsumer onCommitClosed,
+        boolean useCompoundFile
+    ) throws IOException {
+        var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10)); // lucene 10.3 changed default to 8
+        indexWriterConfig.setUseCompoundFile(useCompoundFile);
+        return generateIndexCommits(commitsNumber, merge, idGeneratorForDeletes, onCommitClosed, (commitNumber) -> {
+            LuceneDocument document = new LuceneDocument();
+            document.add(new KeywordField("field0", "term", Field.Store.YES));
+            return List.of(document);
+        }, indexWriterConfig);
+    }
+
+    // Returns a randomly generated id.
+    // This results in correct tombstone document being created but doesn't actually modify any of the existing documents.
+    private static final Function<Integer, String> DEFAULT_ID_GENERATOR_FOR_DELETES = ignored -> ESTestCase.randomAlphaOfLength(10);
+
+    /// Generates a `commitsNumber` commits using provided `indexWriterConfig`.
+    /// @param idGeneratorForDeletes function that returns an id of the document that should be deleted based on the commit number.
+    ///                              Can return `null` to not apply any deletes and can be `null` itself with the same effect.
+    /// @param newDocForCommitFunction function that generates documents to be added to the commit based on the commit number.
+    public List<StatelessCommitRef> generateIndexCommits(
+        int commitsNumber,
+        boolean merge,
+        Function<Integer, String> idGeneratorForDeletes,
         LongConsumer onCommitClosed,
         Function<Integer, Iterable<LuceneDocument>> newDocForCommitFunction,
         IndexWriterConfig indexWriterConfig
@@ -587,17 +656,19 @@ public class FakeStatelessNode implements Closeable {
                 for (LuceneDocument document : newDocForCommitFunction.apply(i)) {
                     indexWriter.addDocument(document.getFields());
                 }
-                if (includeDeletions && ESTestCase.randomBoolean()) {
-                    String deleteId = ESTestCase.randomAlphaOfLength(10);
-                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);
-                    LuceneDocument delete = tombstone.docs().get(0);
-                    NumericDocValuesField field = Lucene.newSoftDeletesField();
-                    delete.add(field);
-                    indexWriter.softUpdateDocument(
-                        new Term(IdFieldMapper.NAME, Uid.encodeId(deleteId)),
-                        delete.getFields(),
-                        Lucene.newSoftDeletesField()
-                    );
+                if (idGeneratorForDeletes != null && ESTestCase.randomBoolean()) {
+                    String deleteId = idGeneratorForDeletes.apply(i);
+                    if (deleteId != null) {
+                        final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);
+                        LuceneDocument delete = tombstone.docs().get(0);
+                        NumericDocValuesField field = Lucene.newSoftDeletesField();
+                        delete.add(field);
+                        indexWriter.softUpdateDocument(
+                            new Term(IdFieldMapper.NAME, Uid.encodeId(deleteId)),
+                            delete.getFields(),
+                            Lucene.newSoftDeletesField()
+                        );
+                    }
                 }
                 if (merge) {
                     indexWriter.forceMerge(1, true);
@@ -686,6 +757,17 @@ public class FakeStatelessNode implements Closeable {
             threadPool,
             meterRegistry != null ? meterRegistry : telemetryProvider.getMeterRegistry()
         );
+    }
+
+    /// Stubs [IndicesService#indexService]. The mock reports `0` active operations, as an idle shard would. Tests that
+    /// want a different behavior should stub [indexShard].
+    protected IndicesService createIndicesService() {
+        final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
+        final IndexService mockIndexService = mock(IndexService.class);
+        when(mockIndexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
+        when(mockIndexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indicesService.indexService(indexMetadata.getIndex())).thenReturn(mockIndexService);
+        return indicesService;
     }
 
     protected StatelessCommitService createCommitService() {

@@ -71,7 +71,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -84,6 +84,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         }
         return args;
+    }
+
+    protected static boolean indexKeepsArray(Params params) {
+        var settings = getSettingsForParams(params).build();
+        return indexKeepsArray(settings);
+    }
+
+    protected static boolean indexKeepsArray(Settings settings) {
+        return Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(settings) == Mapper.SourceKeepMode.ARRAYS;
     }
 
     public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
@@ -189,12 +198,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
-                mapping.put(
-                    "doc_values",
-                    FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() && randomBoolean()
-                        ? Map.of("multi_value", false, "on_failure", "ignore")
-                        : Map.of("multi_value", false)
-                );
+                mapping.put("multi_value", false);
+                if (randomBoolean()) {
+                    mapping.put("on_failure", "ignore");
+                }
                 return mapping;
             });
         }

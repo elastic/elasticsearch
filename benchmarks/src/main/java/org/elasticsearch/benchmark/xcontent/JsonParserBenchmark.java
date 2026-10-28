@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.xcontent.XContentParser;
@@ -78,7 +78,7 @@ import java.util.concurrent.TimeUnit;
 public class JsonParserBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "small_log_doc.json", "flat_log_batch.json", "escaped_unicode.json", "monitor_cluster_stats.json" })

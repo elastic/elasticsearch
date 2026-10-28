@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 157175
+pr: 161929
+summary: Simplify index selection in snapshot deletion
+type: enhancement

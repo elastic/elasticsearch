@@ -21,9 +21,13 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -56,10 +60,16 @@ import java.util.Set;
  * Statistics are merged across splits (sum row counts, min-of-mins, max-of-maxes).
  * Falls back to normal execution when any split lacks stats.
  * <p>
- * Substitution from metadata statistics is skipped when {@link ExternalSourceExec} carries
- * {@link ExternalSourceExec#pushedExpressions()} or {@link ExternalSourceExec#pushedFilter()}:
- * those predicates narrow the scanned rows; footer split stats do not reflect them after
- * {@link PushFiltersToSource} removes the enclosing {@code FilterExec}.
+ * Substitution from metadata statistics is skipped when scan-only predicates remain after
+ * {@link PushFiltersToSource}. The gate is {@code filterCondition == null} (no remaining
+ * {@code FilterExec} to classify — typical of a pure {@link FilterPushdownSupport.Pushability#YES}
+ * push), any pushed expression that is not explicitly
+ * {@link FilterPushdownSupport.Pushability#RECHECK} (YES conjuncts are dropped from the remainder;
+ * {@link FilterPushdownSupport.Pushability#NO} / an un-overridden SPI default gives no coverage
+ * guarantee), or any pushed expression absent from {@code rewrite(filterCondition)}. When every
+ * pushed expression is RECHECK, covered by the rewritten remainder, and a {@code FilterExec}
+ * remains, this rule classifies that filter against split stats — including matching-type
+ * comparisons and converted mixed date/numeric leaves (pushed rewritten, remainder original).
  * <p>
  * Note: MIN/MAX pushdown uses values from file metadata. Temporal columns (DATE/TIMESTAMP/INT96)
  * are decoded to ESQL's epoch-millisecond representation at stat-publication time by the format
@@ -107,13 +117,13 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             return aggregateExec;
         }
 
-        // Row counts and column statistics in file metadata describe whole splits before scan-time predicates.
-        // COUNT(*), MIN/MAX from those stats ignore {@code pushedExpressions}/{@code pushedFilter} readers apply when
-        // {@link PushFiltersToSource} has already removed upstream FilterExec.
-        if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
+        // Row counts describe whole splits before scan-time predicates. Bail unless every pushed
+        // expression is RECHECK and a FilterExec remains to classify; otherwise fold would ignore
+        // scan-only conjuncts.
+        if (hasScanOnlyPushedPredicates(externalExec, filterCondition, formatReader)) {
             logger.info(
                 () -> Strings.format(
-                    "PushStatsToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                    "PushStatsToExternalSource: skipping stats substitution (source has scan-only pushed predicates)"
                         + " path=[{}] projections=[{}] type=[{}]",
                     externalExec.sourcePath(),
                     externalExec.pushedExpressions().size(),
@@ -128,16 +138,24 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
         }
 
+        // Computed aliases have no footer statistics, even when they share a name with a source column.
+        // After resolving identity aliases, require every reference to belong to the source by attribute id.
+        if (filterForClassification != null && externalExec.outputSet().containsAll(filterForClassification.references()) == false) {
+            return aggregateExec;
+        }
+
         // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
         // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
         // path, not the payload, so they are absent from every file's stats and would misclassify
-        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
-        // normal scan path evaluates the partition predicate against the VirtualColumnIterator's
-        // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
+        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. A footer statistic
+        // also never describes an engine-materialised column (MetadataAttribute or VirtualAttribute),
+        // so those conjuncts take the same bail. The scan path evaluates them against the
+        // VirtualColumnIterator's constant or per-row block.
         // Read the partition set from serialized sourceMetadata (not the coordinator-only fileList): on a data node
         // externalExec.fileList() is UNRESOLVED, so COUNT(partition_col) would otherwise fold to 0 there.
         Set<String> pathDerivedColumns = externalExec.partitionColumnNames();
-        if (filterForClassification != null && referencesAnyColumn(filterForClassification, pathDerivedColumns)) {
+        if (filterForClassification != null
+            && (referencesAnyColumn(filterForClassification, pathDerivedColumns) || referencesVirtualColumn(filterForClassification))) {
             return aggregateExec;
         }
 
@@ -214,10 +232,66 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
+    /**
+     * {@code true} when footer stats must not answer the aggregate because the reader still applies
+     * predicates that {@code filterCondition} does not cover.
+     * <ul>
+     *   <li>No push → {@code false}.</li>
+     *   <li>Push with {@code filterCondition == null} (no remaining {@code FilterExec}) → {@code true}.</li>
+     *   <li>Opaque {@code pushedFilter} without {@code pushedExpressions} → {@code true}.</li>
+     *   <li>Any pushed expression is not {@link FilterPushdownSupport.Pushability#RECHECK} →
+     *       {@code true}. Require RECHECK explicitly: YES is dropped from the remainder;
+     *       {@link FilterPushdownSupport.Pushability#NO} or an un-overridden {@code canPush} default
+     *       gives no guarantee that {@code FilterExec} still holds the conjunct.</li>
+     *   <li>Any pushed expression is absent from {@code rewrite(filterCondition)} (after
+     *       {@link Predicates#splitAnd}) → {@code true}. Parquet/ORC keep RECHECK remainders as
+     *       originals while pushing rewritten forms; rewriting the remainder must recover each
+     *       pushed conjunct. Opaque {@code pushedFilter} is not inspected when expressions are
+     *       present — it is assumed to be the translation of that list.</li>
+     *   <li>Every pushed expression is RECHECK, covered by the rewritten remainder, and
+     *       {@code FilterExec} remains → {@code false}.</li>
+     * </ul>
+     */
+    static boolean hasScanOnlyPushedPredicates(ExternalSourceExec externalExec, Expression filterCondition, FormatReader formatReader) {
+        boolean hasPushedExpressions = externalExec.pushedExpressions().isEmpty() == false;
+        boolean hasPushedFilter = externalExec.pushedFilter() != null;
+        if (hasPushedExpressions == false && hasPushedFilter == false) {
+            return false;
+        }
+        if (filterCondition == null) {
+            return true;
+        }
+        if (hasPushedExpressions == false) {
+            // Opaque pushedFilter alone: cannot prove RECHECK coverage.
+            return true;
+        }
+        FilterPushdownSupport support = formatReader.filterPushdownSupport();
+        if (support == null) {
+            return true;
+        }
+        // Rewrite once: mixed originals in FilterExec become the column-typed forms stored in pushedExpressions.
+        List<Expression> coveredByFilter = Predicates.splitAnd(PushdownLiteralConversion.rewrite(filterCondition));
+        for (Expression pushed : externalExec.pushedExpressions()) {
+            // Require RECHECK explicitly. NO or an un-overridden default canPush gives no guarantee
+            // that FilterExec still holds the conjunct.
+            if (support.canPush(pushed) != FilterPushdownSupport.Pushability.RECHECK) {
+                return true;
+            }
+            if (coveredByFilter.contains(pushed) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
         if (columnNames.isEmpty()) {
             return false;
         }
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
+    }
+
+    private static boolean referencesVirtualColumn(Expression expr) {
+        return expr.references().stream().anyMatch(PushdownPredicates::isVirtualColumn);
     }
 }

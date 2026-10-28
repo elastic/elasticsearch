@@ -76,7 +76,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger("_name");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
+        assertWatchWithMinimumPerformedActionsCount("_name", 1);
     }
 
     public void assertWatchExecuted() {

@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
@@ -30,7 +28,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSource;
@@ -91,17 +88,14 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         timeWarp().trigger("_id");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-        assertThat(webServer.requests(), hasSize(1));
-        assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
-        assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
-
-        SearchResponse response = searchWatchRecords(
-            b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"))
-        );
+        SearchResponse searchResponse = searchHistoryForExecutedWatch("_id", 1);
         try {
-            assertNoFailures(response);
-            XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
+            assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
+
+            XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
             String body = source.getValue("result.actions.0.webhook.response.body");
             assertThat(body, notNullValue());
             assertThat(body, is("body"));
@@ -110,7 +104,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
             assertThat(status, notNullValue());
             assertThat(status.intValue(), is(200));
         } finally {
-            response.decRef();
+            searchResponse.decRef();
         }
     }
 
@@ -133,7 +127,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         timeWarp().trigger("_id");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
+        assertWatchWithMinimumPerformedActionsCount("_id", 1);
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
         assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));

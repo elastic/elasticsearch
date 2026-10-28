@@ -16,13 +16,11 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
@@ -39,8 +37,6 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.Collection;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSource;
@@ -128,38 +124,27 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         timeWarp().trigger("_id");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-        assertThat(webServer.requests(), hasSize(1));
-        MockRequest req = webServer.requests().get(0);
-        assertThat(
-            webServer.requests().get(0).getUri().getQuery(),
-            anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id"))
-        );
-        assertThat("token header should be set", req.getHeader(WebhookService.TOKEN_HEADER_NAME), equalTo("token1234"));
-
-        assertThat(webServer.requests().get(0).getBody(), is("_body"));
-
-        // assertBusy is needed since we can't be sure that document we are looking for is written to replicas.
-        // `assertWatchWithMinimumPerformedActionsCount` above could succeed using the primary shard
-        // and the search below would still fail if replica is selected.
-        assertBusy(() -> {
-            refresh();
-            SearchResponse response = searchWatchRecords(
-                b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"))
+        SearchResponse searchResponse = searchHistoryForExecutedWatch("_id", 1);
+        try {
+            assertThat(webServer.requests(), hasSize(1));
+            MockRequest req = webServer.requests().get(0);
+            assertThat(
+                webServer.requests().get(0).getUri().getQuery(),
+                anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id"))
             );
-            try {
-                assertNoFailures(response);
-                assertHitCount(response, 1);
-                XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
-                String body = source.getValue("result.actions.0.webhook.response.body");
-                assertThat(body, notNullValue());
-                assertThat(body, is("body"));
-                Number status = source.getValue("result.actions.0.webhook.response.status");
-                assertThat(status, notNullValue());
-                assertThat(status.intValue(), is(200));
-            } finally {
-                response.decRef();
-            }
-        });
+            assertThat("token header should be set", req.getHeader(WebhookService.TOKEN_HEADER_NAME), equalTo("token1234"));
+
+            assertThat(webServer.requests().get(0).getBody(), is("_body"));
+
+            XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+            String body = source.getValue("result.actions.0.webhook.response.body");
+            assertThat(body, notNullValue());
+            assertThat(body, is("body"));
+            Number status = source.getValue("result.actions.0.webhook.response.status");
+            assertThat(status, notNullValue());
+            assertThat(status.intValue(), is(200));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 }

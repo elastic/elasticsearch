@@ -134,8 +134,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         executeWatch("_id2");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
-        assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
+        assertWatchWithMinimumPerformedActionsCount("_id1", 1);
+        assertWatchWithMinimumPerformedActionsCount("_id2", 1);
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
@@ -181,8 +181,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         executeWatch("_id2");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
-        assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
+        assertWatchWithMinimumPerformedActionsCount("_id1", 1);
+        assertWatchWithMinimumPerformedActionsCount("_id2", 1);
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
@@ -220,8 +220,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         executeWatch("_id2");
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
-        assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
+        assertWatchWithMinimumPerformedActionsCount("_id1", 1);
+        assertWatchWithMinimumPerformedActionsCount("_id2", 1);
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {

@@ -60,6 +60,8 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StSimplify.class)
         .binary(StSimplify::new)
+        // Results are quantized to the Lucene grid, matching the coordinates of shape fields simplified from doc values
+        .capabilities("doc_values")
         .name("st_simplify");
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,

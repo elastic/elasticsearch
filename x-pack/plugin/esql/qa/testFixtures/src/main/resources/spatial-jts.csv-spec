@@ -33,6 +33,7 @@ wkt:keyword | simplified:geo_point
 ;
 
 stSimplifyCityBoundaries
+required_capability: fn_st_simplify_doc_values
 required_capability: st_intersects
 required_capability: st_simplify
 required_capability: st_npoints
@@ -115,6 +116,7 @@ NULL
 ;
 
 stSimplifyCartesianPoint
+required_capability: fn_st_simplify_doc_values
 required_capability: st_simplify
 
 ROW wkt = ["POINT(-97.11 95.53)", "POINT(80.93 72.77)"]
@@ -130,6 +132,7 @@ POINT (80.93000030517578 72.7699966430664)
 ;
 
 stSimplifyCartesianShape
+required_capability: fn_st_simplify_doc_values
 required_capability: st_simplify
 
 ROW wkt = ["POINT(97.11 75.53)", "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))"]

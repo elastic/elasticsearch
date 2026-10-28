@@ -877,6 +877,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private void markClusterStateValidateFinished(long validateGeneration) {
             HashSet<ShardSyncState> modifiedShardSyncedLocations = new HashSet<>();
             HashSet<ShardSyncState> shardsUnderProjectDeletion = new HashSet<>();
+            HashSet<ShardSyncState> shardsWithNewPrimaryTerm = new HashSet<>();
             final var clusterState = consistencyService.state();
             final var clusterStateMetadata = clusterState.metadata();
             final var projectStateRegistry = ProjectStateRegistry.get(clusterState);
@@ -918,12 +919,25 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                         boolean syncFinishedAccepted = shardSyncState.markSyncFinished(syncMarker);
                                         if (syncFinishedAccepted) {
                                             modifiedShardSyncedLocations.add(shardSyncState);
-                                        } else {
-                                            assert syncMarker.primaryTerm() != shardSyncState.currentPrimaryTerm();
+                                        } else if (shardSyncState.isPrimaryTermStale()) {
+                                            assert syncMarker.primaryTerm() < shardSyncState.currentPrimaryTerm();
+                                            shardsWithNewPrimaryTerm.add(shardSyncState);
                                             logger.debug(
                                                 () -> format(
                                                     "skipped shard %s sync notification after translog file [%s] upload "
                                                         + "because primary term advanced [syncPrimaryTerm=%s, currentPrimaryTerm=%s]",
+                                                    entry.getKey(),
+                                                    upload.blobName(),
+                                                    syncMarker.primaryTerm(),
+                                                    shardSyncState.currentPrimaryTerm()
+                                                )
+                                            );
+                                        } else {
+                                            logger.debug(
+                                                () -> format(
+                                                    "skipped shard %s sync notification after translog file [%s] upload "
+                                                        + "because the marker belongs to an earlier registration "
+                                                        + "[syncPrimaryTerm=%s, currentPrimaryTerm=%s]",
                                                     entry.getKey(),
                                                     upload.blobName(),
                                                     syncMarker.primaryTerm(),
@@ -953,6 +967,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         "The project containing shard [" + shardSyncState.getShardId() + "] is marked for deletion"
                     )
                 );
+            }
+            for (ShardSyncState shardSyncState : shardsWithNewPrimaryTerm) {
+                shardSyncState.failPendingListeners(ShardSyncState.stalePrimaryTermException(shardSyncState.getShardId()));
             }
         }
 

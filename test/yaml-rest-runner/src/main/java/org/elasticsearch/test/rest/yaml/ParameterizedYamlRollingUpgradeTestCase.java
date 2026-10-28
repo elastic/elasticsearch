@@ -27,7 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Base class for rolling upgrade YAML suites. YAML suites are run in phases: first the suites from the {@code old_cluster} directory are
@@ -82,7 +81,7 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
      *   <li>upgradedNodes=2 -> {@code mixed_cluster}</li>
      *   <li>upgradedNodes=3 -> {@code upgraded_cluster}</li>
      * </ul>
-     * The per-task scoped {@code tests.rest.suite.<task path>} filter selects suites by file name in every phase, because a
+     * The per-task scoped {@code tests.rest.suite.<task path>} filter selects suites in every phase, because a
      * phase depends on the same-named suites of the phases before it.
      */
     @ParametersFactory(shuffle = false)
@@ -94,33 +93,45 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
 
     // pkg private for tests
     static List<Object[]> phaseParameters(String scoped, String... testPaths) throws Exception {
-        Predicate<String> suiteFilter = suiteNameFilter(scoped);
-        String global = scoped == null ? System.getProperty(REST_TESTS_SUITE) : null;
+        String suites = expandToEveryPhase(scoped, testPaths);
+        String global = System.getProperty(REST_TESTS_SUITE);
         List<Object[]> result = new ArrayList<>();
         for (int i = 0; i < testPaths.length; i++) {
-            for (Object[] candidate : explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), null, global, testPaths[i])) {
-                if (suiteFilter.test(((ClientYamlTestCandidate) candidate[0]).getName())) {
-                    result.add(new Object[] { i, candidate[0] });
-                }
+            for (Object[] candidate : explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), suites, global, testPaths[i])) {
+                result.add(new Object[] { i, candidate[0] });
             }
         }
         return result;
     }
 
-    /** Matches suites by file name, or every suite when the filter is unset or names a whole directory. */
-    private static Predicate<String> suiteNameFilter(String scoped) {
+    /**
+     * Adds all phases to each requested path below a phase directory.
+     * {@code mixed_cluster/10_basic} also runs the {@code old_cluster/10_basic} it depends on.
+     */
+    private static String expandToEveryPhase(String scoped, String... testPaths) {
         if (scoped == null) {
-            return name -> true;
+            return null;
         }
-        Set<String> names = new HashSet<>();
+        Set<String> paths = new HashSet<>();
         for (String path : scoped.split(",")) {
-            int slash = path.lastIndexOf('/');
-            if (slash < 0) {
-                return name -> true;
+            paths.add(path);
+            String phase = path.split("/", 2)[0];
+            if (List.of(testPaths).contains(phase)) {
+                String belowPhase = path.substring(phase.length());
+                for (String testPath : testPaths) {
+                    if (suiteExists(testPath + belowPhase)) {
+                        paths.add(testPath + belowPhase);
+                    }
+                }
             }
-            names.add(path.substring(slash + 1));
         }
-        return names::contains;
+        return String.join(",", paths);
+    }
+
+    private static boolean suiteExists(String path) {
+        String resource = "rest-api-spec/test/" + path;
+        ClassLoader classLoader = ParameterizedYamlRollingUpgradeTestCase.class.getClassLoader();
+        return classLoader.getResource(resource) != null || classLoader.getResource(resource + ".yml") != null;
     }
 
     @Before

@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 
 public class ParameterizedYamlRollingUpgradeTestCaseTests extends ESTestCase {
 
@@ -26,8 +27,16 @@ public class ParameterizedYamlRollingUpgradeTestCaseTests extends ESTestCase {
         assertThat(phaseSuites("suite2/10_basic"), contains("0 suite1/10_basic", "1 suite2/10_basic"));
     }
 
+    public void testSuiteMissingFromOtherPhaseRunsOnlyWhereItExists() throws Exception {
+        assertThat(phaseSuites("suite2/15_test2"), contains("1 suite2/15_test2"));
+    }
+
     public void testPhaseDirectoryInFilterRunsEveryPhase() throws Exception {
         assertThat(phaseSuites("suite2/10_basic,suite2"), contains(ALL));
+    }
+
+    public void testPathOutsideThePhasesIsNotExpanded() throws Exception {
+        assertThat(ParameterizedYamlRollingUpgradeTestCase.phaseParameters("suite1/10_basic", "suite2"), empty());
     }
 
     private static List<String> phaseSuites(String scoped) throws Exception {

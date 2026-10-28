@@ -330,7 +330,9 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         int relocating;
         public final Set<ProjectIndexName> indicesWithUnavailableShards;
         public final Set<ProjectIndexName> indicesWithProvisionallyUnavailableShards;
-        public final Set<ProjectIndexName> indicesWithAllShardsUnassigned;
+        /// Indices where, for the primaries `ShardAllocationCounts`, a primary is inactive; or, for the replicas counts, all replica copies
+        /// of the same shard are inactive. Provisionally inactive shards are excluded.
+        public final Set<ProjectIndexName> indicesWithAnyShardWithNoActiveCopy;
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
         public SearchableSnapshotsState searchableSnapshotsState;
@@ -346,7 +348,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             relocating = 0;
             indicesWithUnavailableShards = new HashSet<>();
             indicesWithProvisionallyUnavailableShards = new HashSet<>();
-            indicesWithAllShardsUnassigned = new HashSet<>();
+            indicesWithAnyShardWithNoActiveCopy = new HashSet<>();
             searchableSnapshotsState = new SearchableSnapshotsState();
             diagnosisDefinitions = new HashMap<>();
         }
@@ -362,11 +364,11 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             ProjectIndexName projectIndex = new ProjectIndexName(projectId, routing.getIndexName());
             Settings indexSettings = state.metadata().getProject(projectId).index(routing.index()).getSettings();
             boolean isProvisionallyInactive = isProvisionallyInactive(projectId, routing, state, inactiveBufferTime, Instant.now());
-            boolean allUnassigned = areAllShardsOfThisTypeUnassigned(projectId, routing, state);
+            boolean shardHasNoActiveCopyOfThisType = hasNoActiveCopyOfThisType(projectId, routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
 
-            if (allUnassigned && isProvisionallyInactive == false) {
-                indicesWithAllShardsUnassigned.add(projectIndex);
+            if (shardHasNoActiveCopyOfThisType && isProvisionallyInactive == false) {
+                indicesWithAnyShardWithNoActiveCopy.add(projectIndex);
             }
             if (isProvisionallyInactive) {
                 indicesWithProvisionallyUnavailableShards.add(projectIndex);
@@ -420,8 +422,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             return indicesWithUnavailableShards.isEmpty();
         }
 
-        public boolean doAnyIndicesHaveAllUnassigned() {
-            return indicesWithAllShardsUnassigned.isEmpty() == false;
+        public boolean doAnyIndicesHaveShardWithNoActiveCopy() {
+            return indicesWithAnyShardWithNoActiveCopy.isEmpty() == false;
         }
 
         private void addDefinition(Diagnosis.Definition diagnosisDefinition, ProjectIndexName projectIndexName) {
@@ -429,19 +431,14 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
     }
 
-    /**
-     * Returns true if all the shards of the same type (primary or replica) are unassigned. For
-     * example: if a replica is passed then this will return true if ALL replicas are unassigned,
-     * but if at least one is assigned, it will return false.
-     */
-    boolean areAllShardsOfThisTypeUnassigned(ProjectId projectId, ShardRouting routing, ClusterState state) {
-        return state.routingTable(projectId)
-            .allActiveShardsGrouped(new String[] { routing.getIndexName() }, true)
-            .stream()
-            .flatMap(shardIter -> shardIter.getShardRoutings().stream())
-            .filter(sr -> sr.shardId().equals(routing.shardId()))
-            .filter(sr -> sr.primary() == routing.primary())
-            .allMatch(ShardRouting::unassigned);
+    /// Returns true if all the copies of the shard specified in `routing` and of the same type (primary or replica) are inactive (i.e.
+    /// `UNASSIGNED` or `INITIALIZING`). For example: if a replica is passed then this will return true if and only if there are no active
+    /// (i.e. `STARTED` or `RELOCATING`) replicas of this shard. It is required that `routing` must belong to the routing table for
+    /// `projectId` in `state`.
+    boolean hasNoActiveCopyOfThisType(ProjectId projectId, ShardRouting routing, ClusterState state) {
+        IndexShardRoutingTable shardCopies = state.routingTable(projectId).index(routing.getIndexName()).shard(routing.id());
+        assert shardCopies != null;
+        return shardCopies.activeShards().stream().noneMatch(activeShard -> activeShard.primary() == routing.primary());
     }
 
     private static boolean isProvisionallyInactive(

@@ -1,0 +1,106 @@
+// Fields absorbed into the _unmapped sink of a strict columnar index, loaded under SET unmapped_fields="load". unmapped_sink has synthetic
+// source and unmapped_sink_columnar_stored has columnar_stored source; both hold the same documents and give the same results. A field that
+// is loaded from the sink's doc values reads the same way whatever the source, so only the tests that read _source query both.
+
+loadTopLevelDottedAndMissingFields
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| KEEP @timestamp, level, response_code, request.path, cluster
+| SORT @timestamp
+;
+
+@timestamp:date          | level:keyword | response_code:keyword | request.path:keyword | cluster:keyword
+2025-01-01T00:00:00.000Z | info          | 200                   | /api/v1              | prod
+2025-01-01T00:01:00.000Z | warn          | 404                   | /api/v2              | prod
+2025-01-01T00:02:00.000Z | info          | 200                   | /api/v1              | null
+;
+
+multiValuesAreSortedAndDeduplicated
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| KEEP @timestamp, tags
+| SORT @timestamp
+;
+
+@timestamp:date          | tags:keyword
+2025-01-01T00:00:00.000Z | [a, b]
+2025-01-01T00:01:00.000Z | c
+2025-01-01T00:02:00.000Z | null
+;
+
+fieldBelowNestedObjectReadsFromSource
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink* METADATA _index
+| KEEP _index, @timestamp, n.u
+| SORT _index, @timestamp
+;
+
+_index:keyword               | @timestamp:date          | n.u:keyword
+unmapped_sink                | 2025-01-01T00:00:00.000Z | [x, y]
+unmapped_sink                | 2025-01-01T00:01:00.000Z | null
+unmapped_sink                | 2025-01-01T00:02:00.000Z | null
+unmapped_sink_columnar_stored | 2025-01-01T00:00:00.000Z | [x, y]
+unmapped_sink_columnar_stored | 2025-01-01T00:01:00.000Z | null
+unmapped_sink_columnar_stored | 2025-01-01T00:02:00.000Z | null
+;
+
+filterOnAbsorbedField
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| WHERE level == "warn"
+| KEEP @timestamp, level
+;
+
+@timestamp:date          | level:keyword
+2025-01-01T00:01:00.000Z | warn
+;
+
+// LOAD_ALL reads the whole of _source, so unlike LOAD it keeps the order and duplicates of a field's values.
+loadAll
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_load_all_single_source_column
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_sink* METADATA _index
+| SORT _index, @timestamp
+;
+
+@timestamp:date          | _index:keyword                | _unmapped_fields:_source
+2025-01-01T00:00:00.000Z | unmapped_sink                 | "{""cluster"":""prod"",""level"":""info"",""n.u"":[""x"",""y""],""request.path"":""/api/v1"",""response_code"":""200"",""tags"":[""b"",""a"",""b""]}"
+2025-01-01T00:01:00.000Z | unmapped_sink                 | "{""cluster"":""prod"",""level"":""warn"",""request.path"":""/api/v2"",""response_code"":""404"",""tags"":""c""}"
+2025-01-01T00:02:00.000Z | unmapped_sink                 | "{""level"":""info"",""request.path"":""/api/v1"",""response_code"":""200""}"
+2025-01-01T00:00:00.000Z | unmapped_sink_columnar_stored | "{""cluster"":""prod"",""level"":""info"",""n.u"":[""x"",""y""],""request.path"":""/api/v1"",""response_code"":""200"",""tags"":[""b"",""a"",""b""]}"
+2025-01-01T00:01:00.000Z | unmapped_sink_columnar_stored | "{""cluster"":""prod"",""level"":""warn"",""request.path"":""/api/v2"",""response_code"":""404"",""tags"":""c""}"
+2025-01-01T00:02:00.000Z | unmapped_sink_columnar_stored | "{""level"":""info"",""request.path"":""/api/v1"",""response_code"":""200""}"
+;
+
+// A field the query names under LOAD_ALL is loaded as a column of its own, as under LOAD, so its values are sorted and deduplicated, and
+// it is no longer in _unmapped_fields.
+loadAllWithNamedField
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_load_all_single_source_column
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_sink* METADATA _index
+| WHERE tags IS NOT NULL
+| SORT _index, @timestamp
+;
+
+@timestamp:date          | _index:keyword                | tags:keyword | _unmapped_fields:_source
+2025-01-01T00:00:00.000Z | unmapped_sink                 | [a, b]       | "{""cluster"":""prod"",""level"":""info"",""n.u"":[""x"",""y""],""request.path"":""/api/v1"",""response_code"":""200""}"
+2025-01-01T00:01:00.000Z | unmapped_sink                 | c            | "{""cluster"":""prod"",""level"":""warn"",""request.path"":""/api/v2"",""response_code"":""404""}"
+2025-01-01T00:00:00.000Z | unmapped_sink_columnar_stored | [a, b]       | "{""cluster"":""prod"",""level"":""info"",""n.u"":[""x"",""y""],""request.path"":""/api/v1"",""response_code"":""200""}"
+2025-01-01T00:01:00.000Z | unmapped_sink_columnar_stored | c            | "{""cluster"":""prod"",""level"":""warn"",""request.path"":""/api/v2"",""response_code"":""404""}"
+;

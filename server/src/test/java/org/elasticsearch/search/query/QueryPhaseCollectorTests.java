@@ -681,33 +681,42 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testTerminateAfterWithAggsAndEarlyTerminatedTopDocs() throws IOException {
         // When the top docs collector early terminates for every segment (simulating size=0 with track_total_hits disabled,
         // where PartialHitCountCollector has threshold 0), terminate_after should still be honored for aggs collection.
+        CollectorManager<Collector, Integer> earlyTerminatedTopDocs = new CollectorManager<>() {
+            @Override
+            public Collector newCollector() {
+                return new TerminateAfterCollector(new DummyTotalHitCountCollector(), 0);
+            }
+
+            @Override
+            public Integer reduce(Collection<Collector> collectors) {
+                return 0;
+            }
+        };
         {
             int terminateAfter = randomIntBetween(1, numDocs - 1);
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-                new TerminateAfterCollector(new DummyTotalHitCountCollector(), 0),
+            CollectorManager<QueryPhaseCollector, Result<Integer, Integer>> manager = createCollectorManager(
+                earlyTerminatedTopDocs,
                 null,
-                resolveTerminateAfterChecker(terminateAfter),
-                aggsCollector,
+                terminateAfter,
+                DummyTotalHitCountCollector.createManager(),
                 null
             );
-            searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-            assertTrue(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(terminateAfter, aggsCollector.getTotalHits());
+            Result<Integer, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.aggs.intValue());
         }
         {
             // terminate_after equal to numDocs: no early termination
-            DummyTotalHitCountCollector aggsCollector = new DummyTotalHitCountCollector();
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-                new TerminateAfterCollector(new DummyTotalHitCountCollector(), 0),
+            CollectorManager<QueryPhaseCollector, Result<Integer, Integer>> manager = createCollectorManager(
+                earlyTerminatedTopDocs,
                 null,
-                resolveTerminateAfterChecker(numDocs),
-                aggsCollector,
+                numDocs,
+                DummyTotalHitCountCollector.createManager(),
                 null
             );
-            searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-            assertFalse(queryPhaseCollector.isTerminatedAfter());
-            assertEquals(numDocs, aggsCollector.getTotalHits());
+            Result<Integer, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.aggs.intValue());
         }
     }
 
@@ -1212,97 +1221,88 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testWeightIsPropagatedTopDocsOnly() throws IOException {
-        MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            topDocsCollector,
+        CollectorManager<QueryPhaseCollector, Result<Boolean, Void>> manager = createCollectorManager(
+            mockCollectorManager(randomFrom(ScoreMode.values())),
             null,
-            resolveTerminateAfterChecker(0),
+            0,
             null,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-        assertTrue(topDocsCollector.setWeightCalled);
+        Result<Boolean, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+        assertTrue(result.topDocs);
     }
 
     public void testWeightIsPropagatedWithAggs() throws IOException {
-        MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            topDocsCollector,
+        CollectorManager<QueryPhaseCollector, Result<Boolean, Boolean>> manager = createCollectorManager(
+            mockCollectorManager(randomFrom(ScoreMode.values())),
             null,
-            resolveTerminateAfterChecker(0),
-            aggsCollector,
+            0,
+            mockCollectorManager(randomScoreModeExceptTopScores()),
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-        assertTrue(topDocsCollector.setWeightCalled);
-        assertTrue(aggsCollector.setWeightCalled);
+        Result<Boolean, Boolean> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+        assertTrue(result.topDocs);
+        assertTrue(result.aggs);
     }
 
     public void testWeightPropagationWithPostFilterTopDocsOnly() throws IOException {
         // the weight is not propagated because docs collection is filtered
-        MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            mockCollector,
+        CollectorManager<QueryPhaseCollector, Result<Boolean, Void>> manager = createCollectorManager(
+            mockCollectorManager(randomFrom(ScoreMode.values())),
             filterWeight,
-            resolveTerminateAfterChecker(0),
+            0,
             null,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-        assertFalse(mockCollector.setWeightCalled);
+        Result<Boolean, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+        assertFalse(result.topDocs);
     }
 
     public void testWeightPropagationWithPostFilterWithAggs() throws IOException {
         // the weight is propagated only to the aggs collector because docs collection is filtered
-        MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            topDocsCollector,
+        CollectorManager<QueryPhaseCollector, Result<Boolean, Boolean>> manager = createCollectorManager(
+            mockCollectorManager(randomFrom(ScoreMode.values())),
             filterWeight,
-            resolveTerminateAfterChecker(0),
-            aggsCollector,
+            0,
+            mockCollectorManager(randomScoreModeExceptTopScores()),
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-        assertFalse(topDocsCollector.setWeightCalled);
-        assertTrue(aggsCollector.setWeightCalled);
+        Result<Boolean, Boolean> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+        assertFalse(result.topDocs);
+        assertTrue(result.aggs);
     }
 
     public void testWeightPropagationWithMinScoreTopDocsOnly() throws IOException {
         // the weight is not propagated to the top docs collector
-        MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            topDocsCollector,
+        CollectorManager<QueryPhaseCollector, Result<Boolean, Void>> manager = createCollectorManager(
+            mockCollectorManager(randomFrom(ScoreMode.values())),
             null,
-            resolveTerminateAfterChecker(0),
+            0,
             null,
             100f
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-        assertFalse(queryPhaseCollector.isTerminatedAfter());
-        assertFalse(topDocsCollector.setWeightCalled);
+        Result<Boolean, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+        assertFalse(result.terminatedAfter);
+        assertFalse(result.topDocs);
     }
 
     public void testWeightPropagationWithMinScoreWithAggs() throws IOException {
         // the weight is not propagated to either of the collectors
-        MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            topDocsCollector,
+        CollectorManager<QueryPhaseCollector, Result<Boolean, Boolean>> manager = createCollectorManager(
+            mockCollectorManager(randomFrom(ScoreMode.values())),
             null,
-            resolveTerminateAfterChecker(0),
-            aggsCollector,
+            0,
+            mockCollectorManager(randomScoreModeExceptTopScores()),
             100f
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
-        assertFalse(queryPhaseCollector.isTerminatedAfter());
-        assertFalse(topDocsCollector.setWeightCalled);
-        assertFalse(aggsCollector.setWeightCalled);
+        Result<Boolean, Boolean> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
+        assertFalse(result.terminatedAfter);
+        assertFalse(result.topDocs);
+        assertFalse(result.aggs);
     }
 
     public void testCollectionTerminatedExceptionHandling() throws IOException {
@@ -1321,7 +1321,8 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             new TerminateAfterCollector(collector2, terminateAfter2),
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
+        // Sequential: each child's terminate-after count is global (min(T, N)).
+        newSearcher(reader, true, true, false).search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(queryPhaseCollector));
         assertEquals(expectedCount1, collector1.getTotalHits());
         assertEquals(expectedCount2, collector2.getTotalHits());
     }
@@ -1646,6 +1647,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testLeafCollectorsAreNotPulledOnceTerminatedAfter() throws IOException {
+        // Sequential: terminate_after=1 must pull exactly one leaf collector.
         {
             MockCollector topDocsMockCollector = new MockCollector(randomFrom(ScoreMode.values()));
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
@@ -1655,7 +1657,10 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            searcher.search(new NonCountingTermQuery(new Term("field1", "value")), queryPhaseCollector);
+            newSearcher(reader, true, true, false).search(
+                new NonCountingTermQuery(new Term("field1", "value")),
+                singleThreadedCollectorManager(queryPhaseCollector)
+            );
             assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
         }
         {
@@ -1668,7 +1673,10 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsMockCollector,
                 null
             );
-            searcher.search(new NonCountingTermQuery(new Term("field1", "value")), queryPhaseCollector);
+            newSearcher(reader, true, true, false).search(
+                new NonCountingTermQuery(new Term("field1", "value")),
+                singleThreadedCollectorManager(queryPhaseCollector)
+            );
             assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
         }
     }
@@ -1802,6 +1810,20 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
         @Override
         public void collect(int doc) throws IOException {}
+    }
+
+    private static CollectorManager<MockCollector, Boolean> mockCollectorManager(ScoreMode scoreMode) {
+        return new CollectorManager<>() {
+            @Override
+            public MockCollector newCollector() {
+                return new MockCollector(scoreMode);
+            }
+
+            @Override
+            public Boolean reduce(Collection<MockCollector> collectors) {
+                return collectors.stream().anyMatch(collector -> collector.setWeightCalled);
+            }
+        };
     }
 
     /**

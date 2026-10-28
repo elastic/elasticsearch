@@ -2178,6 +2178,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testQueryEmptyWithEval() {
+        try (EsqlQueryResponse resp = run("FROM none* | EVAL f1 = 1")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("f1", "integer", null))));
+            assertFalse(resp.values().hasNext());
+        }
+    }
+
     public void testGroupingStatsOnMissingFields() {
         assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));

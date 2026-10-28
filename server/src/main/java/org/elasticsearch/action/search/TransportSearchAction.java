@@ -224,7 +224,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // Charges a response sent to another node, such as a CCS search with minimize_roundtrips, until it is written.
+        super(
+            TYPE.name(),
+            true,
+            transportService,
+            actionFilters,
+            SearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;

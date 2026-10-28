@@ -179,6 +179,11 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FLS_FIX = new NodeFeature("mapper.columnar_stored.source_fls_fix");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
+    /**
+     * The node knows the {@code index.time_series.tsid_prefixed_dimensions} index setting. Templates that set it must not be installed
+     * until all nodes have this feature, since a node that does not know the setting cannot create indices from such templates.
+     */
+    public static final NodeFeature TSDB_TSID_PREFIXED_DIMENSIONS = new NodeFeature("mapper.tsdb.tsid_prefixed_dimensions");
     public static final NodeFeature COMBINE_DYNAMIC_MAPPING_UPDATES = new NodeFeature("mapper.combine_dynamic_updates");
     public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
         "mapper.dynamic_template.warn_on_duplicate_names"
@@ -207,6 +212,7 @@ public class MapperFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             TSDB_METRIC_TEMPORALITY_SUPPORT,
+            TSDB_TSID_PREFIXED_DIMENSIONS,
             DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES,
             COMBINE_DYNAMIC_MAPPING_UPDATES,
             BBQ_DISK_UPDATABLE_AUTO_CALIBRATE

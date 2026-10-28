@@ -381,9 +381,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
-- class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
-  method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/162839
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/162945
@@ -415,11 +412,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  tasks:
-  - :x-pack:qa:rolling-upgrade-multi-cluster:v9.6.0#bwcTest
-  method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=2 followerNodesUpgraded=3}
-  issue: https://github.com/elastic/elasticsearch/issues/163301
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
@@ -509,36 +501,11 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecAbsentIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#csvSpecTestsOldCoordinator
-  issue: https://github.com/elastic/elasticsearch/issues/163577
 - class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
   issue: https://github.com/elastic/elasticsearch/issues/163583
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  tasks:
-  - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
-  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
-  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
-  issue: https://github.com/elastic/elasticsearch/issues/163608
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#javaRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/163565
-- class: org.elasticsearch.index.IndexSettingsTests
-  tasks:
-  - :server:test
-  method: testBatchIndexingRejectedWithoutFeatureFlag
-  issue: https://github.com/elastic/elasticsearch/issues/163668
-- class: org.elasticsearch.index.IndexSettingsTests
-  tasks:
-  - :server:test
-  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
-  issue: https://github.com/elastic/elasticsearch/issues/163670
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -569,3 +536,16 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testRunsThroughComputeExecutor
   issue: https://github.com/elastic/elasticsearch/issues/163778
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionHealthIT
+  tasks:
+  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
+  method: testEligibleUnmarkedIndexTurnsIndicatorYellowThenGreenAfterTransition
+  issue: https://github.com/elastic/elasticsearch/issues/163332
+- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163819
+- class: org.elasticsearch.xpack.esql.action.NonIndexedTextSearchIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163831

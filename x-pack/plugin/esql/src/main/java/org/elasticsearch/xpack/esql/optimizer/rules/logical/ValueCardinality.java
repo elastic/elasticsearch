@@ -74,10 +74,13 @@ enum ValueCardinality {
     private static final int MAX_DEPTH = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
     /**
-     * The cardinality of {@code attribute} as seen in the output of {@code plan}.
+     * Whether {@code expression} is single-valued at {@code plan}. The {@code plan} is the node, or stage, of the pipeline that the
+     * expression is evaluated at: it stands for the pipeline from the source up to that node, and the columns that the expression reads
+     * must be columns that this node outputs. For an expression that belongs to a node, such as a grouping of a {@code STATS}, that is the
+     * child of the node, since the node reads the columns that its child outputs.
      */
-    static ValueCardinality of(Attribute attribute, LogicalPlan plan) {
-        return ofAttribute(attribute, plan, 0);
+    static ValueCardinality of(Expression expression, LogicalPlan plan) {
+        return ofExpression(expression, plan, 0);
     }
 
     /**

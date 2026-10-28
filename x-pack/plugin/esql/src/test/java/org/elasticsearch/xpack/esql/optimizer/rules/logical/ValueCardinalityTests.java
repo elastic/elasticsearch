@@ -109,6 +109,18 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
+     * Any expression can be asked about at a node, not only a column. Here they are the groupings of a {@code STATS}, asked about at
+     * the child of the {@code STATS}, which is the node whose columns the groupings read.
+     */
+    public void testExpressionAtANode() {
+        var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | STATS c = COUNT(*) BY MV_MIN(languages), salary + 1");
+        Aggregate aggregate = plan.collect(Aggregate.class).get(0);
+        assertThat(aggregate.groupings(), hasSize(2));
+        assertThat(ValueCardinality.of(aggregate.groupings().get(0), aggregate.child()), equalTo(SINGLE));
+        assertThat(ValueCardinality.of(aggregate.groupings().get(1), aggregate.child()), equalTo(MAYBE_MULTI));
+    }
+
+    /**
      * The optimizer turns {@code SORT} followed by {@code LIMIT} into one {@code TopN}, which keeps the proof like the two nodes it
      * replaces. The other tests run on analyzed plans, so this one runs on an optimized plan, where {@code TopN} is what the walk meets.
      */

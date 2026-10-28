@@ -1180,3 +1180,15 @@ c:long | b:double
 4      | 5.0E18
 2      | 1.5E19
 ;
+
+bucketLongTightHighBounds
+required_capability: fn_bucket_unsigned_long_bounds
+
+// Both bounds round to 2^63 as doubles; the range must be computed exactly or the bucket width collapses to 0.
+ROW x = 9223372036854775800
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 9223372036854775707, 9223372036854775807)
+;
+
+c:long | b:double
+1      | 9.223372036854776E18
+;

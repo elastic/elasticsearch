@@ -555,3 +555,7 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163819
+- class: org.elasticsearch.xpack.esql.action.NonIndexedTextSearchIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163831

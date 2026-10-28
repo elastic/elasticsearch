@@ -17,8 +17,10 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,7 +31,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.locationtech.jts.simplify.TopologyPreservingSimplifier;
 
 import java.io.IOException;
@@ -47,7 +51,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StSimplifyPreserveTopology extends SpatialDocValuesFunction implements AnyNullIsNull {
+public class StSimplifyPreserveTopology extends SpatialDocValuesFunction implements AnyNullIsNull, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StSimplifyPreserveTopology",
@@ -196,6 +200,27 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
             source(),
             geometryEvaluator,
             inputTolerance
+        );
+    }
+
+    /**
+     * Fuses this function into the loading of shape doc values that can reconstruct the original geometry, exactly
+     * like {@link StSimplify#tryPushToFieldLoading}.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        FieldAttribute field = fusableShapeField(geometry, stats);
+        Double inputTolerance = constantNumber(tolerance);
+        if (field == null || inputTolerance == null || inputTolerance < 0) {
+            return null;
+        }
+        return new PushedBlockLoaderExpression(
+            field,
+            new BlockLoaderFunctionConfig.GeometryTransform(
+                BlockLoaderFunctionConfig.Function.ST_SIMPLIFYPRESERVETOPOLOGY,
+                inputTolerance,
+                processor.transformers(inputTolerance)
+            )
         );
     }
 

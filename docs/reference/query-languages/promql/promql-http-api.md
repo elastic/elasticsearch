@@ -14,7 +14,7 @@ These endpoints run under the `/_prometheus/` prefix.
 They are intended for Prometheus-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
 To connect Grafana to {{es}}, see [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md).
 
-These APIs only consider metric data stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
+These APIs only consider metric data stored in indices with `index.mode: time_series`, such as [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
 ## Index scoping [promql-http-api-index-scope]
 

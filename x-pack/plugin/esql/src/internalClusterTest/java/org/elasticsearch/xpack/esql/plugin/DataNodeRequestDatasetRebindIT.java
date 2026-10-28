@@ -104,7 +104,8 @@ public class DataNodeRequestDatasetRebindIT extends AbstractExternalDataSourceIT
         Path outside = createTempDir().resolve("secret.csv");
         Files.writeString(outside, "a\n3\n", StandardCharsets.UTF_8);
         String dataset = registerDataset("rebind_shard", StoragePath.fileUri(csv), Map.of("format", "csv"));
-        String node = randomFrom(internalCluster().getNodeNames());
+        // The index is pinned to the node the request goes to, so that node must be able to hold its shard.
+        String node = internalCluster().getRandomDataNodeName();
         String index = "rebind_shard_idx";
         assertAcked(
             client().admin()

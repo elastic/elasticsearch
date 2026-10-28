@@ -992,7 +992,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             writeIndexAllTimeLoad,
             writeIndexRecentLoad,
             writeIndexPeakLoad,
-            3
+            3,
+            1
         );
     }
 
@@ -1342,7 +1343,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             0.1,
             0.2,
             1.0 * writeIndexLoadForIncreaseAndDataStreamName,
-            3
+            3,
+            1
         );
     }
 
@@ -1451,6 +1453,132 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             createIndexStats(1, 9999.0, 9999.0, 9999.0)
         );
         assertThat(result.type(), is(INCREASE_SHARDS));
+    }
+
+    public void testCalculateDecreaseShardingRecommendations_respectsMinNumberOfShards() {
+        // a 3-shard data stream, old enough to be reduced, whose load calls for 1 shard
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream dataStream = createOldLowLoadDataStream(builder, dataStreamName, 3);
+        builder.put(dataStream);
+        ClusterState state = createClusterStateWithDataStream(builder);
+        IndexStats writeIndexStats = createIndexStats(3, 9999.0, 9999.0, 1.0 / 3);
+
+        // with the default minimum of 1 the load alone dictates the target
+        AutoShardingResult result = service.calculate(state.projectState(projectId), dataStream, writeIndexStats);
+        assertThat(result.type(), is(DECREASE_SHARDS));
+        assertThat(result.targetNumberOfShards(), is(1));
+
+        // a minimum below the current shard count caps the decrease
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS.getKey(), 2).build()
+        );
+        result = service.calculate(state.projectState(projectId), dataStream, writeIndexStats);
+        assertThat(result.type(), is(DECREASE_SHARDS));
+        assertThat(result.targetNumberOfShards(), is(2));
+        assertThat(decisionsLogged.getLast().inputs().minNumberOfShards(), is(2));
+
+        // a minimum equal to the current shard count prevents the decrease
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS.getKey(), 3).build()
+        );
+        result = service.calculate(state.projectState(projectId), dataStream, writeIndexStats);
+        assertThat(result.type(), is(NO_CHANGE_REQUIRED));
+        assertThat(result.targetNumberOfShards(), is(3));
+
+        // a minimum above the current shard count does not force an increase
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS.getKey(), 5).build()
+        );
+        result = service.calculate(state.projectState(projectId), dataStream, writeIndexStats);
+        assertThat(result.type(), is(NO_CHANGE_REQUIRED));
+        assertThat(result.targetNumberOfShards(), is(3));
+    }
+
+    public void testCalculateDecreaseShardingRecommendations_timeSeriesMinNumberOfShards() {
+        // two 3-shard data streams with identical low load: one time series, one standard
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream timeSeriesDataStream = createOldLowLoadDataStream(builder, dataStreamName, 3).copy()
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        builder.put(timeSeriesDataStream);
+        String standardDataStreamName = dataStreamName + "-standard";
+        DataStream standardDataStream = createOldLowLoadDataStream(builder, standardDataStreamName, 3);
+        builder.put(standardDataStream);
+        ClusterState state = createClusterStateWithDataStream(builder);
+        IndexStats writeIndexStats = createIndexStats(3, 9999.0, 9999.0, 1.0 / 3);
+
+        // the time series minimum only applies to time series data streams
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS.getKey(), 3)
+                .build()
+        );
+        AutoShardingResult timeSeriesResult = service.calculate(state.projectState(projectId), timeSeriesDataStream, writeIndexStats);
+        assertThat(timeSeriesResult.type(), is(NO_CHANGE_REQUIRED));
+        assertThat(timeSeriesResult.targetNumberOfShards(), is(3));
+        AutoShardingResult standardResult = service.calculate(state.projectState(projectId), standardDataStream, writeIndexStats);
+        assertThat(standardResult.type(), is(DECREASE_SHARDS));
+        assertThat(standardResult.targetNumberOfShards(), is(1));
+    }
+
+    /**
+     * The index mode used to pick the minimum is the one the next backing index will get, i.e. the one from the matching template, so a
+     * data stream with a stale (null) index mode still gets the time series minimum when its template declares time series mode.
+     */
+    public void testCalculateDecreaseShardingRecommendations_timeSeriesMinNumberOfShardsResolvedFromTemplate() {
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream dataStream = createOldLowLoadDataStream(builder, dataStreamName, 3);
+        assert dataStream.getIndexMode() == null : "test assumes null (stale) indexMode on the data stream";
+        builder.put(dataStream);
+        var timeSeriesTemplate = new Template(Settings.builder().put("index.mode", "time_series").build(), null, null);
+        builder.put(
+            dataStreamName + "_template",
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName + "*"))
+                .template(timeSeriesTemplate)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        ClusterState state = createClusterStateWithDataStream(builder);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS.getKey(), 3)
+                .build()
+        );
+
+        AutoShardingResult result = service.calculate(
+            state.projectState(projectId),
+            dataStream,
+            createIndexStats(3, 9999.0, 9999.0, 1.0 / 3)
+        );
+        assertThat(result.type(), is(NO_CHANGE_REQUIRED));
+        assertThat(result.targetNumberOfShards(), is(3));
+        assertThat(decisionsLogged.getLast().inputs().minNumberOfShards(), is(3));
+    }
+
+    /**
+     * Creates a data stream with 5 backing indices of {@code numberOfShards} shards, old enough for the decrease cooldown to have lapsed,
+     * whose previous backing indices each carried a peak load of about 1 across all their shards (i.e. enough for a single shard).
+     */
+    private DataStream createOldLowLoadDataStream(ProjectMetadata.Builder builder, String name, int numberOfShards) {
+        return createDataStream(
+            builder,
+            name,
+            numberOfShards,
+            now,
+            List.of(
+                now - TimeValue.timeValueDays(21).getMillis(),
+                now - TimeValue.timeValueDays(15).getMillis(),
+                now - TimeValue.timeValueDays(4).getMillis(),
+                now - TimeValue.timeValueDays(2).getMillis(),
+                now - 1000
+            ),
+            getWriteLoad(numberOfShards, 9999.0, 9999.0, 1.0 / numberOfShards),
+            null
+        );
     }
 
     private DataStream createLookupModeDataStream(ProjectMetadata.Builder builder) {

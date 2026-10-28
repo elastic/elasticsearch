@@ -11,10 +11,17 @@ import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerific
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -56,6 +63,10 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 );
             }
 
+            if (p instanceof FetchExec fetch && EsQueryExec.isDocAttribute(fetch.doc()) == false) {
+                failures.add(fail(fetch, "[{}] must read a [_doc] attribute", fetch.nodeString()));
+            }
+
             PlanConsistencyChecker.checkPlan(p, depFailures);
 
             if (failures.hasFailures() == false) {
@@ -67,6 +78,32 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                         va.postPhysicalOptimizationVerification(failures);
                     }
                 });
+            }
+        });
+
+        if (isLocal == false) {
+            checkDocumentsLeaveTheirNodeOnlyForAFetch(optimizedPlan, failures);
+            if (optimizedPlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+                failures.add(fail(optimizedPlan, "document identity [_doc] cannot be returned, found {}", optimizedPlan.output()));
+            }
+        }
+    }
+
+    /**
+     * Rows carry their {@code _doc} across an exchange only for a {@link FetchExec} above it, which loads the documents
+     * from the nodes that own them. A {@code _doc} that left its node is good for nothing else, because only the node
+     * that read it can load the document.
+     */
+    private static void checkDocumentsLeaveTheirNodeOnlyForAFetch(PhysicalPlan plan, Failures failures) {
+        Set<NameId> fetched = new HashSet<>();
+        plan.forEachDown(FetchExec.class, fetch -> fetched.add(fetch.doc().id()));
+        plan.forEachDown(ExchangeExec.class, exchange -> {
+            for (Attribute attribute : exchange.output()) {
+                if (EsQueryExec.isDocAttribute(attribute) && fetched.contains(attribute.id()) == false) {
+                    failures.add(
+                        fail(exchange, "document identity [_doc] can only cross an exchange for a fetch [{}]", exchange.nodeString())
+                    );
+                }
             }
         });
     }

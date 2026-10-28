@@ -50,6 +50,16 @@ public class EsqlFlags {
     );
 
     /**
+     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code LIMIT} or
+     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. Nothing can
+     * run such a plan yet, so only tests turn it on.
+     */
+    public enum FetchPhaseMode {
+        DISABLED,
+        ENABLED
+    }
+
+    /**
      * Cluster-wide cap on the number of leaf branches an independently executed query may use.
      * View compaction also uses this as the flatten budget for nested view unions.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
@@ -142,7 +152,8 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
         ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
-        ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY)
+        ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+        FetchPhaseMode.DISABLED
     );
 
     private final boolean stringLikeOnIndex;
@@ -158,6 +169,8 @@ public class EsqlFlags {
     private final int maxFillNullFields;
 
     private final int maxCommandCount;
+
+    private final FetchPhaseMode fetchPhaseMode;
 
     /**
      * Constructor for tests.
@@ -213,6 +226,22 @@ public class EsqlFlags {
             maxBranchLevel,
             maxBranchCountPerMerge,
             ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withFetchPhase(boolean enabled) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            enabled ? FetchPhaseMode.ENABLED : FetchPhaseMode.DISABLED
         );
     }
 
@@ -275,6 +304,28 @@ public class EsqlFlags {
         int maxFillNullFields,
         int maxCommandCount
     ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            FetchPhaseMode.DISABLED
+        );
+    }
+
+    public EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge,
+        int maxFillNullFields,
+        int maxCommandCount,
+        FetchPhaseMode fetchPhaseMode
+    ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.maxBranchCount = maxBranchCount;
@@ -282,6 +333,7 @@ public class EsqlFlags {
         this.maxBranchCountPerMerge = maxBranchCountPerMerge;
         this.maxFillNullFields = maxFillNullFields;
         this.maxCommandCount = maxCommandCount;
+        this.fetchPhaseMode = fetchPhaseMode;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -329,6 +381,13 @@ public class EsqlFlags {
         return maxCommandCount;
     }
 
+    /**
+     * Whether the coordinator may plan the fetch phase. See {@link FetchPhaseMode}.
+     */
+    public FetchPhaseMode fetchPhaseMode() {
+        return fetchPhaseMode;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -340,7 +399,8 @@ public class EsqlFlags {
             && maxBranchLevel == that.maxBranchLevel
             && maxBranchCountPerMerge == that.maxBranchCountPerMerge
             && maxFillNullFields == that.maxFillNullFields
-            && maxCommandCount == that.maxCommandCount;
+            && maxCommandCount == that.maxCommandCount
+            && fetchPhaseMode == that.fetchPhaseMode;
     }
 
     @Override
@@ -352,7 +412,8 @@ public class EsqlFlags {
             maxBranchLevel,
             maxBranchCountPerMerge,
             maxFillNullFields,
-            maxCommandCount
+            maxCommandCount,
+            fetchPhaseMode
         );
     }
 
@@ -372,6 +433,8 @@ public class EsqlFlags {
             + maxFillNullFields
             + ", maxCommandCount="
             + maxCommandCount
+            + ", fetchPhaseMode="
+            + fetchPhaseMode
             + ']';
     }
 }

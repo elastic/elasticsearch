@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -60,7 +61,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 new ProjectAwayColumns(),
                 new ReplaceSampledStatsBySampleAndStats(() -> approximationApplied.set(true)),
                 new InsertPartialWindowAggregates()
-            )
+            ),
+            new Batch<>("Plan Fetch", Limiter.ONCE, new PlanFetch())
         );
     }
 }

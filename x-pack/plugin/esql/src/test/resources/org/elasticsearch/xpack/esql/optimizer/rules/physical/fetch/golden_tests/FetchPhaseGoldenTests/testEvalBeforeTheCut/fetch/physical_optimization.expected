@@ -1,0 +1,9 @@
+ProjectExec[[full_name{r}#0, salary{f}#1]]
+\_FetchExec[_doc{f}#2,[salary{f}#1],employees,[],null]
+  \_TopNExec[[Order[hire_date{f}#3,ASC,LAST]],10[INTEGER],null]
+    \_ExchangeExec[[_doc{f}#2, hire_date{f}#3, full_name{r}#0],false]
+      \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#2, hire_date{f}#3, full_name{r}#0]]
+\_TopN[[Order[hire_date{f}#3,ASC,LAST]],10[INTEGER],false]
+  \_Eval[[CONCAT(first_name{f}#4, [KEYWORD],last_name{f}#5) AS full_name#0]]
+    \_EsRelation[employees][_doc{f}#2, avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#4, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#3, is_rehired{f}#14, job_positions{f}#15, languages{f}#16, languages.byte{f}#17, languages.long{f}#18, languages.short{f}#19, last_name{f}#5, salary{f}#1, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]<>]]

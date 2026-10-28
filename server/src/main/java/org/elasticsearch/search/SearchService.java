@@ -2190,36 +2190,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
-        return createSearchContext(request, timeout, circuitBreaker);
+        return createSearchContext(request, timeout, null);
     }
 
     /**
-     * Like {@link #createSearchContext(ShardSearchRequest, TimeValue)}, for a context that is a part of the query
-     * {@code queryId} owned by {@code owner}: it charges the query's breaker until it closes.
+     * Like {@link #createSearchContext(ShardSearchRequest, TimeValue)}, but the context charges the breaker of
+     * {@code part} if given. The context closes {@code part}, also when it fails to open.
      */
-    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, TaskId queryId, Task owner) throws IOException {
-        QueryScheduler.QueryPart part = queryScheduler.part(queryId, owner.getId());
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable QueryScheduler.QueryPart part)
+        throws IOException {
         try {
-            SearchContext context = createSearchContext(request, timeout, part.breaker());
-            context.addReleasable(part);
-            return context;
+            final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            final IndexShard indexShard = indexService.getShard(request.shardId().getId());
+            final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
+            try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true, 0L)) {
+                // Use ResultsType.QUERY so that the created search context can execute queries correctly.
+                DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, breaker(part));
+                searchContext.addReleasable(readerContext.markAsUsed(0L));
+                searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
+                if (part != null) {
+                    searchContext.addReleasable(part);
+                }
+                return searchContext;
+            }
         } catch (Exception e) {
-            part.close();
+            Releasables.close(part);
             throw e;
-        }
-    }
-
-    private SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, CircuitBreaker breaker) throws IOException {
-        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        final IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
-        final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
-        try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true, 0L)) {
-            // Use ResultsType.QUERY so that the created search context can execute queries correctly.
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, breaker);
-            searchContext.addReleasable(readerContext.markAsUsed(0L));
-            searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
-            return searchContext;
         }
     }
 
@@ -2232,18 +2229,44 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
         throws IOException {
-        // pin the reader before the search context acquires a searcher, so a concurrent free cannot close it in between
-        final Releasable pin = readerContext.markAsUsed(-1L);
+        return createSearchContext(readerContext, request, timeout, null);
+    }
+
+    /**
+     * Like {@link #createSearchContext(ReaderContext, ShardSearchRequest, TimeValue)}, but the context charges the
+     * breaker of {@code part} if given. The context closes {@code part}, also when it fails to open.
+     */
+    public SearchContext createSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        @Nullable QueryScheduler.QueryPart part
+    ) throws IOException {
         final DefaultSearchContext searchContext;
+        // pin the reader before the search context acquires a searcher, so a concurrent free cannot close it in between
+        final Releasable pin;
         try {
-            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, circuitBreaker);
+            pin = readerContext.markAsUsed(-1L);
         } catch (Exception e) {
-            pin.close();
+            Releasables.close(part);
+            throw e;
+        }
+        try {
+            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, breaker(part));
+        } catch (Exception e) {
+            Releasables.close(pin, part);
             throw e;
         }
         searchContext.addReleasable(pin);
         searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
+        if (part != null) {
+            searchContext.addReleasable(part);
+        }
         return searchContext;
+    }
+
+    private CircuitBreaker breaker(@Nullable QueryScheduler.QueryPart part) {
+        return part == null ? circuitBreaker : part.breaker();
     }
 
     @SuppressWarnings("unchecked")
@@ -3333,6 +3356,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryScheduler.QueryPart queryPart(Task task) {
         return queryScheduler.part(queryId(task), task.getId());
+    }
+
+    /**
+     * Opens a part of the query {@code queryId}. It closes at the latest when {@code owner} is removed.
+     */
+    public QueryScheduler.QueryPart queryPart(TaskId queryId, Task owner) {
+        return queryScheduler.part(queryId, owner.getId());
     }
 
     /**

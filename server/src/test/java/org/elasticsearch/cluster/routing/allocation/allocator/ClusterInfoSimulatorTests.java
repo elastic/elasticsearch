@@ -902,7 +902,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     indexNode,
                     new NodeHeapMetrics(indexNode, 10_000, stale),
                     searchNode,
-                    new NodeHeapMetrics(searchNode, 8_000, stale),
+                    new NodeHeapMetrics(searchNode, 8_000, new NodeHeapEstimates(500, 400, 0)),
                     mlNode,
                     new NodeHeapMetrics(mlNode, 2_000, stale)
                 )
@@ -926,12 +926,24 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         assertThat(nodeHeapUsages.containsKey("not-in-the-snapshot"), equalTo(false));
     }
 
-    public void testNonShardHeapUsageIsTheLargestValueInTheSnapshot() {
+    /**
+     * Indexing nodes share one non-shard overhead while all search nodes publish 0 for this value
+     */
+    public void testNonShardHeapUsageIsTakenFromIndexingNodes() {
         final String nodeA = "index-a";
         final String nodeB = "index-b";
+        final String searchNode = "search-a";
+        final long nonShardHeapUsage = 40;
         final ClusterState clusterState = clusterStateWithRoles(
             "test-index",
-            Map.of(nodeA, Set.of(DiscoveryNodeRole.INDEX_ROLE), nodeB, Set.of(DiscoveryNodeRole.INDEX_ROLE)),
+            Map.of(
+                nodeA,
+                Set.of(DiscoveryNodeRole.INDEX_ROLE),
+                nodeB,
+                Set.of(DiscoveryNodeRole.INDEX_ROLE),
+                searchNode,
+                Set.of(DiscoveryNodeRole.SEARCH_ROLE)
+            ),
             nodeA,
             Map.of(0, nodeA)
         );
@@ -940,9 +952,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .nodeHeapMetrics(
                 Map.of(
                     nodeA,
-                    new NodeHeapMetrics(nodeA, 10_000, new NodeHeapEstimates(1, 1, 10)),
+                    new NodeHeapMetrics(nodeA, 10_000, new NodeHeapEstimates(1, 1, nonShardHeapUsage)),
                     nodeB,
-                    new NodeHeapMetrics(nodeB, 10_000, new NodeHeapEstimates(1, 1, 40))
+                    new NodeHeapMetrics(nodeB, 10_000, new NodeHeapEstimates(1, 1, nonShardHeapUsage)),
+                    searchNode,
+                    new NodeHeapMetrics(searchNode, 8_000, new NodeHeapEstimates(0, 0, 0))
                 )
             )
             .estimatedShardHeapUsages(Map.of(shardId, new ShardAndIndexHeapUsage(10, 100, 5)))
@@ -951,11 +965,12 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation()
         ).getClusterInfo().getNodeHeapMetrics();
 
-        // hosted = 10 + 100 = 110. Max postings is 5, and both indexing nodes are charged the larger non-shard value, 40.
+        // hosted = 10 + 100 = 110. Max postings is 5. Both indexing nodes keep the shared overhead, 40.
         // total on the node that hosts the shard = 40 + (10 - 5) + 100 + 5 = 150
-        // total on the empty node = 40 + 5 = 45
-        assertThat(nodeHeapUsages.get(nodeA).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(150, 110, 40)));
-        assertThat(nodeHeapUsages.get(nodeB).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(45, 0, 40)));
+        // total on the empty indexing node = 40 + 5 = 45
+        assertThat(nodeHeapUsages.get(nodeA).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(150, 110, nonShardHeapUsage)));
+        assertThat(nodeHeapUsages.get(nodeB).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(45, 0, nonShardHeapUsage)));
+        assertThat(nodeHeapUsages.get(searchNode).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(0, 0, 0)));
     }
 
     public void testHeapRecomputeUsesDefaultWhenShardHasNoMetrics() {

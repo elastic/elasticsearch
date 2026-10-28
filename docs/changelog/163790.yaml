@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 163790
+summary: Charge circuit breaker per query clause at parse time
+type: enhancement

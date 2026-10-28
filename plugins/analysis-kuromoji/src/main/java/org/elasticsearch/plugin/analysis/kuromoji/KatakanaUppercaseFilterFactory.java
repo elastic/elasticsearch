@@ -25,4 +25,9 @@ public class KatakanaUppercaseFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new JapaneseKatakanaUppercaseFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

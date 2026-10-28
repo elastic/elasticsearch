@@ -285,7 +285,8 @@ class DatafeedJob {
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
-            if (missingDataBuckets.isEmpty() == false) {
+            // stop() or isolate() may have landed while the check was running; a stopped datafeed must not write annotations.
+            if (missingDataBuckets.isEmpty() == false && isRunning() && isIsolated == false) {
                 long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();
                 // Get the end of the last bucket and make it milliseconds
@@ -590,6 +591,7 @@ class DatafeedJob {
         if (extractor != null) {
             extractor.cancel();
         }
+        delayedDataDetector.cancel();
     }
 
     /**

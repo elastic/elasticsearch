@@ -19,7 +19,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles(os, architecture)
+        with esDistributionLayout.lib(os, architecture)
       }
       into('config') {
         dirPermissions {
@@ -28,7 +28,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         filePermissions {
           unix 0660
         }
-        with configFiles(distributionType, isTestDistro)
+        with esDistributionLayout.config(distributionType, isTestDistro)
         from {
           dirPermissions {
             unix 0750
@@ -37,11 +37,11 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         }
       }
       into('bin') {
-        with binFiles(distributionType, isTestDistro)
+        with esDistributionLayout.bin(distributionType, isTestDistro)
       }
       into("darwin".equals(os) ? 'jdk.app' : 'jdk') {
         if (isTestDistro == false) {
-          with jdkFiles(project, os, architecture)
+          with esDistributionLayout.jdk(os, architecture)
         }
       }
       into('') {
@@ -74,12 +74,12 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         rename { 'LICENSE.txt' }
       }
 
-      with noticeFile(isTestDistro)
+      with esDistributionLayout.notice(isTestDistro)
       into('modules') {
         if (isTestDistro) {
-          with integTestModulesFiles
+          with esDistributionLayout.integTestModules()
         } else {
-          with modulesFiles(os, architecture)
+          with esDistributionLayout.modules(os, architecture)
         }
       }
     }

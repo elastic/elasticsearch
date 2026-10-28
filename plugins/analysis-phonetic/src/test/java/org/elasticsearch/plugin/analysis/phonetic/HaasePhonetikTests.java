@@ -12,6 +12,7 @@ package org.elasticsearch.plugin.analysis.phonetic;
 import org.apache.commons.codec.EncoderException;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -24,6 +25,11 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.io.StringReader;
 
+/**
+ * Tests the fixed and legacy handling of the anchored Haase variation rules ({@code ^CH} and the
+ * {@code $}-anchored ones), and that the phonetic filter factory selects between them by index
+ * creation version.
+ */
 public class HaasePhonetikTests extends ESTestCase {
 
     public void testStartingChKeepsFollowingLetter() throws EncoderException {
@@ -33,6 +39,27 @@ public class HaasePhonetikTests extends ESTestCase {
 
     public void testLegacyStartingChDropsFollowingLetter() throws EncoderException {
         assertEquals("4_8", new HaasePhonetik(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS, true).encode("CHLOE"));
+    }
+
+    public void testStartingChFollowedByAnotherRuleMatch() throws EncoderException {
+        // The A the legacy code skipped is the first letter of the AUX match (AUX ranks below ^CH, so it is
+        // found in the next round): advancing to the match end keeps it, and the AUX -> O variations CHO
+        // and SCHO (codes 4 and 8) appear. The legacy code jumped past the A and never found AUX.
+        assertEquals("48_848_4_8", new HaasePhonetik().encode("CHAUX"));
+        assertEquals("48_848", new HaasePhonetik(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS, true).encode("CHAUX"));
+    }
+
+    public void testStartingChFollowedByVowelDoesNotChangeCodes() throws EncoderException {
+        // Only initial vowels contribute a digit, so the vowel the legacy code skipped after CH never
+        // altered the codes: the fix only changes codes when the skipped letter was a consonant (or, as
+        // above, started another rule's match).
+        for (String word : new String[] { "CHARLES", "CHAIM" }) {
+            assertEquals(
+                word,
+                new HaasePhonetik(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS, true).encode(word),
+                new HaasePhonetik().encode(word)
+            );
+        }
     }
 
     public void testEndAnchoredRulesDoNotChangeCodes() throws EncoderException {
@@ -76,7 +103,7 @@ public class HaasePhonetikTests extends ESTestCase {
         try (Tokenizer tokenizer = new WhitespaceTokenizer()) {
             tokenizer.setReader(new StringReader("CHLOE"));
             var stream = factory.create(tokenizer);
-            var term = stream.addAttribute(org.apache.lucene.analysis.tokenattributes.CharTermAttribute.class);
+            var term = stream.addAttribute(CharTermAttribute.class);
             stream.reset();
             assertTrue(stream.incrementToken());
             String code = term.toString();

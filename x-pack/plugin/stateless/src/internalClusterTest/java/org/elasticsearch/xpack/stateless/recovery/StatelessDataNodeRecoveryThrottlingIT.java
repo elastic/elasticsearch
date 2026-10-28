@@ -445,11 +445,13 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         // Stall the splits on the source node, so that the split targets keep their recovery slots on the target node
         final var stallSplits = new AtomicBoolean(true);
         final var stalledSplits = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        final var allRunningSplitsStalled = new CountDownLatch(maxConcurrentRecoveries);
         MockTransportService.getInstance(splitSourceNode)
             .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
                 synchronized (stalledSplits) {
                     if (stallSplits.get()) {
                         stalledSplits.add(() -> handler.messageReceived(request, channel, task));
+                        allRunningSplitsStalled.countDown();
                         return;
                     }
                 }
@@ -491,7 +493,8 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
                 stats -> stats.currentFromStore() == maxConcurrentRecoveries && stats.currentFromStoreQueued() == queuedSplits
             )
         );
-        assertBusy(() -> assertThat(stalledSplits.size(), equalTo(maxConcurrentRecoveries)));
+        safeAwait(allRunningSplitsStalled);
+        assertThat(stalledSplits.size(), equalTo(maxConcurrentRecoveries));
 
         // Shut down the node, so its shards must relocate to the target node, where they queue as all the slots are taken by splits
         safeGet(

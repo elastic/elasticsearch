@@ -72,6 +72,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -82,6 +84,7 @@ import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECO
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -454,9 +457,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(settings));
 
         final Map<String, RecoveryListener> runningRecoveries = new HashMap<>();
+        final Map<String, ShardRouting.RecoveryPriority> priorities = new HashMap<>();
         // Use up all the relocation slots
         for (int i = 0; i < maxConcurrentRelocationRecoveries; i++) {
             final var id = "relocation-" + i;
+            priorities.put(id, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
             service.enqueue(
                 ProjectId.DEFAULT,
                 noopRecoveryListener(),
@@ -469,6 +474,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(runningRecoveries.size(), equalTo(maxConcurrentRelocationRecoveries));
 
         // Enqueue a relocation which will be at the head of the queue, but throttled
+        priorities.put("blocked-relocation", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
@@ -493,6 +499,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         counts.forEach((priority, count) -> {
             for (int i = 0; i < count; i++) {
                 final var id = priority + "-" + i;
+                priorities.put(id, priority);
                 enqueueActions.add(
                     () -> service.enqueue(
                         ProjectId.DEFAULT,
@@ -511,26 +518,31 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // The free slots are filled with the highest priority recoveries from unassigned, and the relocation remains blocked
         final int runningRestoring = counts.get(ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING);
         assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
-        assertThat(countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING), equalTo(runningRestoring));
+        final var runningByPriority = runningRecoveries.keySet().stream().collect(groupingBy(priorities::get, counting()));
+        assertThat(runningByPriority.get(ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING), equalTo((long) runningRestoring));
         assertThat(
-            countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING),
-            equalTo(freeSlots - runningRestoring)
+            runningByPriority.get(ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING),
+            equalTo((long) (freeSlots - runningRestoring))
         );
-        assertThat(countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING), equalTo(0));
+        assertThat(runningByPriority, not(hasKey(ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING)));
 
         // Complete one of the recoveries from unassigned, and assert that another UNASSIGNED_REPLICA_SCALING one starts
-        final var completed = randomFrom(runningRecoveries.keySet().stream().filter(id -> id.startsWith("relocation-") == false).toList());
+        final var completed = randomFrom(
+            runningRecoveries.keySet()
+                .stream()
+                .filter(id -> priorities.get(id) != ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
+                .toList()
+        );
         runningRecoveries.remove(completed).onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
         assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
+        final var runningByPriorityAfterCompletion = runningRecoveries.keySet().stream().collect(groupingBy(priorities::get, counting()));
         assertThat(
-            countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING) + countRunning(
-                runningRecoveries,
-                ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING
-            ),
-            equalTo(freeSlots)
+            runningByPriorityAfterCompletion.getOrDefault(ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING, 0L)
+                + runningByPriorityAfterCompletion.get(ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING),
+            equalTo((long) freeSlots)
         );
-        assertThat(countRunning(runningRecoveries, ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING), equalTo(0));
+        assertThat(runningByPriorityAfterCompletion, not(hasKey(ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING)));
 
         // Complete one of the relocations, and assert that the blocked relocation starts as soon as a slot is available
         runningRecoveries.remove("relocation-0").onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -2629,10 +2641,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
             )
         );
-    }
-
-    private static int countRunning(Map<String, RecoveryListener> runningRecoveries, ShardRouting.RecoveryPriority priority) {
-        return Math.toIntExact(runningRecoveries.keySet().stream().filter(id -> id.startsWith(priority + "-")).count());
     }
 
     private static RecoveryState newRecoveryState(ShardId shardId, ShardRouting.RecoveryPriority recoveryPriority) {

@@ -1679,6 +1679,16 @@ f:keyword|s:keyword
 null     |null
 ;
 
+foldCaseWithoutMatchArgumentWithOptions
+required_capability: fix_fold_null_arguments
+
+ROW x = DATE_PARSE(CASE(false, "yyyy-MM-dd"), "2024-01-01", {"locale": "en-US"})
+;
+
+x:datetime
+null
+;
+
 foldNullArgumentsInManyFunctions
 required_capability: fix_fold_null_arguments
 

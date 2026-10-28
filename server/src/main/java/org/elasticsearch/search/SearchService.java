@@ -438,7 +438,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
 
     private final ThreadPool threadPool;
-    private final QueryScheduler queryScheduler = new QueryScheduler(System::nanoTime);
+    private final QueryScheduler queryScheduler;
 
     private final ClusterService clusterService;
 
@@ -529,6 +529,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.queryScheduler = new QueryScheduler(System::nanoTime, circuitBreaker);
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.taskManager = taskManager;
@@ -2131,17 +2132,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
-        resultsType.addResultsObject(context);
-
-        // Release the memory used for query construction once the search context is closed.
+        // the context charges the query's breaker and keeps the query tracked until it closes
+        QueryScheduler.QueryPart part = queryPart(task);
+        final DefaultSearchContext context;
+        try {
+            context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType, part.breaker());
+        } catch (Exception e) {
+            part.close();
+            throw e;
+        }
+        // Release the memory used for query construction once the search context is closed, before its part.
         context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
+        context.addReleasable(part);
+        resultsType.addResultsObject(context);
 
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
-            parseSource(context, request.source(), includeAggregations);
+            parseSource(
+                context,
+                request.source(),
+                includeAggregations,
+                bigArrays.withBreakerService(part.breakerService(bigArrays.breakerService()))
+            );
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -2176,13 +2190,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
+        return createSearchContext(request, timeout, circuitBreaker);
+    }
+
+    /**
+     * Like {@link #createSearchContext(ShardSearchRequest, TimeValue)}, for a context that is a part of the query
+     * {@code queryId} owned by {@code owner}: it charges the query's breaker until it closes.
+     */
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, TaskId queryId, Task owner) throws IOException {
+        QueryScheduler.QueryPart part = queryScheduler.part(queryId, owner.getId());
+        try {
+            SearchContext context = createSearchContext(request, timeout, part.breaker());
+            context.addReleasable(part);
+            return context;
+        } catch (Exception e) {
+            part.close();
+            throw e;
+        }
+    }
+
+    private SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, CircuitBreaker breaker) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true, 0L)) {
             // Use ResultsType.QUERY so that the created search context can execute queries correctly.
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, breaker);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
             return searchContext;
@@ -2202,7 +2236,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Releasable pin = readerContext.markAsUsed(-1L);
         final DefaultSearchContext searchContext;
         try {
-            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
+            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, circuitBreaker);
         } catch (Exception e) {
             pin.close();
             throw e;
@@ -2217,7 +2251,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext reader,
         ShardSearchRequest request,
         TimeValue timeout,
-        ResultsType resultsType
+        ResultsType resultsType,
+        CircuitBreaker breaker
     ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
@@ -2240,7 +2275,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice,
                 memoryAccountingBufferSize,
-                circuitBreaker,
+                breaker,
                 this::directoryMetricsDelta
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -2493,7 +2528,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
-    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) throws IOException {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations, BigArrays bigArrays)
+        throws IOException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -3290,6 +3326,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             }
         };
+    }
+
+    /**
+     * Opens a part of the query that {@code task} runs for. It closes at the latest when {@code task} is removed.
+     */
+    public QueryScheduler.QueryPart queryPart(Task task) {
+        return queryScheduler.part(queryId(task), task.getId());
+    }
+
+    /**
+     * Opens the coordination part of the query that {@code task} coordinates. It closes at the latest when {@code task}
+     * is removed.
+     */
+    public QueryScheduler.QueryPart coordinate(Task task) {
+        return queryScheduler.part(new TaskId(clusterService.localNode().getId(), task.getId()), task.getId());
     }
 
     /**

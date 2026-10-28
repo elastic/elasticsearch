@@ -828,7 +828,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         // hosted A = 50 + 80 + 10 = 140
         // total A = 40 + (50 - 5) + (80 - 20) + 10 + 25 = 180
         // node B hosts nothing, but is still charged the max postings: total B = 40 + 25 = 65
-        var nodeHeapUsages = simulator.computeNodeHeapMetrics();
+        var nodeHeapUsages = simulator.getClusterInfo().getNodeHeapMetrics();
         assertThat(nodeHeapUsages.get(nodeA).totalBytes(), equalTo(totalBytes));
         assertThat(nodeHeapUsages.get(nodeA).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(180, 140, nonShardHeapUsage)));
         assertThat(nodeHeapUsages.get(nodeB).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(65, 0, nonShardHeapUsage)));
@@ -844,14 +844,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         // The target copy is still initializing, so the shard still contributes on the source.
-        assertThat(simulator.computeNodeHeapMetrics().get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(140L));
-        assertThat(simulator.computeNodeHeapMetrics().get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
+        assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(140L));
+        assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
 
         allocation.routingNodes().startShard(relocation.v2(), allocation.changes(), 0L);
         // shard 0 stays on A (postings 5). shard 1 is on B (postings 20). Max postings is 20.
         // hosted A = 50 + 10 = 60; total A = 40 + (50 - 5) + 10 + 20 = 115
         // hosted B = 80 + 10 = 90; total B = 40 + (80 - 20) + 10 + 20 = 130
-        nodeHeapUsages = simulator.computeNodeHeapMetrics();
+        nodeHeapUsages = simulator.getClusterInfo().getNodeHeapMetrics();
         assertThat(nodeHeapUsages.get(nodeA).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(115, 60, nonShardHeapUsage)));
         assertThat(nodeHeapUsages.get(nodeB).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(130, 90, nonShardHeapUsage)));
 
@@ -866,7 +866,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             );
         allocation.routingNodes().startShard(secondRelocation.v2(), allocation.changes(), 0L);
         // Both shards are on B, so index heap is counted once there and the max postings is 25 again.
-        nodeHeapUsages = simulator.computeNodeHeapMetrics();
+        nodeHeapUsages = simulator.getClusterInfo().getNodeHeapMetrics();
         assertThat(nodeHeapUsages.get(nodeA).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(65, 0, nonShardHeapUsage)));
         assertThat(nodeHeapUsages.get(nodeB).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(180, 140, nonShardHeapUsage)));
     }
@@ -913,7 +913,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation()
         );
 
-        final var nodeHeapUsages = simulator.computeNodeHeapMetrics();
+        final var nodeHeapUsages = simulator.getClusterInfo().getNodeHeapMetrics();
         // No indexing node hosts a shard, so max postings is 0 and the indexing node is just its non-shard overhead.
         assertThat(
             nodeHeapUsages.get(indexNode).nodeHeapEstimates(),
@@ -949,7 +949,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
         final var nodeHeapUsages = new ClusterInfoSimulator(
             TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation()
-        ).computeNodeHeapMetrics();
+        ).getClusterInfo().getNodeHeapMetrics();
 
         // hosted = 10 + 100 = 110. Max postings is 5, and both indexing nodes are charged the larger non-shard value, 40.
         // total on the node that hosts the shard = 40 + (10 - 5) + 100 + 5 = 150
@@ -989,11 +989,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         // hosted = 10 + 100 = 110; total = 50 + (10 - 5) + 100 + 5 = 160. The empty node is charged the same max postings.
         assertThat(
-            simulator.computeNodeHeapMetrics().get(nodeA).nodeHeapEstimates(),
+            simulator.getClusterInfo().getNodeHeapMetrics().get(nodeA).nodeHeapEstimates(),
             equalTo(new NodeHeapEstimates(160, 110, nonShardHeapUsage))
         );
         assertThat(
-            simulator.computeNodeHeapMetrics().get(nodeB).nodeHeapEstimates(),
+            simulator.getClusterInfo().getNodeHeapMetrics().get(nodeB).nodeHeapEstimates(),
             equalTo(new NodeHeapEstimates(55, 0, nonShardHeapUsage))
         );
 
@@ -1010,11 +1010,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         allocation.routingNodes().startShard(relocation.v2(), allocation.changes(), 0L);
 
         assertThat(
-            simulator.computeNodeHeapMetrics().get(nodeA).nodeHeapEstimates(),
+            simulator.getClusterInfo().getNodeHeapMetrics().get(nodeA).nodeHeapEstimates(),
             equalTo(new NodeHeapEstimates(55, 0, nonShardHeapUsage))
         );
         assertThat(
-            simulator.computeNodeHeapMetrics().get(nodeB).nodeHeapEstimates(),
+            simulator.getClusterInfo().getNodeHeapMetrics().get(nodeB).nodeHeapEstimates(),
             equalTo(new NodeHeapEstimates(160, 110, nonShardHeapUsage))
         );
     }
@@ -1029,7 +1029,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final var simulator = new ClusterInfoSimulator(
             TestRoutingAllocationFactory.forClusterState(clusterState).build().mutableCloneForSimulation()
         );
-        assertThat(simulator.computeNodeHeapMetrics().isEmpty(), equalTo(true));
+        assertThat(simulator.getClusterInfo().getNodeHeapMetrics().isEmpty(), equalTo(true));
     }
 
     private static ClusterState clusterStateWithRoles(

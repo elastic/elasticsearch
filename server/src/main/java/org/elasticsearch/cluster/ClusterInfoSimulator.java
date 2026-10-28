@@ -137,8 +137,7 @@ public class ClusterInfoSimulator {
     /**
      * Node heap for the shards the current routing table places on each node
      */
-    // Visible for testing
-    public Map<String, NodeHeapMetrics> computeNodeHeapMetrics() {
+    private Map<String, NodeHeapMetrics> computeNodeHeapMetrics() {
         if (initialNodeHeapMetrics.isEmpty()) {
             return initialNodeHeapMetrics;
         }

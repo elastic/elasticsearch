@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfEncoder;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,7 +41,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -70,9 +71,34 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
           }
         }""";
 
+    /** Time series is the only non strict-columnar mode the batch path accepts, and its root keeps subobjects enabled. */
+    private static final Settings TIME_SERIES_SETTINGS = indexSettings(IndexVersion.current(), 1, 0).put(
+        IndexSettings.MODE.getKey(),
+        IndexMode.TIME_SERIES.getName()
+    )
+        .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+        .build();
+
+    /** Root subobjects:true, so dotted names expand; metrics does not expand, meta ignores its unmapped children. */
+    private static final String SUBOBJECTS_MAPPING = """
+        {
+          "_data_stream_timestamp": { "enabled": true },
+          "dynamic": "strict",
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "dim":     { "type": "keyword", "time_series_dimension": true },
+            "title":   { "type": "keyword" },
+            "obj":     { "properties": { "name": { "type": "keyword" } } },
+            "metrics": { "subobjects": false, "properties": { "time.max": { "type": "long" } } },
+            "meta":    { "type": "object", "dynamic": false }
+          }
+        }""";
+
     /**
-     * Moack the serverless metering decorator: charges the UTF-8 length of string values, 8 bytes per number and
-     * 1 byte per boolean, and — like the production decorator — only publishes the total once the parser is closed.
+     * A decorator with an arbitrary but deterministic accounting, the length of field names and string values plus one
+     * per other value token, that publishes its total only once the parser is closed.
      */
     private static final class SizeOnCloseDecorator implements XContentMeteringParserDecorator {
         private long inFlight = 0;
@@ -84,11 +110,11 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
                 @Override
                 public Token nextToken() throws IOException {
                     final Token token = super.nextToken();
-                    if (token == Token.VALUE_STRING) {
-                        inFlight += text().getBytes(StandardCharsets.UTF_8).length;
-                    } else if (token == Token.VALUE_NUMBER) {
-                        inFlight += Long.BYTES;
-                    } else if (token == Token.VALUE_BOOLEAN) {
+                    if (token == Token.FIELD_NAME) {
+                        inFlight += currentName().length();
+                    } else if (token == Token.VALUE_STRING) {
+                        inFlight += text().length();
+                    } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
                         inFlight += 1;
                     }
                     return token;
@@ -116,7 +142,11 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
     };
 
     private IndexShard newColumnarShard() throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("index").putMapping(MAPPING).settings(COLUMNAR_SETTINGS).primaryTerm(0, 1).build();
+        return newPrimaryShard(COLUMNAR_SETTINGS, MAPPING);
+    }
+
+    private IndexShard newPrimaryShard(Settings settings, String mapping) throws IOException {
+        IndexMetadata metadata = IndexMetadata.builder("index").putMapping(mapping).settings(settings).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(shard);
         return shard;
@@ -154,10 +184,58 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         return sources;
     }
 
+    /** Documents for {@link #SUBOBJECTS_MAPPING}; the metrics spelling is fixed per batch because mixing spellings falls back. */
+    private static List<BytesReference> randomSubobjectsDocuments(int numDocs) throws IOException {
+        final int metricsSpelling = randomIntBetween(0, 2);
+        final boolean dottedObjectKey = randomBoolean();
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                b.startObject();
+                b.field("@timestamp", "2021-04-28T12:00:00Z");
+                b.field("dim", randomAlphaOfLength(3));
+                b.field("title", randomRealisticUnicodeOfLengthBetween(1, 30));
+                if (dottedObjectKey) {
+                    b.field("obj.name", randomAlphaOfLengthBetween(1, 10));
+                } else {
+                    b.startObject("obj").field("name", randomAlphaOfLengthBetween(1, 10)).endObject();
+                }
+                final long max = randomLong();
+                switch (metricsSpelling) {
+                    case 0 -> b.startObject("metrics").field("time.max", max).endObject();
+                    case 1 -> b.field("metrics.time.max", max);
+                    case 2 -> b.startObject("metrics").startObject("time").field("max", max).endObject().endObject();
+                    default -> throw new AssertionError(metricsSpelling);
+                }
+                if (randomBoolean()) {
+                    b.startObject("meta").startObject("a").field("b.c", randomAlphaOfLengthBetween(1, 5)).endObject().endObject();
+                } else {
+                    b.startObject("meta.a").field("b.c", randomAlphaOfLengthBetween(1, 5)).endObject();
+                }
+                b.endObject();
+                sources.add(BytesReference.bytes(b));
+            }
+        }
+        return sources;
+    }
+
     private static BulkItemRequest[] items(List<BytesReference> sources) {
         final BulkItemRequest[] items = new BulkItemRequest[sources.size()];
         for (int i = 0; i < items.length; i++) {
             items[i] = new BulkItemRequest(i, new IndexRequest("index").id("doc-" + i).source(sources.get(i), XContentType.JSON));
+        }
+        return items;
+    }
+
+    /** Time series requests carry the routing hash and the tsid the coordinating node computes; the id is derived from them. */
+    private static BulkItemRequest[] timeSeriesItems(IndexShard shard, List<BytesReference> sources) {
+        final var routing = (IndexRouting.ExtractFromSource.ForIndexDimensions) shard.indexSettings().getIndexRouting();
+        final BulkItemRequest[] items = new BulkItemRequest[sources.size()];
+        for (int i = 0; i < items.length; i++) {
+            final IndexRequest request = new IndexRequest("index").source(sources.get(i), XContentType.JSON)
+                .routing(TimeSeriesRoutingHashFieldMapper.encode(randomInt()))
+                .tsid(routing.buildTsid(XContentType.JSON, sources.get(i)));
+            items[i] = new BulkItemRequest(i, request);
         }
         return items;
     }
@@ -167,11 +245,11 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
             new BytesSource(request.source(), request.getContentType(), false),
-            null,
+            request.routing(),
             Map.of(),
             Map.of(),
             METERING_PROVIDER.newMeteringParserDecorator(),
-            null
+            request.tsid()
         );
         return shard.mapperService()
             .documentParser()
@@ -225,6 +303,31 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
                 if (numDocs > 1) {
                     final int from = randomIntBetween(1, numDocs - 1);
                     assertThat(indexBatch.slice(from, numDocs).normalizedSize(0), equalTo(expected[from]));
+                }
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testDotExpansionFollowsTheMapping() throws IOException {
+        IndexShard shard = newPrimaryShard(TIME_SERIES_SETTINGS, SUBOBJECTS_MAPPING);
+        try {
+            final int numDocs = randomIntBetween(1, 10);
+            final List<BytesReference> sources = randomSubobjectsDocuments(numDocs);
+            final BulkItemRequest[] items = timeSeriesItems(shard, sources);
+            final long[] expected = new long[numDocs];
+            for (int i = 0; i < numDocs; i++) {
+                expected[i] = sequentiallyMeteredSize(shard, (IndexRequest) items[i].request());
+            }
+
+            try (
+                SourceBatch batch = EscfEncoder.encode(sources, XContentType.JSON);
+                EngineBatch engineBatch = mapBatch(shard, items, batch, METERING_PROVIDER)
+            ) {
+                assertNotNull("expected the columnar path to be taken", engineBatch);
+                for (int i = 0; i < numDocs; i++) {
+                    assertThat(engineBatch.batch().normalizedSize(i), equalTo(expected[i]));
                 }
             }
         } finally {

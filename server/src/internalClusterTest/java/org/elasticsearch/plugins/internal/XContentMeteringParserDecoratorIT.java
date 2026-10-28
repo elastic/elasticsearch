@@ -23,9 +23,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -113,11 +113,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         assertAcked(
             indicesAdmin().prepareCreate(TEST_INDEX_NAME)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
-                )
+                .setSettings(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()))
                 .setMapping("""
                     { "dynamic": "strict", "properties": { "test": { "type": "keyword" } } }
                     """)
@@ -184,24 +180,21 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-                    List<Index> operations = batch.batch().materializeIndexOps();
-                    List<IndexResult> results = super.indexBatch(batch);
-                    for (int i = 0; i < results.size(); i++) {
-                        if (results.get(i).getResultType() == Result.Type.SUCCESS) {
-                            reportDocumentSize(operations.get(i).parsedDoc());
-                        }
-                    }
-                    return results;
+                public void onBatchParsingCompleted(BatchMappingContext context) {
+                    // the batch path reports the whole chunk through this hook, the way the stateless IndexEngine does
+                    newDocumentSizeReporter().onBatchParsingCompleted(context);
                 }
 
                 private void reportDocumentSize(ParsedDocument parsedDocument) {
-                    DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
+                    newDocumentSizeReporter().onIndexingCompleted(parsedDocument, Engine.Operation.Origin.PRIMARY);
+                }
+
+                private DocumentSizeReporter newDocumentSizeReporter() {
+                    return documentParsingProvider.newDocumentSizeReporter(
                         shardId.getIndex(),
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    documentParsingReporter.onIndexingCompleted(parsedDocument, Engine.Operation.Origin.PRIMARY);
                 }
             });
         }
@@ -244,6 +237,17 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
             long delta = parsedDocument.getNormalizedSize();
             if (delta > XContentMeteringParserDecorator.UNKNOWN_SIZE) {
                 COUNTER.addAndGet(delta);
+            }
+            assertThat(index.getName(), equalTo(TEST_INDEX_NAME));
+        }
+
+        @Override
+        public void onBatchParsingCompleted(BatchMappingContext context) {
+            for (int doc = 0; doc < context.docCount(); doc++) {
+                long delta = context.normalizedSize(doc);
+                if (delta > XContentMeteringParserDecorator.UNKNOWN_SIZE) {
+                    COUNTER.addAndGet(delta);
+                }
             }
             assertThat(index.getName(), equalTo(TEST_INDEX_NAME));
         }

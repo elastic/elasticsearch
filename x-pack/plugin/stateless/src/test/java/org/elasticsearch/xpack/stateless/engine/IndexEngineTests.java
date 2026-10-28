@@ -35,8 +35,10 @@ import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
@@ -49,6 +51,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -97,6 +100,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -552,37 +556,48 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
             )
         ) {
-            // Success case: all docs in the batch succeed. The columnar batch path reports metering for the
-            // materialized per-op views (see IndexOperationBatch#materializeIndexOps), not the original
-            // Engine.Index#parsedDoc() instances, so we match the reported document by id rather than by
-            // object identity and check that the size metered on the primary travelled with the batch.
             List<Engine.Index> ops = List.of(
                 randomDoc("id1", randomLongBetween(1, 10_000)),
                 randomDoc("id2", randomLongBetween(1, 10_000)),
                 randomDoc("id3", randomLongBetween(1, 10_000))
             );
+
+            // Parsing is reported once for the whole chunk, through the hook the shard calls while columns can
+            // still be attached; the per-document onParsingCompleted is never used on the batch path.
+            try (
+                var context = new BatchMappingContext(
+                    EngineTestCase.fromIndexOps(ops, encodeAsEscfBatch(ops)),
+                    MappingLookup.EMPTY,
+                    indexConfig.getIndexSettings(),
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                )
+            ) {
+                engine.onBatchParsingCompleted(context);
+                verify(documentSizeReporter).onBatchParsingCompleted(same(context));
+            }
+
+            // Success case: all docs in the batch succeed. Indexing is reported for the materialized per-op views
+            // (see IndexOperationBatch#materializeIndexOps), not the original Engine.Index#parsedDoc() instances, so
+            // we match the reported document by id rather than by object identity and check that the size metered
+            // on the primary travelled with the batch.
             List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
             for (int i = 0; i < results.size(); i++) {
                 final String id = ops.get(i).id();
                 final long normalizedSize = ops.get(i).parsedDoc().getNormalizedSize();
                 assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-                verify(documentSizeReporter).onParsingCompleted(
-                    argThat(doc -> doc.id().equals(id) && doc.getNormalizedSize() == normalizedSize)
-                );
                 verify(documentSizeReporter).onIndexingCompleted(
                     argThat(doc -> doc.id().equals(id) && doc.getNormalizedSize() == normalizedSize),
                     eq(PRIMARY)
                 );
             }
+            verify(documentSizeReporter, never()).onParsingCompleted(any(ParsedDocument.class));
 
-            // Failure case: a version-conflicting op is parsed but never gets onIndexingCompleted. It reuses
-            // id "id1", so onParsingCompleted has now fired twice for that id (success batch + this batch)
-            // while onIndexingCompleted stays at the single success-batch call.
+            // Failure case: a version-conflicting op never gets onIndexingCompleted. It reuses id "id1", so
+            // onIndexingCompleted stays at the single success-batch call for that id.
             Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
             List<Engine.Index> failOps = List.of(conflictingOp);
             List<Engine.IndexResult> failResults = engine.indexBatch(engineBatch(failOps, encodeAsEscfBatch(failOps)));
             assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
-            verify(documentSizeReporter, times(2)).onParsingCompleted(argThat(doc -> doc.id().equals("id1")));
             verify(documentSizeReporter, times(1)).onIndexingCompleted(argThat(doc -> doc.id().equals("id1")), eq(PRIMARY));
         }
     }

@@ -131,4 +131,10 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         // Test isn't relevant, since query is never parsed from xContent
     }
 
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // ExactKnnQueryBuilder is not user-parseable from XContent; the self-test cannot exercise the parse path
+        return false;
+    }
+
 }

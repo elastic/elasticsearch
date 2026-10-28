@@ -394,6 +394,29 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         }
     }
 
+    public void testScriptPayloadBreakerEstimate() throws IOException {
+        // minimumShouldMatchScript source, params, and lang are charged beyond values and fieldName.
+        // fieldName TEXT_FIELD_NAME (13 chars): 90. source "_script" (7 chars): 78. empty params: 32.
+        // lang MockScriptEngine.NAME "mockscript" (10 chars): 84.
+        // values List.of("hi"): 32+1*8+(2*2+64)=108. small: 256+90+108+78+32+84=648.
+        // large params Map.of("k","x"×500): 32+48+(1*2+64)+(500*2+64)=1210. large: 256+90+108+78+1210+84=1826 → trips.
+        String scriptSource = "_script";
+        long scriptSourceCost = scriptSource.length() * 2L + 64L;
+        long emptyParamsCost = 32L;
+        long langCost = MockScriptEngine.NAME.length() * 2L + 64L;
+        long valuesCost = 32L + 8L + (2 * 2L + 64L);
+        long fieldNameCost = TEXT_FIELD_NAME.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldNameCost + valuesCost + scriptSourceCost
+            + emptyParamsCost + langCost;
+        Script smallScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptSource, Collections.emptyMap());
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptSource, Map.of("k", "x".repeat(500)));
+        assertParseTimeBreaker(
+            limit,
+            new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("hi")).setMinimumShouldMatchScript(smallScript),
+            new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("hi")).setMinimumShouldMatchScript(largeScript)
+        );
+    }
+
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
@@ -408,6 +431,21 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 }
             });
         }
+    }
+
+    public void testTermsValueBreakerEstimate() throws IOException {
+        // BASELINE + fieldName + estimateValue(values) + minimumShouldMatchField.
+        // fieldName "mapped_string" (13 chars): 90. List.of("hi"): 32+1*8+(2*2+64)=108.
+        // msmField "num" (3 chars): 70. small: 256+90+108+70=524.
+        // List.of("x"×500): 32+1*8+(500*2+64)=1104. large: 256+90+1104+70=1520 → trips.
+        long msmFieldCost = "num".length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + TEXT_FIELD_NAME.length() * 2L + 64L + 32L + 8L + (2 * 2L
+            + 64L) + msmFieldCost;
+        assertParseTimeBreaker(
+            limit,
+            new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("hi")).setMinimumShouldMatchField("num"),
+            new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("x".repeat(500))).setMinimumShouldMatchField("num")
+        );
     }
 
 }

@@ -107,6 +107,10 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return this;
     }
 
+    public String getField() {
+        return field;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());

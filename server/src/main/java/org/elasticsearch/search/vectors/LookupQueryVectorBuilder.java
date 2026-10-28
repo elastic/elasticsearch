@@ -224,6 +224,13 @@ public class LookupQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     @Override
+    public long parseTimeBreakerEstimate() {
+        long estimate = id.length() * 2L + 64L + index.length() * 2L + 64L + path.length() * 2L + 64L;
+        if (routing != null) estimate += routing.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         LookupQueryVectorBuilder that = (LookupQueryVectorBuilder) o;

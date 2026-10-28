@@ -207,4 +207,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
         }
     }
+
+    public void testSourceBytesBreakerEstimate() throws IOException {
+        // Small source: estimate = BASELINE + source.length + 32. Large source trips a tightly-set breaker.
+        byte[] smallSource = Strings.toString(new TermQueryBuilder(TEXT_FIELD_NAME, "v")).getBytes(StandardCharsets.UTF_8);
+        byte[] largeSource = Strings.toString(new TermQueryBuilder(TEXT_FIELD_NAME, "v".repeat(500))).getBytes(StandardCharsets.UTF_8);
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallSource.length + 32L;
+        assertParseTimeBreaker(limit, new WrapperQueryBuilder(smallSource), new WrapperQueryBuilder(largeSource));
+    }
 }

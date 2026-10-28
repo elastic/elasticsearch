@@ -139,6 +139,11 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length + 32L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Arrays.hashCode(source);
     }

@@ -155,9 +155,13 @@ Files without a modification time sort as the oldest. Equal modification times u
 
 ## Declare a schema explicitly
 
-By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets.md#create-or-update-a-dataset).
+By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
-{applies_to}`stack: experimental 9.6+` You can also declare columns in the **Mapping** step when you add a dataset in {{kib}}.
+{applies_to}`stack: experimental 9.6+` You can also declare columns in the **Schema mappings** step when you [add a dataset in {{kib}}](esql-data-federation-manage-datasets-ui.md#schema-mappings). The step's controls set the same properties:
+
+- **Use mapped fields only** sets `dynamic` to `false`.
+- **Original field name** sets `path`.
+- **Enable time-based filtering** declares an `@timestamp` column whose `path` is the date column you enter.
 
 The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, and supplies its date format:
 
@@ -182,17 +186,60 @@ PUT /_query/dataset/access_logs
 }
 ```
 
+### Mapping properties
+
 The `mappings` block supports the following properties:
 
-- `properties`: Columns keyed by their logical name. Each column requires a `type`.
-  - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
+- `properties`: Columns keyed by their logical name. Each column supports:
+  - `type`: Required. The column's data type. Refer to [supported types](#declared-types).
+  - `path`: Optional physical column name. Use it to expose a file column under a different logical name. For example, to rename a timestamp column to `@timestamp`.
     - {applies_to}`stack: experimental 9.6+` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
-  - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
-    - {applies_to}`stack: experimental 9.6+` A plain number in a `date_nanos` column without a `format` is also read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, can't be represented and is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). There is no `format` for epoch nanoseconds: to read epoch-nanoseconds values, declare the column as `long` and convert it with `TO_DATE_NANOS` in the query.
-    - {applies_to}`stack: experimental =9.5` A plain number in a `date_nanos` column without a `format` is read as epoch nanoseconds.
+  - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Refer to [date columns](#declared-date-columns).
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference, and leave undeclared columns unavailable to queries.
 
-{applies_to}`stack: experimental 9.6+` A `mappings` block can't include `_id`. A create or update request that contains one is rejected.
+### Supported types [declared-types]
+
+Declared types use the same names and value ranges as {{es}} [field data types](/reference/elasticsearch/mapping-reference/field-data-types.md). The supported types are `boolean`, `date`, `date_nanos`, `double`, `integer`, `ip`, `keyword`, `long`, and `unsigned_long`.
+
+::::{applies-switch}
+
+:::{applies-item} stack: experimental 9.6+
+`text` isn't supported. Declare the column as `keyword` and convert it with `TO_TEXT` in the query.
+:::
+
+:::{applies-item} stack: experimental =9.5
+`text` is also supported.
+:::
+
+::::
+
+### Date columns [declared-date-columns]
+
+Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
+
+How a plain number in a `date_nanos` column is read without a `format` depends on your version:
+
+::::{applies-switch}
+
+:::{applies-item} stack: experimental 9.6+
+The number is read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, can't be represented and is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). There is no `format` for epoch nanoseconds. To read epoch-nanoseconds values, declare the column as `long` and convert it with `TO_DATE_NANOS` in the query.
+:::
+
+:::{applies-item} stack: experimental =9.5
+The number is read as epoch nanoseconds.
+:::
+
+::::
+
+### Invalid mappings [invalid-mappings]
+
+{{es}} validates the `mappings` block when you create or update a dataset. The request is rejected with a `400` error when:
+
+- A column uses an unsupported type, such as `geo_point`.
+- {applies_to}`stack: experimental 9.6+` A column uses the `text` type.
+- A column includes a mapping parameter other than `type`, `path`, and `format`, such as `ignore_above`.
+- A column sets `format`, but its type isn't `date` or `date_nanos`.
+- {applies_to}`stack: experimental 9.6+` The `mappings` block includes `_id`.
 
 ### How declared columns match file columns
 

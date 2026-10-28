@@ -83,6 +83,9 @@ public final class ComputeExecutor implements Executor {
         try {
             executor.execute(placeholder);
         } catch (EsRejectedExecutionException e) {
+            // Normally our task is still queued, so remove it and reject it. But another placeholder may have already taken it.
+            // In that case, reject another queued task instead, so queued tasks stay matched with pending placeholders. Prefer a
+            // normal task, as resumed tasks are more critical.
             AbstractRunnable rejected = queue.removeLastOccurrence(preserving) ? preserving : normal.pollLast();
             if (rejected == null) {
                 rejected = resumed.pollLast();

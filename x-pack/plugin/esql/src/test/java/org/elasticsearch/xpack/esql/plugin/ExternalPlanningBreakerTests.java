@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -673,7 +672,6 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             null,
             threadPool,
-            new ComputeExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext()),
             BigArrays.NON_RECYCLING_INSTANCE,
             blockFactory,
             operators,

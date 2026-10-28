@@ -476,20 +476,9 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    // TODO: Remove this
     public static void start(
         ThreadContext threadContext,
         Executor executor,
-        Driver driver,
-        int maxIterations,
-        ActionListener<Void> listener
-    ) {
-        start(threadContext, new ComputeExecutor(executor, threadContext), driver, maxIterations, listener);
-    }
-
-    public static void start(
-        ThreadContext threadContext,
-        ComputeExecutor executor,
         Driver driver,
         int maxIterations,
         ActionListener<Void> listener
@@ -506,8 +495,7 @@ public class Driver implements Releasable, Describable {
                 executor,
                 driver,
                 driver.completionListener,
-                currentTimeNanosSupplier,
-                false
+                currentTimeNanosSupplier
             );
         }
     }
@@ -583,11 +571,10 @@ public class Driver implements Releasable, Describable {
         TimeValue maxTime,
         int maxIterations,
         ThreadContext threadContext,
-        ComputeExecutor executor,
+        Executor executor,
         Driver driver,
         ActionListener<Void> listener,
-        LongSupplier currentTimeNanosSupplier,
-        boolean resumed
+        LongSupplier currentTimeNanosSupplier
     ) {
         AbstractRunnable task = new AbstractRunnable() {
             @Override
@@ -598,19 +585,10 @@ public class Driver implements Releasable, Describable {
                     return;
                 }
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier, false);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(
-                            maxTime,
-                            maxIterations,
-                            threadContext,
-                            executor,
-                            driver,
-                            listener,
-                            currentTimeNanosSupplier,
-                            true
-                        ),
+                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier),
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
@@ -639,7 +617,7 @@ public class Driver implements Releasable, Describable {
             }
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
-        driver.scheduler.scheduleOrRunTask(executor, task, resumed);
+        driver.scheduler.scheduleOrRunTask(executor, task);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

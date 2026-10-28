@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 163388
+summary: Charge enrich lookup responses on ingest node
+type: enhancement

@@ -919,6 +919,197 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// A re-evaluation of an equal-share plan only hands out saved time, even when the warm-volume heuristic would win. With 4 shards on
+    /// the source each was budgeted 2500ms of the 10s grace; 2000ms later the fresh share is 4000ms when two shards are left (1500ms
+    /// saved) and 2000ms when all four remain (nothing saved). Warm volume would take the whole remaining 8000ms, because only this shard
+    /// has a collected volume.
+    public void testReevaluationOfEqualSharePlanUsesSavedTimeEvenIfWarmVolumeWins() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final var previous = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(2500),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            final int shardsLeft = randomFrom(2, 4);
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                1,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                shardsLeft - 1
+            );
+            ShardWarmVolumes volumes = enabledWarmVolumes();
+            volumes.put(sourceNodeId, new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of(new ShardId(index, 0), 600L)));
+            final var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(plan.extendable(), is(true));
+            assertThat(plan.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
+            assertThat(plan.perShardShareMs(), equalTo(8000.0 / shardsLeft));
+            assertThat(plan.shouldExtendAfter(previous), is(true));
+
+            final var firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
+            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+            assertThat(firstPlan.timeout().millis(), equalTo(8000L));
+            assertThat(firstPlan.extendable(), is(false));
+            assertThat(firstPlan.shouldExtendAfter(previous), is(false));
+        }
+    }
+
+    /// Volumes that arrive after an equal-share plan do not replace the extension. The first calculation has no volume map, so it is
+    /// equal-share: 4 shards share a 10s grace, 2500ms each. 2000ms later two shards have left and the map arrives; warm volume would
+    /// take the whole remaining 8000ms, but only the 1500ms saved since the previous share is handed out.
+    public void testReevaluationIgnoresWarmVolumesThatArriveAfterEqualSharePlan() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            ShardWarmVolumes volumes = enabledWarmVolumes();
+            final var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
+
+            final ClusterState initialState = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                1,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                3
+            );
+            final ShardRouting initialSelf = initialState.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+            final var firstPlan = service.searchRecoveryTimeout(initialState, mockIndexShard(initialSelf), 0L, null);
+            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(firstPlan.perShardShareMs(), equalTo(2500.0));
+            assertThat(firstPlan.timeout().millis(), equalTo(2500L));
+
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            volumes.put(sourceNodeId, new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of(new ShardId(index, 0), 600L)));
+            final ClusterState stateAfterEarlyFinishes = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                1,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                1
+            );
+            final ShardRouting self = stateAfterEarlyFinishes.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+            final var extended = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, firstPlan);
+            assertThat(extended.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(extended.extendable(), is(true));
+            assertThat(extended.timeout().millis(), equalTo(1500L));
+            assertThat(extended.perShardShareMs(), equalTo(4000.0));
+            assertThat(extended.shouldExtendAfter(firstPlan), is(true));
+
+            final var freshPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, null);
+            assertThat(freshPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+            assertThat(freshPlan.timeout().millis(), equalTo(8000L));
+        }
+    }
+
+    /// A previous plan with no per-shard share is not an equal-share extension, so the first shutdown plan is chosen from scratch and
+    /// warm volume may win. 10s grace, 2000ms elapsed, volumes 600/300/100 across three shards still competing for this target: warm
+    /// volume is 4800ms, above the equal share.
+    public void testWarmVolumeWinsAsFirstShutdownPlanAfterPlanWithoutShare() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                0,
+                2
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            ShardWarmVolumes volumes = enabledWarmVolumes();
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.CollectedWarmVolumes(
+                    startedAtMillis,
+                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
+                )
+            );
+            final var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            final var previous = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(2500),
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN
+            );
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+            assertThat(plan.timeout().millis(), equalTo(4800L));
+            assertThat(plan.extendable(), is(false));
+            assertThat(plan.shouldExtendAfter(previous), is(true));
+        }
+    }
+
     /// [SearchRecoveryTimeout#shouldExtendAfter] for every pair of contexts: any extendable context can be the previous plan (the loop
     /// stops before re-evaluating after a non-extendable one), and any context can be the re-evaluated plan. Every pair is listed
     /// explicitly, either as extending or as stopping, so that a new [TimeoutContext] fails this test until a decision is made for it.
@@ -1702,6 +1893,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final List<SearchRecoveryTimeout> computedFromScratch = List.of(
                 new SearchRecoveryTimeout(slice, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE),
                 new SearchRecoveryTimeout(slice, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME),
+                new SearchRecoveryTimeout(slice, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME),
                 new SearchRecoveryTimeout(slice, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
             );
             for (final var previous : computedFromScratch) {

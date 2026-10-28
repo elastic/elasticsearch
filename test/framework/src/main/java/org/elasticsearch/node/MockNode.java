@@ -107,7 +107,8 @@ public class MockNode extends Node {
             ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer
+            Tracer tracer,
+            TaskManager taskManager
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -122,7 +123,8 @@ public class MockNode extends Node {
                     responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    taskManager
                 );
             }
             return new MockSearchService(
@@ -136,7 +138,8 @@ public class MockNode extends Node {
                 responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
-                tracer
+                tracer,
+                taskManager
             );
         }
 

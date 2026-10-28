@@ -466,7 +466,7 @@ public class CsvIT extends ESTestCase {
                 actual.values(),
                 testCase.ignoreOrder,
                 indexLoadStrategy.ignoreValueOrder(),
-                false,
+                true,
                 assertionLogger
             );
             var warnings = listener.warnings.stream()

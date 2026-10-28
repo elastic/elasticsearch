@@ -45,13 +45,16 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
                 () -> format(
-                    "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+                    "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s] "
+                        + "index [%s] index-mode [%s]",
                     index.id(),
                     index.seqNo(),
                     indexShard.routingEntry().allocationId(),
                     index.primaryTerm(),
                     indexShard.getOperationPrimaryTerm(),
-                    index.origin()
+                    index.origin(),
+                    indexShard.indexSettings().getIndex().getName(),
+                    indexShard.indexSettings().getMode()
                 ),
                 ex
             );
@@ -97,14 +100,16 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
 
     private Supplier<Object> getMessageSupplier(String messagePrefix, IndexOperationBatch batch, int i) {
         return () -> format(
-            "%s [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+            "%s [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
             messagePrefix,
             batch.id(i),
             batch.seqNo(i),
             indexShard.routingEntry().allocationId(),
             batch.primaryTerm(),
             indexShard.getOperationPrimaryTerm(),
-            batch.origin()
+            batch.origin(),
+            indexShard.indexSettings().getIndex().getName(),
+            indexShard.indexSettings().getMode()
         );
     }
 
@@ -127,13 +132,15 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
         LOGGER.debug(
             () -> format(
                 "index-fail batch docCount [%s] startingSeqNo [%s] allocation-id [%s] primaryTerm [%s] "
-                    + "operationPrimaryTerm [%s] origin [%s]",
+                    + "operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
                 batch.docCount(),
                 batch.seqNo(0),
                 indexShard.routingEntry().allocationId(),
                 batch.primaryTerm(),
                 indexShard.getOperationPrimaryTerm(),
-                batch.origin()
+                batch.origin(),
+                indexShard.indexSettings().getIndex().getName(),
+                indexShard.indexSettings().getMode()
             ),
             ex
         );

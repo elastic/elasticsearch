@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public abstract class ValuesReader implements ReleasableIterator<Block[]> {
     protected final ValuesSourceReaderOperator operator;
@@ -170,13 +171,16 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 }
             }
             SourceLoader sourceLoader = null;
+            // Read before merging in the source loader's stored fields below, which resets the paths to "the whole document".
+            Set<String> sourcePaths = storedFieldsSpec.sourcePaths();
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = operator.sourceLoader(shard, storedFieldsSpec.sourcePaths());
+                sourceLoader = operator.sourceLoader(shard, sourcePaths);
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx, null) : null,
+                sourcePaths
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);

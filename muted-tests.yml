@@ -308,12 +308,11 @@ tests:
     - testQuantizedVectorSearch
     - testFlatQuantizedVectorSearch
   issue: https://github.com/elastic/elasticsearch/issues/XXXX
-# After #160599 the extra empty commit on delete is gone, so gens are 7/8/9.
-# This branch still asserts 8/9/10 from the main-merge resolution. Keep .dvp
-# listings when the maps are updated.
+# Maps match main (7/8/9) plus Lucene 11 .dvp. Mute until the blob-delete
+# await is confirmed without the extra wait+flush from 266fe044.
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
   method: testBackgroundMergeCanRetainDeletedGenerationalFile
-  issue: https://github.com/elastic/elasticsearch/issues/XXXX
+  issue: https://github.com/elastic/elasticsearch/issues/163787
 # Lucene 11 force-merge packs .cfs; index.compound_format: false is a no-op until
 # CompoundFormat is wired, so _stats file_sizes hide cnd.
 - class: org.elasticsearch.upgrades.ColumnarIndexModeRollingUpgradeIT

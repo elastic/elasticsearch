@@ -40,8 +40,8 @@ public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getCharFilters() {
         Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
-        // TODO: LUCENE11 expose HangulCompositionCharFilter as an ES char_filter
-        // (compose jamo before KoreanTokenizer).
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163775):
+        // expose HangulCompositionCharFilter as an ES char_filter.
         filters.put("hangulcomposition", Void.class);
         return filters;
     }

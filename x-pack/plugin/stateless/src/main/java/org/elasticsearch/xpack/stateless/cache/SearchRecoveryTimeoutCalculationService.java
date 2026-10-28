@@ -339,7 +339,7 @@ public class SearchRecoveryTimeoutCalculationService {
             // n.b. RELOCATING does not imply running, under recovery throttling a shard may still be queued for a slot.
             final boolean noShardWaitingForRelocationSlot = shardsOnSource <= concurrentRelocations;
             final double extensionMs = noShardWaitingForRelocationSlot
-                ? Math.min(remaining, TimeValue.timeValueMinutes(1).millis())
+                ? Math.min(TimeValue.timeValueMinutes(1).millis(), remaining)
                 : Math.max(0.0, equalShareMs - previousPlan.perShardShareMs()) * concurrentRelocations;
             return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(Math.min(remaining, extensionMs))),

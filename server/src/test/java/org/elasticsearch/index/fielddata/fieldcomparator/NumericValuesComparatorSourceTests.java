@@ -13,11 +13,14 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DoubleDocValuesField;
+import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -25,28 +28,54 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 /**
  * Checks that rejecting an invalid missing value does not leave the bucketed comparator's arrays charged to the breaker.
  */
-public class DoubleValuesComparatorSourceTests extends ESTestCase {
+public class NumericValuesComparatorSourceTests extends ESTestCase {
 
     /**
      * Building a Lucene sort defers missing-value validation. The bucketed sort must reject the same value without leaking
      * arrays allocated by its superclass before the missing-value initializer runs.
      */
     public void testInvalidMissingValueReleasesBucketedSortArrays() {
+        for (NumericType type : List.of(
+            NumericType.BYTE,
+            NumericType.SHORT,
+            NumericType.INT,
+            NumericType.LONG,
+            NumericType.HALF_FLOAT,
+            NumericType.FLOAT,
+            NumericType.DOUBLE
+        )) {
+            IndexNumericFieldData fieldData;
+            if (type.isFloatingPoint()) {
+                fieldData = new SortedDoublesIndexFieldData(
+                    "price",
+                    type,
+                    CoreValuesSourceType.NUMERIC,
+                    DoubleDocValuesField::new,
+                    IndexType.points(false, true)
+                );
+            } else {
+                fieldData = new SortedNumericIndexFieldData(
+                    "price",
+                    type,
+                    CoreValuesSourceType.NUMERIC,
+                    LongDocValuesField::new,
+                    IndexType.points(false, true)
+                );
+            }
+            assertInvalidMissingValueReleasesBucketedSortArrays(fieldData);
+        }
+    }
+
+    private void assertInvalidMissingValueReleasesBucketedSortArrays(IndexNumericFieldData fieldData) {
         CircuitBreakerService breakers = newLimitedBreakerService(ByteSizeValue.ofMb(1));
         CircuitBreaker breaker = breakers.getBreaker(CircuitBreaker.REQUEST);
         // No recycler or aggregation preallocation, so the counter directly measures outstanding array allocations.
         BigArrays bigArrays = new BigArrays(null, breakers, CircuitBreaker.REQUEST).withCircuitBreaking();
-        SortedDoublesIndexFieldData fieldData = new SortedDoublesIndexFieldData(
-            "price",
-            NumericType.DOUBLE,
-            CoreValuesSourceType.NUMERIC,
-            DoubleDocValuesField::new,
-            IndexType.points(false, true)
-        );
-
         // Successfully building the Lucene sort does not establish that the missing value can be parsed.
         assertNotNull(fieldData.sortField(false, IndexVersion.current(), "bogus", MultiValueMode.MIN, null, false));
         assertEquals(0L, breaker.getUsed());
@@ -65,6 +94,6 @@ public class DoubleValuesComparatorSourceTests extends ESTestCase {
             )
         );
 
-        assertEquals("failed bucketed sort construction must release its arrays", 0L, breaker.getUsed());
+        assertEquals("failed bucketed sort construction must release its arrays for " + fieldData.getNumericType(), 0L, breaker.getUsed());
     }
 }

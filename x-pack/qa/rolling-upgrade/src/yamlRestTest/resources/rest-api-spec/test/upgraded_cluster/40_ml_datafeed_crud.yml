@@ -293,3 +293,52 @@ setup:
   - do:
       indices.delete:
         index: airline-data
+
+---
+"Test max_consecutive_extraction_failures on upgraded cluster":
+  # The datafeed created on the old cluster must still be retrievable once every node is upgraded.
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-max-consec-failures"}
+  - is_false: datafeeds.0.max_consecutive_extraction_failures
+
+  # On the fully upgraded (re-added) cluster the field is persisted, and the .ml-config mapping upgraded during the
+  # rolling upgrade declares it as keyword, so setting a value round-trips through _source.
+  - do:
+      ml.update_datafeed:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+        body:  >
+          {
+            "max_consecutive_extraction_failures": 25
+          }
+  - match: { max_consecutive_extraction_failures: 25 }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+  - match: { datafeeds.0.max_consecutive_extraction_failures: 25 }
+
+  # -1 resets the setting back to its default, so the field is cleared from the stored config.
+  - do:
+      ml.update_datafeed:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+        body:  >
+          {
+            "max_consecutive_extraction_failures": -1
+          }
+  - is_false: max_consecutive_extraction_failures
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+  - is_false: datafeeds.0.max_consecutive_extraction_failures
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-max-consec-failures-job
+  - match: { acknowledged: true }

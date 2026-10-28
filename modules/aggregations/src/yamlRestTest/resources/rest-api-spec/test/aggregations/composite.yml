@@ -836,6 +836,36 @@ setup:
                   ]
 
 ---
+"Non-positive size":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ composite_agg_rejects_non_positive_size ]
+      test_runner_features: [capabilities]
+      reason: "changed NPE to 400"
+
+  - do:
+      catch: /\[size\] must be greater than 0. Found \[0\] in \[test\]/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                size: 0
+                sources: [
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword"
+                      }
+                    }
+                  }
+                ]
+  - match: { status: 400 }
+
+---
 "Simple Composite aggregation with GeoTile grid":
   - requires:
       cluster_features: ["gte_v7.5.0"]

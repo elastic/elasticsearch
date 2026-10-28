@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.List;
 import java.util.Objects;
@@ -68,5 +73,30 @@ public abstract class SpatialDocValuesFunction extends EsqlScalarFunction {
      */
     public boolean prefersDocValuesExtraction() {
         return true;
+    }
+
+    /**
+     * Returns the {@code geo_shape} or {@code cartesian_shape} field that a function transforming {@code geometry} can be
+     * fused into loading, or {@code null} if {@code geometry} is not such a field or its doc values cannot reconstruct
+     * the original geometry. See {@link org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression}.
+     */
+    @Nullable
+    protected static FieldAttribute fusableShapeField(Expression geometry, SearchStats stats) {
+        if (geometry instanceof FieldAttribute field
+            && (field.dataType() == DataType.GEO_SHAPE || field.dataType() == DataType.CARTESIAN_SHAPE)
+            && stats.hasDocValues(field.fieldName())
+            && stats.supportsGeometryDocValueReconstruction(field.fieldName())) {
+            return field;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the value of a constant numeric argument, or {@code null} if it is not a constant number. Arguments that
+     * are not constant numbers keep using the evaluator, so that it reports the error.
+     */
+    @Nullable
+    protected static Double constantNumber(Expression expression) {
+        return expression instanceof Literal literal && literal.value() instanceof Number number ? number.doubleValue() : null;
     }
 }

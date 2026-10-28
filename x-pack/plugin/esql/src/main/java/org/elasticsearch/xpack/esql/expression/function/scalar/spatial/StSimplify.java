@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.locationtech.jts.geom.GeometryFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -213,40 +211,19 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
      */
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (geometry instanceof FieldAttribute field
-            && (field.dataType() == DataType.GEO_SHAPE || field.dataType() == DataType.CARTESIAN_SHAPE)
-            && tolerance instanceof Literal literal
-            && literal.value() instanceof Number number
-            && number.doubleValue() >= 0
-            && stats.hasDocValues(field.fieldName())
-            && stats.supportsGeometryDocValueReconstruction(field.fieldName())) {
-            double inputTolerance = number.doubleValue();
-            return new PushedBlockLoaderExpression(
-                field,
-                new BlockLoaderFunctionConfig.GeometryTransform(
-                    BlockLoaderFunctionConfig.Function.ST_SIMPLIFY,
-                    inputTolerance,
-                    simplifyTransformers(inputTolerance)
-                )
-            );
+        FieldAttribute field = fusableShapeField(geometry, stats);
+        Double inputTolerance = constantNumber(tolerance);
+        if (field == null || inputTolerance == null || inputTolerance < 0) {
+            return null;
         }
-        return null;
-    }
-
-    private static BlockLoaderFunctionConfig.GeometryTransformerFactory simplifyTransformers(double tolerance) {
-        return warnings -> {
-            JtsGeometryConverter converter = new JtsGeometryConverter(new GeometryFactory());
-            return geometry -> {
-                try {
-                    return processor.processSingleGeometry(converter.toJts(geometry), tolerance);
-                } catch (IllegalArgumentException e) {
-                    if (warnings != null) {
-                        warnings.registerException(IllegalArgumentException.class, e.getMessage());
-                    }
-                    return null;
-                }
-            };
-        };
+        return new PushedBlockLoaderExpression(
+            field,
+            new BlockLoaderFunctionConfig.GeometryTransform(
+                BlockLoaderFunctionConfig.Function.ST_SIMPLIFY,
+                inputTolerance,
+                processor.transformers(inputTolerance)
+            )
+        );
     }
 
     @Override

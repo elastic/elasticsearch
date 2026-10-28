@@ -1552,6 +1552,15 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    /**
+     * How long an election attempt may take, given the delay variability, which determines the spacing of the election attempts. If this
+     * is shorter than an attempt actually takes then a newly started attempt can overtake the previous one while it is still in flight, and
+     * the two keep unseating each other so no leader emerges within the time that the test allows.
+     */
+    protected long singleNodeElectionDurationMillis(long delayVariabilityMillis) {
+        return delayVariabilityMillis;
+    }
+
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
         // A cluster using single-node discovery should not apply any timeouts to joining or cluster state publication. There are no
         // other options, so there's no point in failing and retrying from scratch no matter how badly disrupted we are and we may as
@@ -1566,10 +1575,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         // If the delay variability is high, set election duration accordingly, to avoid the possible endless repetition of voting rounds.
         // Note that elections could take even longer than the delay variability, but this seems to be long enough to avoid bad collisions.
-        if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(Settings.EMPTY).getMillis() < delayVariabilityMillis) {
+        final long electionDurationMillis = singleNodeElectionDurationMillis(delayVariabilityMillis);
+        if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(Settings.EMPTY).getMillis() < electionDurationMillis) {
             settings = settings.put(
                 ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getKey(),
-                TimeValue.timeValueMillis(delayVariabilityMillis)
+                TimeValue.timeValueMillis(electionDurationMillis)
             );
         }
 

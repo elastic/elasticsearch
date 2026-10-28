@@ -69,6 +69,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    protected long singleNodeElectionDurationMillis(long delayVariabilityMillis) {
+        // An attempt should make the node the leader before the next attempt starts: the next attempt claims a higher term in the register
+        // straight away (see AtomicRegisterElectionStrategy#onNewElection), which unseats the leader elected by the earlier attempt.
+        // Becoming leader takes four forks in sequence, each delayed by up to delayVariabilityMillis: start_join, the applier task,
+        // the join request and the join/ping responses (both pings are sent together, so only the slower one counts).
+        // The setting is capped at 10 minutes (due to the setting constraint).
+        return Math.min(4 * delayVariabilityMillis, TimeValue.timeValueMinutes(10).millis());
+    }
+
+    @Override
     @TestLogging(
         reason = "testing ClusterFormationFailureHelper logging",
         value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"

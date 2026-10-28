@@ -99,7 +99,6 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
-    // LOAD_ALL is not documented here yet; its docs follow separately.
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
         For a conceptual overview and use cases, including performance considerations, refer to
@@ -121,12 +120,19 @@ public final class QuerySettings {
           absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
           even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
+        - `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+          single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
+          Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
-        Special notes about the `LOAD` option:
-        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
+        Special notes about the `LOAD` and `LOAD_ALL` options:
+        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
         - Referencing subfields of `flattened` parents is not supported.
+        - `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+          Other commands fail with an error that lists the supported ones.
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
           although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
           {applies_to}`stack: ga 9.5+`
@@ -191,10 +197,10 @@ public final class QuerySettings {
         name = "wildcards_match_datasets",
         type = { "boolean" },
         // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
-        // every page documenting that feature is stack: experimental / serverless: unavailable. Deriving it from
+        // every page documenting that feature is stack: preview / serverless: unavailable. Deriving it from
         // preview() would instead claim the setting is available in preview on serverless, where the feature is not
         // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: unavailable\nstack: preview 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
@@ -291,6 +297,12 @@ public final class QuerySettings {
                 name = "limit",
                 type = { "integer" },
                 description = "Maximum number of exemplars to return. Without it the default limit of a regular query applies."
+            ),
+            @MapParam.MapParamEntry(
+                name = "include_timeseries",
+                type = { "boolean" },
+                description = "When enabled, a `_timeseries` column is returned, holding the dimensions that identify the series each"
+                    + " exemplar belongs to. Defaults to `false`."
             ) }
     )
     public static final QuerySettingDef<ExemplarsSettings> EXEMPLARS = QuerySettingDef.object(

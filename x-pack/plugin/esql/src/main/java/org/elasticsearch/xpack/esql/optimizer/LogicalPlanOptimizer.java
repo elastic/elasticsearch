@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMapp
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFillNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
@@ -183,6 +184,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new WarnUnfillableFillNull(),
+            new SubstituteFillNull(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.

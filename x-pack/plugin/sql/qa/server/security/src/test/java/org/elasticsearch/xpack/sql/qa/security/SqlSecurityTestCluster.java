@@ -81,6 +81,7 @@ public final class SqlSecurityTestCluster {
         LocalClusterSpecBuilder<ElasticsearchCluster> builder = ElasticsearchCluster.local()
             .name("javaRestTest")
             .distribution(DistributionType.DEFAULT)
+            .plugin("freeze-plugin")
             // Setup auditing so we can use it in some tests
             .setting("xpack.security.audit.enabled", "true")
             .setting("xpack.security.enabled", "true")

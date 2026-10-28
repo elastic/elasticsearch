@@ -541,7 +541,9 @@ public class ReshardIndexService {
                     recoverySource,
                     new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
                     routingTableBuilder.getShardRoutingRoleStrategy().newEmptyRole(j),
-                    ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING
+                    // Replicas can only start once the target primary has taken over its share of the writes, and the split
+                    // only waits a bounded time for them before routing searches to the target, so they must not be deferred
+                    primary ? ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                 );
                 indexShardRoutingBuilder.addShard(shardRouting);
             }

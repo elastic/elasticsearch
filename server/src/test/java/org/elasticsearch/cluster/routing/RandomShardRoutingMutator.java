@@ -33,7 +33,10 @@ public final class RandomShardRoutingMutator {
                         randomFrom(
                             ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
                             ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING
                         )
                     );
                 } else if (shardRouting.unassignedInfo() != null) {

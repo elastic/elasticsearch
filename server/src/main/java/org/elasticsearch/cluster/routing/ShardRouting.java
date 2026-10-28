@@ -50,8 +50,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         /// Recovering this shard may be necessary to prevent the index being unavailable.
         UNASSIGNED_UNEXPECTED(false, true),
 
-        /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening or restoring an index,
-        /// but which is not an [#UNASSIGNED_NEW_PRIMARY].
+        /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening an index.
+        /// Note that this excludes [#UNASSIGNED_NEW_PRIMARY], [#UNASSIGNED_RESTORING], [#UNASSIGNED_SEARCH_SCALING]
+        /// or [#UNASSIGNED_RESHARDING].
         UNASSIGNED_EXPECTED(false, true),
 
         /// A shard which is assigned, and is being relocated because
@@ -73,10 +74,14 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         /// fully available without this new replica.
         UNASSIGNED_SEARCH_SCALING(false, true),
 
-        /// A shard which is unassigned because it is the target of a reshard split, or a replica of such a target.
+        /// A primary shard which is unassigned because it is the target of a reshard split. Replicas of split targets are
+        /// [#UNASSIGNED_EXPECTED] instead: they can only start once the target primary has taken over its share of the writes,
+        /// and the split only waits a bounded time for them before routing searches to the target.
         ///
-        /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because the index is
-        /// fully available from the source shards while the split is in progress, so the new shard only improves performance.
+        /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because, until the source hands
+        /// off to the target, the index is fully available from the source shard, so the new shard only improves performance.
+        /// Note that a target which fails after the handoff, but before it becomes active, keeps this priority on retry
+        /// (see `RoutingNodes#failedShardRecoveryPriority`) even though its share of the writes is then unavailable.
         /// It is also lower priority than [#UNASSIGNED_SEARCH_SCALING] because a split is expected to take longer than starting
         /// a new replica, and holds its recovery slot on the target while the source does most of the work.
         UNASSIGNED_RESHARDING(false, true),

@@ -623,45 +623,59 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     /// [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED].
     public void testFailedShardRecoveryPriority() {
         final var projectId = randomProjectIdOrDefault();
-        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var failPrimary = randomBoolean();
+        final var indexMetadata = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, failPrimary ? 0 : 1))
+            .build();
         final var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
-        final var replicaActive = randomBoolean();
-        final var replicaRecoveryPriority = randomFrom(
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
-            ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING,
-            ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING
-        );
-        final var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).build())
-            .addShard(
-                replicaActive
-                    ? shardRoutingBuilder(shardId, "node-2", false, STARTED).build()
-                    : shardRoutingBuilder(shardId, "node-2", false, INITIALIZING).withRecoveryPriority(replicaRecoveryPriority).build()
+        final var failedShardActive = randomBoolean();
+        final var failedShardRecoveryPriority = failPrimary
+            ? randomFrom(
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
+                ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING
             )
-            .build();
+            : randomFrom(
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
+                ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING
+            );
+        final var failedShardNode = failPrimary ? "node-1" : "node-2";
+        final var failedShard = failedShardActive
+            ? shardRoutingBuilder(shardId, failedShardNode, failPrimary, STARTED).build()
+            : shardRoutingBuilder(shardId, failedShardNode, failPrimary, INITIALIZING).withRecoveryPriority(failedShardRecoveryPriority)
+                .build();
+        final var indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(failedShard);
+        if (failPrimary == false) {
+            indexRoutingTableBuilder.addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).build());
+        }
 
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
             .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build())
-            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
+            .routingTable(
+                GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTableBuilder.build()).build())
+            )
             .build();
 
         final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
         routingNodes.failShard(
-            routingNodes.node("node-2").getByShardId(shardId),
+            routingNodes.node(failedShardNode).getByShardId(shardId),
             new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
             RoutingChangesObserver.NOOP
         );
 
-        final var unassignedReplica = routingNodes.unassigned().iterator().next();
-        assertThat(unassignedReplica.shardId(), equalTo(shardId));
+        assertThat(routingNodes.unassigned().size(), equalTo(1));
+        final var unassignedShard = routingNodes.unassigned().iterator().next();
+        assertThat(unassignedShard.shardId(), equalTo(shardId));
+        assertThat(unassignedShard.primary(), equalTo(failPrimary));
         assertThat(
-            unassignedReplica.recoveryPriority(),
-            equalTo(replicaActive ? ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED : replicaRecoveryPriority)
+            unassignedShard.recoveryPriority(),
+            equalTo(failedShardActive ? ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED : failedShardRecoveryPriority)
         );
     }
 

@@ -920,6 +920,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
     /// just a retry, so it keeps the last priority it had.
     private static ShardRouting.RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard) {
+        // TODO: a reshard split target primary takes over writes for its share of the documents at HANDOFF, before it becomes
+        // active, so its failure in that window does reduce availability and it should then be UNASSIGNED_UNEXPECTED.
+        // The window is small and this edge case is expected to be rare, but this should be fixed.
         if (failedShard.initializing()) {
             assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
             return failedShard.recoveryPriority();

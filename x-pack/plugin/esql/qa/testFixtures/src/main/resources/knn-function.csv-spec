@@ -486,12 +486,12 @@ required_capability: fn_knn_k_option_without_limit
 
 from colors
 // STATS stops the limit-to-k pushdown, so the explicit k option is what bounds knn.
-| where knn(rgb_vector, [255,255,238], {"k": 2}) and hex_code like "#FFF*" 
+| where knn(rgb_vector, [255,255,238], {"k": 5}) and color == "green"
 | stats count = count(*)
 ;
 
 count:long
-2
+1
 ;
 
 knnFollowedByLimitFollowedByStats

@@ -34,7 +34,7 @@ public abstract class NumericColumnValues extends DocIdSetIterator {
      * document at a time. A column of that shape has nothing to learn from each document but its value, so a cursor
      * that knows it is spared being stepped through value by value.
      */
-    public int nextValuesOfConsecutiveDocuments(long[] dst) throws IOException {
+    public int nextValuesOfConsecutiveDocuments(long[] dst) {
         return -1;
     }
 }

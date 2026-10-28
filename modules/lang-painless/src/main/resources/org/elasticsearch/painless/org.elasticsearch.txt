@@ -121,7 +121,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
 }
 
 class org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues {
-    float[] getVectorValue()
+    float[] getVectorValue() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="denseVectorCopyBytes"]
     float getMagnitude()
 }
 

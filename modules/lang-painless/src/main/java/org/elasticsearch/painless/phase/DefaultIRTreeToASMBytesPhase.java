@@ -859,12 +859,16 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
         if (painlessMethod == null) {
-            // DefBootstrap.ITERATOR carries no annotation, so there is no estimator to replay. The size is the same either
-            // way, a collection iterator or the ValueIterator wrapper for an array, so charge the constant inline.
-            writeAllocationCheck(writeScope, AllocSizes.ITERATOR_BYTES);
-
-            Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
-            methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
+            if (isAllocationTrackingActive(writeScope)) {
+                // The receiver's class is only known at runtime, so pass the script and let the bootstrap charge the iterator()
+                // estimator it resolves, or the wrapper for an array.
+                writeInstanceScriptCapture(writeScope, methodWriter);
+                Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class), CLASS_TYPE);
+                methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR, 1);
+            } else {
+                Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
+                methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
+            }
         } else {
             java.lang.reflect.Method iteratorEstimator = irForEachSubIterableNode.getDecorationValue(IRDAllocationEstimator.class);
 

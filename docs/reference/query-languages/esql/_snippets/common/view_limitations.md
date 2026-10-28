@@ -43,6 +43,41 @@ Views are available in serverless and [cross-project search](/reference/query-la
 ::::{applies-switch}
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 A Query DSL filter on the request applies to the output of a view, after the commands in the view definition. If Elasticsearch can't translate a filter clause to ES|QL, it omits that clause for the view and returns a warning. Check the response warnings because omitting a clause can produce more results than the complete filter would.
+
+For example, create a view that counts sales by region:
+
+```console
+PUT /_query/view/sales_by_region
+{
+  "query": "FROM sales | STATS total = COUNT(*) BY region"
+}
+```
+
+The following request requires both `should` clauses to match:
+
+```console
+POST /_query
+{
+  "query": "FROM sales_by_region | KEEP region, total | LIMIT 1000",
+  "filter": {
+    "bool": {
+      "should": [
+        { "term": { "region": "eu" } },
+        { "term": { "total": 3 } }
+      ],
+      "minimum_should_match": 2
+    }
+  }
+}
+```
+
+ES|QL can't translate a `minimum_should_match` value greater than `1`. It skips
+the `should` group for the view, which can return more rows than the complete
+filter would, and returns this warning:
+
+```text
+The request filter could not be fully applied to view(s); the following Query DSL constructs are not supported and were skipped: [bool[minimum_should_match=2]] on view [sales_by_region]. Use a WHERE clause to filter rows from views instead
+```
 :::
 :::{applies-item} stack: preview 9.4-9.5
 A Query DSL filter on the request applies to the source indices in the view definition, not to the view output.

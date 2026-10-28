@@ -1082,7 +1082,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, expectedOperations);
     }
 
-    public void testCheckShardStillAllocated() throws Exception {
+    public void testListenerCompletionWithStalePrimaryTerm() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
 
@@ -1114,10 +1114,9 @@ public class TranslogReplicatorTests extends ESTestCase {
             assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0]);
         });
 
-        // This sync should never complete. The actual sync will be failed when the shard is closed.
-        assertFalse(future.isDone());
+        assertTrue(future.isDone());
+        assertThat(expectThrows(AlreadyClosedException.class, future::actionGet).getMessage(), containsString("primary term is stale"));
         translogReplicator.unregister(shardId);
-        expectThrows(AlreadyClosedException.class, future::actionGet);
     }
 
     public void testTranslogReplicatorReaderCanCancel() throws Exception {

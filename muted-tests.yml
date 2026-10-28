@@ -577,3 +577,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/160421
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+  tasks:
+  - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
+  method: test {agg-ordering.testMultipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_1}
+  issue: https://github.com/elastic/elasticsearch/issues/163662

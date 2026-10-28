@@ -59,6 +59,7 @@ import java.util.TreeMap;
 public class TsInfoOperator implements Operator {
 
     public static final int NUM_BLOCKS = 7;
+    public static final int NO_LIMIT = Integer.MAX_VALUE;
 
     /**
      * Key for grouping per metric, parent data-stream or concrete index, and dimensions in INITIAL mode.
@@ -148,7 +149,8 @@ public class TsInfoOperator implements Operator {
                 dataStreamsByIndex,
                 metadataSourceChannel,
                 indexChannel,
-                null
+                null,
+                NO_LIMIT
             );
         }
 
@@ -164,17 +166,21 @@ public class TsInfoOperator implements Operator {
      * @param channels the 7 input channel indices for
      *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields, dimensions]
      */
-    public record FinalFactory(int[] channels) implements OperatorFactory {
+    public record FinalFactory(int[] channels, int limit) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels);
+            return new TsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels, limit);
         }
 
         @Override
         public String describe() {
-            return "TsInfoOperator[mode=FINAL]";
+            return "TsInfoOperator[mode=FINAL" + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
         }
     }
+
+    private record MetricDimensions(String metricName, String dimensionsJson) {}
+
+    static final long METRIC_DIMENSIONS_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricDimensions.class);
 
     /** Shallow size of a TsInfoKey + TsInfoEntry pair (object headers and field slots only). */
     static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator
@@ -199,6 +205,8 @@ public class TsInfoOperator implements Operator {
     private final int indexChannel;
     /** FINAL-mode field: input channel indices for the 7 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
+    private final int limit;
+    private final Set<MetricDimensions> metricDimensions = new HashSet<>();
 
     private boolean finished = false;
     private boolean outputProduced = false;
@@ -214,7 +222,8 @@ public class TsInfoOperator implements Operator {
         Map<String, String> dataStreamsByIndex,
         int metadataSourceChannel,
         int indexChannel,
-        int[] channels
+        int[] channels,
+        int limit
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
@@ -224,6 +233,7 @@ public class TsInfoOperator implements Operator {
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
+        this.limit = limit;
     }
 
     @Override
@@ -407,6 +417,14 @@ public class TsInfoOperator implements Operator {
                 String dimensionsJson = readSingleValue(dimBlock, pos, scratch);
                 if (dimensionsJson == null) {
                     dimensionsJson = "{}";
+                }
+                MetricDimensions metricDims = new MetricDimensions(metricName, dimensionsJson);
+                if (metricDimensions.contains(metricDims) == false) {
+                    if (metricDimensions.size() >= limit) {
+                        continue;
+                    }
+                    trackBytes(METRIC_DIMENSIONS_SHALLOW_SIZE);
+                    metricDimensions.add(metricDims);
                 }
 
                 Set<String> indexAbstractionNames = readMultiValue(dsBlock, pos, scratch);
@@ -617,7 +635,7 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public String toString() {
-        return "TsInfoOperator[mode=" + mode + "]";
+        return "TsInfoOperator[mode=" + mode + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
     }
 
     public record Status(Mode mode, int pagesReceived, long rowsReceived, long rowsEmitted, int entriesAccumulated)
